@@ -150,6 +150,7 @@ export default function InterviewReportPage() {
         interview_date: "未知时间",
         duration_minutes: 0,
         total_questions: 0,
+        answered_questions: 0,
         competency_scores: {
           job_fit: 0,
           technical_depth: 0,

@@ -251,7 +251,7 @@ class ASRService {
         
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           console.warn('未找到支持的音频格式，使用默认格式')
-          mimeType = undefined // 使用浏览器默认格式
+          mimeType = 'audio/webm' // 使用通用格式
         }
       }
 

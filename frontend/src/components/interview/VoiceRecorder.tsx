@@ -246,36 +246,11 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // 权限提示 - 只在明确不支持时显示警告，但不阻止功能
-  const showCompatibilityWarning = !state.isSupported && (
-    !window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost'
-  )
-  
-  if (showCompatibilityWarning) {
-    // 只在非HTTPS环境下显示警告，但仍然允许尝试使用
-    return (
-      <div className={`space-y-4 ${className}`}>
-        <div className="flex flex-col space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="flex items-center space-x-2">
-            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
-            <span className="text-sm text-yellow-700">检测到浏览器兼容性问题</span>
-          </div>
-          <div className="text-xs text-yellow-600 pl-7">
-            当前非HTTPS环境，麦克风功能可能受限。建议使用HTTPS访问或更新浏览器。
-          </div>
-        </div>
-        {/* 仍然显示录音界面，让用户可以尝试 */}
-        {renderRecordingInterface()}
-      </div>
-    )
-  }
-
   // 权限棐示，但不阻止使用
   const showPermissionWarning = state.isSupported && !state.hasPermission
-  
+
   // 渲染录音界面的函数
   const renderRecordingInterface = () => (
-
     <div className={`space-y-4 ${className}`}>
       {/* 权限警告 */}
       {showPermissionWarning && (
@@ -389,6 +364,30 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
 
     </div>
   )
+
+  // 权限提示 - 只在明确不支持时显示警告，但不阻止功能
+  const showCompatibilityWarning = !state.isSupported && (
+    !window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost'
+  )
+  
+  if (showCompatibilityWarning) {
+    // 只在非HTTPS环境下显示警告，但仍然允许尝试使用
+    return (
+      <div className={`space-y-4 ${className}`}>
+        <div className="flex flex-col space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="flex items-center space-x-2">
+            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
+            <span className="text-sm text-yellow-700">检测到浏览器兼容性问题</span>
+          </div>
+          <div className="text-xs text-yellow-600 pl-7">
+            当前非HTTPS环境，麦克风功能可能受限。建议使用HTTPS访问或更新浏览器。
+          </div>
+        </div>
+        {/* 仍然显示录音界面，让用户可以尝试 */}
+        {renderRecordingInterface()}
+      </div>
+    )
+  }
   
   // 返回主界面
   return renderRecordingInterface()

@@ -252,7 +252,7 @@ export default function SettingsPage() {
           定期更新密码可以提高账户安全性
         </p>
         <button
-          onClick={() => toast.info('密码修改功能正在开发中')}
+          onClick={() => toast('密码修改功能正在开发中')}
           className="text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded-md hover:bg-yellow-200 transition-colors"
         >
           修改密码

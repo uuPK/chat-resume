@@ -692,7 +692,7 @@ export default function InterviewsPage() {
                   min="5"
                   max="20"
                   value={formData.questionCount}
-                  onChange={(e) => handleInputChange('questionCount', parseInt(e.target.value) || 10)}
+                  onChange={(e) => handleInputChange('questionCount', (parseInt(e.target.value) || 10).toString())}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <p className="text-xs text-gray-500 mt-1">建议5-20个问题，默认10个</p>
