@@ -472,7 +472,7 @@ export default function InterviewsPage() {
 
                   {/* Action Buttons - 根据状态显示不同按钮 */}
                   {session.status === 'completed' ? (
-                    // 已完成的面试 - 面试完成按钮和查看报告按钮
+                    // 已完成的面试 - 面试完成按钮和报告按钮（根据是否生成报告显示不同文字）
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2 cursor-default"
@@ -486,11 +486,13 @@ export default function InterviewsPage() {
                         className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
                       >
                         <ChartBarIcon className="w-4 h-4" />
-                        <span>查看报告</span>
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
                       </Link>
                     </div>
                   ) : session.status === 'active' ? (
-                    // 进行中的面试 - 继续面试和查看报告按钮
+                    // 进行中的面试 - 继续面试和报告按钮（根据是否生成报告显示不同文字）
                     <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/resume/${session.resume_id}/interview?session=${session.id}`}
@@ -504,7 +506,9 @@ export default function InterviewsPage() {
                         className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
                       >
                         <ChartBarIcon className="w-4 h-4" />
-                        <span>查看报告</span>
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
                       </Link>
                     </div>
                   ) : (
@@ -518,11 +522,13 @@ export default function InterviewsPage() {
                         <span>继续面试</span>
                       </Link>
                       <Link
-                        href={`/interviews/${session.id}/report`}
+                        href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
                         className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
                       >
                         <ChartBarIcon className="w-4 h-4" />
-                        <span>查看报告</span>
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
                       </Link>
                     </div>
                   )}

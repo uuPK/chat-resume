@@ -33,6 +33,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, password: string, fullName: string) => Promise<boolean>
   logout: () => void
+  updateUser: (userData: Partial<User>) => void
+  refreshUser: () => Promise<void>
 }
 
 // 创建认证上下文
@@ -149,6 +151,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  // 更新用户信息
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...userData })
+    }
+  }
+
+  // 刷新用户信息
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        const freshUser = await AuthAPI.getCurrentUser()
+        setUser(freshUser)
+      }
+    } catch (error) {
+      console.error('Refresh user error:', error)
+    }
+  }
+
   // 检查认证状态
   const checkAuth = async () => {
     try {
@@ -182,6 +204,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
+    updateUser,
+    refreshUser,
   }
 
   return (
