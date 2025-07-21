@@ -16,7 +16,8 @@ import {
   ChartBarIcon,
   PlayIcon,
   DocumentIcon,
-  TrashIcon
+  TrashIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -43,7 +44,8 @@ export default function InterviewsPage() {
     jobPosition: '',
     selectedResumeId: '',
     interviewMode: 'comprehensive',
-    jdContent: ''
+    jdContent: '',
+    questionCount: 10
   })
   const [isCreating, setIsCreating] = useState(false)
 
@@ -249,7 +251,8 @@ export default function InterviewsPage() {
       jobPosition: '',
       selectedResumeId: '',
       interviewMode: 'comprehensive',
-      jdContent: ''
+      jdContent: '',
+      questionCount: 10
     })
   }
 
@@ -259,7 +262,8 @@ export default function InterviewsPage() {
       jobPosition: '',
       selectedResumeId: '',
       interviewMode: 'comprehensive',
-      jdContent: ''
+      jdContent: '',
+      questionCount: 10
     })
   }
 
@@ -324,6 +328,7 @@ export default function InterviewsPage() {
       const params = new URLSearchParams({
         mode: formData.interviewMode,
         position: formData.jobPosition,
+        questionCount: formData.questionCount.toString(),
         ...(formData.jdContent && { jd: formData.jdContent })
       })
       
@@ -455,92 +460,76 @@ export default function InterviewsPage() {
                       </div>
                     </div>
                     
-                    {/* 优化后的状态标签 */}
-                    {session.status === 'completed' && session.overall_score ? (
-                      <div className="flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full">
-                        <span className="text-sm font-medium">{session.overall_score}分</span>
-                      </div>
-                    ) : session.status === 'active' ? (
-                      <div className="flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full">
-                        <span className="text-sm font-medium">进行中</span>
-                      </div>
-                    ) : (
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        session.status === 'completed' 
-                          ? 'bg-green-100 text-green-800'
-                          : session.status === 'active'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {session.status === 'completed' ? '已完成' : 
-                         session.status === 'active' ? '进行中' : '已暂停'}
-                      </span>
-                    )}
+                    {/* 删除按钮 - 右上角 */}
+                    <button
+                      onClick={() => handleDeleteInterview(session.id, session.job_position)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      title="删除面试"
+                    >
+                      <TrashIcon className="w-5 h-5" />
+                    </button>
                   </div>
 
                   {/* Action Buttons - 根据状态显示不同按钮 */}
                   {session.status === 'completed' ? (
-                    // 已完成的面试 - 查看报告和删除按钮同一行
-                    <div className="grid grid-cols-3 gap-2">
+                    // 已完成的面试 - 面试完成按钮和报告按钮（根据是否生成报告显示不同文字）
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2 cursor-default"
+                        disabled
+                      >
+                        <CheckCircleIcon className="w-4 h-4" />
+                        <span>面试完成</span>
+                      </button>
                       <Link
                         href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
-                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-2"
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
                       >
-                        <ChartBarIcon className="w-5 h-5" />
-                        <span className="font-medium">查看报告</span>
+                        <ChartBarIcon className="w-4 h-4" />
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
                       </Link>
-                      <button
-                        onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger flex items-center justify-center space-x-1 py-2"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                        <span className="text-sm">删除</span>
-                      </button>
                     </div>
                   ) : session.status === 'active' ? (
-                    // 进行中的面试 - 继续面试和删除按钮同一行
-                    <div className="grid grid-cols-3 gap-2">
+                    // 进行中的面试 - 继续面试和报告按钮（根据是否生成报告显示不同文字）
+                    <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/resume/${session.resume_id}/interview?session=${session.id}`}
-                        className="col-span-2 btn-primary flex items-center justify-center space-x-2 py-2"
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
                       >
-                        <PlayIcon className="w-5 h-5" />
-                        <span className="font-medium">继续面试</span>
+                        <PlayIcon className="w-4 h-4" />
+                        <span>继续面试</span>
                       </Link>
-                      <button
-                        onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger flex items-center justify-center space-x-1 py-2"
+                      <Link
+                        href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
+                        className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
                       >
-                        <TrashIcon className="w-4 h-4" />
-                        <span className="text-sm">删除</span>
-                      </button>
+                        <ChartBarIcon className="w-4 h-4" />
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
+                      </Link>
                     </div>
                   ) : (
-                    // 其他状态 - 显示三个按钮
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Link
-                          href={`/resume/${session.resume_id}/interview?session=${session.id}`}
-                          className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
-                        >
-                          <PlayIcon className="w-4 h-4" />
-                          <span>继续面试</span>
-                        </Link>
-                        <Link
-                          href={`/interviews/${session.id}/report`}
-                          className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
-                        >
-                          <ChartBarIcon className="w-4 h-4" />
-                          <span>查看报告</span>
-                        </Link>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteInterview(session.id, session.job_position)}
-                        className="btn-danger w-full flex items-center justify-center space-x-2 py-2"
+                    // 其他状态 - 显示两个按钮
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        href={`/resume/${session.resume_id}/interview?session=${session.id}`}
+                        className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
                       >
-                        <TrashIcon className="w-4 h-4" />
-                        <span className="text-sm">删除</span>
-                      </button>
+                        <PlayIcon className="w-4 h-4" />
+                        <span>继续面试</span>
+                      </Link>
+                      <Link
+                        href={`/interviews/${session.id}/report?resume_id=${session.resume_id}`}
+                        className="btn-secondary flex items-center justify-center space-x-1 text-sm py-2"
+                      >
+                        <ChartBarIcon className="w-4 h-4" />
+                        <span>
+                          {session.overall_score ? '查看报告' : '生成报告'}
+                        </span>
+                      </Link>
                     </div>
                   )}
                 </motion.div>
@@ -691,6 +680,22 @@ export default function InterviewsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Question Count */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  问题数量
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="20"
+                  value={formData.questionCount}
+                  onChange={(e) => handleInputChange('questionCount', parseInt(e.target.value) || 10)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">建议5-20个问题，默认10个</p>
               </div>
 
               {/* JD Content */}

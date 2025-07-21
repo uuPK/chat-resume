@@ -17,6 +17,7 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline'
 import dynamic from 'next/dynamic'
+import MarkdownMessage from '@/components/ui/MarkdownMessage'
 
 // 动态导入图表组件以避免SSR问题
 const RadarChartComponent = dynamic(
@@ -42,6 +43,7 @@ interface InterviewReport {
   interview_date: string
   duration_minutes: number
   total_questions: number
+  answered_questions: number
   competency_scores: {
     job_fit: number
     technical_depth: number
@@ -60,6 +62,16 @@ interface InterviewReport {
       suggestions: string[]
       reference_answer?: string
     }
+  }[]
+  all_questions?: {
+    question: string
+    type?: string
+    index: number
+  }[]
+  reference_answers?: {
+    question: string
+    reference_answer: string
+    index: number
   }[]
   jd_keywords: {
     keyword: string
@@ -103,7 +115,7 @@ export default function InterviewReportPage() {
     }
   }, [mounted, isAuthenticated, reportId, resumeId])
 
-  const loadReportData = async () => {
+  const loadReportData = async (regenerate: boolean = false) => {
     if (!resumeId) {
       console.error('Resume ID is missing from URL parameters')
       setReportLoading(false)
@@ -116,9 +128,9 @@ export default function InterviewReportPage() {
       const sessionId = parseInt(reportId)
       const resumeIdNum = parseInt(resumeId)
       
-      console.log(`正在获取面试报告: resumeId=${resumeIdNum}, sessionId=${sessionId}`)
+      console.log(`正在获取面试报告: resumeId=${resumeIdNum}, sessionId=${sessionId}, regenerate=${regenerate}`)
       
-      const reportData = await interviewApi.getInterviewReport(resumeIdNum, sessionId)
+      const reportData = await interviewApi.getInterviewReport(resumeIdNum, sessionId, regenerate)
       console.log('获取到的报告数据:', reportData)
       
       setReport(reportData)
@@ -246,7 +258,7 @@ export default function InterviewReportPage() {
                 <span>下载PDF</span>
               </button>
               <button 
-                onClick={() => loadReportData()}
+                onClick={() => loadReportData(true)}
                 disabled={reportLoading}
                 className="btn-primary flex items-center space-x-2 text-sm disabled:opacity-50"
               >
@@ -295,7 +307,7 @@ export default function InterviewReportPage() {
                   </div>
                   <div>
                     <div className="text-gray-500 mb-1">总用时</div>
-                    <div className="font-medium">{report.duration_minutes} 分钟 • {report.total_questions} 题</div>
+                    <div className="font-medium">{report.duration_minutes} 分钟 • {report.answered_questions}/{report.total_questions} 题</div>
                   </div>
                 </div>
               </div>
@@ -316,7 +328,7 @@ export default function InterviewReportPage() {
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-green-700 mb-2 flex items-center">
-                      ✨ 亮点表现
+                      亮点表现
                     </h4>
                     <div className="space-y-2">
                       {report.ai_highlights.map((highlight, index) => (
@@ -329,7 +341,7 @@ export default function InterviewReportPage() {
                   
                   <div>
                     <h4 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
-                      💡 改进建议
+                      改进建议
                     </h4>
                     <div className="space-y-2">
                       {report.ai_improvements.map((improvement, index) => (
@@ -349,7 +361,125 @@ export default function InterviewReportPage() {
             <h2 className="text-2xl font-bold text-gray-900 mb-6">逐题详细分析</h2>
             
             <div className="space-y-6">
-              {report.conversation.map((item, index) => (
+              {/* 显示所有问题，包括已回答和未回答的 */}
+              {(report.all_questions || []).map((questionItem, questionIndex) => {
+                // 找到对应的回答和反馈
+                const conversation = report.conversation.find(conv => conv.question === questionItem.question)
+                const isAnswered = !!conversation
+                
+                // 找到对应的AI参考答案
+                const referenceAnswer = report.reference_answers?.find(ref => ref.question === questionItem.question)
+                
+                return (
+                  <div key={questionIndex} className="card p-6">
+                    {/* 问题标题 */}
+                    <div className="flex items-center mb-4">
+                      <span className="text-sm font-medium text-gray-500 mr-2">问题 {questionIndex + 1}</span>
+                      {isAnswered ? (
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">已回答</span>
+                      ) : (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">未回答</span>
+                      )}
+                    </div>
+                    
+                    {/* 面试官问题 */}
+                    <div className="flex justify-start mb-4">
+                      <div className="max-w-[85%]">
+                        <div className="flex items-center mb-2">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                            <span className="text-sm font-medium text-blue-600">面</span>
+                          </div>
+                          <span className="text-sm text-gray-500">面试官</span>
+                        </div>
+                        <div className="bg-blue-50 text-blue-900 px-4 py-3 rounded-lg rounded-tl-sm border border-blue-200">
+                          {questionItem.question}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 你的回答（如果已回答） */}
+                    {isAnswered && (
+                      <div className="flex justify-end mb-4">
+                        <div className="max-w-[85%]">
+                          <div className="flex items-center justify-end mb-2">
+                            <span className="text-sm text-gray-500 mr-3">你的回答</span>
+                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-medium text-gray-600">你</span>
+                            </div>
+                          </div>
+                          <div className="bg-gray-100 text-gray-900 px-4 py-3 rounded-lg rounded-tr-sm border border-gray-200">
+                            {conversation.answer}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI参考答案 */}
+                    {referenceAnswer && (
+                      <div className="flex justify-start mb-4">
+                        <div className="max-w-[85%]">
+                          <div className="flex items-center mb-2">
+                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                              <span className="text-sm font-medium text-purple-600">AI</span>
+                            </div>
+                            <span className="text-sm text-gray-500">AI参考答案</span>
+                          </div>
+                          <div className="bg-purple-50 text-purple-900 px-4 py-3 rounded-lg rounded-tl-sm border border-purple-200">
+                            <MarkdownMessage content={referenceAnswer.reference_answer} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI反馈卡片（仅对已回答的问题显示） */}
+                    {isAnswered && (
+                      <div className="mt-4">
+                        <button
+                          onClick={() => toggleFeedback(questionIndex)}
+                          className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <ChartBarIcon className="w-4 h-4" />
+                          <span>
+                            {expandedFeedback.includes(questionIndex) ? '收起AI反馈' : '展开AI反馈'}
+                          </span>
+                          <span className="font-medium">({conversation.ai_feedback.score}/10)</span>
+                        </button>
+                        
+                        {expandedFeedback.includes(questionIndex) && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-4"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <h5 className="text-sm font-medium text-green-700 mb-2">优点分析</h5>
+                                <ul className="space-y-1">
+                                  {conversation.ai_feedback.strengths.map((strength, i) => (
+                                    <li key={i} className="text-sm text-gray-700">• {strength}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div>
+                                <h5 className="text-sm font-medium text-blue-700 mb-2">优化建议</h5>
+                                <ul className="space-y-1">
+                                  {conversation.ai_feedback.suggestions.map((suggestion, i) => (
+                                    <li key={i} className="text-sm text-gray-700">• {suggestion}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              
+              {/* 如果没有all_questions数据，回退到原来的显示方式 */}
+              {(!report.all_questions || report.all_questions.length === 0) && report.conversation.map((item, index) => (
                 <div key={index} className="card p-6">
                   {/* 面试官问题 */}
                   <div className="flex justify-start mb-4">
@@ -403,7 +533,7 @@ export default function InterviewReportPage() {
                       >
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <h5 className="text-sm font-medium text-green-700 mb-2">✅ 优点分析</h5>
+                            <h5 className="text-sm font-medium text-green-700 mb-2">优点分析</h5>
                             <ul className="space-y-1">
                               {item.ai_feedback.strengths.map((strength, i) => (
                                 <li key={i} className="text-sm text-gray-700">• {strength}</li>
@@ -411,7 +541,7 @@ export default function InterviewReportPage() {
                             </ul>
                           </div>
                           <div>
-                            <h5 className="text-sm font-medium text-blue-700 mb-2">💡 优化建议</h5>
+                            <h5 className="text-sm font-medium text-blue-700 mb-2">优化建议</h5>
                             <ul className="space-y-1">
                               {item.ai_feedback.suggestions.map((suggestion, i) => (
                                 <li key={i} className="text-sm text-gray-700">• {suggestion}</li>

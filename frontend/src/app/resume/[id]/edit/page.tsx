@@ -12,6 +12,7 @@ import {
   CheckIcon,
   ArrowUpIcon
 } from '@heroicons/react/24/outline'
+import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
 import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
@@ -34,6 +35,11 @@ interface Resume {
   id: number
   title: string
   content: {
+    job_application?: {
+      company?: string
+      position?: string
+      jd?: string
+    }
     personal_info?: {
       name?: string
       email?: string
@@ -86,7 +92,7 @@ export default function ResumeEditPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [activeSection, setActiveSection] = useState('personal')
+  const [activeSection, setActiveSection] = useState('job_application')
   
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -197,6 +203,16 @@ export default function ResumeEditPage() {
     }))
   }
 
+  // 更新简历标题
+  const updateResumeTitle = (title: string) => {
+    if (!resume) return
+
+    setResume(prev => ({
+      ...prev!,
+      title: title
+    }))
+  }
+
   // 聊天功能
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -260,7 +276,7 @@ export default function ResumeEditPage() {
         <div className="text-center">
           <p className="text-gray-600">简历不存在</p>
           <Link href="/dashboard" className="btn-primary mt-4">
-            返回仪表板
+            返回简历中心
           </Link>
         </div>
       </div>
@@ -279,12 +295,8 @@ export default function ResumeEditPage() {
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeftIcon className="w-5 h-5" />
-                <span>返回仪表板</span>
+                <span>返回简历中心</span>
               </Link>
-              <div className="h-6 border-l border-gray-300"></div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                简历编辑器 - {resume.title}
-              </h1>
             </div>
             
             <div className="flex items-center space-x-3">
@@ -328,29 +340,38 @@ export default function ResumeEditPage() {
                 {/* Section Tabs */}
                 <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg flex-shrink-0">
                   {[
-                    { key: 'personal', label: '个人信息', icon: '👤' },
-                    { key: 'education', label: '教育经历', icon: '🎓' },
-                    { key: 'work', label: '工作经验', icon: '💼' },
-                    { key: 'skills', label: '技能', icon: '🛠️' },
-                    { key: 'projects', label: '项目', icon: '📁' }
+                    { key: 'job_application', label: '投递岗位' },
+                    { key: 'personal', label: '个人信息' },
+                    { key: 'education', label: '教育经历' },
+                    { key: 'work', label: '工作经验' },
+                    { key: 'skills', label: '技能' },
+                    { key: 'projects', label: '项目' }
                   ].map(section => (
                     <button
                       key={section.key}
                       onClick={() => setActiveSection(section.key)}
-                      className={`flex-1 flex items-center justify-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex-1 flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         activeSection === section.key
                           ? 'bg-white text-primary-600 shadow-sm'
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      <span>{section.icon}</span>
-                      <span className="hidden sm:inline">{section.label}</span>
+                      <span>{section.label}</span>
                     </button>
                   ))}
                 </div>
 
                 {/* Editor Content */}
                 <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                  {activeSection === 'job_application' && (
+                    <JobApplicationEditor
+                      data={resume.content.job_application || {}}
+                      onChange={(data) => updateResumeContent('job_application', data)}
+                      resumeTitle={resume.title}
+                      onTitleChange={updateResumeTitle}
+                    />
+                  )}
+                  
                   {activeSection === 'personal' && (
                     <PersonalInfoEditor
                       data={resume.content.personal_info || {}}
@@ -400,7 +421,7 @@ export default function ResumeEditPage() {
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  AI助手
+                  AI简历优化师
                 </h2>
               </div>
               
