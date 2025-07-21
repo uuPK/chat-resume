@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token, verify_password
 from app.core.config import settings
 from app.models.user import User
-from app.schemas.auth import Token, UserCreate, UserResponse, LoginResponse
+from app.schemas.auth import Token, UserCreate, UserUpdate, UserResponse, LoginResponse
 from app.services.user_service import UserService
 from app.api.deps import get_current_user
 import logging
@@ -80,4 +80,33 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         full_name=current_user["full_name"],
         is_active=current_user["is_active"],
         created_at=current_user["created_at"]
+    )
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user(
+    user_update: UserUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """更新当前用户信息"""
+    logger.info(f"更新用户信息请求 - 用户ID: {current_user['id']}, 更新数据: {user_update.model_dump()}")
+    user_service = UserService(db)
+    
+    # 更新用户信息
+    updated_user = user_service.update(current_user["id"], user_update)
+    if not updated_user:
+        logger.error(f"用户不存在: {current_user['id']}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    logger.info(f"用户信息更新成功 - 用户ID: {updated_user.id}, 新姓名: {updated_user.full_name}")
+    
+    return UserResponse(
+        id=updated_user.id,
+        email=updated_user.email,
+        full_name=updated_user.full_name,
+        is_active=updated_user.is_active,
+        created_at=updated_user.created_at
     )

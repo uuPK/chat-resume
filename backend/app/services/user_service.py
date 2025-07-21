@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.schemas.auth import UserCreate
+from app.schemas.auth import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 
 class UserService:
@@ -31,4 +31,18 @@ class UserService:
             return None
         if not verify_password(password, user.hashed_password):
             return None
+        return user
+    
+    def update(self, user_id: int, user_update: UserUpdate) -> User:
+        """更新用户信息"""
+        user = self.get_by_id(user_id)
+        if not user:
+            return None
+        
+        # 更新用户信息
+        if user_update.full_name is not None:
+            user.full_name = user_update.full_name
+        
+        self.db.commit()
+        self.db.refresh(user)
         return user
