@@ -99,7 +99,17 @@ export default function ResumeEditPage() {
     {
       id: '1',
       type: 'ai',
-      content: '您好！我是您的AI简历优化师，可以帮您优化简历内容，请告诉我您需要什么帮助？',
+      content: `您好！我是您的简历优化Agent，我能提供以下服务：
+
+1. **岗位定向优化**：根据目标职位的JD，提出针对性修改建议
+
+2. **内容精炼与结构优化**：帮您梳理项目描述、强化个人亮点
+
+3. **量化成果与关键词增强**：引导您将抽象描述转化为具体成就
+
+4. **句子优化与润色建议**：对语句进行逻辑性、表达清晰度与专业度优化
+
+请输入您需要的服务的数字编号。`,
       timestamp: new Date()
     }
   ])
@@ -421,7 +431,7 @@ export default function ResumeEditPage() {
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  AI简历优化师
+                  简历优化Agent
                 </h2>
               </div>
               
