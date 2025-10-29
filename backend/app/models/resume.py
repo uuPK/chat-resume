@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 
+
 class Resume(Base):
     __tablename__ = "resumes"
 
@@ -14,11 +15,12 @@ class Resume(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     owner = relationship("User", back_populates="resumes")
     optimization_records = relationship("OptimizationRecord", back_populates="resume")
     interview_sessions = relationship("InterviewSession", back_populates="resume")
+
 
 class OptimizationRecord(Base):
     __tablename__ = "optimization_records"
@@ -29,9 +31,10 @@ class OptimizationRecord(Base):
     suggestions = Column(JSON, nullable=False)
     applied = Column(JSON, nullable=True)  # 用户应用的建议
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     resume = relationship("Resume", back_populates="optimization_records")
+
 
 class InterviewSession(Base):
     __tablename__ = "interview_sessions"
@@ -39,16 +42,18 @@ class InterviewSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
     job_position = Column(String, nullable=True)  # 面试职位
-    interview_mode = Column(String, nullable=True)  # 面试模式: comprehensive, technical, behavioral
+    interview_mode = Column(
+        String, nullable=True
+    )  # 面试模式: comprehensive, technical, behavioral
     jd_content = Column(Text, nullable=True)  # 职位描述
     questions = Column(JSON, nullable=False)  # 问题列表
-    answers = Column(JSON, nullable=False)    # 答案列表
-    feedback = Column(JSON, nullable=True)    # AI反馈
+    answers = Column(JSON, nullable=False)  # 答案列表
+    feedback = Column(JSON, nullable=True)  # AI反馈
     report_data = Column(JSON, nullable=True)  # 面试报告数据缓存
     status = Column(String, default="active")  # active, completed, paused
     overall_score = Column(Integer, nullable=True)  # 面试整体分数 (0-100)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     resume = relationship("Resume", back_populates="interview_sessions")

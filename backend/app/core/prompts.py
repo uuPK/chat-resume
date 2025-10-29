@@ -3,9 +3,10 @@ AI助手提示词管理模块
 将系统提示词与用户数据分离，便于维护和优化
 """
 
+
 class ResumeAssistantPrompts:
     """简历助手提示词管理类"""
-    
+
     # 核心系统提示词（不包含用户数据）
     SYSTEM_PROMPT = """# AI简历优化师 - 系统提示词
 
@@ -180,54 +181,62 @@ class ResumeAssistantPrompts:
     @staticmethod
     def format_resume_context(resume_content: dict) -> str:
         """格式化简历上下文信息"""
-        
+
         # 提取基本信息
         personal_info = resume_content.get("personal_info", {})
         name = personal_info.get("name", "未提供")
         email = personal_info.get("email", "未提供")
         phone = personal_info.get("phone", "未提供")
         position = personal_info.get("position", "未提供")
-        
+
         # 格式化技能信息
         skills = resume_content.get("skills", [])
         if skills:
-            skills_text = "\n".join([
-                f"- {skill.get('name', '未知技能')} ({skill.get('level', '未知水平')})"
-                for skill in skills
-            ])
+            skills_text = "\n".join(
+                [
+                    f"- {skill.get('name', '未知技能')} ({skill.get('level', '未知水平')})"
+                    for skill in skills
+                ]
+            )
         else:
             skills_text = "暂无技能信息"
-        
+
         # 格式化工作经历
         experience = resume_content.get("work_experience", [])
         if experience:
-            experience_text = "\n".join([
-                f"- {exp.get('company', '未知公司')} - {exp.get('position', '未知职位')} ({exp.get('duration', '未知时间')})"
-                for exp in experience
-            ])
+            experience_text = "\n".join(
+                [
+                    f"- {exp.get('company', '未知公司')} - {exp.get('position', '未知职位')} ({exp.get('duration', '未知时间')})"
+                    for exp in experience
+                ]
+            )
         else:
             experience_text = "暂无工作经历"
-        
+
         # 格式化项目经历
         projects = resume_content.get("projects", [])
         if projects:
-            projects_text = "\n".join([
-                f"- {proj.get('name', '未知项目')}：{proj.get('description', '无描述')}"
-                for proj in projects
-            ])
+            projects_text = "\n".join(
+                [
+                    f"- {proj.get('name', '未知项目')}：{proj.get('description', '无描述')}"
+                    for proj in projects
+                ]
+            )
         else:
             projects_text = "暂无项目经历"
-        
+
         # 格式化教育背景
         education = resume_content.get("education", [])
         if education:
-            education_text = "\n".join([
-                f"- {edu.get('school', '未知学校')} - {edu.get('major', '未知专业')} ({edu.get('degree', '未知学位')})"
-                for edu in education
-            ])
+            education_text = "\n".join(
+                [
+                    f"- {edu.get('school', '未知学校')} - {edu.get('major', '未知专业')} ({edu.get('degree', '未知学位')})"
+                    for edu in education
+                ]
+            )
         else:
             education_text = "暂无教育背景"
-        
+
         return ResumeAssistantPrompts.RESUME_CONTEXT_TEMPLATE.format(
             name=name,
             email=email,
@@ -236,70 +245,67 @@ class ResumeAssistantPrompts:
             skills_text=skills_text,
             experience_text=experience_text,
             projects_text=projects_text,
-            education_text=education_text
+            education_text=education_text,
         )
 
     @staticmethod
-    def build_chat_messages(user_message: str, resume_content: dict, chat_history: list = None) -> list:
+    def build_chat_messages(
+        user_message: str, resume_content: dict, chat_history: list | None = None
+    ) -> list:
         """构建聊天消息列表，支持对话历史"""
-        
+
         # 系统提示词
         system_message = {
-            "role": "system", 
-            "content": ResumeAssistantPrompts.SYSTEM_PROMPT
+            "role": "system",
+            "content": ResumeAssistantPrompts.SYSTEM_PROMPT,
         }
-        
+
         # 简历上下文信息
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        context_message = {
-            "role": "user",
-            "content": resume_context
-        }
-        
+        context_message = {"role": "user", "content": resume_context}
+
         # 构建消息列表
         messages = [system_message, context_message]
-        
+
         # 添加聊天历史（如果有的话）
         if chat_history:
             for msg in chat_history:
-                if msg.get('type') == 'user':
-                    messages.append({
-                        "role": "user",
-                        "content": msg.get('content', '')
-                    })
-                elif msg.get('type') == 'ai':
-                    messages.append({
-                        "role": "assistant",
-                        "content": msg.get('content', '')
-                    })
-        
+                if msg.get("type") == "user":
+                    messages.append({"role": "user", "content": msg.get("content", "")})
+                elif msg.get("type") == "ai":
+                    messages.append(
+                        {"role": "assistant", "content": msg.get("content", "")}
+                    )
+
         # 添加当前用户消息
-        user_question = {
-            "role": "user",
-            "content": user_message
-        }
+        user_question = {"role": "user", "content": user_message}
         messages.append(user_question)
-        
+
         # 调试：打印完整的消息结构
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("发送给大模型的完整消息:")
-        print("="*80)
+        print("=" * 80)
         for i, message in enumerate(messages):
-            print(f"\n消息 {i+1} - Role: {message['role']}")
+            print(f"\n消息 {i + 1} - Role: {message['role']}")
             print("-" * 40)
-            print(message['content'])
+            print(message["content"])
             print("-" * 40)
-        print("="*80 + "\n")
-        
+        print("=" * 80 + "\n")
+
         return messages
 
     @staticmethod
-    def build_interview_messages(user_message: str, resume_content: dict, chat_history: list = None, interview_mode: str = "comprehensive") -> list:
+    def build_interview_messages(
+        user_message: str,
+        resume_content: dict,
+        chat_history: list | None = None,
+        interview_mode: str = "comprehensive",
+    ) -> list:
         """构建面试对话消息列表"""
-        
+
         print("Debug - 正在构建面试消息")
         print(f"Debug - 面试模式: {interview_mode}")
-        
+
         # 根据面试模式选择系统提示词
         if interview_mode == "technical":
             system_prompt = ResumeAssistantPrompts.TECHNICAL_INTERVIEW_PROMPT
@@ -307,71 +313,68 @@ class ResumeAssistantPrompts:
             system_prompt = ResumeAssistantPrompts.BEHAVIORAL_INTERVIEW_PROMPT
         else:  # comprehensive 或其他
             system_prompt = ResumeAssistantPrompts.INTERVIEW_SYSTEM_PROMPT
-            
+
         print(f"Debug - 面试系统提示词前100字符: {system_prompt[:100]}")
-        
+
         # 面试官系统提示词
-        system_message = {
-            "role": "system", 
-            "content": system_prompt
-        }
-        
+        system_message = {"role": "system", "content": system_prompt}
+
         # 简历上下文信息
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        mode_description = ResumeAssistantPrompts.get_interview_mode_description(interview_mode)
-        
+        mode_description = ResumeAssistantPrompts.get_interview_mode_description(
+            interview_mode
+        )
+
         context_message = {
             "role": "user",
-            "content": f"现在开始面试。面试模式：{mode_description}\n\n以下是候选人的简历信息：\n{resume_context}\n请作为面试官，基于这份简历和面试模式进行面试对话。"
+            "content": f"现在开始面试。面试模式：{mode_description}\n\n以下是候选人的简历信息：\n{resume_context}\n请作为面试官，基于这份简历和面试模式进行面试对话。",
         }
-        
+
         messages = [system_message, context_message]
-        
+
         # 检查是否有聊天历史，如果没有则添加初始面试官回复
         has_interview_started = False
         if chat_history:
             for msg in chat_history:
-                if isinstance(msg, dict) and msg.get('type') == 'ai':
+                if isinstance(msg, dict) and msg.get("type") == "ai":
                     has_interview_started = True
                     break
-        
+
         # 检查用户消息是否为开始面试的请求
-        is_start_request = any(keyword in user_message.lower() for keyword in ['开始面试', '请开始', '打个招呼', 'start'])
-        
+        is_start_request = any(
+            keyword in user_message.lower()
+            for keyword in ["开始面试", "请开始", "打个招呼", "start"]
+        )
+
         # 如果面试还没开始且不是开始请求，添加初始回复
         if not has_interview_started and not is_start_request:
             assistant_context = {
                 "role": "assistant",
-                "content": f"好的，我是您的AI面试官。我已经审阅了您的简历，本次采用{mode_description}，现在开始正式面试。"
+                "content": f"好的，我是您的AI面试官。我已经审阅了您的简历，本次采用{mode_description}，现在开始正式面试。",
             }
             messages.append(assistant_context)
-        
+
         # 添加对话历史
         if chat_history:
             for msg in chat_history:
                 if isinstance(msg, dict):
-                    if msg.get('type') == 'user':
-                        messages.append({
-                            "role": "user",
-                            "content": msg.get('content', '')
-                        })
-                    elif msg.get('type') == 'ai':
-                        messages.append({
-                            "role": "assistant",
-                            "content": msg.get('content', '')
-                        })
-        
+                    if msg.get("type") == "user":
+                        messages.append(
+                            {"role": "user", "content": msg.get("content", "")}
+                        )
+                    elif msg.get("type") == "ai":
+                        messages.append(
+                            {"role": "assistant", "content": msg.get("content", "")}
+                        )
+
         # 添加当前用户消息
-        user_question = {
-            "role": "user",
-            "content": user_message
-        }
+        user_question = {"role": "user", "content": user_message}
         messages.append(user_question)
-        
+
         print(f"Debug - 最终消息列表长度: {len(messages)}")
         print(f"Debug - 系统消息: {system_prompt[:100]}")
         print(f"Debug - 最后一条用户消息: {messages[-1]['content']}")
-        
+
         return messages
 
     @staticmethod
@@ -379,22 +382,22 @@ class ResumeAssistantPrompts:
         """获取面试模式描述"""
         descriptions = {
             "comprehensive": "综合面试：平衡考察技术能力和软技能",
-            "technical": "技术深挖：深度评估技术能力和解决问题思路", 
-            "behavioral": "行为面试：重点关注软技能和文化契合度"
+            "technical": "技术深挖：深度评估技术能力和解决问题思路",
+            "behavioral": "行为面试：重点关注软技能和文化契合度",
         }
         return descriptions.get(mode, "综合面试")
 
     @staticmethod
     def build_analysis_messages(resume_content: dict, jd_content: str) -> list:
         """构建简历-岗位匹配分析消息"""
-        
+
         system_message = {
             "role": "system",
-            "content": "你是一个专业的HR顾问和简历优化专家，擅长分析简历与岗位要求的匹配度并提供优化建议。"
+            "content": "你是一个专业的HR顾问和简历优化专家，擅长分析简历与岗位要求的匹配度并提供优化建议。",
         }
-        
+
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        
+
         analysis_prompt = f"""{ResumeAssistantPrompts.JD_MATCHING_PROMPT}
 
 简历内容：
@@ -402,60 +405,58 @@ class ResumeAssistantPrompts:
 
 岗位描述：
 {jd_content}"""
-        
-        user_message = {
-            "role": "user",
-            "content": analysis_prompt
-        }
-        
+
+        user_message = {"role": "user", "content": analysis_prompt}
+
         return [system_message, user_message]
 
     @staticmethod
-    def build_interview_questions_messages(resume_content: dict, jd_content: str = None, question_count: int = 10) -> list:
+    def build_interview_questions_messages(
+        resume_content: dict, jd_content: str | None = None, question_count: int = 10
+    ) -> list:
         """构建面试问题生成消息"""
-        
+
         system_message = {
             "role": "system",
-            "content": "你是一个专业的面试官，擅长根据简历和岗位要求设计面试问题。"
+            "content": "你是一个专业的面试官，擅长根据简历和岗位要求设计面试问题。",
         }
-        
+
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        
+
         # 根据问题总数动态分配各类型问题数量
         tech_count = max(2, int(question_count * 0.3))
         project_count = max(2, int(question_count * 0.4))
         behavior_count = max(1, question_count - tech_count - project_count - 2)
-        
+
         prompt = ResumeAssistantPrompts.INTERVIEW_QUESTIONS_PROMPT.format(
             question_count=question_count,
             tech_count=tech_count,
             project_count=project_count,
-            behavior_count=behavior_count
+            behavior_count=behavior_count,
         )
-        
+
         prompt += f"\n\n简历信息：\n{resume_context}"
-        
+
         if jd_content:
             prompt += f"\n\n岗位描述：\n{jd_content}"
-        
-        user_message = {
-            "role": "user",
-            "content": prompt
-        }
-        
+
+        user_message = {"role": "user", "content": prompt}
+
         return [system_message, user_message]
 
     @staticmethod
-    def build_interview_evaluation_messages(question: str, answer: str, resume_content: dict) -> list:
+    def build_interview_evaluation_messages(
+        question: str, answer: str, resume_content: dict
+    ) -> list:
         """构建面试回答评估消息"""
-        
+
         system_message = {
-            "role": "system", 
-            "content": "你是一位专业的面试官，正在进行真实的面试对话。请像真实面试中一样自然地回应候选人，给出简短反馈并继续提问。不要做详细的评估分析，保持对话的自然流畅。"
+            "role": "system",
+            "content": "你是一位专业的面试官，正在进行真实的面试对话。请像真实面试中一样自然地回应候选人，给出简短反馈并继续提问。不要做详细的评估分析，保持对话的自然流畅。",
         }
-        
+
         resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        
+
         evaluation_prompt = f"""{ResumeAssistantPrompts.INTERVIEW_EVALUATION_PROMPT}
 
 问题：{question}
@@ -463,10 +464,7 @@ class ResumeAssistantPrompts:
 
 候选人简历信息：
 {resume_context}"""
-        
-        user_message = {
-            "role": "user",
-            "content": evaluation_prompt
-        }
-        
+
+        user_message = {"role": "user", "content": evaluation_prompt}
+
         return [system_message, user_message]

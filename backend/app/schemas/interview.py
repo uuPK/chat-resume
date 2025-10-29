@@ -2,11 +2,13 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel
 
+
 class InterviewSessionCreate(BaseModel):
     job_position: Optional[str] = None
     interview_mode: Optional[str] = None  # comprehensive, technical, behavioral
     jd_content: Optional[str] = None
     question_count: Optional[int] = 10
+
 
 class InterviewSessionResponse(BaseModel):
     id: int
@@ -20,17 +22,20 @@ class InterviewSessionResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     model_config = {"from_attributes": True}
+
 
 class InterviewQuestionResponse(BaseModel):
     question: str
     question_type: str
     question_index: int
 
+
 class InterviewAnswerRequest(BaseModel):
     answer: str
     question_index: int
+
 
 class InterviewEvaluationResponse(BaseModel):
     question: str

@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
+
 
 # 添加中间件来记录请求
 @app.middleware("http")
@@ -23,60 +24,58 @@ async def log_requests(request: Request, call_next):
     logger.info(f"Response: {response.status_code}")
     return response
 
+
 # 运行数据库迁移和创建表
 try:
     import subprocess
     import os
-    
+
     # 尝试运行Alembic迁移
     logger.info("运行数据库迁移...")
-    
+
     # 尝试不同的工作目录
     possible_dirs = ["/app", "/app/backend", ".", "./backend", "../"]
     migration_success = False
-    
+
     for work_dir in possible_dirs:
         try:
             if os.path.exists(work_dir):
                 logger.info(f"尝试在目录 {work_dir} 运行迁移")
                 # 首先检查当前迁移状态
                 logger.info(f"在 {work_dir} 检查迁移状态")
-                
+
                 # 检查当前迁移状态
                 current_result = subprocess.run(
-                    ["alembic", "current"], 
-                    cwd=work_dir,
-                    capture_output=True, 
-                    text=True
+                    ["alembic", "current"], cwd=work_dir, capture_output=True, text=True
                 )
-                
+
                 current_revision = None
                 if current_result.returncode == 0:
                     # 从输出中提取当前版本号
-                    for line in current_result.stdout.strip().split('\n'):
-                        if line and not line.startswith('INFO'):
+                    for line in current_result.stdout.strip().split("\n"):
+                        if line and not line.startswith("INFO"):
                             current_revision = line.strip()
                             break
                     logger.info(f"当前迁移状态: {current_revision}")
-                
+
                 # 如果没有迁移状态，标记基础迁移为已完成
                 if not current_revision:
                     stamp_result = subprocess.run(
-                        ["alembic", "stamp", "7445f3b0d307"], 
+                        ["alembic", "stamp", "7445f3b0d307"],
                         cwd=work_dir,
-                        capture_output=True, 
-                        text=True
+                        capture_output=True,
+                        text=True,
                     )
-                    
+
                     if stamp_result.returncode == 0:
                         logger.info("成功标记基础迁移为已完成")
-                
+
                 # 然后运行增量迁移
                 result = subprocess.run(
-                    ["alembic", "upgrade", "head"], 
+                    ["alembic", "upgrade", "head"],
                     cwd=work_dir,
-                    capture_output=True, 
-                    text=True
+                    capture_output=True,
+                    text=True,
                 )
                 if result.returncode == 0:
                     logger.info(f"数据库迁移成功 (在 {work_dir})")
@@ -87,7 +86,7 @@ try:
         except Exception as e:
             logger.warning(f"在 {work_dir} 迁移出错: {e}")
             continue
-    
+
     if not migration_success:
         logger.error("所有路径的迁移都失败了")
         # 如果迁移失败，使用create_all作为后备
@@ -104,7 +103,11 @@ logger.info(f"CORS Origins from settings: {cors_origins}")
 logger.info(f"CORS Origins type: {type(cors_origins)}")
 
 # 如果是生产环境且配置了特定域名，使用特定域名；否则允许所有来源
-if cors_origins and len(cors_origins) > 0 and cors_origins != ["http://localhost:3000,https://localhost:3000"]:
+if (
+    cors_origins
+    and len(cors_origins) > 0
+    and cors_origins != ["http://localhost:3000,https://localhost:3000"]
+):
     logger.info("Using specific CORS origins")
     app.add_middleware(
         CORSMiddleware,
@@ -127,16 +130,20 @@ else:
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+
 @app.get("/")
 async def root():
     return {"message": "Chat Resume API"}
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
+
 @app.get("/api/v1/test")
 async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
+
 
 # 移除手动OPTIONS处理，让CORS中间件自动处理

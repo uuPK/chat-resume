@@ -1,16 +1,89 @@
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import MetaData
 from alembic import context
 import os
 import sys
+from typing import Any, Optional
 
-# Add the app directory to the Python path
+# Add the parent directory to Python path to ensure app module can be found
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import settings
-from app.core.database import Base
-from app.models import *  # Import all models
+# Type hints for IDE - these will be resolved at runtime
+settings: Any = None
+Base: Any = None
+target_metadata: Optional[MetaData] = None
+
+# Try to import the app modules
+try:
+    # Use a more robust import method
+    import importlib.util
+
+    # Import config
+    config_spec = importlib.util.spec_from_file_location(
+        "app.core.config",
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "app",
+            "core",
+            "config.py",
+        ),
+    )
+    if config_spec and config_spec.loader:
+        config_module = importlib.util.module_from_spec(config_spec)
+        config_spec.loader.exec_module(config_module)
+        if hasattr(config_module, "settings"):
+            settings = config_module.settings
+
+    # Import database
+    db_spec = importlib.util.spec_from_file_location(
+        "app.core.database",
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "app",
+            "core",
+            "database.py",
+        ),
+    )
+    if db_spec and db_spec.loader:
+        db_module = importlib.util.module_from_spec(db_spec)
+        db_spec.loader.exec_module(db_module)
+        if hasattr(db_module, "Base"):
+            Base = db_module.Base
+
+    # Import models
+    models_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", "models"
+    )
+    if os.path.exists(models_path):
+        for file in os.listdir(models_path):
+            if file.endswith(".py") and not file.startswith("__"):
+                module_name = file[:-3]
+                model_spec = importlib.util.spec_from_file_location(
+                    f"app.models.{module_name}", os.path.join(models_path, file)
+                )
+                if model_spec and model_spec.loader:
+                    model_module = importlib.util.module_from_spec(model_spec)
+                    model_spec.loader.exec_module(model_module)
+
+except Exception as e:
+    print(f"Error importing app modules: {e}")
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Python path: {sys.path}")
+
+    # If imports fail, we'll create minimal placeholders
+    # This allows alembic to run but without autogenerate support
+    class MockSettings:
+        DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")
+
+    class MockBase:
+        metadata = None
+
+    settings = MockSettings()
+    Base = MockBase()
+
+    print("Using mock settings and Base - autogenerate support disabled")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,15 +96,20 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+if hasattr(Base, "metadata") and Base.metadata is not None:
+    target_metadata = Base.metadata  # type: ignore
+else:
+    target_metadata = None
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-def get_url():
+
+def get_url() -> str:
     return str(settings.DATABASE_URL)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -64,7 +142,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    configuration = config.get_section(config.config_ini_section)
+    configuration: dict[str, Any] = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = get_url()
     connectable = engine_from_config(
         configuration,
@@ -73,9 +151,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
