@@ -155,11 +155,11 @@
 /* 屏幕显示时的样式优化 */
 @media screen {
   .resume-page {
-    /* A4纸张效果 */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    /* A4纸张效果 - 去除阴影 */
+    box-shadow: none;
     border: 1px solid #e5e7eb;
     background: white;
-    
+
     /* 强制A4比例约束 */
     aspect-ratio: 0.7070 !important; /* 210/297 */
     contain: layout size; /* 现代浏览器优化 */
@@ -207,7 +207,7 @@
     max-width: 95vw !important;
     margin: 0 auto 16px auto !important;
     padding: 16px !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    box-shadow: none !important;
     aspect-ratio: 0.7070 !important; /* 保持A4比例 */
   }
 

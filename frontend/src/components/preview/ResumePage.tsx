@@ -16,7 +16,7 @@ const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
     return (
       <div
         ref={ref}
-        className={`resume-page relative bg-white shadow-lg border border-gray-200 mx-auto mb-6 ${className}`}
+        className={`resume-page relative bg-white border border-gray-200 mx-auto mb-6 ${className}`}
         style={{
           width: `${A4_WIDTH}px`, // 基础宽度，会被transform scale缩放
           aspectRatio: `${A4_RATIO}`, // 保持A4比例
@@ -37,10 +37,7 @@ const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
           </div>
         )}
 
-        {/* 分页线 (除了最后一页) */}
-        {pageNumber < totalPages && (
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-16 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-        )}
+        {/* 分页线已移除 - 不再显示页面间的分隔线 */}
       </div>
     )
   }
