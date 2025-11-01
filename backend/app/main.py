@@ -1,3 +1,10 @@
+"""
+主应用入口模块
+
+FastAPI应用的初始化和配置入口点。
+负责路由注册、中间件配置、错误处理和启动逻辑。
+"""
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings

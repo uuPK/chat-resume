@@ -1,3 +1,10 @@
+"""
+简历解析服务模块
+
+负责解析上传的简历文件，提取关键信息和结构化数据。
+支持多种简历格式（PDF、Word等）的解析处理。
+"""
+
 import os
 import json
 import asyncio

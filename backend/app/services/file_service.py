@@ -1,3 +1,10 @@
+"""
+文件管理服务模块
+
+负责处理文件上传、存储、下载等文件操作相关的功能。
+包括文件验证、格式转换和存储管理。
+"""
+
 import os
 import uuid
 from fastapi import UploadFile, HTTPException

@@ -1,3 +1,10 @@
+"""
+API依赖项模块
+
+提供FastAPI路由的依赖注入功能，包括数据库会话、用户认证、权限验证等。
+确保API端点的安全性和数据一致性。
+"""
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt

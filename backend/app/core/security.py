@@ -1,3 +1,10 @@
+"""
+安全认证模块
+
+负责JWT令牌的创建和验证，密码哈希和验证等安全相关功能。
+提供用户认证和授权的安全保障。
+"""
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Union
 from jose import jwt

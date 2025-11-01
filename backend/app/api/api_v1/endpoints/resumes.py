@@ -1,3 +1,10 @@
+"""
+简历管理API端点模块
+
+提供简历的创建、查询、更新、删除等RESTful API端点。
+处理简历相关的所有HTTP请求和响应。
+"""
+
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

@@ -1,3 +1,10 @@
+"""
+简历相关数据模式
+
+定义简历创建、更新、查询等相关的Pydantic模式。
+包括简历内容验证和API数据交换格式。
+"""
+
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel

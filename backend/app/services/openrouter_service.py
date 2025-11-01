@@ -1,3 +1,10 @@
+"""
+OpenRouter AI服务集成模块
+
+负责与OpenRouter API进行通信，提供多种AI模型的访问能力。
+支持智能聊天、内容生成和自然语言处理功能。
+"""
+
 import httpx
 from typing import Dict, Any, List
 from app.core.config import settings

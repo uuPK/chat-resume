@@ -1,3 +1,10 @@
+"""
+用户认证API端点模块
+
+提供用户注册、登录、令牌刷新等认证相关的API端点。
+处理用户身份验证和JWT令牌管理。
+"""
+
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm

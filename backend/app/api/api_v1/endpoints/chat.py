@@ -1,3 +1,10 @@
+"""
+智能聊天API端点模块
+
+提供与AI助手聊天交互的API端点，包括简历优化建议、面试指导等。
+处理自然语言处理和AI服务集成。
+"""
+
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel

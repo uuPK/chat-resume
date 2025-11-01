@@ -1,3 +1,10 @@
+"""
+用户业务逻辑服务模块
+
+提供用户相关的核心业务逻辑，包括用户注册、认证、信息管理等功能。
+处理用户数据验证和安全性检查。
+"""
+
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.models.user import User

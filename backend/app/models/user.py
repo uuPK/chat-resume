@@ -1,3 +1,10 @@
+"""
+用户数据模型
+
+定义用户相关的数据库表结构，包括用户基本信息、认证信息等。
+使用SQLAlchemy ORM映射到数据库表。
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

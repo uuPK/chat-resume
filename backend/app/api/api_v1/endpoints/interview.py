@@ -1,3 +1,10 @@
+"""
+面试管理API端点模块
+
+提供面试相关的API端点，包括面试创建、问题生成、评分等功能。
+处理面试流程管理和实时交互。
+"""
+
 from typing import List, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

@@ -1,3 +1,10 @@
+"""
+面试相关数据模式
+
+定义面试创建、管理、评分等相关的Pydantic模式。
+包括面试配置、问题和结果的数据验证。
+"""
+
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel

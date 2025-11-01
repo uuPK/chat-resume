@@ -1,3 +1,10 @@
+"""
+简历业务逻辑服务模块
+
+提供简历相关的核心业务逻辑，包括简历的创建、更新、查询、删除等操作。
+处理简历数据验证和业务规则。
+"""
+
 from typing import List
 from sqlalchemy.orm import Session
 from app.models.resume import Resume, OptimizationRecord, InterviewSession

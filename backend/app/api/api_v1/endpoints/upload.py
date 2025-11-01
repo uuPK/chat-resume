@@ -1,3 +1,10 @@
+"""
+文件上传API端点模块
+
+提供文件上传相关的API端点，包括简历文件上传、验证和存储。
+处理文件格式检查、大小限制和上传错误处理。
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db

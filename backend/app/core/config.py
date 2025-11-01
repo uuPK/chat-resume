@@ -1,3 +1,10 @@
+"""
+应用配置管理模块
+
+负责加载和管理所有应用配置，包括数据库连接、JWT密钥、API密钥等。
+使用Pydantic BaseSettings进行配置验证和环境变量读取。
+"""
+
 from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings

@@ -1,3 +1,10 @@
+"""
+导出服务模块
+
+负责生成和导出简历、面试报告等多种格式的文件。
+支持PDF、Word、HTML等格式的导出功能。
+"""
+
 import os
 import uuid
 from typing import Dict, Any

@@ -1,3 +1,10 @@
+"""
+简历数据模型
+
+定义简历相关的数据库表结构，包括简历内容、面试记录等。
+支持简历的存储、版本管理和面试关联。
+"""
+
 from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

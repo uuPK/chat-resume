@@ -1,3 +1,10 @@
+"""
+数据库连接管理模块
+
+负责建立和管理数据库连接，包括引擎创建、会话管理和基础模型类。
+使用SQLAlchemy ORM进行数据库操作。
+"""
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker

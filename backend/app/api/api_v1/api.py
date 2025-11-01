@@ -1,3 +1,10 @@
+"""
+API v1 路由聚合模块
+
+负责聚合和注册所有v1版本的API端点路由。
+提供统一的API入口点管理。
+"""
+
 from fastapi import APIRouter
 from app.api.api_v1.endpoints import (
     auth,
