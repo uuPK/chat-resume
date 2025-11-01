@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.core.config import settings
 from app.schemas.auth import UserCreate, UserUpdate, UserResponse, LoginResponse
-from app.services.user_service import UserService
+from app.services.core import UserService
 from app.api.deps import get_current_user
 import logging
 

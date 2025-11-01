@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
 from app.core.database import get_db
-from app.services.openrouter_service import OpenRouterService
-from app.services.resume_service import ResumeService
+from app.services.core import ResumeService
 from app.schemas.resume import OptimizationRequest, OptimizationResponse
 from app.models.resume import OptimizationRecord
 from app.api.deps import get_current_user
@@ -35,12 +34,36 @@ async def optimize_resume(
         )
 
     try:
-        # 调用 OpenRouter API 进行分析
-        openrouter_service = OpenRouterService()
+        # 使用 ChatService 进行分析
+        from app.services.ai import ChatService
+        from app.services.ai.chat_service import AIProvider
+
+        chat_service = ChatService(AIProvider.OPENROUTER)
         # 确保 resume.content 是字典类型
         resume_content = cast(Dict[str, Any], resume.content or {})
-        analysis_result = await openrouter_service.analyze_resume_jd_match(
-            resume_content, optimization_request.jd_content
+
+        # 构建分析提示
+        system_prompt = """
+        你是一位专业的简历优化专家。请分析简历与职位描述的匹配度，
+        提供具体的优化建议，包括：
+        1. 技能匹配度分析
+        2. 经历相关性评估
+        3. 具体优化建议
+        4. 关键词补充建议
+        """
+
+        message = f"""
+        简历内容：
+        {str(resume_content)}
+
+        职位描述：
+        {optimization_request.jd_content}
+
+        请提供详细的简历优化分析和建议。
+        """
+
+        analysis_result = await chat_service.chat_with_context(
+            message=message, system_prompt=system_prompt
         )
 
         # 保存优化记录

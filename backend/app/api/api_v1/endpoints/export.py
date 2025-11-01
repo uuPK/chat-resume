@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.export_service import ExportService
-from app.services.resume_service import ResumeService
+from app.services.processing import ExportService
+from app.services.core import ResumeService
 from app.schemas.export import ExportRequest, ExportResponse
 from app.api.deps import get_current_user
 

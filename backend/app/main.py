@@ -12,8 +12,13 @@ from app.api.api_v1.api import api_router
 from app.core.database import engine, Base
 import logging
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
+# 配置日志格式
+log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

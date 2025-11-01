@@ -10,8 +10,12 @@ import json
 import asyncio
 from typing import Dict, Any
 import httpx
+import logging
+import traceback
 from dotenv import load_dotenv
-from app.services.file_service import FileService
+from ..core.file_service import FileService
+
+logger = logging.getLogger(__name__)
 
 # 加载环境变量
 load_dotenv()
@@ -29,7 +33,7 @@ class AIResumeParser:
         self.timeout = 30
 
         if not self.api_key:
-            print("[WARNING] OPENROUTER_API_KEY not found in environment variables")
+            logger.warning("OPENROUTER_API_KEY not found in environment variables")
 
     def parse_resume_text(self, text: str) -> Dict[str, Any]:
         """解析简历文本并结构化 - 主入口方法"""
@@ -52,7 +56,7 @@ class AIResumeParser:
                 loop.close()
                 return result
         except Exception as e:
-            print(f"[ERROR] AI解析失败: {e}")
+            logger.error(f"AI解析失败: {e}")
             # 如果AI解析失败，返回基础结构
             return self._create_fallback_result(text)
 
@@ -69,11 +73,11 @@ class AIResumeParser:
     async def parse_resume_text_async(self, text: str) -> Dict[str, Any]:
         """异步解析简历文本 - 用于FastAPI异步接口"""
         try:
-            print("[DEBUG] 开始异步AI解析")
+            logger.debug("开始异步AI解析")
             result = await self._parse_with_ai(text)
             return result
         except Exception as e:
-            print(f"[ERROR] 异步AI解析失败: {e}")
+            logger.error(f"异步AI解析失败: {e}")
             # 如果AI解析失败，返回基础结构
             return self._create_fallback_result(text)
 
@@ -81,20 +85,20 @@ class AIResumeParser:
         """使用AI解析简历"""
         # 首先检查API密钥
         if not self.api_key or self.api_key.strip() == "":
-            print("[ERROR] OpenRouter API密钥未配置，无法进行AI解析")
+            logger.error("OpenRouter API密钥未配置，无法进行AI解析")
             raise Exception("OpenRouter API密钥未配置")
 
         prompt = self._create_prompt(text)
 
         for attempt in range(self.max_retries):
             try:
-                print(f"[DEBUG] AI解析尝试 {attempt + 1}/{self.max_retries}")
-                print(f"[DEBUG] API Base: {self.api_base}")
-                print(f"[DEBUG] Model: {self.model}")
+                logger.debug("AI解析尝试 {attempt + 1}/{self.max_retries}")
+                logger.debug("API Base: {self.api_base}")
+                logger.debug("Model: {self.model}")
                 print(
                     f"[DEBUG] API Key长度: {len(self.api_key) if self.api_key else 0}"
                 )
-                print(f"[DEBUG] Prompt长度: {len(prompt)}")
+                logger.debug("Prompt长度: {len(prompt)}")
 
                 # 配置更详细的超时和连接设置
                 # 根据prompt长度动态调整读取超时
@@ -141,19 +145,19 @@ class AIResumeParser:
                         },
                     )
 
-                print(f"[DEBUG] HTTP状态码: {response.status_code}")
-                print(f"[DEBUG] 响应头: {dict(response.headers)}")
+                logger.debug("HTTP状态码: {response.status_code}")
+                logger.debug("响应头: {dict(response.headers)}")
 
                 if response.status_code == 200:
                     result = response.json()
                     ai_content = result["choices"][0]["message"]["content"]
-                    print(f"[DEBUG] AI响应长度: {len(ai_content)}")
-                    print(f"[DEBUG] AI完整响应: {ai_content}")
+                    logger.debug("AI响应长度: {len(ai_content)}")
+                    logger.debug("AI完整响应: {ai_content}")
 
                     # 解析AI返回的JSON
                     try:
                         parsed_data = self._parse_ai_response(ai_content)
-                        print(f"[DEBUG] JSON解析成功，解析的数据: {parsed_data}")
+                        logger.debug("JSON解析成功，解析的数据: {parsed_data}")
                     except Exception as e:
                         print(f"[ERROR] JSON解析失败: {e}")
                         print(f"[ERROR] 原始AI响应: {ai_content}")
@@ -189,7 +193,7 @@ class AIResumeParser:
                 print(f"[ERROR] 第 {attempt + 1} 次尝试失败: {type(e).__name__}: {e}")
                 import traceback
 
-                print(f"[DEBUG] 详细错误信息: {traceback.format_exc()}")
+                logger.debug("详细错误信息: {traceback.format_exc()}")
                 if attempt == self.max_retries - 1:
                     raise Exception(f"解析失败: {type(e).__name__}: {e}")
                 await asyncio.sleep(1)  # 等待后重试
@@ -263,7 +267,7 @@ class AIResumeParser:
     def _parse_ai_response(self, ai_content: str) -> Dict[str, Any]:
         """解析AI返回的JSON内容"""
         try:
-            print(f"[DEBUG] 开始解析AI响应，长度: {len(ai_content)}")
+            logger.debug("开始解析AI响应，长度: {len(ai_content)}")
 
             # 尝试多种方式提取JSON
             json_str = None
@@ -274,35 +278,35 @@ class AIResumeParser:
 
             if start_idx != -1 and end_idx > start_idx:
                 json_str = ai_content[start_idx:end_idx]
-                print(f"[DEBUG] 提取的JSON字符串长度: {len(json_str)}")
-                print(f"[DEBUG] JSON前200字符: {json_str[:200]}")
+                logger.debug("提取的JSON字符串长度: {len(json_str)}")
+                logger.debug("JSON前200字符: {json_str[:200]}")
 
             # 方式2: 如果找不到完整JSON，尝试整个内容
             if not json_str:
                 json_str = ai_content.strip()
-                print("[DEBUG] 使用完整响应作为JSON")
+                logger.debug("使用完整响应作为JSON")
 
             # 尝试解析JSON
             if json_str:
                 try:
                     parsed_data = json.loads(json_str)
-                    print(f"[DEBUG] JSON解析成功，包含字段: {list(parsed_data.keys())}")
+                    logger.debug("JSON解析成功，包含字段: {list(parsed_data.keys())}")
                     return parsed_data
                 except json.JSONDecodeError as e:
                     print(f"[ERROR] 第一次JSON解析失败: {e}")
 
                     # 尝试清理和修复JSON
                     cleaned_json = self._clean_json_string(json_str)
-                    print("[DEBUG] 尝试清理后的JSON")
+                    logger.debug("尝试清理后的JSON")
                     parsed_data = json.loads(cleaned_json)
-                    print("[DEBUG] 清理后JSON解析成功")
+                    logger.debug("清理后JSON解析成功")
                     return parsed_data
 
             raise ValueError("无法找到有效的JSON格式")
 
         except json.JSONDecodeError as e:
             print(f"[ERROR] 最终JSON解析失败: {e}")
-            print(f"[DEBUG] 失败的JSON内容: {json_str[:1000] if json_str else 'None'}")
+            logger.debug("失败的JSON内容: {json_str[:1000] if json_str else 'None'}")
             raise
         except Exception as e:
             print(f"[ERROR] 解析过程出现异常: {type(e).__name__}: {e}")
@@ -310,7 +314,7 @@ class AIResumeParser:
 
     def _clean_json_string(self, json_str: str) -> str:
         """清理和修复JSON字符串"""
-        print("[DEBUG] 开始清理JSON字符串")
+        logger.debug("开始清理JSON字符串")
 
         # 移除可能的markdown代码块标记
         json_str = json_str.replace("```json", "").replace("```", "")
@@ -322,14 +326,14 @@ class AIResumeParser:
         if json_str.startswith("\ufeff"):
             json_str = json_str[1:]
 
-        print(f"[DEBUG] 清理后JSON长度: {len(json_str)}")
+        logger.debug("清理后JSON长度: {len(json_str)}")
         return json_str
 
     def _validate_and_enhance(
         self, data: Dict[str, Any], original_text: str
     ) -> Dict[str, Any]:
         """验证和增强数据"""
-        print("[DEBUG] 开始数据验证和增强")
+        logger.debug("开始数据验证和增强")
 
         # 确保基本结构存在
         validated_data = {
@@ -395,12 +399,12 @@ class AIResumeParser:
         validated_data["parsing_quality"] = quality_score
         validated_data["parsing_method"] = "ai"
 
-        print(f"[DEBUG] 数据验证完成，质量分: {quality_score:.2f}")
+        logger.debug("数据验证完成，质量分: {quality_score:.2f}")
         personal_info = validated_data.get("personal_info")
         if isinstance(personal_info, dict):
-            print(f"[DEBUG] 个人信息字段: {list(personal_info.keys())}")
-        print(f"[DEBUG] 技能数量: {len(validated_data['skills'])}")
-        print(f"[DEBUG] 项目数量: {len(validated_data['projects'])}")
+            logger.debug("个人信息字段: {list(personal_info.keys())}")
+        logger.debug("技能数量: {len(validated_data['skills'])}")
+        logger.debug("项目数量: {len(validated_data['projects'])}")
         return validated_data
 
     def _calculate_parsing_quality(self, resume_data: Dict[str, Any]) -> float:
@@ -439,7 +443,7 @@ class AIResumeParser:
 
     def _create_fallback_result(self, text: str) -> Dict[str, Any]:
         """创建备用结果（当AI解析失败时）"""
-        print("[DEBUG] 创建备用结果")
+        logger.debug("创建备用结果")
 
         return {
             "personal_info": {},

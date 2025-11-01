@@ -10,12 +10,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
-from app.services.openrouter_service import OpenRouterService
-from app.services.resume_service import ResumeService
+from app.services.ai import ChatService
+from app.services.core import ResumeService
 from app.core.prompts import ResumeAssistantPrompts
 from app.core.database import get_db
 from app.api.deps import get_current_user
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -60,10 +63,10 @@ async def chat_with_resume(
             )
 
         # 调试信息
-        print(f"Debug - Resume ID: {chat_request.resume_id}")
-        print(f"Debug - Resume owner_id: {resume.owner_id}")
-        print(f"Debug - Current user ID: {current_user['id']}")
-        print(f"Debug - Current user: {current_user}")
+        logger.debug(f"Resume ID: {chat_request.resume_id}")
+        logger.debug(f"Resume owner_id: {resume.owner_id}")
+        logger.debug(f"Current user ID: {current_user['id']}")
+        logger.debug(f"Current user: {current_user}")
 
         if resume.owner_id != current_user["id"]:
             raise HTTPException(
@@ -75,7 +78,7 @@ async def chat_with_resume(
         resume_content = resume.content
 
         # 使用新的提示词管理系统，包含聊天历史
-        openrouter_service = OpenRouterService()
+        chat_service = ChatService()
         # 显式类型转换：resume.content 是 Column[JSON] 但运行时是 dict
         resume_dict: Dict[str, Any] = cast(
             Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
@@ -85,10 +88,20 @@ async def chat_with_resume(
         )
 
         # 调用AI服务
-        response = await openrouter_service.chat_completion(messages)
-        ai_response = openrouter_service._clean_ai_response(
-            response["choices"][0]["message"]["content"]
-        )
+        response = await chat_service.chat_completion(messages)
+
+        # 从新服务响应中提取内容
+        if chat_service.provider == "gemini":
+            ai_response = (
+                response.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+            )
+        else:
+            ai_response = (
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
 
         return ChatResponse.model_construct(
             response=ai_response, service="openrouter", is_configured=True
@@ -113,9 +126,9 @@ async def chat_with_resume_stream(
 ):
     """与AI助手进行流式聊天，基于用户真实简历内容"""
 
-    print("=== 流式聊天API被调用 ===")
-    print(f"收到请求 - is_interview: {chat_request.is_interview}")
-    print(f"用户消息: {chat_request.message}")
+    logger.info("=== 流式聊天API被调用 ===")
+    logger.info(f"收到请求 - is_interview: {chat_request.is_interview}")
+    logger.info(f"用户消息: {chat_request.message}")
 
     async def generate_stream():
         try:
@@ -130,10 +143,10 @@ async def chat_with_resume_stream(
                 return
 
             # 调试信息
-            print(f"Debug Stream - Resume ID: {chat_request.resume_id}")
-            print(f"Debug Stream - Resume owner_id: {resume.owner_id}")
-            print(f"Debug Stream - Current user ID: {current_user['id']}")
-            print(f"Debug Stream - Current user: {current_user}")
+            logger.debug(f"Stream Resume ID: {chat_request.resume_id}")
+            logger.debug(f"Stream Resume owner_id: {resume.owner_id}")
+            logger.debug(f"Stream Current user ID: {current_user['id']}")
+            logger.debug(f"Stream Current user: {current_user}")
 
             if resume.owner_id != current_user["id"]:
                 error_data = {
@@ -150,15 +163,15 @@ async def chat_with_resume_stream(
                 resume.content if isinstance(resume.content, dict) else {},
             )
 
-            openrouter_service = OpenRouterService()
+            chat_service = ChatService()
 
             # 根据模式构建不同的消息
-            print(f"Debug - is_interview: {chat_request.is_interview}")
-            print(f"Debug - chat_request: {chat_request}")
+            logger.debug(f"is_interview: {chat_request.is_interview}")
+            logger.debug(f"chat_request: {chat_request}")
 
             if chat_request.is_interview:
                 # 面试模式：使用面试官提示词
-                print(f"Debug - 使用面试官提示词，模式: {chat_request.interview_mode}")
+                logger.debug(f"使用面试官提示词，模式: {chat_request.interview_mode}")
                 messages = ResumeAssistantPrompts.build_interview_messages(
                     chat_request.message,
                     resume_dict,
@@ -167,18 +180,28 @@ async def chat_with_resume_stream(
                 )
             else:
                 # 普通模式：使用简历优化师提示词
-                print("Debug - 使用简历优化师提示词")
+                logger.debug("使用简历优化师提示词")
                 messages = ResumeAssistantPrompts.build_chat_messages(
                     chat_request.message, resume_dict, chat_request.chat_history
                 )
 
             # 流式响应
-            async for content_chunk in openrouter_service.chat_completion_stream(
-                messages
-            ):
-                # 以Server-Sent Events格式发送
-                data = {"content": content_chunk, "done": False}
-                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            async for content_chunk in chat_service.chat_completion(messages, stream=True):
+                # 解析流式响应数据
+                try:
+                    chunk_data = json.loads(content_chunk)
+                    # 提取内容
+                    if "choices" in chunk_data and chunk_data["choices"]:
+                        delta = chunk_data["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            data = {"content": content, "done": False}
+                            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                except json.JSONDecodeError:
+                    # 如果无法解析，直接使用原始数据
+                    if content_chunk.strip() and content_chunk != "[DONE]":
+                        data = {"content": content_chunk, "done": False}
+                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
             # 发送结束标记
             end_data = {"content": "", "done": True}
@@ -205,9 +228,9 @@ async def chat_with_resume_stream(
 async def get_ai_status():
     """获取AI服务状态"""
     try:
-        openrouter_service = OpenRouterService()
+        chat_service = ChatService()
         # 简单的状态检查
-        if openrouter_service.api_key:
+        if chat_service.api_key and chat_service.api_key.strip():
             return {
                 "service": "openrouter",
                 "status": "connected",

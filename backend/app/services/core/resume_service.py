@@ -9,7 +9,10 @@ from typing import List
 from sqlalchemy.orm import Session
 from app.models.resume import Resume, OptimizationRecord, InterviewSession
 from app.schemas.resume import ResumeCreate
-from app.services.file_service import FileService
+from .file_service import FileService
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ResumeService:
@@ -40,7 +43,7 @@ class ResumeService:
             # 回滚事务
             self.db.rollback()
             # 记录错误日志
-            print(f"[ERROR] 简历创建失败: {str(e)}")
+            logger.error(f"简历创建失败: {str(e)}")
             # 重新抛出异常供上层处理
             raise e
 

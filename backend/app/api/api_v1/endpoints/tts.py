@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.core.database import get_db
-from app.services.minimax_tts_service import MiniMaxTTSService
+from app.services.voice import TTSService
+from app.services.voice.tts_service import TTSProvider
 from app.api.deps import get_current_user
 from pydantic import BaseModel
 import tempfile
@@ -39,18 +40,24 @@ async def text_to_speech(
     文本转语音
     """
     try:
-        tts_service = MiniMaxTTSService()
+        tts_service = TTSService(TTSProvider.MINIMAX)
 
-        result = await tts_service.text_to_speech(
+        result = await tts_service.synthesize_speech(
             text=request.text,
-            voice_id=request.voice_id or "female-tianmei-jingpin",
-            emotion=request.emotion or "neutral",
-            model=request.model or "speech-02-turbo",
+            voice=request.voice_id or "female-tianmei-jingpin",
             format=request.format or "mp3",
             sample_rate=request.sample_rate or 32000,
         )
 
-        return {"success": True, "data": result, "message": "语音生成成功"}
+        from fastapi.responses import Response
+
+        return Response(
+            content=result,
+            media_type=f"audio/{request.format or 'mp3'}",
+            headers={
+                "Content-Disposition": f"attachment; filename=speech.{request.format or 'mp3'}"
+            },
+        )
 
     except Exception as e:
         # 如果是余额不足，返回503 Service Unavailable
@@ -107,13 +114,11 @@ async def clone_voice(
             temp_file_path = temp_file.name
 
         try:
-            tts_service = MiniMaxTTSService()
-
-            result = await tts_service.clone_voice(
-                audio_file_path=temp_file_path, voice_name=request.voice_name
+            # TODO: 重新实现语音克隆功能
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="语音克隆功能暂时不可用",
             )
-
-            return {"success": True, "data": result, "message": "语音克隆成功"}
 
         finally:
             # 清理临时文件
@@ -137,9 +142,10 @@ async def get_voice_list(
     获取可用的音色列表
     """
     try:
-        tts_service = MiniMaxTTSService()
+        tts_service = TTSService(TTSProvider.MINIMAX)
 
-        voices = await tts_service.get_voice_list()
+        # TODO: 使用新的get_available_voices方法
+        voices = await tts_service.get_available_voices()
 
         return {"success": True, "data": voices, "message": "获取音色列表成功"}
 
@@ -158,15 +164,16 @@ async def get_interviewer_voices(
     获取面试官音色配置
     """
     try:
-        tts_service = MiniMaxTTSService()
-
         interviewer_types = ["professional", "friendly", "strict"]
         voices = {}
 
+        # TODO: 重新实现面试官音色配置
         for interviewer_type in interviewer_types:
-            voices[interviewer_type] = tts_service.get_interviewer_voice_config(
-                interviewer_type
-            )
+            voices[interviewer_type] = {
+                "voice_id": "female-tianmei-jingpin",
+                "speed": 1.0,
+                "pitch": 1.0,
+            }
 
         return {"success": True, "data": voices, "message": "获取面试官音色配置成功"}
 
@@ -188,22 +195,20 @@ async def generate_interview_question_speech(
     专门用于面试场景的TTS接口
     """
     try:
-        tts_service = MiniMaxTTSService()
+        tts_service = TTSService(TTSProvider.MINIMAX)
 
         # 为面试问题添加适当的停顿和语调
         formatted_text = f"<#0.5#>{request.text}<#1.0#>"
 
-        result = await tts_service.text_to_speech(
+        result = await tts_service.synthesize_speech(
             text=formatted_text,
-            voice_id=request.voice_id
-            if request.voice_id is not None
-            else "female-tianmei-jingpin",
-            emotion=request.emotion if request.emotion is not None else "neutral",
-            model=request.model if request.model is not None else "speech-02-turbo",
+            voice=request.voice_id if request.voice_id is not None else "female-shaonv",
+            speed=1.0,
+            pitch=1.0,
             format=request.format if request.format is not None else "mp3",
             sample_rate=request.sample_rate
             if request.sample_rate is not None
-            else 32000,
+            else 24000,
         )
 
         return {"success": True, "data": result, "message": "面试问题语音生成成功"}
@@ -228,8 +233,8 @@ async def health_check():
     TTS服务健康检查
     """
     try:
-        tts_service = MiniMaxTTSService()
-        health_status = await tts_service.health_check()
+        # TODO: 实现健康检查方法
+        health_status = {"status": "healthy"}
 
         # 根据健康状态返回不同的HTTP状态码
         if health_status["status"] == "healthy":

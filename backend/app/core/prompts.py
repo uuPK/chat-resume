@@ -3,6 +3,10 @@ AI助手提示词管理模块
 将系统提示词与用户数据分离，便于维护和优化
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ResumeAssistantPrompts:
     """简历助手提示词管理类"""
@@ -282,15 +286,15 @@ class ResumeAssistantPrompts:
         messages.append(user_question)
 
         # 调试：打印完整的消息结构
-        print("\n" + "=" * 80)
-        print("发送给大模型的完整消息:")
-        print("=" * 80)
+        logger.debug("\n" + "=" * 80)
+        logger.debug("发送给大模型的完整消息:")
+        logger.debug("=" * 80)
         for i, message in enumerate(messages):
-            print(f"\n消息 {i + 1} - Role: {message['role']}")
-            print("-" * 40)
-            print(message["content"])
-            print("-" * 40)
-        print("=" * 80 + "\n")
+            logger.debug(f"消息 {i + 1} - Role: {message['role']}")
+            logger.debug("-" * 40)
+            logger.debug(message["content"])
+            logger.debug("-" * 40)
+        logger.debug("=" * 80 + "\n")
 
         return messages
 
@@ -303,8 +307,8 @@ class ResumeAssistantPrompts:
     ) -> list:
         """构建面试对话消息列表"""
 
-        print("Debug - 正在构建面试消息")
-        print(f"Debug - 面试模式: {interview_mode}")
+        logger.debug("正在构建面试消息")
+        logger.debug(f"面试模式: {interview_mode}")
 
         # 根据面试模式选择系统提示词
         if interview_mode == "technical":
@@ -314,7 +318,7 @@ class ResumeAssistantPrompts:
         else:  # comprehensive 或其他
             system_prompt = ResumeAssistantPrompts.INTERVIEW_SYSTEM_PROMPT
 
-        print(f"Debug - 面试系统提示词前100字符: {system_prompt[:100]}")
+        logger.debug(f"面试系统提示词前100字符: {system_prompt[:100]}")
 
         # 面试官系统提示词
         system_message = {"role": "system", "content": system_prompt}
@@ -371,9 +375,9 @@ class ResumeAssistantPrompts:
         user_question = {"role": "user", "content": user_message}
         messages.append(user_question)
 
-        print(f"Debug - 最终消息列表长度: {len(messages)}")
-        print(f"Debug - 系统消息: {system_prompt[:100]}")
-        print(f"Debug - 最后一条用户消息: {messages[-1]['content']}")
+        logger.debug(f"最终消息列表长度: {len(messages)}")
+        logger.debug(f"系统消息: {system_prompt[:100]}")
+        logger.debug(f"最后一条用户消息: {messages[-1]['content']}")
 
         return messages
 

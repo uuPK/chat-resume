@@ -8,11 +8,13 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.file_service import FileService
-from app.services.resume_parser import ResumeParser
-from app.services.resume_service import ResumeService
+from app.services.core import FileService, ResumeService
+from app.services.processing import ResumeParser
 from app.schemas.resume import ResumeResponse, ResumeCreate
 from app.api.deps import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -46,16 +48,16 @@ async def upload_resume(
 
         # 提取文本
         text = file_service.extract_text_from_file(file_path, file.filename or "")
-        print(f"[UPLOAD] 提取文本长度: {len(text)}")
-        print(f"[UPLOAD] 文本前500字符: {text[:500]}")
+        logger.info(f"提取文本长度: {len(text)}")
+        logger.debug(f"文本前500字符: {text[:500]}")
 
         # 解析简历
         parser = ResumeParser()
-        print("[UPLOAD] 开始AI解析...")
+        logger.info("开始AI解析...")
         resume_data = await parser.parse_resume_text_async(text)
-        print(f"[UPLOAD] AI解析完成，数据: {resume_data}")
-        print(f"[UPLOAD] 解析质量分: {resume_data.get('parsing_quality', 0)}")
-        print(f"[UPLOAD] 解析方法: {resume_data.get('parsing_method', 'unknown')}")
+        logger.info(f"AI解析完成，数据: {resume_data}")
+        logger.info(f"解析质量分: {resume_data.get('parsing_quality', 0)}")
+        logger.info(f"解析方法: {resume_data.get('parsing_method', 'unknown')}")
 
         # 保存到数据库
         resume_service = ResumeService(db)
@@ -65,9 +67,9 @@ async def upload_resume(
             "original_filename": file.filename,
         }
         resume_create = ResumeCreate.model_validate(resume_create_data)
-        print("[UPLOAD] 开始保存简历到数据库...")
+        logger.info("开始保存简历到数据库...")
         resume = resume_service.create(resume_create, current_user["id"])
-        print(f"[UPLOAD] 简历保存成功，ID: {resume.id}")
+        logger.info(f"简历保存成功，ID: {resume.id}")
 
         # 清理临时文件
         file_service.delete_file(file_path)
@@ -80,8 +82,8 @@ async def upload_resume(
             file_service.delete_file(file_path)
 
         # 记录详细错误信息
-        print(f"[ERROR] 简历上传处理失败: {str(e)}")
-        print(f"[ERROR] 错误类型: {type(e).__name__}")
+        logger.error(f"简历上传处理失败: {str(e)}")
+        logger.error(f"错误类型: {type(e).__name__}")
 
         # 根据错误类型返回不同的错误信息
         if "数据库" in str(e) or "database" in str(e).lower():

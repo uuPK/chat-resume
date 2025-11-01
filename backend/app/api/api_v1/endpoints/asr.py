@@ -16,7 +16,7 @@ from typing import Dict, Optional
 import json
 import logging
 from app.core.database import get_db
-from app.services.volcengine_bigmodel_asr_service import VolcEngineBigModelASRService
+from app.services.voice import ASRService
 from app.api.deps import get_current_user
 from pydantic import BaseModel
 
@@ -45,12 +45,12 @@ class AudioDataRequest(BaseModel):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-        self.asr_services: Dict[str, VolcEngineBigModelASRService] = {}
+        self.asr_services: Dict[str, ASRService] = {}
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        self.asr_services[client_id] = VolcEngineBigModelASRService()
+        self.asr_services[client_id] = ASRService()
         logger.info(f"Client {client_id} connected")
 
     def disconnect(self, client_id: str):
@@ -67,7 +67,7 @@ class ConnectionManager:
             except Exception as e:
                 logger.error(f"Failed to send message to {client_id}: {str(e)}")
 
-    def get_asr_service(self, client_id: str) -> Optional[VolcEngineBigModelASRService]:
+    def get_asr_service(self, client_id: str) -> Optional[ASRService]:
         return self.asr_services.get(client_id)
 
 
@@ -97,7 +97,7 @@ async def websocket_asr_endpoint(websocket: WebSocket, client_id: str):
             if message_type == "start":
                 # 开始语音识别会话
                 try:
-                    await asr_service.create_websocket_connection()
+                    # 新的ASR服务不需要显式创建WebSocket连接
                     await manager.send_message(
                         client_id,
                         {
@@ -124,14 +124,17 @@ async def websocket_asr_endpoint(websocket: WebSocket, client_id: str):
                         audio_data = base64.b64decode(audio_base64)
 
                         # 简单识别处理
-                        result = await asr_service.simple_recognition(audio_data)
+                        result = await asr_service.recognize_speech(
+                            audio_data, format="mp3"
+                        )
 
                         await manager.send_message(
                             client_id,
                             {
                                 "type": "recognition_result",
-                                "success": result.get("success", False),
+                                "success": True,
                                 "text": result.get("text", ""),
+                                "confidence": result.get("confidence", 0.0),
                                 "is_final": True,
                                 "sequence": sequence,
                             },
@@ -178,9 +181,11 @@ async def get_asr_config(
     获取ASR配置信息
     """
     try:
-        asr_service = VolcEngineBigModelASRService()
-        audio_format = asr_service.get_audio_format_info()
-        service_info = asr_service.get_service_info()
+        from app.services.voice.asr_service import ASRService, ASRProvider
+
+        asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
+        service_info = asr_service.get_provider_info()
+        audio_format = {"format": "mp3", "sample_rate": 16000, "bits": 16, "channel": 1}
 
         return {
             "success": True,
@@ -212,7 +217,9 @@ async def recognize_audio(
     一次性语音识别（非实时）
     """
     try:
-        asr_service = VolcEngineBigModelASRService()
+        from app.services.voice.asr_service import ASRService, ASRProvider
+
+        asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
 
         # 解码音频数据
         import base64
@@ -220,13 +227,14 @@ async def recognize_audio(
         audio_data = base64.b64decode(request.audio_data)
 
         # 执行识别
-        result = await asr_service.simple_recognition(audio_data)
+        result = await asr_service.recognize_speech(audio_data, format=request.format)
 
         return {
-            "success": result.get("success", False),
+            "success": True,
             "text": result.get("text", ""),
-            "error": result.get("error"),
-            "message": result.get("message", "语音识别完成"),
+            "confidence": result.get("confidence", 0.0),
+            "provider": result.get("provider", "volcengine_bigmodel"),
+            "message": "语音识别完成",
         }
 
     except Exception as e:
@@ -244,14 +252,15 @@ async def get_asr_status(
     获取ASR服务状态
     """
     try:
-        asr_service = VolcEngineBigModelASRService()
+        from app.services.voice.asr_service import ASRService, ASRProvider
+
+        asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
 
         # 检查配置
         config_status = {
-            "app_key_configured": bool(asr_service.app_key),
-            "access_key_configured": bool(asr_service.access_token),
-            "resource_id_configured": bool(asr_service.resource_id),
-            "resource_id": asr_service.resource_id,
+            "api_key_configured": bool(asr_service.api_key),
+            "app_id_configured": bool(asr_service.app_id),
+            "provider": asr_service.provider.value,
         }
 
         return {
@@ -261,7 +270,7 @@ async def get_asr_status(
             else "configuration_incomplete",
             "config": config_status,
             "active_connections": len(manager.active_connections),
-            "service_info": asr_service.get_service_info(),
+            "service_info": asr_service.get_provider_info(),
             "message": "ASR服务状态正常",
         }
 
@@ -283,61 +292,45 @@ async def interview_recognition(
     针对面试场景优化的语音识别接口
     """
     try:
-        asr_service = VolcEngineBigModelASRService()
+        from app.services.voice.asr_service import ASRService, ASRProvider
+
+        asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
 
         # 解码音频数据
         import base64
 
         audio_data = base64.b64decode(request.audio_data)
 
-        # 面试场景优化配置
-        interview_config = {
-            "request": {
-                "model_name": "bigmodel",
-                "enable_itn": True,
-                "enable_punc": True,
-                "enable_ddc": True,  # 启用语义顺滑
-                "show_utterances": True,
-                "result_type": "full",
-                "end_window_size": 500,  # 快速判停，提高实时性
-                "force_to_speech_time": 800,
-            }
-        }
-
         # 执行识别
-        result = await asr_service.simple_recognition(audio_data, interview_config)
+        result = await asr_service.recognize_speech(
+            audio_data,
+            format=request.format,
+            sample_rate=request.sample_rate or 16000,
+            language="zh-CN",
+        )
 
-        if result.get("success"):
-            # 面试回答后处理
-            text = result.get("text", "").strip()
-            utterances = result.get("utterances", [])
+        # 面试回答后处理
+        text = result.get("text", "").strip()
 
-            # 基本的文本清理
-            if text:
-                # 去除多余空格和换行
-                text = " ".join(text.split())
+        # 基本的文本清理
+        if text:
+            # 去除多余空格和换行
+            text = " ".join(text.split())
 
-                # 添加标点符号（简单处理）
-                if text and not text.endswith((".", "!", "?", "。", "！", "？")):
-                    text += "。"
+            # 添加标点符号（简单处理）
+            if text and not text.endswith((".", "!", "?", "。", "！", "？")):
+                text += "。"
 
-            return {
-                "success": True,
-                "text": text,
-                "original_text": result.get("text", ""),
-                "utterances": utterances,
-                "word_count": len(text.replace(" ", "")),
-                "confidence": 0.95,  # 火山引擎大模型通常有较高的准确率
-                "audio_info": result.get("audio_info", {}),
-                "message": "面试语音识别完成",
-            }
-        else:
-            return {
-                "success": False,
-                "text": "",
-                "error": result.get("error"),
-                "message": "面试语音识别失败",
-            }
+        return {
+            "success": True,
+            "text": text,
+            "original_text": result.get("text", ""),
+            "word_count": len(text.replace(" ", "")),
+            "confidence": result.get("confidence", 0.95),
+            "provider": result.get("provider", "volcengine_bigmodel"),
+            "word_timings": result.get("word_timings", []),
+            "message": "面试语音识别完成",
+        }
 
     except Exception as e:
         raise HTTPException(

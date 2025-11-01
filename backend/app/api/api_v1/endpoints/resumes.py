@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.resume import ResumeCreate, ResumeResponse, ResumeUpdate
-from app.services.resume_service import ResumeService
+from app.services.core import ResumeService
 from app.api.deps import get_current_user
 
 router = APIRouter()

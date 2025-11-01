@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
+    # Logging
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")
 
@@ -76,4 +79,11 @@ class Settings(BaseSettings):
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 
 
-settings = Settings.model_construct()
+settings = Settings()
+
+# 调试配置加载
+print(f"=== 配置加载调试信息 ===")
+print(f"OPENROUTER_API_KEY 是否为空: {not settings.OPENROUTER_API_KEY.strip()}")
+print(f"OPENROUTER_API_KEY 长度: {len(settings.OPENROUTER_API_KEY)}")
+print(f"OPENROUTER_API_KEY 前10字符: {settings.OPENROUTER_API_KEY[:10] if settings.OPENROUTER_API_KEY else 'EMPTY'}")
+print(f"========================")

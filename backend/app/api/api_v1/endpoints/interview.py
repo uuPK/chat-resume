@@ -9,9 +9,7 @@ from typing import List, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.services.openrouter_service import OpenRouterService
-from app.services.interview_report_service import InterviewReportService
-from app.services.resume_service import ResumeService
+from app.services.core import ResumeService
 from app.models.resume import InterviewSession
 from app.schemas.interview import (
     InterviewSessionCreate,
@@ -21,6 +19,9 @@ from app.schemas.interview import (
     InterviewEvaluationResponse,
 )
 from app.api.deps import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -59,21 +60,27 @@ async def start_interview(
 
     if existing_active_session:
         # 如果已有进行中的会话，返回现有会话而不是创建新的
-        print(f"发现现有活跃会话 {existing_active_session.id}，返回现有会话")
+        logger.info(f"发现现有活跃会话 {existing_active_session.id}，返回现有会话")
         return InterviewSessionResponse.model_validate(existing_active_session)
 
     try:
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
+
         # 生成初始面试问题
-        openrouter_service = OpenRouterService()
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
         # 确保 resume.content 是字典类型
         resume_content: Dict[str, Any] = (
             cast(Dict[str, Any], resume.content) if resume.content else {}
         )
-        questions = await openrouter_service.generate_interview_questions(
-            resume_content,
-            session_create.jd_content if session_create.jd_content else "",
-            session_create.question_count if session_create.question_count else 10,
+        questions_result = await interview_agent.generate_interview_questions(
+            job_title="候选人",
+            job_description=session_create.jd_content or "",
+            resume_content=str(resume_content),
+            question_types=["behavioral", "technical", "situational", "general"],
+            difficulty="medium",
         )
+        questions = questions_result.get("questions", [])
 
         # 创建面试会话
         interview_session = InterviewSession(
@@ -150,27 +157,44 @@ async def get_next_question(
 
     # 如果已经回答完所有预设问题，根据对话历史生成新问题
     try:
-        openrouter_service = OpenRouterService()
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
 
-        # 构建对话历史
-        conversation_history = []
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+
+        # 构建 InterviewAgent 需要的对话历史格式
+        interview_history = []
         for i, answer in enumerate(interview_session.answers):
             if i < len(interview_session.questions):
-                conversation_history.append(
+                interview_history.append(
                     {
-                        "question": interview_session.questions[i]["question"],
-                        "answer": answer["answer"],
+                        "role": "assistant",
+                        "content": interview_session.questions[i]["question"],
                     }
                 )
+                interview_history.append({"role": "user", "content": answer["answer"]})
 
         # 生成新问题
-        # 确保 resume.content 是字典类型
-        resume_content: Dict[str, Any] = (
-            cast(Dict[str, Any], resume.content) if resume.content else {}
+        last_answer = (
+            interview_session.answers[-1]["answer"] if interview_session.answers else ""
         )
-        new_question = await openrouter_service.generate_next_interview_question(
-            conversation_history, resume_content
+        last_question = (
+            interview_session.questions[-1]["question"]
+            if interview_session.questions
+            else ""
         )
+
+        follow_up_result = await interview_agent.generate_follow_up_question(
+            original_question=last_question,
+            user_answer=last_answer,
+            feedback_score=7,  # 默认分数
+        )
+
+        new_question = {
+            "question": follow_up_result["follow_up_question"],
+            "type": follow_up_result["question_type"],
+            "purpose": follow_up_result["purpose"],
+        }
 
         # 更新会话问题列表
         interview_session.questions.append(new_question)
@@ -238,14 +262,16 @@ async def submit_answer(
 
         current_question = interview_session.questions[question_index]["question"]
 
-        # 使用 OpenRouter 评估答案
-        openrouter_service = OpenRouterService()
-        # 确保 resume.content 是字典类型
-        resume_content: Dict[str, Any] = (
-            cast(Dict[str, Any], resume.content) if resume.content else {}
-        )
-        evaluation = await openrouter_service.evaluate_interview_answer(
-            current_question, answer_request.answer, resume_content
+        # 使用 InterviewAgent 评估答案
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
+
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        evaluation = await interview_agent.conduct_interview(
+            question=current_question,
+            user_answer=answer_request.answer,
+            question_context="面试评估",
+            interview_history=[],
         )
 
         # 保存答案和评估
@@ -324,17 +350,37 @@ async def end_interview(
         )
 
     try:
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
+
         # 计算整体面试分数
-        openrouter_service = OpenRouterService()
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
 
-        # 将面试会话转换为字典格式以便传递给分数计算函数
-        session_dict = {
-            "questions": interview_session.questions,
-            "answers": interview_session.answers,
-            "feedback": interview_session.feedback,
-        }
+        # 构建面试会话记录
+        interview_session_data = []
+        for i, question in enumerate(interview_session.questions):
+            answer = (
+                interview_session.answers[i]
+                if i < len(interview_session.answers)
+                else ""
+            )
+            interview_session_data.append(
+                {
+                    "question": question.get("question", "")
+                    if isinstance(question, dict)
+                    else str(question),
+                    "answer": answer,
+                    "score": 0,  # 默认分数
+                }
+            )
 
-        overall_score = await openrouter_service.calculate_overall_score(session_dict)
+        # 生成面试表现评估
+        job_requirements = f"职位：{interview_session.job_position}\n职位描述：{interview_session.jd_content or ''}"
+        evaluation_result = await interview_agent.evaluate_interview_performance(
+            interview_session=interview_session_data, job_requirements=job_requirements
+        )
+
+        overall_score = evaluation_result.get("total_score", 85)
 
         # 更新会话状态和分数
         interview_session.status = "completed"
@@ -481,27 +527,44 @@ async def calculate_scores_for_completed_interviews(
         return {"message": "No interviews need score calculation", "updated_count": 0}
 
     updated_count = 0
-    openrouter_service = OpenRouterService()
+    from app.services.ai import InterviewAgent
+    from app.services.ai.chat_service import AIProvider
+
+    interview_agent = InterviewAgent(AIProvider.OPENROUTER)
 
     for session in sessions:
         try:
-            # 将面试会话转换为字典格式
-            session_dict = {
-                "questions": session.questions,
-                "answers": session.answers,
-                "feedback": session.feedback,
-            }
+            # 构建面试会话记录
+            interview_session_data = []
+            for i, question in enumerate(session.questions):
+                answer = session.answers[i] if i < len(session.answers) else ""
+                interview_session_data.append(
+                    {
+                        "question": question.get("question", "")
+                        if isinstance(question, dict)
+                        else str(question),
+                        "answer": answer,
+                        "score": 0,  # 默认分数
+                    }
+                )
 
-            overall_score = await openrouter_service.calculate_overall_score(
-                session_dict
+            # 生成面试表现评估
+            job_requirements = (
+                f"职位：{session.job_position}\n职位描述：{session.jd_content or ''}"
             )
+            evaluation_result = await interview_agent.evaluate_interview_performance(
+                interview_session=interview_session_data,
+                job_requirements=job_requirements,
+            )
+
+            overall_score = evaluation_result.get("total_score", 85)
 
             if overall_score > 0:  # 只有成功计算出分数才更新
                 session.overall_score = overall_score
                 updated_count += 1
 
         except Exception as e:
-            print(f"Failed to calculate score for session {session.id}: {e}")
+            logger.error(f"Failed to calculate score for session {session.id}: {e}")
             continue
 
     if updated_count > 0:
@@ -556,7 +619,7 @@ async def cleanup_duplicate_sessions(
             if not session.answers or len(session.answers) == 0:
                 db.delete(session)
                 cleaned_count += 1
-                print(f"删除空的重复面试会话: {session.id}")
+                logger.info(f"删除空的重复面试会话: {session.id}")
 
     if cleaned_count > 0:
         db.commit()
@@ -615,7 +678,7 @@ async def get_interview_report(
     try:
         # 检查是否已有缓存的报告（如果不是强制重新生成）
         if interview_session.report_data and not regenerate:
-            print(f"返回缓存的报告，面试会话ID: {session_id}")
+            logger.info(f"返回缓存的报告，面试会话ID: {session_id}")
             return interview_session.report_data
 
         # 添加简历信息到面试会话对象
@@ -623,20 +686,46 @@ async def get_interview_report(
         interview_session.resume = resume  # 添加完整的简历对象
 
         # 生成报告
-        report_service = InterviewReportService()
-        report = await report_service.generate_comprehensive_report(interview_session)
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
+
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+
+        # 构建面试会话记录
+        interview_session_data = []
+        for i, question in enumerate(interview_session.questions):
+            answer = (
+                interview_session.answers[i]
+                if i < len(interview_session.answers)
+                else ""
+            )
+            interview_session_data.append(
+                {
+                    "question": question.get("question", "")
+                    if isinstance(question, dict)
+                    else str(question),
+                    "answer": answer,
+                    "score": 0,  # 默认分数
+                }
+            )
+
+        # 生成面试表现评估报告
+        job_requirements = f"职位：{interview_session.job_position}\n职位描述：{interview_session.jd_content or ''}"
+        report = await interview_agent.evaluate_interview_performance(
+            interview_session=interview_session_data, job_requirements=job_requirements
+        )
 
         # 缓存报告到数据库
         interview_session.report_data = report
         db.commit()
-        print(f"生成并缓存了新报告，面试会话ID: {session_id}")
+        logger.info(f"生成并缓存了新报告，面试会话ID: {session_id}")
 
         return report
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        print(f"Generate report error: {e}")
+        logger.error(f"Generate report error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(e)}",
