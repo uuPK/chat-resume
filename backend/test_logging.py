@@ -4,7 +4,6 @@
 """
 
 import os
-import sys
 import logging
 
 # 确保在backend目录下
@@ -14,12 +13,12 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 if LOG_LEVEL == "None":  # 如果环境变量未设置，从.env文件读取
     try:
-        with open('.env', 'r') as f:
+        with open(".env", "r") as f:
             for line in f:
-                if line.startswith('LOG_LEVEL'):
-                    LOG_LEVEL = line.split('=')[1].strip()
+                if line.startswith("LOG_LEVEL"):
+                    LOG_LEVEL = line.split("=")[1].strip()
                     break
-    except:
+    except (FileNotFoundError, IOError):
         LOG_LEVEL = "INFO"
 
 print(f"检测到的LOG_LEVEL: {LOG_LEVEL}")
@@ -31,7 +30,7 @@ print(f"实际设置的日志等级: {logging.getLevelName(log_level)}")
 logging.basicConfig(
     level=log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 logger = logging.getLogger(__name__)

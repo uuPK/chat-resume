@@ -5,17 +5,20 @@
 
 import os
 import httpx
-import json
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # 从.env文件读取API密钥
-api_key = None
-with open('.env', 'r') as f:
-    for line in f:
-        if line.startswith('OPENROUTER_API_KEY'):
-            api_key = line.split('=')[1].strip()
-            break
+api_key = ""
+try:
+    with open(".env", "r") as f:
+        for line in f:
+            if line.startswith("OPENROUTER_API_KEY"):
+                api_key = line.split("=")[1].strip()
+                break
+except (FileNotFoundError, IOError):
+    print("❌ 无法读取.env文件")
+    exit(1)
 
 if not api_key:
     print("❌ 未找到OPENROUTER_API_KEY")
@@ -36,7 +39,7 @@ payload = {
     "messages": [
         {"role": "user", "content": "Hello, please respond with just 'API working'"}
     ],
-    "max_tokens": 10
+    "max_tokens": 10,
 }
 
 print("🔄 测试API请求...")
@@ -46,7 +49,7 @@ try:
         "https://openrouter.ai/api/v1/chat/completions",
         json=payload,
         headers=headers,
-        timeout=10
+        timeout=10,
     )
 
     if response.status_code == 200:

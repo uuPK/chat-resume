@@ -11,7 +11,6 @@ import asyncio
 from typing import Dict, Any
 import httpx
 import logging
-import traceback
 from dotenv import load_dotenv
 from ..core.file_service import FileService
 
@@ -191,7 +190,6 @@ class AIResumeParser:
                 await asyncio.sleep(1)
             except Exception as e:
                 print(f"[ERROR] 第 {attempt + 1} 次尝试失败: {type(e).__name__}: {e}")
-                import traceback
 
                 logger.debug("详细错误信息: {traceback.format_exc()}")
                 if attempt == self.max_retries - 1:

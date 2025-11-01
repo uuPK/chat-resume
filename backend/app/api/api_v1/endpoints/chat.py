@@ -186,7 +186,9 @@ async def chat_with_resume_stream(
                 )
 
             # 流式响应
-            async for content_chunk in chat_service.chat_completion(messages, stream=True):
+            async for content_chunk in chat_service.chat_completion(
+                messages, stream=True
+            ):
                 # 解析流式响应数据
                 try:
                     chunk_data = json.loads(content_chunk)

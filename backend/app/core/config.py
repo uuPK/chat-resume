@@ -72,6 +72,18 @@ class Settings(BaseSettings):
         "VOLCENGINE_ASR_RESOURCE_ID", "volc.bigasr.sauc.duration"
     )
 
+    # 火山引擎ASR API
+    VOLCENGINE_ASR_API_KEY: str = os.getenv("VOLCENGINE_ASR_API_KEY", "")
+    VOLCENGINE_ASR_APP_ID: str = os.getenv("VOLCENGINE_ASR_APP_ID", "")
+
+    # 火山引擎大模型ASR API
+    VOLCENGINE_BIGMODEL_API_KEY: str = os.getenv("VOLCENGINE_BIGMODEL_API_KEY", "")
+    VOLCENGINE_BIGMODEL_APP_ID: str = os.getenv("VOLCENGINE_BIGMODEL_APP_ID", "")
+
+    # 火山引擎TTS API
+    VOLCENGINE_TTS_API_KEY: str = os.getenv("VOLCENGINE_TTS_API_KEY", "")
+    VOLCENGINE_TTS_APP_ID: str = os.getenv("VOLCENGINE_TTS_APP_ID", "")
+
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
@@ -79,11 +91,13 @@ class Settings(BaseSettings):
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 
 
-settings = Settings()
+settings = Settings.model_validate({})
 
 # 调试配置加载
-print(f"=== 配置加载调试信息 ===")
+print("=== 配置加载调试信息 ===")
 print(f"OPENROUTER_API_KEY 是否为空: {not settings.OPENROUTER_API_KEY.strip()}")
 print(f"OPENROUTER_API_KEY 长度: {len(settings.OPENROUTER_API_KEY)}")
-print(f"OPENROUTER_API_KEY 前10字符: {settings.OPENROUTER_API_KEY[:10] if settings.OPENROUTER_API_KEY else 'EMPTY'}")
-print(f"========================")
+print(
+    f"OPENROUTER_API_KEY 前10字符: {settings.OPENROUTER_API_KEY[:10] if settings.OPENROUTER_API_KEY else 'EMPTY'}"
+)
+print("========================")

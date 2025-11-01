@@ -88,7 +88,9 @@ class ChatService:
             if stream:
                 # 流式响应:使用异步生成器
                 async with httpx.AsyncClient() as client:
-                    async for chunk in self._handle_stream_response(client, url, payload):
+                    async for chunk in self._handle_stream_response(
+                        client, url, payload
+                    ):
                         yield chunk
             else:
                 # 非流式响应:直接返回完整响应
