@@ -81,7 +81,16 @@ async def start_interview(
             question_types=["behavioral", "technical", "situational", "general"],
             difficulty="medium",
         )
-        questions = questions_result.get("questions", [])
+        questions = [
+            {
+                "question": q.question,
+                "type": q.question_type.value,
+                "purpose": q.purpose,
+                "reference_points": q.reference_points,
+                "difficulty": q.difficulty.value,
+            }
+            for q in questions_result.questions
+        ]
 
         # 创建面试会话
         interview_session = InterviewSession(
@@ -178,14 +187,8 @@ async def get_next_question(
         # 生成新问题
         answers_list = cast(List[Any], interview_session.answers)
         questions_list = cast(List[Any], interview_session.questions)
-        last_answer = (
-            answers_list[-1]["answer"] if answers_list else ""
-        )
-        last_question = (
-            questions_list[-1]["question"]
-            if questions_list
-            else ""
-        )
+        last_answer = answers_list[-1]["answer"] if answers_list else ""
+        last_question = questions_list[-1]["question"] if questions_list else ""
 
         follow_up_result = await interview_agent.generate_follow_up_question(
             original_question=cast(str, last_question),
@@ -194,9 +197,9 @@ async def get_next_question(
         )
 
         new_question = {
-            "question": follow_up_result["follow_up_question"],
-            "type": follow_up_result["question_type"],
-            "purpose": follow_up_result["purpose"],
+            "question": follow_up_result.follow_up_question,
+            "type": follow_up_result.question_type.value,
+            "purpose": follow_up_result.purpose,
         }
 
         # 更新会话问题列表
@@ -263,7 +266,10 @@ async def submit_answer(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid question index"
             )
 
-        current_question = cast(str, cast(List[Any], interview_session.questions)[question_index]["question"])
+        current_question = cast(
+            str,
+            cast(List[Any], interview_session.questions)[question_index]["question"],
+        )
 
         # 使用 InterviewAgent 评估答案
         from app.services.ai import InterviewAgent
@@ -307,9 +313,9 @@ async def submit_answer(
                 "question": current_question,
                 "answer": answer_request.answer,
                 "evaluation": evaluation,
-                "score": evaluation.get("score", 0),
-                "feedback": evaluation.get("feedback", ""),
-                "suggestions": evaluation.get("suggestions", []),
+                "score": evaluation.feedback.score,
+                "feedback": evaluation.feedback.feedback,
+                "suggestions": evaluation.feedback.improvements,
             }
         )
 
@@ -364,11 +370,7 @@ async def end_interview(
         questions_list = cast(List[Any], interview_session.questions)
         answers_list = cast(List[Any], interview_session.answers)
         for i, question in enumerate(questions_list):
-            answer = (
-                answers_list[i]
-                if i < len(answers_list)
-                else ""
-            )
+            answer = answers_list[i] if i < len(answers_list) else ""
             interview_session_data.append(
                 {
                     "question": question.get("question", "")
@@ -385,11 +387,11 @@ async def end_interview(
             interview_session=interview_session_data, job_requirements=job_requirements
         )
 
-        overall_score = evaluation_result.get("total_score", 85)
+        overall_score = evaluation_result.total_score
 
         # 更新会话状态和分数
         interview_session.status = "completed"  # type: ignore
-        interview_session.overall_score = overall_score  # type: ignore
+        setattr(interview_session, "overall_score", overall_score)
 
         # 清除缓存的报告，因为面试已完成，需要重新生成完整报告
         interview_session.report_data = None  # type: ignore
@@ -564,10 +566,10 @@ async def calculate_scores_for_completed_interviews(
                 job_requirements=job_requirements,
             )
 
-            overall_score = evaluation_result.get("total_score", 85)
+            overall_score = evaluation_result.total_score
 
             if overall_score > 0:  # 只有成功计算出分数才更新
-                session.overall_score = overall_score
+                setattr(session, "overall_score", overall_score)
                 updated_count += 1
 
         except Exception as e:
@@ -705,11 +707,7 @@ async def get_interview_report(
         questions_list = cast(List[Any], interview_session.questions)
         answers_list = cast(List[Any], interview_session.answers)
         for i, question in enumerate(questions_list):
-            answer = (
-                answers_list[i]
-                if i < len(answers_list)
-                else ""
-            )
+            answer = answers_list[i] if i < len(answers_list) else ""
             interview_session_data.append(
                 {
                     "question": question.get("question", "")

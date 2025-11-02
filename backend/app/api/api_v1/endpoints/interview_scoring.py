@@ -78,8 +78,8 @@ async def score_interview_answer(
 
         # 使用 model_construct 方法创建响应实例
         # 从 InterviewAgent 的结果中提取数据
-        score = result.get("score", 8)
-        improvements = result.get("improvements", [])
+        score = result.feedback.score
+        improvements = result.feedback.improvements
 
         return ScoringResponse.model_construct(
             relevance_score=float(score),
