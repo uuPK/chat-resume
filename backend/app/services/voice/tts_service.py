@@ -150,35 +150,33 @@ class TTSService:
         sample_rate: int,
     ) -> Dict[str, Any]:
         """构建TTS请求载荷"""
-        payload = {
+        payload: Dict[str, Any] = {
             "model": self.model,
             "text": text,
         }
 
         if self.provider == TTSProvider.MINIMAX:
-            payload.update(
-                {
-                    "voice": voice or "female-shaonv",
-                    "speed": speed,
-                    "vol": 1.0,
-                    "pitch": pitch,
-                    "audio_setting": {
-                        "sample_rate": sample_rate,
-                        "format": format,
-                        "bitrate": 128000,
-                    },
-                }
-            )
-        elif self.provider == TTSProvider.VOLCENGINE:
-            payload.update(
-                {
-                    "voice": voice or "BV700_streaming",
-                    "speed": speed,
-                    "pitch": pitch,
-                    "rate": sample_rate,
+            minimax_updates: Dict[str, Any] = {
+                "voice": voice or "female-shaonv",
+                "speed": speed,
+                "vol": 1.0,
+                "pitch": pitch,
+                "audio_setting": {
+                    "sample_rate": sample_rate,
                     "format": format,
-                }
-            )
+                    "bitrate": 128000,
+                },
+            }
+            payload.update(minimax_updates)
+        elif self.provider == TTSProvider.VOLCENGINE:
+            volcengine_updates: Dict[str, Any] = {
+                "voice": voice or "BV700_streaming",
+                "speed": speed,
+                "pitch": pitch,
+                "rate": sample_rate,
+                "format": format,
+            }
+            payload.update(volcengine_updates)
 
         return payload
 
@@ -220,7 +218,7 @@ class TTSService:
 
     def _get_provider_features(self) -> Dict[str, bool]:
         """获取提供商特性"""
-        features = {
+        features: Dict[str, bool] = {
             "ssml_support": False,
             "voice_cloning": False,
             "emotion_control": False,
@@ -228,20 +226,18 @@ class TTSService:
         }
 
         if self.provider == TTSProvider.MINIMAX:
-            features.update(
-                {
-                    "ssml_support": False,
-                    "emotion_control": True,
-                    "multiple_voices": True,
-                }
-            )
+            minimax_features: Dict[str, bool] = {
+                "ssml_support": False,
+                "emotion_control": True,
+                "multiple_voices": True,
+            }
+            features.update(minimax_features)
         elif self.provider == TTSProvider.VOLCENGINE:
-            features.update(
-                {
-                    "ssml_support": True,
-                    "emotion_control": False,
-                    "multiple_voices": True,
-                }
-            )
+            volcengine_features: Dict[str, bool] = {
+                "ssml_support": True,
+                "emotion_control": False,
+                "multiple_voices": True,
+            }
+            features.update(volcengine_features)
 
         return features

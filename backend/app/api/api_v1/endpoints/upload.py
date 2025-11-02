@@ -41,6 +41,9 @@ async def upload_resume(
             detail="Unsupported file format. Please upload PDF, DOCX, DOC, or TXT files.",
         )
 
+    file_service = None
+    file_path = None
+
     try:
         # 保存文件
         file_service = FileService()
@@ -78,7 +81,7 @@ async def upload_resume(
 
     except Exception as e:
         # 清理临时文件
-        if "file_path" in locals():
+        if file_service and file_path:
             file_service.delete_file(file_path)
 
         # 记录详细错误信息

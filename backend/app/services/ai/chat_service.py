@@ -6,7 +6,7 @@
 """
 
 import httpx
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncGenerator
 from enum import Enum
 from app.core.config import settings
 
@@ -81,26 +81,49 @@ class ChatService:
         if not self.api_key:
             raise ValueError(f"未配置 {self.provider.value} API密钥")
 
-        payload = self._build_payload(messages, temperature, max_tokens, stream)
+        if stream:
+            return self._chat_completion_stream(messages, temperature, max_tokens)
+        else:
+            return await self._chat_completion_non_stream(
+                messages, temperature, max_tokens
+            )
+
+    async def _chat_completion_non_stream(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """非流式聊天完成"""
+        payload = self._build_payload(messages, temperature, max_tokens, stream=False)
         url = self._get_endpoint_url()
 
         try:
-            if stream:
-                # 流式响应:使用异步生成器
-                async with httpx.AsyncClient() as client:
-                    async for chunk in self._handle_stream_response(
-                        client, url, payload
-                    ):
-                        yield chunk
-            else:
-                # 非流式响应:直接返回完整响应
-                # 使用 yield 来保持函数作为异步生成器的一致性
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        url, json=payload, headers=self.headers
-                    )
-                    response.raise_for_status()
-                    yield response.json()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            raise Exception(
+                f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
+            )
+        except Exception as e:
+            raise Exception(f"AI服务请求异常: {str(e)}")
+
+    async def _chat_completion_stream(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> AsyncGenerator[str, None]:
+        """流式聊天完成"""
+        payload = self._build_payload(messages, temperature, max_tokens, stream=True)
+        url = self._get_endpoint_url()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                async for chunk in self._handle_stream_response(client, url, payload):
+                    yield chunk
         except httpx.HTTPStatusError as e:
             raise Exception(
                 f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
@@ -145,7 +168,7 @@ class ChatService:
 
     async def _handle_stream_response(
         self, client: httpx.AsyncClient, url: str, payload: Dict[str, Any]
-    ):
+    ) -> AsyncGenerator[str, None]:
         """处理流式响应"""
         async with client.stream(
             "POST", url, json=payload, headers=self.headers
@@ -194,7 +217,7 @@ class ChatService:
         messages.append({"role": "user", "content": message})
 
         # 调用AI服务
-        response = await self.chat_completion(messages)
+        response = await self._chat_completion_non_stream(messages)
 
         # 提取回复内容
         if self.provider == AIProvider.GEMINI:

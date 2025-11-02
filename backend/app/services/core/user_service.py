@@ -50,7 +50,7 @@ class UserService:
 
         # 更新用户信息
         if user_update.full_name is not None:
-            user.full_name = user_update.full_name
+            setattr(user, "full_name", user_update.full_name)
 
         self.db.commit()
         self.db.refresh(user)

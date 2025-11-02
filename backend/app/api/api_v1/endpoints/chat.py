@@ -88,7 +88,7 @@ async def chat_with_resume(
         )
 
         # 调用AI服务
-        response = await chat_service.chat_completion(messages)
+        response = await chat_service._chat_completion_non_stream(messages)
 
         # 从新服务响应中提取内容
         if chat_service.provider == "gemini":
@@ -186,9 +186,7 @@ async def chat_with_resume_stream(
                 )
 
             # 流式响应
-            async for content_chunk in chat_service.chat_completion(
-                messages, stream=True
-            ):
+            async for content_chunk in chat_service._chat_completion_stream(messages):
                 # 解析流式响应数据
                 try:
                     chunk_data = json.loads(content_chunk)

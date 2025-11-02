@@ -75,7 +75,7 @@ class ResumeService:
             ).delete()
 
             # 删除关联的文件
-            if resume.file_path:
+            if resume.file_path is not None:
                 file_service = FileService()
                 file_service.delete_file(str(resume.file_path))
 

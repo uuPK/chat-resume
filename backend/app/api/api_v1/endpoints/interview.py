@@ -70,8 +70,9 @@ async def start_interview(
         # 生成初始面试问题
         interview_agent = InterviewAgent(AIProvider.OPENROUTER)
         # 确保 resume.content 是字典类型
+        resume_content_var = resume.content
         resume_content: Dict[str, Any] = (
-            cast(Dict[str, Any], resume.content) if resume.content else {}
+            cast(Dict[str, Any], resume_content_var) if resume_content_var else {}  # type: ignore
         )
         questions_result = await interview_agent.generate_interview_questions(
             job_title="候选人",
@@ -142,10 +143,10 @@ async def get_next_question(
         )
 
     # 获取当前问题索引
-    current_question_index = len(interview_session.answers)
+    current_question_index = len(cast(List[Any], interview_session.answers))
 
     # 如果还有预设问题，返回下一个
-    if current_question_index < len(interview_session.questions):
+    if current_question_index < len(cast(List[Any], interview_session.questions)):
         question = interview_session.questions[current_question_index]
         return InterviewQuestionResponse.model_validate(
             {
@@ -164,8 +165,8 @@ async def get_next_question(
 
         # 构建 InterviewAgent 需要的对话历史格式
         interview_history = []
-        for i, answer in enumerate(interview_session.answers):
-            if i < len(interview_session.questions):
+        for i, answer in enumerate(cast(List[Any], interview_session.answers)):
+            if i < len(cast(List[Any], interview_session.questions)):
                 interview_history.append(
                     {
                         "role": "assistant",
@@ -175,18 +176,20 @@ async def get_next_question(
                 interview_history.append({"role": "user", "content": answer["answer"]})
 
         # 生成新问题
+        answers_list = cast(List[Any], interview_session.answers)
+        questions_list = cast(List[Any], interview_session.questions)
         last_answer = (
-            interview_session.answers[-1]["answer"] if interview_session.answers else ""
+            answers_list[-1]["answer"] if answers_list else ""
         )
         last_question = (
-            interview_session.questions[-1]["question"]
-            if interview_session.questions
+            questions_list[-1]["question"]
+            if questions_list
             else ""
         )
 
         follow_up_result = await interview_agent.generate_follow_up_question(
-            original_question=last_question,
-            user_answer=last_answer,
+            original_question=cast(str, last_question),
+            user_answer=cast(str, last_answer),
             feedback_score=7,  # 默认分数
         )
 
@@ -255,12 +258,12 @@ async def submit_answer(
         # 获取当前问题
         question_index = answer_request.question_index
 
-        if question_index >= len(interview_session.questions):
+        if question_index >= len(cast(List[Any], interview_session.questions)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid question index"
             )
 
-        current_question = interview_session.questions[question_index]["question"]
+        current_question = cast(str, cast(List[Any], interview_session.questions)[question_index]["question"])
 
         # 使用 InterviewAgent 评估答案
         from app.services.ai import InterviewAgent
@@ -268,7 +271,7 @@ async def submit_answer(
 
         interview_agent = InterviewAgent(AIProvider.OPENROUTER)
         evaluation = await interview_agent.conduct_interview(
-            question=current_question,
+            question=cast(str, current_question),
             user_answer=answer_request.answer,
             question_context="面试评估",
             interview_history=[],
@@ -282,7 +285,7 @@ async def submit_answer(
         }
 
         # 更新会话答案 - 复制列表以确保SQLAlchemy检测到变化
-        current_answers = list(interview_session.answers or [])
+        current_answers = list(cast(List[Any], interview_session.answers) or [])
 
         # 扩展答案列表到所需长度
         while len(current_answers) <= question_index:
@@ -292,10 +295,10 @@ async def submit_answer(
         current_answers[question_index] = answer_data
 
         # 重新分配列表以触发SQLAlchemy的变化检测
-        interview_session.answers = current_answers
+        interview_session.answers = current_answers  # type: ignore
 
         # 清除缓存的报告，因为面试内容已更新
-        interview_session.report_data = None
+        interview_session.report_data = None  # type: ignore
 
         db.commit()
 
@@ -358,10 +361,12 @@ async def end_interview(
 
         # 构建面试会话记录
         interview_session_data = []
-        for i, question in enumerate(interview_session.questions):
+        questions_list = cast(List[Any], interview_session.questions)
+        answers_list = cast(List[Any], interview_session.answers)
+        for i, question in enumerate(questions_list):
             answer = (
-                interview_session.answers[i]
-                if i < len(interview_session.answers)
+                answers_list[i]
+                if i < len(answers_list)
                 else ""
             )
             interview_session_data.append(
@@ -383,11 +388,11 @@ async def end_interview(
         overall_score = evaluation_result.get("total_score", 85)
 
         # 更新会话状态和分数
-        interview_session.status = "completed"
-        interview_session.overall_score = overall_score
+        interview_session.status = "completed"  # type: ignore
+        interview_session.overall_score = overall_score  # type: ignore
 
         # 清除缓存的报告，因为面试已完成，需要重新生成完整报告
-        interview_session.report_data = None
+        interview_session.report_data = None  # type: ignore
 
         db.commit()
 
@@ -398,10 +403,10 @@ async def end_interview(
 
     except Exception as e:
         # 即使分数计算失败，也要结束面试
-        interview_session.status = "completed"
+        interview_session.status = "completed"  # type: ignore
 
         # 清除缓存的报告
-        interview_session.report_data = None
+        interview_session.report_data = None  # type: ignore
 
         db.commit()
 
@@ -536,8 +541,10 @@ async def calculate_scores_for_completed_interviews(
         try:
             # 构建面试会话记录
             interview_session_data = []
-            for i, question in enumerate(session.questions):
-                answer = session.answers[i] if i < len(session.answers) else ""
+            questions_list = cast(List[Any], session.questions)
+            answers_list = cast(List[Any], session.answers)
+            for i, question in enumerate(questions_list):
+                answer = answers_list[i] if i < len(answers_list) else ""
                 interview_session_data.append(
                     {
                         "question": question.get("question", "")
@@ -616,7 +623,8 @@ async def cleanup_duplicate_sessions(
 
         for session in sessions_to_delete:
             # 只删除没有答案的空会话
-            if not session.answers or len(session.answers) == 0:
+            session_answers = cast(List[Any], session.answers)
+            if not session_answers or len(session_answers) == 0:
                 db.delete(session)
                 cleaned_count += 1
                 logger.info(f"删除空的重复面试会话: {session.id}")
@@ -677,9 +685,10 @@ async def get_interview_report(
 
     try:
         # 检查是否已有缓存的报告（如果不是强制重新生成）
-        if interview_session.report_data and not regenerate:
+        report_data = cast(Dict[str, Any], interview_session.report_data)
+        if report_data and not regenerate:
             logger.info(f"返回缓存的报告，面试会话ID: {session_id}")
-            return interview_session.report_data
+            return report_data
 
         # 添加简历信息到面试会话对象
         interview_session.resume_title = resume.title
@@ -693,10 +702,12 @@ async def get_interview_report(
 
         # 构建面试会话记录
         interview_session_data = []
-        for i, question in enumerate(interview_session.questions):
+        questions_list = cast(List[Any], interview_session.questions)
+        answers_list = cast(List[Any], interview_session.answers)
+        for i, question in enumerate(questions_list):
             answer = (
-                interview_session.answers[i]
-                if i < len(interview_session.answers)
+                answers_list[i]
+                if i < len(answers_list)
                 else ""
             )
             interview_session_data.append(
@@ -716,7 +727,7 @@ async def get_interview_report(
         )
 
         # 缓存报告到数据库
-        interview_session.report_data = report
+        interview_session.report_data = report  # type: ignore
         db.commit()
         logger.info(f"生成并缓存了新报告，面试会话ID: {session_id}")
 
