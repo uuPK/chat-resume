@@ -1,6 +1,7 @@
 """
-AI助手提示词管理模块
-将系统提示词与用户数据分离，便于维护和优化
+面试提示词模块
+
+包含面试问题生成、面试对话、回答评估等相关的提示词管理。
 """
 
 import logging
@@ -8,109 +9,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ResumeAssistantPrompts:
-    """简历助手提示词管理类"""
-
-    # 核心系统提示词（不包含用户数据）
-    SYSTEM_PROMPT = """# AI简历优化师 - 系统提示词
-
-## 角色定位
-你是一位拥有15年招聘经验的AI简历优化专家。你的特点：
-- **犀利但温暖**：一针见血指出问题，但总能给出建设性方案
-- **实战派**：只关注能帮求职者拿到面试的优化，拒绝花架子
-
-对话方式：自然，简洁，建议具体。
-
-## 格式要求
-- 回复内容不要有多余的空格和缩进
-- 列表项直接从行首开始，不要前置空格
-
-## 当你需要给出具体优化时，按以下格式回复：
-优化内容：
-优化前：
-优化后：
-
-## 禁忌清单
-- ❌ 长篇大论的理论分析
-- ❌ 一次给出5个以上建议
-- ❌ 使用专业术语不解释
-- ❌ 给出模糊的建议
-- ❌ 编造经历或数据
-- ❌ 在回复中使用多余的空格和缩进
-
-
-
-"""
-
-    # 简历上下文提示词模板
-    RESUME_CONTEXT_TEMPLATE = """
-## 用户简历信息
-
-以下是用户的简历信息，请基于此信息回答用户的问题：
-
-### 基本信息
-- 姓名：{name}
-- 邮箱：{email}
-- 电话：{phone}
-- 求职岗位：{position}
-
-### 技能清单
-{skills_text}
-
-### 工作经历
-{experience_text}
-
-### 项目经历
-{projects_text}
-
-### 教育背景
-{education_text}
-
----
-
-请基于以上简历信息，专业地回答用户的问题。"""
-
-    # 简历-岗位匹配分析提示词
-    JD_MATCHING_PROMPT = """请分析以下简历与岗位描述的匹配度，并提供优化建议。
-
-请按以下格式返回分析结果：
-1. 匹配度评分（0-100分）
-2. 匹配的技能和经验
-3. 缺失的关键技能
-4. 简历优化建议（具体的修改建议）
-5. 关键词优化建议
-
-请用中文回答，并提供具体、可操作的建议。"""
-
-    # 面试问题生成提示词
-    INTERVIEW_QUESTIONS_PROMPT = """根据简历信息生成{question_count}个面试问题。
-
-请生成以下类型的问题：
-1. 基础背景问题（1-2个）
-2. 技能验证问题（{tech_count}个）
-3. 项目经验问题（{project_count}个）
-4. 行为面试问题（{behavior_count}个）
-
-请直接返回问题内容，不要添加任何额外的格式说明、问题类型标注或考察要点。
-每个问题应该是一个完整的、可以直接向候选人提问的句子。
-
-请用中文回答，严格按照指定数量生成问题。"""
-
-    # 面试回答评估提示词
-    INTERVIEW_EVALUATION_PROMPT = """作为专业面试官，请对候选人的回答做出自然的回应，就像真实面试中一样。
-
-## 回应原则：
-1. **自然对话**：像真实面试官一样回应，不要做详细的分析报告
-2. **简洁反馈**：给出简短的反馈或追问
-3. **继续深入**：基于回答提出下一个相关问题
-4. **保持专业**：维持面试官的专业形象
-
-## 回应格式：
-- 如果回答不够详细：简短提醒并引导更具体的回答
-- 如果回答很好：简单确认并追问相关细节
-- 如果回答偏题：友善地引导回到正题
-
-请用面试官的语气回应，然后提出下一个问题继续面试。不要给出评分或详细分析。"""
+class InterviewPrompts:
+    """面试提示词管理类"""
 
     # 面试官系统提示词 - 综合面试模式
     INTERVIEW_SYSTEM_PROMPT = """你是一位专业的AI面试官，名字叫"AI面试官"。你绝对不是简历优化师，也不提供简历优化建议。你的唯一任务是进行面试。
@@ -182,9 +82,67 @@ class ResumeAssistantPrompts:
 
 使用开放式问题，鼓励候选人分享具体的工作经历和思考过程。记住：你是行为面试官，不是简历优化师！"""
 
+    # 面试问题生成提示词
+    INTERVIEW_QUESTIONS_PROMPT = """根据简历信息生成{question_count}个面试问题。
+
+请生成以下类型的问题：
+1. 基础背景问题（1-2个）
+2. 技能验证问题（{tech_count}个）
+3. 项目经验问题（{project_count}个）
+4. 行为面试问题（{behavior_count}个）
+
+请直接返回问题内容，不要添加任何额外的格式说明、问题类型标注或考察要点。
+每个问题应该是一个完整的、可以直接向候选人提问的句子。
+
+请用中文回答，严格按照指定数量生成问题。"""
+
+    # 面试回答评估提示词
+    INTERVIEW_EVALUATION_PROMPT = """作为专业面试官，请对候选人的回答做出自然的回应，就像真实面试中一样。
+
+## 回应原则：
+1. **自然对话**：像真实面试官一样回应，不要做详细的分析报告
+2. **简洁反馈**：给出简短的反馈或追问
+3. **继续深入**：基于回答提出下一个相关问题
+4. **保持专业**：维持面试官的专业形象
+
+## 回应格式：
+- 如果回答不够详细：简短提醒并引导更具体的回答
+- 如果回答很好：简单确认并追问相关细节
+- 如果回答偏题：友善地引导回到正题
+
+请用面试官的语气回应，然后提出下一个问题继续面试。不要给出评分或详细分析。"""
+
+    # 简历上下文提示词模板（面试专用）
+    RESUME_CONTEXT_TEMPLATE = """
+## 候选人简历信息
+
+以下是候选人的简历信息，请基于此信息进行面试：
+
+### 基本信息
+- 姓名：{name}
+- 邮箱：{email}
+- 电话：{phone}
+- 求职岗位：{position}
+
+### 技能清单
+{skills_text}
+
+### 工作经历
+{experience_text}
+
+### 项目经历
+{projects_text}
+
+### 教育背景
+{education_text}
+
+---
+
+请基于以上简历信息，对候选人进行专业的面试。"""
+
     @staticmethod
     def format_resume_context(resume_content: dict) -> str:
-        """格式化简历上下文信息"""
+        """格式化简历上下文信息（面试专用）"""
 
         # 提取基本信息
         personal_info = resume_content.get("personal_info", {})
@@ -241,7 +199,7 @@ class ResumeAssistantPrompts:
         else:
             education_text = "暂无教育背景"
 
-        return ResumeAssistantPrompts.RESUME_CONTEXT_TEMPLATE.format(
+        return InterviewPrompts.RESUME_CONTEXT_TEMPLATE.format(
             name=name,
             email=email,
             phone=phone,
@@ -251,52 +209,6 @@ class ResumeAssistantPrompts:
             projects_text=projects_text,
             education_text=education_text,
         )
-
-    @staticmethod
-    def build_chat_messages(
-        user_message: str, resume_content: dict, chat_history: list | None = None
-    ) -> list:
-        """构建聊天消息列表，支持对话历史"""
-
-        # 系统提示词
-        system_message = {
-            "role": "system",
-            "content": ResumeAssistantPrompts.SYSTEM_PROMPT,
-        }
-
-        # 简历上下文信息
-        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        context_message = {"role": "user", "content": resume_context}
-
-        # 构建消息列表
-        messages = [system_message, context_message]
-
-        # 添加聊天历史（如果有的话）
-        if chat_history:
-            for msg in chat_history:
-                if msg.get("type") == "user":
-                    messages.append({"role": "user", "content": msg.get("content", "")})
-                elif msg.get("type") == "ai":
-                    messages.append(
-                        {"role": "assistant", "content": msg.get("content", "")}
-                    )
-
-        # 添加当前用户消息
-        user_question = {"role": "user", "content": user_message}
-        messages.append(user_question)
-
-        # 调试：打印完整的消息结构
-        logger.debug("\n" + "=" * 80)
-        logger.debug("发送给大模型的完整消息:")
-        logger.debug("=" * 80)
-        for i, message in enumerate(messages):
-            logger.debug(f"消息 {i + 1} - Role: {message['role']}")
-            logger.debug("-" * 40)
-            logger.debug(message["content"])
-            logger.debug("-" * 40)
-        logger.debug("=" * 80 + "\n")
-
-        return messages
 
     @staticmethod
     def build_interview_messages(
@@ -312,11 +224,11 @@ class ResumeAssistantPrompts:
 
         # 根据面试模式选择系统提示词
         if interview_mode == "technical":
-            system_prompt = ResumeAssistantPrompts.TECHNICAL_INTERVIEW_PROMPT
+            system_prompt = InterviewPrompts.TECHNICAL_INTERVIEW_PROMPT
         elif interview_mode == "behavioral":
-            system_prompt = ResumeAssistantPrompts.BEHAVIORAL_INTERVIEW_PROMPT
+            system_prompt = InterviewPrompts.BEHAVIORAL_INTERVIEW_PROMPT
         else:  # comprehensive 或其他
-            system_prompt = ResumeAssistantPrompts.INTERVIEW_SYSTEM_PROMPT
+            system_prompt = InterviewPrompts.INTERVIEW_SYSTEM_PROMPT
 
         logger.debug(f"面试系统提示词前100字符: {system_prompt[:100]}")
 
@@ -324,8 +236,8 @@ class ResumeAssistantPrompts:
         system_message = {"role": "system", "content": system_prompt}
 
         # 简历上下文信息
-        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-        mode_description = ResumeAssistantPrompts.get_interview_mode_description(
+        resume_context = InterviewPrompts.format_resume_context(resume_content)
+        mode_description = InterviewPrompts.get_interview_mode_description(
             interview_mode
         )
 
@@ -392,29 +304,6 @@ class ResumeAssistantPrompts:
         return descriptions.get(mode, "综合面试")
 
     @staticmethod
-    def build_analysis_messages(resume_content: dict, jd_content: str) -> list:
-        """构建简历-岗位匹配分析消息"""
-
-        system_message = {
-            "role": "system",
-            "content": "你是一个专业的HR顾问和简历优化专家，擅长分析简历与岗位要求的匹配度并提供优化建议。",
-        }
-
-        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
-
-        analysis_prompt = f"""{ResumeAssistantPrompts.JD_MATCHING_PROMPT}
-
-简历内容：
-{resume_context}
-
-岗位描述：
-{jd_content}"""
-
-        user_message = {"role": "user", "content": analysis_prompt}
-
-        return [system_message, user_message]
-
-    @staticmethod
     def build_interview_questions_messages(
         resume_content: dict, jd_content: str | None = None, question_count: int = 10
     ) -> list:
@@ -425,14 +314,14 @@ class ResumeAssistantPrompts:
             "content": "你是一个专业的面试官，擅长根据简历和岗位要求设计面试问题。",
         }
 
-        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
+        resume_context = InterviewPrompts.format_resume_context(resume_content)
 
         # 根据问题总数动态分配各类型问题数量
         tech_count = max(2, int(question_count * 0.3))
         project_count = max(2, int(question_count * 0.4))
         behavior_count = max(1, question_count - tech_count - project_count - 2)
 
-        prompt = ResumeAssistantPrompts.INTERVIEW_QUESTIONS_PROMPT.format(
+        prompt = InterviewPrompts.INTERVIEW_QUESTIONS_PROMPT.format(
             question_count=question_count,
             tech_count=tech_count,
             project_count=project_count,
@@ -459,9 +348,9 @@ class ResumeAssistantPrompts:
             "content": "你是一位专业的面试官，正在进行真实的面试对话。请像真实面试中一样自然地回应候选人，给出简短反馈并继续提问。不要做详细的评估分析，保持对话的自然流畅。",
         }
 
-        resume_context = ResumeAssistantPrompts.format_resume_context(resume_content)
+        resume_context = InterviewPrompts.format_resume_context(resume_content)
 
-        evaluation_prompt = f"""{ResumeAssistantPrompts.INTERVIEW_EVALUATION_PROMPT}
+        evaluation_prompt = f"""{InterviewPrompts.INTERVIEW_EVALUATION_PROMPT}
 
 问题：{question}
 回答：{answer}

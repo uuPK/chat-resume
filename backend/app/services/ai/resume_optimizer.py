@@ -7,7 +7,7 @@
 
 from typing import Dict, Any, List, Optional
 from .chat_service import ChatService, AIProvider
-from app.core.prompts import ResumeAssistantPrompts
+from app.prompt import ResumePrompts, InterviewPrompts
 
 
 class ResumeOptimizer:
@@ -20,7 +20,8 @@ class ResumeOptimizer:
             provider: AI服务提供商
         """
         self.chat_service = ChatService(provider)
-        self.prompts = ResumeAssistantPrompts()
+        self.resume_prompts = ResumePrompts()
+        self.interview_prompts = InterviewPrompts()
 
     async def analyze_resume(
         self, resume_content: str, job_description: Optional[str] = None

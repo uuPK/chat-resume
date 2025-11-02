@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
 from app.services.ai import ChatService
 from app.services.core import ResumeService
-from app.core.prompts import ResumeAssistantPrompts
+from app.prompt import ResumePrompts, InterviewPrompts
 from app.core.database import get_db
 from app.api.deps import get_current_user
 import json
@@ -83,7 +83,7 @@ async def chat_with_resume(
         resume_dict: Dict[str, Any] = cast(
             Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
         )
-        messages = ResumeAssistantPrompts.build_chat_messages(
+        messages = ResumePrompts.build_chat_messages(
             chat_request.message, resume_dict, chat_request.chat_history
         )
 
@@ -172,7 +172,7 @@ async def chat_with_resume_stream(
             if chat_request.is_interview:
                 # 面试模式：使用面试官提示词
                 logger.debug(f"使用面试官提示词，模式: {chat_request.interview_mode}")
-                messages = ResumeAssistantPrompts.build_interview_messages(
+                messages = InterviewPrompts.build_interview_messages(
                     chat_request.message,
                     resume_dict,
                     chat_request.chat_history,
@@ -181,7 +181,7 @@ async def chat_with_resume_stream(
             else:
                 # 普通模式：使用简历优化师提示词
                 logger.debug("使用简历优化师提示词")
-                messages = ResumeAssistantPrompts.build_chat_messages(
+                messages = ResumePrompts.build_chat_messages(
                     chat_request.message, resume_dict, chat_request.chat_history
                 )
 

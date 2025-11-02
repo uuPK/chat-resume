@@ -11,6 +11,10 @@ from pydantic import BaseModel
 
 
 class ResumeCreate(BaseModel):
+    """简历创建模式
+
+    用于创建新简历时的数据验证，包含简历标题、内容和原始文件名。
+    """
     model_config = {"from_attributes": True}
 
     title: str
@@ -19,6 +23,10 @@ class ResumeCreate(BaseModel):
 
 
 class ResumeUpdate(BaseModel):
+    """简历更新模式
+
+    用于更新现有简历时的数据验证，所有字段都是可选的。
+    """
     model_config = {"from_attributes": True}
 
     title: Optional[str] = None
@@ -27,6 +35,10 @@ class ResumeUpdate(BaseModel):
 
 
 class ResumeResponse(BaseModel):
+    """简历响应模式
+
+    用于API返回简历数据，包含完整的简历信息和时间戳。
+    """
     id: int
     title: str
     content: Dict[str, Any]
@@ -39,12 +51,20 @@ class ResumeResponse(BaseModel):
 
 
 class OptimizationRequest(BaseModel):
+    """简历优化请求模式
+
+    用于提交简历优化请求，包含职位描述内容。
+    """
     model_config = {"from_attributes": True}
 
     jd_content: str
 
 
 class OptimizationResponse(BaseModel):
+    """简历优化响应模式
+
+    用于返回简历优化结果，包含优化建议和相关信息。
+    """
     model_config = {"from_attributes": True}
 
     id: int

@@ -8,7 +8,7 @@ FastAPI应用的初始化和配置入口点。
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.api_v1.api import api_router
+from app.api.api import api_router
 from app.core.database import engine, Base
 import logging
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_STR}/openapi.json",
 )
 
 
@@ -140,7 +140,7 @@ else:
         expose_headers=["*"],
     )
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix=settings.API_STR)
 
 
 @app.get("/")
@@ -153,7 +153,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
-@app.get("/api/v1/test")
+@app.get("/api/test")
 async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
 
