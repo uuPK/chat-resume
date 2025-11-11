@@ -52,7 +52,10 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
     <div className="mb-5">
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
-        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
+        <h2
+          data-line-index={0}
+          className="text-lg font-bold text-gray-900 mb-2 pb-1 border-b border-gray-200"
+        >
           技能专长
         </h2>
       )}
@@ -61,20 +64,24 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
       {Object.entries(skillsByCategory).map(([category, skills], categoryIndex) => {
         const lineIndex = categoryIndex + 1
         return shouldRenderLine(lineIndex) ? (
-          <div key={category} data-line-index={lineIndex} className="mb-3">
-            <h3 className="font-semibold text-gray-800 mb-1.5 text-sm">
+          <div
+            key={category}
+            data-line-index={lineIndex}
+            className="flex flex-wrap items-center gap-2 text-sm text-gray-700 mb-1.5"
+          >
+            <span className="font-semibold text-gray-800 flex-shrink-0">
               {category}
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
               {skills.map((skill, index) => (
-                <div 
+                <div
                   key={skill.id || index}
-                  className="flex items-center space-x-2"
+                  className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5"
                 >
-                  <span className="px-2.5 py-0.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-full">
+                  <span className="text-xs text-gray-800">
                     {skill.name}
                   </span>
-                  <span className={`px-1.5 py-0.5 text-xs rounded ${getLevelColor(skill.level)}`}>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded ${getLevelColor(skill.level)}`}>
                     {skill.level}
                   </span>
                 </div>
