@@ -19,13 +19,16 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-3">
       <div className="flex justify-between items-start mb-1">
-        <div className="flex-1">
+        <div className="flex-1 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-gray-900">
             {edu.school}
           </h3>
-          <p className="text-gray-700">
-            {edu.major} · {edu.degree}
-          </p>
+          {(edu.major || edu.degree) && (
+            <span className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="w-px h-4 bg-gray-300" />
+              {[edu.major, edu.degree].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </div>
         <div className="text-sm text-gray-600 ml-4">
           {edu.duration}
