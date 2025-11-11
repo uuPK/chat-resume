@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
@@ -93,6 +93,21 @@ interface Resume {
   updated_at?: string
 }
 
+type AutoSaveStatus = 'idle' | 'pending' | 'saving' | 'success' | 'error'
+
+const AUTO_SAVE_DELAY = 1500
+
+const AUTO_SAVE_STATUS_MESSAGE: Record<
+  AutoSaveStatus,
+  { text: string; className: string }
+> = {
+  idle: { text: '', className: 'text-gray-400' },
+  pending: { text: '有未保存的更改…', className: 'text-amber-500' },
+  saving: { text: '自动保存中…', className: 'text-blue-600' },
+  success: { text: '已自动保存', className: 'text-green-600' },
+  error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
+}
+
 export default function ResumeEditPage() {
   const params = useParams()
   const router = useRouter()
@@ -101,7 +116,11 @@ export default function ResumeEditPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const resumeRef = useRef<Resume | null>(null)
   
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -177,6 +196,7 @@ export default function ResumeEditPage() {
       setResumeLoading(true)
       const data = await resumeApi.getResume(parseInt(resumeId))
       setResume(data)
+      resumeRef.current = data
     } catch (error) {
       console.error('Failed to fetch resume:', error)
       toast.error('获取简历失败')
@@ -200,6 +220,21 @@ export default function ResumeEditPage() {
     }
   }, [resumeId])
 
+  useEffect(() => {
+    resumeRef.current = resume
+  }, [resume])
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+      if (statusResetTimeoutRef.current) {
+        clearTimeout(statusResetTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // 处理布局配置变化
   const handleLayoutConfigChange = (newConfig: ResumeLayoutConfig) => {
     setLayoutConfig(newConfig)
@@ -219,21 +254,68 @@ export default function ResumeEditPage() {
     }))
   }, [layoutConfig])
 
+  const scheduleStatusReset = useCallback(() => {
+    if (statusResetTimeoutRef.current) {
+      clearTimeout(statusResetTimeoutRef.current)
+    }
+    statusResetTimeoutRef.current = setTimeout(() => {
+      setAutoSaveStatus((status) => (status === 'success' ? 'idle' : status))
+    }, 2000)
+  }, [])
+
+  const performAutoSave = useCallback(
+    async ({ showSuccessToast = false }: { showSuccessToast?: boolean } = {}) => {
+      if (!resumeRef.current) {
+        return
+      }
+
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+        autoSaveTimeoutRef.current = null
+      }
+
+      setAutoSaveStatus('saving')
+      try {
+        await resumeApi.updateResume(resumeRef.current.id, {
+          title: resumeRef.current.title,
+          content: resumeRef.current.content
+        })
+        setAutoSaveStatus('success')
+        if (showSuccessToast) {
+          toast.success('简历保存成功')
+        }
+        scheduleStatusReset()
+      } catch (error) {
+        console.error('Auto save error:', error)
+        setAutoSaveStatus('error')
+        toast.error('自动保存失败，请检查网络或手动保存')
+        throw error
+      }
+    },
+    [scheduleStatusReset]
+  )
+
+  const scheduleAutoSave = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+    setAutoSaveStatus('pending')
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      performAutoSave().catch(() => {
+        // 错误情况已在 performAutoSave 中处理
+      })
+    }, AUTO_SAVE_DELAY)
+  }, [performAutoSave])
+
   // 保存简历
   const handleSave = async () => {
     if (!resume) return
 
     try {
       setSaving(true)
-      // 调用API更新简历
-      await resumeApi.updateResume(resume.id, { 
-        title: resume.title,
-        content: resume.content 
-      })
-      toast.success('简历保存成功')
+      await performAutoSave({ showSuccessToast: true })
     } catch (error) {
       console.error('Save error:', error)
-      toast.error('保存失败，请重试')
     } finally {
       setSaving(false)
     }
@@ -243,23 +325,33 @@ export default function ResumeEditPage() {
   const updateResumeContent = (section: string, data: any) => {
     if (!resume) return
 
-    setResume(prev => ({
-      ...prev!,
-      content: {
-        ...prev!.content,
-        [section]: data
+    setResume(prev => {
+      const updated = {
+        ...prev!,
+        content: {
+          ...prev!.content,
+          [section]: data
+        }
       }
-    }))
+      resumeRef.current = updated
+      return updated
+    })
+    scheduleAutoSave()
   }
 
   // 更新简历标题
   const updateResumeTitle = (title: string) => {
     if (!resume) return
 
-    setResume(prev => ({
-      ...prev!,
-      title: title
-    }))
+    setResume(prev => {
+      const updated = {
+        ...prev!,
+        title: title
+      }
+      resumeRef.current = updated
+      return updated
+    })
+    scheduleAutoSave()
   }
 
   // 聊天功能
@@ -366,6 +458,11 @@ export default function ResumeEditPage() {
                   </>
                 )}
               </button>
+              {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text && (
+                <div className={`text-xs ${AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].className}`}>
+                  {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text}
+                </div>
+              )}
             </div>
           </div>
         </div>
