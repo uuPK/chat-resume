@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useRef, useMemo, useState } from 'react'
-import { useResumePagination } from './hooks/useResumePagination'
+import React, { useMemo, useRef } from 'react'
+import { useLineBasedPagination } from './hooks/useLineBasedPagination'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
 import EducationPreview from './sections/EducationPreview'
@@ -11,6 +11,22 @@ import ProjectsPreview from './sections/ProjectsPreview'
 
 // 模块类型定义
 export type ModuleType = 'personal' | 'education' | 'work' | 'skills' | 'projects'
+
+const SECTION_ID_MAP: Record<ModuleType, string> = {
+  personal: 'personal-info-section',
+  education: 'education-section',
+  work: 'work-experience-section',
+  skills: 'skills-section',
+  projects: 'projects-section'
+}
+
+const SECTION_ID_TO_MODULE = Object.entries(SECTION_ID_MAP).reduce(
+  (acc, [moduleType, sectionId]) => {
+    acc[sectionId] = moduleType as ModuleType
+    return acc
+  },
+  {} as Record<string, ModuleType>
+)
 
 // 模块配置接口
 export interface ModuleConfig {
@@ -86,7 +102,7 @@ interface ResumeContent {
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent
-  moduleOrder?: ModuleConfig[]  // 可选的自定义模块顺序
+  moduleOrder?: ModuleConfig[]
 }
 
 export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_MODULE_ORDER }: PaginatedResumePreviewProps) {
@@ -95,13 +111,14 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   const [scale, setScale] = React.useState(1)
   
   // 按order排序并过滤可见模块
+  const moduleOrderKey = JSON.stringify(moduleOrder.map(m => ({ type: m.type, visible: m.visible, order: m.order })))
   const visibleModules = useMemo(() => {
     return [...moduleOrder]
       .filter(m => m.visible)
       .sort((a, b) => a.order - b.order)
-  }, [moduleOrder])
+  }, [moduleOrderKey])
 
-  const { pages, totalPages, isCalculating } = useResumePagination({
+  const { pages, totalPages, isCalculating } = useLineBasedPagination({
     containerRef,
     contentRef
   })
@@ -113,27 +130,21 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
       const container = containerRef.current
       const containerWidth = container.clientWidth
-      const A4_WIDTH = 816 // A4宽度
-      const padding = 8 // 最小边距，充分利用空间
+      const A4_WIDTH = 816
+      const padding = 8
 
-      // 计算可用宽度
       const availableWidth = containerWidth - padding * 2
-
-      // 计算缩放比例，充分利用可用空间，最大不超过3倍
       const rawScale = availableWidth / A4_WIDTH
-      const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale)) // 允许放大到3倍
+      const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale))
       
-      console.log('缩放计算:', { containerWidth, availableWidth, rawScale, calculatedScale })
       setScale(calculatedScale)
     }
 
     calculateScale()
 
-    // 监听窗口大小变化
     const handleResize = () => calculateScale()
     window.addEventListener('resize', handleResize)
 
-    // 监听容器大小变化
     const resizeObserver = new ResizeObserver(calculateScale)
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current)
@@ -146,36 +157,38 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   }, [])
 
   // 根据模块类型渲染组件
-  const renderModule = (moduleType: ModuleType) => {
+  const renderModule = (moduleType: ModuleType, renderLines?: number[]) => {
+    const sectionId = SECTION_ID_MAP[moduleType]
+
     switch (moduleType) {
       case 'personal':
         return content.personal_info && (
-          <div id="personal-info-section">
-            <PersonalInfoPreview data={content.personal_info} />
+          <div data-section-id={sectionId}>
+            <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} />
           </div>
         )
       case 'education':
         return content.education && content.education.length > 0 && (
-          <div id="education-section">
-            <EducationPreview data={content.education} />
+          <div data-section-id={sectionId}>
+            <EducationPreview data={content.education} renderLines={renderLines} />
           </div>
         )
       case 'work':
         return content.work_experience && content.work_experience.length > 0 && (
-          <div id="work-experience-section">
-            <WorkExperiencePreview data={content.work_experience} />
+          <div data-section-id={sectionId}>
+            <WorkExperiencePreview data={content.work_experience} renderLines={renderLines} />
           </div>
         )
       case 'skills':
         return content.skills && content.skills.length > 0 && (
-          <div id="skills-section">
-            <SkillsPreview data={content.skills} />
+          <div data-section-id={sectionId}>
+            <SkillsPreview data={content.skills} renderLines={renderLines} />
           </div>
         )
       case 'projects':
         return content.projects && content.projects.length > 0 && (
-          <div id="projects-section">
-            <ProjectsPreview data={content.projects} />
+          <div data-section-id={sectionId}>
+            <ProjectsPreview data={content.projects} renderLines={renderLines} />
           </div>
         )
       default:
@@ -183,7 +196,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
     }
   }
 
-  // 渲染所有section的内容用于测量（按自定义顺序）
+  // 渲染所有内容用于测量
   const measurementContent = useMemo(() => (
     <div ref={contentRef} className="invisible absolute -top-[9999px] left-0 w-full pointer-events-none">
       {visibleModules.map((module) => (
@@ -192,51 +205,51 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
         </React.Fragment>
       ))}
     </div>
-  ), [content, visibleModules])
+  ), [content, visibleModules, moduleOrderKey])
 
-  // 根据分页信息渲染内容
+  // 根据分页信息渲染页面内容
   const renderPageContent = (pageIndex: number) => {
     const page = pages[pageIndex]
-    if (!page || page.sections.length === 0) {
+    if (!page || page.lines.length === 0) {
       return null
     }
 
-    return page.sections.map((section) => {
-      switch (section.id) {
-        case 'personal-info-section':
-          return content.personal_info ? (
-            <div key={section.id} className="mb-6">
-              <PersonalInfoPreview data={content.personal_info} />
-            </div>
-          ) : null
-        case 'education-section':
-          return content.education && content.education.length > 0 ? (
-            <div key={section.id} className="mb-6">
-              <EducationPreview data={content.education} />
-            </div>
-          ) : null
-        case 'work-experience-section':
-          return content.work_experience && content.work_experience.length > 0 ? (
-            <div key={section.id} className="mb-6">
-              <WorkExperiencePreview data={content.work_experience} />
-            </div>
-          ) : null
-        case 'skills-section':
-          return content.skills && content.skills.length > 0 ? (
-            <div key={section.id} className="mb-6">
-              <SkillsPreview data={content.skills} />
-            </div>
-          ) : null
-        case 'projects-section':
-          return content.projects && content.projects.length > 0 ? (
-            <div key={section.id} className="mb-6">
-              <ProjectsPreview data={content.projects} />
-            </div>
-          ) : null
-        default:
-          return null
+    // 按section分组行
+    const linesBySection = page.lines.reduce((acc, line) => {
+      if (!acc[line.sectionType]) {
+        acc[line.sectionType] = []
       }
-    }).filter(Boolean) // 过滤掉null值
+      acc[line.sectionType].push(line.lineIndex)
+      return acc
+    }, {} as Record<string, number[]>)
+
+    // 渲染每个section
+    const orderedSectionIds = visibleModules
+      .map(module => SECTION_ID_MAP[module.type])
+      .filter(sectionId => sectionId && linesBySection[sectionId])
+
+    const remainingSectionIds = Object.keys(linesBySection).filter(
+      sectionId => !orderedSectionIds.includes(sectionId)
+    )
+
+    const finalSectionOrder = [...orderedSectionIds, ...remainingSectionIds]
+
+    return finalSectionOrder
+      .map(sectionId => {
+        const moduleType = SECTION_ID_TO_MODULE[sectionId]
+        const lineIndices = linesBySection[sectionId]
+
+        if (!moduleType || !lineIndices) {
+          return null
+        }
+
+        return (
+          <div key={sectionId} className="mb-6">
+            {renderModule(moduleType, lineIndices)}
+          </div>
+        )
+      })
+      .filter(Boolean)
   }
 
   // 检查是否有任何内容
@@ -275,7 +288,6 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       {!isCalculating && pages.length > 0 && (
         <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
           <div className="w-full flex justify-center">
-            {/* 渲染所有页面 */}
             <div 
               className="flex flex-col items-center"         
               style={{
@@ -302,7 +314,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       {!isCalculating && pages.length === 0 && (
         <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
           <div className="w-full flex justify-center">
-            <div 
+            <div
               className="flex flex-col items-center"
               style={{
                 transform: `scale(${scale})`,
@@ -311,11 +323,11 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
             >
               <ResumePage pageNumber={1} totalPages={1}>
                 <div className="space-y-6">
-                  <PersonalInfoPreview data={content.personal_info || {}} />
-                  <EducationPreview data={content.education || []} />
-                  <WorkExperiencePreview data={content.work_experience || []} />
-                  <SkillsPreview data={content.skills || []} />
-                  <ProjectsPreview data={content.projects || []} />
+                  {visibleModules.map((module) => (
+                    <React.Fragment key={module.type}>
+                      {renderModule(module.type)}
+                    </React.Fragment>
+                  ))}
                 </div>
               </ResumePage>
             </div>

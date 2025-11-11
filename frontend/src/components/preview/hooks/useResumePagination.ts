@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 export const A4_HEIGHT = 1056 // A4高度像素值
 export const A4_WIDTH = 816   // A4宽度像素值
 export const PAGE_MARGIN = 0   // 页边距（减少以提高信息密度）
-export const PAGE_PADDING = 32 // 内容区域内边距（减少以提高信息密度）
+export const PAGE_PADDING = 40 // 内容区域内边距（增加以提高可读性）
 
 interface ContentSection {
   id: string

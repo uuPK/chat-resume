@@ -9,11 +9,16 @@ interface Skill {
 
 interface SkillsPreviewProps {
   data: Skill[]
+  renderLines?: number[] // 指定渲染哪些行
 }
 
-export default function SkillsPreview({ data }: SkillsPreviewProps) {
+export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps) {
   if (!data || data.length === 0) {
     return null
+  }
+
+  const shouldRenderLine = (lineIndex: number) => {
+    return !renderLines || renderLines.includes(lineIndex)
   }
 
   // 按技能类别分组
@@ -44,14 +49,19 @@ export default function SkillsPreview({ data }: SkillsPreviewProps) {
   }
 
   return (
-    <div className="mb-5 print:break-inside-avoid">
-      <h2 className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
-        技能专长
-      </h2>
+    <div className="mb-5">
+      {/* 标题作为第0行 */}
+      {shouldRenderLine(0) && (
+        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
+          技能专长
+        </h2>
+      )}
       
-      <div className="space-y-3">
-        {Object.entries(skillsByCategory).map(([category, skills]) => (
-          <div key={category}>
+      {/* 每个技能类别作为独立的行 */}
+      {Object.entries(skillsByCategory).map(([category, skills], categoryIndex) => {
+        const lineIndex = categoryIndex + 1
+        return shouldRenderLine(lineIndex) ? (
+          <div key={category} data-line-index={lineIndex} className="mb-3">
             <h3 className="font-semibold text-gray-800 mb-1.5 text-sm">
               {category}
             </h3>
@@ -71,27 +81,8 @@ export default function SkillsPreview({ data }: SkillsPreviewProps) {
               ))}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* 如果没有分类，则显示简单列表 */}
-      {Object.keys(skillsByCategory).length === 1 && Object.keys(skillsByCategory)[0] === '' && (
-        <div className="flex flex-wrap gap-2">
-          {data.map((skill, index) => (
-            <div 
-              key={skill.id || index}
-              className="flex items-center space-x-2"
-            >
-              <span className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 rounded-full">
-                {skill.name}
-              </span>
-              <span className={`px-2 py-1 text-xs rounded ${getLevelColor(skill.level)}`}>
-                {skill.level}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+        ) : null
+      })}
     </div>
   )
 }

@@ -20,54 +20,63 @@ interface PersonalInfo {
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
+  renderLines?: number[] // 指定渲染哪些行，undefined表示全部
 }
 
-export default function PersonalInfoPreview({ data }: PersonalInfoPreviewProps) {
+export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoPreviewProps) {
   if (!data || (!data.name && !data.email && !data.phone)) {
     return null
+  }
+
+  const shouldRenderLine = (lineIndex: number) => {
+    return !renderLines || renderLines.includes(lineIndex)
   }
 
   return (
     <div className="mb-5">
       {/* 姓名和职位 */}
-      <div className="text-center mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">
-          {data.name || '姓名'}
-        </h1>
-        {data.position && (
-          <p className="text-lg text-gray-600 font-medium">
-            {data.position}
-          </p>
-        )}
-      </div>
+      {shouldRenderLine(0) && (
+        <div data-line-index={0} className="text-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">
+            {data.name || '姓名'}
+          </h1>
+          {data.position && (
+            <p className="text-lg text-gray-600 font-medium">
+              {data.position}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 联系方式 */}
-      <div className="flex flex-wrap justify-center gap-3 text-xs text-gray-600 pb-4 border-b border-gray-200">
-        {data.email && (
-          <div className="flex items-center gap-1">
-            <EnvelopeIcon className="w-4 h-4" />
-            <span>{data.email}</span>
-          </div>
-        )}
-        
-        {data.phone && (
-          <div className="flex items-center gap-1">
-            <PhoneIcon className="w-4 h-4" />
-            <span>{data.phone}</span>
-          </div>
-        )}
-        
-        {data.address && (
-          <div className="flex items-center gap-1">
-            <MapPinIcon className="w-4 h-4" />
-            <span>{data.address}</span>
-          </div>
-        )}
-      </div>
+      {shouldRenderLine(1) && (
+        <div data-line-index={1} className="flex flex-wrap justify-center gap-3 text-xs text-gray-600 pb-4 border-b border-gray-200">
+          {data.email && (
+            <div className="flex items-center gap-1">
+              <EnvelopeIcon className="w-4 h-4" />
+              <span>{data.email}</span>
+            </div>
+          )}
+          
+          {data.phone && (
+            <div className="flex items-center gap-1">
+              <PhoneIcon className="w-4 h-4" />
+              <span>{data.phone}</span>
+            </div>
+          )}
+          
+          {data.address && (
+            <div className="flex items-center gap-1">
+              <MapPinIcon className="w-4 h-4" />
+              <span>{data.address}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 在线链接 */}
-      {(data.github || data.linkedin || data.website) && (
-        <div className="flex flex-wrap justify-center gap-3 text-xs text-blue-600 pt-3">
+      {(data.github || data.linkedin || data.website) && shouldRenderLine(2) && (
+        <div data-line-index={2} className="flex flex-wrap justify-center gap-3 text-xs text-blue-600 pt-3">
           {data.github && (
             <div className="flex items-center gap-1">
               <LinkIcon className="w-4 h-4" />
