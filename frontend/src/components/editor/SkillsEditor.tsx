@@ -50,7 +50,11 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   ]
 
   useEffect(() => {
-    setSkillsList(data || [])
+    const normalizedSkills = (data || []).map((skill, index) => ({
+      ...skill,
+      id: typeof skill.id === 'number' ? skill.id : Date.now() + index
+    }))
+    setSkillsList(normalizedSkills)
   }, [data])
 
   const addSkill = (category?: string) => {
