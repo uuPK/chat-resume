@@ -53,7 +53,7 @@ export default function FeedbackPanel({
     setIsScoring(true)
     try {
       const token = localStorage.getItem('access_token')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/interview/score`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/interview/score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

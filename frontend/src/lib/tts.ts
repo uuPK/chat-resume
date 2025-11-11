@@ -52,7 +52,7 @@ class TTSService {
    */
   async textToSpeech(request: TTSRequest): Promise<TTSResponse> {
     try {
-      const response = await fetch(`${this.apiBase}/api/v1/tts/text-to-speech`, {
+      const response = await fetch(`${this.apiBase}/api/tts/text-to-speech`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ class TTSService {
     }
 
     try {
-      const response = await fetch(`${this.apiBase}/api/v1/tts/interview-question-speech`, {
+      const response = await fetch(`${this.apiBase}/api/tts/interview-question-speech`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +158,7 @@ class TTSService {
    */
   async getInterviewerVoices(): Promise<Record<string, VoiceConfig>> {
     try {
-      const response = await fetch(`${this.apiBase}/api/v1/tts/interviewer-voices`, {
+      const response = await fetch(`${this.apiBase}/api/tts/interviewer-voices`, {
         method: 'GET',
         headers: this.getAuthHeaders()
       })
@@ -180,7 +180,7 @@ class TTSService {
    */
   async getVoiceList(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.apiBase}/api/v1/tts/voices`, {
+      const response = await fetch(`${this.apiBase}/api/tts/voices`, {
         method: 'GET',
         headers: this.getAuthHeaders()
       })

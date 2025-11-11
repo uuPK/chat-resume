@@ -272,7 +272,7 @@ export default function InterviewPage() {
           if (!token) return
           
           // 检查现有的面试会话
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/sessions`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/sessions`, {
             headers: { 'Authorization': `Bearer ${token}` }
           })
           
@@ -291,7 +291,7 @@ export default function InterviewPage() {
               if (answeredCount >= totalQuestions && totalQuestions > 0) {
                 console.log('检测到会话实际已完成，但状态未更新，自动更新状态')
                 try {
-                  await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/${activeSession.id}/end`, {
+                  await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/${activeSession.id}/end`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                   })
@@ -317,7 +317,7 @@ export default function InterviewPage() {
                   console.log('用户选择开始新面试，将结束现有会话')
                   try {
                     // 结束现有会话
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/resumes/${resumeId}/interview/${activeSession.id}/end`, {
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/${activeSession.id}/end`, {
                       method: 'POST',
                       headers: { 'Authorization': `Bearer ${token}` }
                     })

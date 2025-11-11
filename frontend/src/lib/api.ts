@@ -124,7 +124,7 @@ class ResumeAPI {
    * 获取所有简历
    */
   static async getResumes(): Promise<Resume[]> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -137,7 +137,7 @@ class ResumeAPI {
    * 获取单个简历
    */
   static async getResume(id: number): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
       headers: {
         ...getAuthHeaders(),
       },
@@ -150,7 +150,7 @@ class ResumeAPI {
    * 创建新简历
    */
   static async createResume(data: CreateResumeData): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -166,7 +166,7 @@ class ResumeAPI {
    * 更新简历
    */
   static async updateResume(id: number, data: UpdateResumeData): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ class ResumeAPI {
    * 删除简历
    */
   static async deleteResume(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
       method: 'DELETE',
       headers: {
         ...getAuthHeaders(),
@@ -202,7 +202,7 @@ class ResumeAPI {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/upload/resume`, {
+    const response = await fetch(`${API_BASE_URL}/api/upload/resume`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -220,7 +220,7 @@ class ChatAPI {
    * 发送聊天消息（非流式）
    */
   static async sendMessage(resumeId: number, message: string, chatHistory: any[] = []): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/ai/chat`, {
+    const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -248,7 +248,7 @@ class ChatAPI {
     onError: (error: string) => void
   ): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/ai/chat/stream`, {
+      const response = await fetch(`${API_BASE_URL}/api/ai/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,7 +323,7 @@ class InterviewAPI {
    * 获取指定简历的面试记录列表
    */
   static async getInterviewSessions(resumeId: number): Promise<InterviewSession[]> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/sessions`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/sessions`, {
       method: 'GET',
       headers: {
         ...getAuthHeaders(),
@@ -337,7 +337,7 @@ class InterviewAPI {
    * 开始面试会话
    */
   static async startInterview(resumeId: number, config: InterviewConfig): Promise<InterviewSession> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/start`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/start`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -353,7 +353,7 @@ class InterviewAPI {
    * 结束面试会话
    */
   static async endInterview(resumeId: number, sessionId: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/end`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/end`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -370,7 +370,7 @@ class InterviewAPI {
    * 删除面试会话
    */
   static async deleteInterviewSession(resumeId: number, sessionId: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}`, {
       method: 'DELETE',
       headers: {
         ...getAuthHeaders(),
@@ -387,7 +387,7 @@ class InterviewAPI {
    * 为已完成面试计算分数
    */
   static async calculateScoresForCompletedInterviews(resumeId: number): Promise<{message: string, updated_count: number}> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/calculate-scores`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/calculate-scores`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -406,7 +406,7 @@ class InterviewAPI {
       params.append('regenerate', 'true')
     }
     
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/report?${params.toString()}`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/report?${params.toString()}`, {
       method: 'GET',
       headers: {
         ...getAuthHeaders(),
@@ -424,7 +424,7 @@ class InterviewAPI {
     question_type: string
     question_index: number
   }> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/question`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/question`, {
       method: 'GET',
       headers: {
         ...getAuthHeaders(),
@@ -449,7 +449,7 @@ class InterviewAPI {
     feedback: string
     suggestions: string[]
   }> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/resumes/${resumeId}/interview/${sessionId}/answer`, {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/answer`, {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),

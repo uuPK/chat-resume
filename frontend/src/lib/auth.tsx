@@ -51,7 +51,7 @@ class AuthAPI {
   }
 
   static async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -71,7 +71,7 @@ class AuthAPI {
   }
 
   static async register(data: RegisterRequest): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -88,7 +88,7 @@ class AuthAPI {
   }
 
   static async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
       headers: {
         ...this.getAuthHeaders(),
       },

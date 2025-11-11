@@ -105,7 +105,7 @@ export default function SettingsPage() {
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/auth/me`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -69,7 +69,7 @@ export function useResumeOptimizerAgent({
       }
 
       // 发送POST请求到流式接口
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/resume-optimizer-chat`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ai/resume-optimizer-chat`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -156,7 +156,7 @@ export function useResumeOptimizerAgent({
         throw new Error('未找到认证令牌')
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ai/resume-optimizer/apply-suggestion`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ai/resume-optimizer/apply-suggestion`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

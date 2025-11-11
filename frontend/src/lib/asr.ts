@@ -80,7 +80,7 @@ class ASRService {
     }
 
     try {
-      const response = await fetch(`${this.apiBase}/api/v1/asr/config`, {
+      const response = await fetch(`${this.apiBase}/api/asr/config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ class ASRService {
       // 正确构建WebSocket URL
       const wsProtocol = this.apiBase.startsWith('https') ? 'wss' : 'ws'
       const wsHost = this.apiBase.replace(/^https?:\/\//, '')
-      const wsUrl = `${wsProtocol}://${wsHost}/api/v1/asr/realtime/${this.clientId}`
+      const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}`
       
       console.log('尝试连接 WebSocket URL:', wsUrl)
       const ws = new WebSocket(wsUrl)
@@ -371,7 +371,7 @@ class ASRService {
       const pcmData = await this.convertAudioToPCM(audioBlob)
       const audioBase64 = this.arrayBufferToBase64(pcmData)
 
-      const response = await fetch(`${this.apiBase}/api/v1/asr/interview-recognition`, {
+      const response = await fetch(`${this.apiBase}/api/asr/interview-recognition`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

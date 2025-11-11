@@ -40,7 +40,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         throw new Error('未找到认证token，请重新登录')
       }
 
-      const response = await fetch(`${apiBaseUrl}/api/v1/ai/chat/stream`, {
+      const response = await fetch(`${apiBaseUrl}/api/ai/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
