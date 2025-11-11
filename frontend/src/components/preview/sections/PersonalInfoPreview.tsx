@@ -50,7 +50,7 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
 
       {/* 联系方式 */}
       {shouldRenderLine(1) && (
-        <div data-line-index={1} className="flex flex-wrap justify-center gap-3 text-xs text-gray-600 pb-4 border-b border-gray-200">
+        <div data-line-index={1} className="flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3">
           {data.email && (
             <div className="flex items-center gap-1">
               <EnvelopeIcon className="w-4 h-4" />
@@ -71,39 +71,43 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
               <span>{data.address}</span>
             </div>
           )}
+
+          {(data.github || data.linkedin || data.website) && (
+            <>
+              {data.github && (
+                <div className="flex items-center gap-1 text-blue-600">
+                  <LinkIcon className="w-4 h-4" />
+                  <a href={data.github} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    GitHub
+                  </a>
+                </div>
+              )}
+              
+              {data.linkedin && (
+                <div className="flex items-center gap-1 text-blue-600">
+                  <LinkIcon className="w-4 h-4" />
+                  <a href={data.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    LinkedIn
+                  </a>
+                </div>
+              )}
+              
+              {data.website && (
+                <div className="flex items-center gap-1 text-blue-600">
+                  <LinkIcon className="w-4 h-4" />
+                  <a href={data.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    个人网站
+                  </a>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
-      {/* 在线链接 */}
+      {/* 在线链接占位行保留，避免分页引用 */}
       {(data.github || data.linkedin || data.website) && shouldRenderLine(2) && (
-        <div data-line-index={2} className="flex flex-wrap justify-center gap-3 text-xs text-blue-600 pt-3">
-          {data.github && (
-            <div className="flex items-center gap-1">
-              <LinkIcon className="w-4 h-4" />
-              <a href={data.github} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                GitHub
-              </a>
-            </div>
-          )}
-          
-          {data.linkedin && (
-            <div className="flex items-center gap-1">
-              <LinkIcon className="w-4 h-4" />
-              <a href={data.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                LinkedIn
-              </a>
-            </div>
-          )}
-          
-          {data.website && (
-            <div className="flex items-center gap-1">
-              <LinkIcon className="w-4 h-4" />
-              <a href={data.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                个人网站
-              </a>
-            </div>
-          )}
-        </div>
+        <div data-line-index={2} className="hidden" />
       )}
     </div>
   )
