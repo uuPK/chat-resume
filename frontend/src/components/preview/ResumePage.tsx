@@ -32,7 +32,7 @@ const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
 
         {/* 页码水印 */}
         {totalPages > 1 && (
-          <div className="absolute bottom-4 right-6 text-xs text-gray-400 font-medium">
+          <div className="absolute bottom-3 right-4 text-xs text-gray-400 font-medium print:opacity-50">
             {pageNumber} / {totalPages}
           </div>
         )}

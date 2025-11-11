@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import PaginatedResumePreview from './PaginatedResumePreview'
+import PaginatedResumePreview, { ModuleConfig } from './PaginatedResumePreview'
 
 interface PersonalInfo {
   name?: string
@@ -60,9 +60,10 @@ interface ResumeContent {
 
 interface ResumePreviewProps {
   content: ResumeContent
+  moduleOrder?: ModuleConfig[]  // 可选的自定义模块顺序
 }
 
-export default function ResumePreview({ content }: ResumePreviewProps) {
+export default function ResumePreview({ content, moduleOrder }: ResumePreviewProps) {
   // 加载打印样式
   useEffect(() => {
     // 动态加载打印样式
@@ -84,7 +85,7 @@ export default function ResumePreview({ content }: ResumePreviewProps) {
 
   return (
     <div className="h-full overflow-hidden bg-gray-50 p-1">
-      <PaginatedResumePreview content={content} />
+      <PaginatedResumePreview content={content} moduleOrder={moduleOrder} />
     </div>
   )
 }

@@ -1,13 +1,13 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
-import { 
+import {
   ArrowLeftIcon,
   CheckIcon,
   ArrowUpIcon
@@ -19,6 +19,15 @@ import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
 import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
+import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
+import { ModuleConfig } from '@/components/preview/PaginatedResumePreview'
+import {
+  ResumeLayoutConfig,
+  loadLayoutConfig,
+  saveLayoutConfig,
+  MODULE_LABELS,
+  DEFAULT_LAYOUT_CONFIG
+} from '@/lib/resumeLayoutConfig'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useStreamingChat } from '@/hooks/useStreamingChat'
@@ -118,6 +127,9 @@ export default function ResumeEditPage() {
   const [apiError, setApiError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // 布局配置状态
+  const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
+
   const resumeId = params?.id as string
   
   // 调试信息
@@ -179,6 +191,33 @@ export default function ResumeEditPage() {
       fetchResume()
     }
   }, [mounted, isAuthenticated, resumeId])
+
+  // 加载布局配置
+  useEffect(() => {
+    if (resumeId) {
+      const config = loadLayoutConfig(parseInt(resumeId))
+      setLayoutConfig(config)
+    }
+  }, [resumeId])
+
+  // 处理布局配置变化
+  const handleLayoutConfigChange = (newConfig: ResumeLayoutConfig) => {
+    setLayoutConfig(newConfig)
+    if (resumeId) {
+      saveLayoutConfig(parseInt(resumeId), newConfig)
+    }
+  }
+
+  // 将 ResumeLayoutConfig 转换为 ModuleConfig[]
+  // 使用 useMemo 确保 layoutConfig 变化时重新计算
+  const moduleOrder = useMemo<ModuleConfig[]>(() => {
+    return layoutConfig.moduleOrder.map((module, index) => ({
+      type: module,
+      visible: layoutConfig.visibleModules.has(module),
+      order: index,
+      label: MODULE_LABELS[module]
+    }))
+  }, [layoutConfig])
 
   // 保存简历
   const handleSave = async () => {
@@ -525,11 +564,21 @@ export default function ResumeEditPage() {
             className="flex flex-col min-h-0"
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
-                实时预览
-              </h2>
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  实时预览
+                </h2>
+                <ResumeLayoutControls
+                  config={layoutConfig}
+                  onConfigChange={handleLayoutConfigChange}
+                />
+              </div>
               <div className="flex-1 overflow-hidden min-h-0">
-                <ResumePreview content={resume.content} />
+                <ResumePreview
+                  key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
+                  content={resume.content}
+                  moduleOrder={moduleOrder}
+                />
               </div>
             </div>
           </motion.div>

@@ -53,13 +53,19 @@
   /* 段落样式 */
   p {
     page-break-inside: avoid;
-    orphans: 3;
-    widows: 3;
+    orphans: 2;
+    widows: 2;
   }
 
   /* 列表样式 */
   ul, ol {
     page-break-inside: avoid;
+  }
+  
+  /* 防止内容断页 */
+  .print\\:break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   /* 链接样式 */

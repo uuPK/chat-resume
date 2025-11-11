@@ -24,15 +24,15 @@ export default function ProjectsPreview({ data }: ProjectsPreviewProps) {
   }
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+    <div className="mb-5 print:break-inside-avoid">
+      <h2 className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
         项目经验
       </h2>
       
-      <div className="space-y-6">
+      <div className="space-y-4">
         {data.map((project, index) => (
-          <div key={project.id || index} className="relative">
-            <div className="flex justify-between items-start mb-2">
+          <div key={project.id || index} className="relative print:break-inside-avoid">
+            <div className="flex justify-between items-start mb-1.5">
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900">
                   {project.name}
@@ -47,14 +47,14 @@ export default function ProjectsPreview({ data }: ProjectsPreviewProps) {
             </div>
             
             {project.description && (
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-gray-600 mb-2 leading-relaxed">
                 {project.description}
               </p>
             )}
 
             {/* 技术栈 */}
             {project.technologies && project.technologies.length > 0 && (
-              <div className="mb-3">
+              <div className="mb-2">
                 <span className="text-sm font-medium text-gray-700 mr-2">技术栈:</span>
                 <div className="inline-flex flex-wrap gap-1">
                   {project.technologies.map((tech, techIndex) => (
@@ -71,7 +71,7 @@ export default function ProjectsPreview({ data }: ProjectsPreviewProps) {
 
             {/* 项目成果 */}
             {project.achievements && project.achievements.length > 0 && (
-              <div className="mb-3">
+              <div className="mb-2">
                 <span className="text-sm font-medium text-gray-700">主要成果:</span>
                 <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
                   {project.achievements.map((achievement, achIndex) => (

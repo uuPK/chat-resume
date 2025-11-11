@@ -44,27 +44,27 @@ export default function SkillsPreview({ data }: SkillsPreviewProps) {
   }
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-200">
+    <div className="mb-5 print:break-inside-avoid">
+      <h2 className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
         技能专长
       </h2>
       
-      <div className="space-y-4">
+      <div className="space-y-3">
         {Object.entries(skillsByCategory).map(([category, skills]) => (
           <div key={category}>
-            <h3 className="font-semibold text-gray-800 mb-2">
+            <h3 className="font-semibold text-gray-800 mb-1.5 text-sm">
               {category}
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {skills.map((skill, index) => (
                 <div 
                   key={skill.id || index}
                   className="flex items-center space-x-2"
                 >
-                  <span className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 rounded-full">
+                  <span className="px-2.5 py-0.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-full">
                     {skill.name}
                   </span>
-                  <span className={`px-2 py-1 text-xs rounded ${getLevelColor(skill.level)}`}>
+                  <span className={`px-1.5 py-0.5 text-xs rounded ${getLevelColor(skill.level)}`}>
                     {skill.level}
                   </span>
                 </div>

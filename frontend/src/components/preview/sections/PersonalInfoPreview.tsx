@@ -28,21 +28,21 @@ export default function PersonalInfoPreview({ data }: PersonalInfoPreviewProps) 
   }
 
   return (
-    <div className="mb-8">
+    <div className="mb-5">
       {/* 姓名和职位 */}
-      <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+      <div className="text-center mb-4">
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">
           {data.name || '姓名'}
         </h1>
         {data.position && (
-          <p className="text-xl text-gray-600 font-medium">
+          <p className="text-lg text-gray-600 font-medium">
             {data.position}
           </p>
         )}
       </div>
 
       {/* 联系方式 */}
-      <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600 pb-6 border-b border-gray-200">
+      <div className="flex flex-wrap justify-center gap-3 text-xs text-gray-600 pb-4 border-b border-gray-200">
         {data.email && (
           <div className="flex items-center gap-1">
             <EnvelopeIcon className="w-4 h-4" />
@@ -67,7 +67,7 @@ export default function PersonalInfoPreview({ data }: PersonalInfoPreviewProps) 
 
       {/* 在线链接 */}
       {(data.github || data.linkedin || data.website) && (
-        <div className="flex flex-wrap justify-center gap-4 text-sm text-blue-600 pt-4">
+        <div className="flex flex-wrap justify-center gap-3 text-xs text-blue-600 pt-3">
           {data.github && (
             <div className="flex items-center gap-1">
               <LinkIcon className="w-4 h-4" />

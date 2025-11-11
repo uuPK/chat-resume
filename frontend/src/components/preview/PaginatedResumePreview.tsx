@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useMemo } from 'react'
+import React, { useRef, useMemo, useState } from 'react'
 import { useResumePagination } from './hooks/useResumePagination'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
@@ -8,6 +8,26 @@ import EducationPreview from './sections/EducationPreview'
 import WorkExperiencePreview from './sections/WorkExperiencePreview'
 import SkillsPreview from './sections/SkillsPreview'
 import ProjectsPreview from './sections/ProjectsPreview'
+
+// 模块类型定义
+export type ModuleType = 'personal' | 'education' | 'work' | 'skills' | 'projects'
+
+// 模块配置接口
+export interface ModuleConfig {
+  type: ModuleType
+  visible: boolean
+  order: number
+  label: string
+}
+
+// 默认模块顺序配置
+export const DEFAULT_MODULE_ORDER: ModuleConfig[] = [
+  { type: 'personal', visible: true, order: 0, label: '个人信息' },
+  { type: 'education', visible: true, order: 1, label: '教育背景' },
+  { type: 'work', visible: true, order: 2, label: '工作经验' },
+  { type: 'skills', visible: true, order: 3, label: '技能专长' },
+  { type: 'projects', visible: true, order: 4, label: '项目经验' },
+]
 
 interface PersonalInfo {
   name?: string
@@ -66,12 +86,20 @@ interface ResumeContent {
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent
+  moduleOrder?: ModuleConfig[]  // 可选的自定义模块顺序
 }
 
-export default function PaginatedResumePreview({ content }: PaginatedResumePreviewProps) {
+export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_MODULE_ORDER }: PaginatedResumePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
+  
+  // 按order排序并过滤可见模块
+  const visibleModules = useMemo(() => {
+    return [...moduleOrder]
+      .filter(m => m.visible)
+      .sort((a, b) => a.order - b.order)
+  }, [moduleOrder])
 
   const { pages, totalPages, isCalculating } = useResumePagination({
     containerRef,
@@ -117,36 +145,54 @@ export default function PaginatedResumePreview({ content }: PaginatedResumePrevi
     }
   }, [])
 
-  // 渲染所有section的内容用于测量
+  // 根据模块类型渲染组件
+  const renderModule = (moduleType: ModuleType) => {
+    switch (moduleType) {
+      case 'personal':
+        return content.personal_info && (
+          <div id="personal-info-section">
+            <PersonalInfoPreview data={content.personal_info} />
+          </div>
+        )
+      case 'education':
+        return content.education && content.education.length > 0 && (
+          <div id="education-section">
+            <EducationPreview data={content.education} />
+          </div>
+        )
+      case 'work':
+        return content.work_experience && content.work_experience.length > 0 && (
+          <div id="work-experience-section">
+            <WorkExperiencePreview data={content.work_experience} />
+          </div>
+        )
+      case 'skills':
+        return content.skills && content.skills.length > 0 && (
+          <div id="skills-section">
+            <SkillsPreview data={content.skills} />
+          </div>
+        )
+      case 'projects':
+        return content.projects && content.projects.length > 0 && (
+          <div id="projects-section">
+            <ProjectsPreview data={content.projects} />
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
+  // 渲染所有section的内容用于测量（按自定义顺序）
   const measurementContent = useMemo(() => (
     <div ref={contentRef} className="invisible absolute -top-[9999px] left-0 w-full pointer-events-none">
-      {content.personal_info && (
-        <div id="personal-info-section">
-          <PersonalInfoPreview data={content.personal_info} />
-        </div>
-      )}
-      {content.education && content.education.length > 0 && (
-        <div id="education-section">
-          <EducationPreview data={content.education} />
-        </div>
-      )}
-      {content.work_experience && content.work_experience.length > 0 && (
-        <div id="work-experience-section">
-          <WorkExperiencePreview data={content.work_experience} />
-        </div>
-      )}
-      {content.skills && content.skills.length > 0 && (
-        <div id="skills-section">
-          <SkillsPreview data={content.skills} />
-        </div>
-      )}
-      {content.projects && content.projects.length > 0 && (
-        <div id="projects-section">
-          <ProjectsPreview data={content.projects} />
-        </div>
-      )}
+      {visibleModules.map((module) => (
+        <React.Fragment key={module.type}>
+          {renderModule(module.type)}
+        </React.Fragment>
+      ))}
     </div>
-  ), [content])
+  ), [content, visibleModules])
 
   // 根据分页信息渲染内容
   const renderPageContent = (pageIndex: number) => {
