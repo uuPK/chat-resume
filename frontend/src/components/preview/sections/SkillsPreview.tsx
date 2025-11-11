@@ -30,24 +30,6 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
     return acc
   }, {} as Record<string, Skill[]>)
 
-  const getLevelColor = (level: string) => {
-    if (!level) return 'bg-gray-100 text-gray-800'
-    
-    switch (level.toLowerCase()) {
-      case '精通':
-      case 'expert':
-        return 'bg-green-100 text-green-800'
-      case '熟练':
-      case 'proficient':
-        return 'bg-blue-100 text-blue-800'
-      case '了解':
-      case 'familiar':
-        return 'bg-gray-100 text-gray-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
-
   return (
     <div className="mb-5">
       {/* 标题作为第0行 */}
@@ -74,17 +56,12 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {skills.map((skill, index) => (
-                <div
+                <span
                   key={skill.id || index}
-                  className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5"
+                  className="text-xs text-gray-800 bg-gray-50 rounded-full px-2.5 py-0.5"
                 >
-                  <span className="text-xs text-gray-800">
-                    {skill.name}
-                  </span>
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded ${getLevelColor(skill.level)}`}>
-                    {skill.level}
-                  </span>
-                </div>
+                  {skill.name}
+                </span>
               ))}
             </div>
           </div>
