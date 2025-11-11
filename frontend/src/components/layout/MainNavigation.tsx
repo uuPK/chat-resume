@@ -108,9 +108,6 @@ export default function MainNavigation() {
                   <div className="text-sm font-medium text-gray-900">
                     {user?.full_name || 'User'}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {user?.email}
-                  </div>
                 </div>
                 <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${
                   isDropdownOpen ? 'rotate-180' : ''
