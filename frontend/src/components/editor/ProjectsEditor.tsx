@@ -13,7 +13,6 @@ interface Project {
   id?: number
   name: string
   description: string
-  technologies: string[]
   role: string
   duration: string
   github_url?: string
@@ -38,7 +37,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       id: Date.now(),
       name: '',
       description: '',
-      technologies: [],
       role: '',
       duration: '',
       github_url: '',
@@ -62,31 +60,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     )
     setProjectsList(newList)
     onChange(newList)
-  }
-
-  const addTechnology = (projectId: number) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project) {
-      const newTechnologies = [...project.technologies, '']
-      updateProject(projectId, 'technologies', newTechnologies)
-    }
-  }
-
-  const updateTechnology = (projectId: number, techIndex: number, value: string) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project) {
-      const newTechnologies = [...project.technologies]
-      newTechnologies[techIndex] = value
-      updateProject(projectId, 'technologies', newTechnologies)
-    }
-  }
-
-  const removeTechnology = (projectId: number, techIndex: number) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project && project.technologies.length > 1) {
-      const newTechnologies = project.technologies.filter((_, index) => index !== techIndex)
-      updateProject(projectId, 'technologies', newTechnologies)
-    }
   }
 
   const addAchievement = (projectId: number) => {
@@ -255,46 +228,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   />
-                </div>
-
-                {/* 技术栈 */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      技术栈 <span className="text-red-500">*</span>
-                    </label>
-                    <button
-                      onClick={() => addTechnology(project.id!)}
-                      className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
-                    >
-                      <PlusIcon className="w-3 h-3" />
-                      <span>添加技术</span>
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {project.technologies.map((tech, techIndex) => (
-                      <div key={techIndex} className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={tech}
-                          onChange={(e) => updateTechnology(project.id!, techIndex, e.target.value)}
-                          placeholder="React"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        />
-                        {project.technologies.length > 1 && (
-                          <button
-                            onClick={() => removeTechnology(project.id!, techIndex)}
-                            className="text-red-600 hover:text-red-800 p-1"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    建议填写具体的技术栈，如：React、Node.js、MongoDB等
-                  </p>
                 </div>
 
                 {/* 项目成果 */}

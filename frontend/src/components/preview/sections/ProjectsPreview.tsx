@@ -23,41 +23,54 @@ interface ProjectsPreviewProps {
 export function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
-      <div className="flex justify-between items-start mb-1.5">
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900">
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex-1 flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold text-gray-900 text-base">
             {project.name}
           </h3>
-          <p className="text-gray-700">
-            {project.role}
-          </p>
+          {project.role && (
+            <>
+              <span className="w-px h-4 bg-gray-300" />
+              <span className="text-sm text-gray-600">{project.role}</span>
+            </>
+          )}
         </div>
         <div className="text-sm text-gray-600 ml-4 whitespace-nowrap">
           {project.duration}
         </div>
       </div>
 
+      {(project.github_url || project.demo_url) && (
+        <div className="flex gap-4 text-sm text-blue-600 mb-2">
+          {project.github_url && (
+            <a
+              href={project.github_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:underline"
+            >
+              <LinkIcon className="w-4 h-4" />
+              Github
+            </a>
+          )}
+          {project.demo_url && (
+            <a
+              href={project.demo_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:underline"
+            >
+              <LinkIcon className="w-4 h-4" />
+              Demo
+            </a>
+          )}
+        </div>
+      )}
+
       {project.description && (
         <p className="text-sm text-gray-600 mb-2 leading-relaxed">
           {project.description}
         </p>
-      )}
-
-      {/* 技术栈 */}
-      {project.technologies && project.technologies.length > 0 && (
-        <div className="mb-2">
-          <span className="text-sm font-medium text-gray-700 mr-2">技术栈:</span>
-          <div className="inline-flex flex-wrap gap-1">
-            {project.technologies.map((tech, techIndex) => (
-              <span
-                key={techIndex}
-                className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
-              >
-                {tech}
-              </span>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* 项目成果 */}
@@ -72,33 +85,6 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
         </div>
       )}
 
-      {/* 项目链接 */}
-      {(project.github_url || project.demo_url) && (
-        <div className="flex gap-4 text-sm">
-          {project.github_url && (
-            <a
-              href={project.github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-blue-600 hover:underline"
-            >
-              <LinkIcon className="w-4 h-4" />
-              源码
-            </a>
-          )}
-          {project.demo_url && (
-            <a
-              href={project.demo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-blue-600 hover:underline"
-            >
-              <LinkIcon className="w-4 h-4" />
-              演示
-            </a>
-          )}
-        </div>
-      )}
     </div>
   )
 }

@@ -18,13 +18,20 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
       <div className="flex justify-between items-start mb-1.5">
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900">
-            {work.position}
-          </h3>
-          <p className="text-gray-700 font-medium">
-            {work.company}
-          </p>
+        <div className="flex-1 flex flex-wrap items-center gap-2">
+          {work.company && (
+            <h3 className="font-semibold text-gray-900 text-base">
+              {work.company}
+            </h3>
+          )}
+          {work.position && (
+            <>
+              <span className="w-px h-4 bg-gray-300" />
+              <span className="text-sm text-gray-700 font-medium">
+                {work.position}
+              </span>
+            </>
+          )}
         </div>
         <div className="text-sm text-gray-600 ml-4 whitespace-nowrap">
           {work.duration}
