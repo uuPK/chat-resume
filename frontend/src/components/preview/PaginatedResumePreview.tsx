@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useMemo, useRef } from 'react'
-import { useLineBasedPagination } from './hooks/useLineBasedPagination'
+import React, { ReactNode, useMemo, useRef } from 'react'
+import { useLineBasedPagination, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
 import EducationPreview from './sections/EducationPreview'
@@ -157,40 +157,36 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   }, [])
 
   // 根据模块类型渲染组件
-  const renderModule = (moduleType: ModuleType, renderLines?: number[]) => {
+  const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (
+    <section data-section-id={sectionId} className="mb-6 last:mb-0">
+      {children}
+    </section>
+  )
+
+  const renderModule = (moduleType: ModuleType, renderLines?: number[]): JSX.Element | null => {
     const sectionId = SECTION_ID_MAP[moduleType]
 
     switch (moduleType) {
       case 'personal':
-        return content.personal_info && (
-          <div data-section-id={sectionId}>
-            <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} />
-          </div>
-        )
+        return content.personal_info
+          ? renderSection(sectionId, <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} />)
+          : null
       case 'education':
-        return content.education && content.education.length > 0 && (
-          <div data-section-id={sectionId}>
-            <EducationPreview data={content.education} renderLines={renderLines} />
-          </div>
-        )
+        return content.education && content.education.length > 0
+          ? renderSection(sectionId, <EducationPreview data={content.education} renderLines={renderLines} />)
+          : null
       case 'work':
-        return content.work_experience && content.work_experience.length > 0 && (
-          <div data-section-id={sectionId}>
-            <WorkExperiencePreview data={content.work_experience} renderLines={renderLines} />
-          </div>
-        )
+        return content.work_experience && content.work_experience.length > 0
+          ? renderSection(sectionId, <WorkExperiencePreview data={content.work_experience} renderLines={renderLines} />)
+          : null
       case 'skills':
-        return content.skills && content.skills.length > 0 && (
-          <div data-section-id={sectionId}>
-            <SkillsPreview data={content.skills} renderLines={renderLines} />
-          </div>
-        )
+        return content.skills && content.skills.length > 0
+          ? renderSection(sectionId, <SkillsPreview data={content.skills} renderLines={renderLines} />)
+          : null
       case 'projects':
-        return content.projects && content.projects.length > 0 && (
-          <div data-section-id={sectionId}>
-            <ProjectsPreview data={content.projects} renderLines={renderLines} />
-          </div>
-        )
+        return content.projects && content.projects.length > 0
+          ? renderSection(sectionId, <ProjectsPreview data={content.projects} renderLines={renderLines} />)
+          : null
       default:
         return null
     }
@@ -198,12 +194,22 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
   // 渲染所有内容用于测量
   const measurementContent = useMemo(() => (
-    <div ref={contentRef} className="invisible absolute -top-[9999px] left-0 w-full pointer-events-none">
-      {visibleModules.map((module) => (
-        <React.Fragment key={module.type}>
-          {renderModule(module.type)}
-        </React.Fragment>
-      ))}
+    <div
+      ref={contentRef}
+      className="invisible absolute -top-[9999px] left-0 pointer-events-none"
+      style={{
+        width: `${A4_WIDTH}px`,
+        padding: `${PAGE_PADDING}px`,
+        boxSizing: 'border-box'
+      }}
+    >
+      {visibleModules.map((module) => {
+        const sectionElement = renderModule(module.type)
+        if (!sectionElement) {
+          return null
+        }
+        return React.cloneElement(sectionElement, { key: module.type })
+      })}
     </div>
   ), [content, visibleModules, moduleOrderKey])
 
@@ -243,11 +249,12 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
           return null
         }
 
-        return (
-          <div key={sectionId} className="mb-6">
-            {renderModule(moduleType, lineIndices)}
-          </div>
-        )
+        const sectionElement = renderModule(moduleType, lineIndices)
+        if (!sectionElement) {
+          return null
+        }
+
+        return React.cloneElement(sectionElement, { key: sectionId })
       })
       .filter(Boolean)
   }
