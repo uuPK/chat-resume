@@ -109,7 +109,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
-  
+
   // 按order排序并过滤可见模块
   const moduleOrderKey = JSON.stringify(moduleOrder.map(m => ({ type: m.type, visible: m.visible, order: m.order })))
   const visibleModules = useMemo(() => {
@@ -136,7 +136,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       const availableWidth = containerWidth - padding * 2
       const rawScale = availableWidth / A4_WIDTH
       const calculatedScale = Math.min(3.0, Math.max(0.3, rawScale))
-      
+
       setScale(calculatedScale)
     }
 
@@ -260,11 +260,11 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   }
 
   // 检查是否有任何内容
-  const hasContent = content.personal_info || 
-                    (content.education && content.education.length > 0) ||
-                    (content.work_experience && content.work_experience.length > 0) ||
-                    (content.skills && content.skills.length > 0) ||
-                    (content.projects && content.projects.length > 0)
+  const hasContent = content.personal_info ||
+    (content.education && content.education.length > 0) ||
+    (content.work_experience && content.work_experience.length > 0) ||
+    (content.skills && content.skills.length > 0) ||
+    (content.projects && content.projects.length > 0)
 
   if (!hasContent) {
     return (
@@ -279,7 +279,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col items-center">
+    <div id="resume-preview-content" ref={containerRef} className="w-full h-full flex flex-col items-center">
       {/* 用于测量的隐藏内容 */}
       {measurementContent}
 
@@ -295,8 +295,9 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       {!isCalculating && pages.length > 0 && (
         <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
           <div className="w-full flex justify-center">
-            <div 
-              className="flex flex-col items-center"         
+            <div
+              id="resume-export-content"
+              className="flex flex-col items-center print:transform-none"
               style={{
                 transform: `scale(${scale})`,
                 transformOrigin: 'top center'

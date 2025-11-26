@@ -10,7 +10,8 @@ import Link from 'next/link'
 import {
   ArrowLeftIcon,
   CheckIcon,
-  ArrowUpIcon
+  ArrowUpIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
@@ -116,12 +117,13 @@ export default function ResumeEditPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const resumeRef = useRef<Resume | null>(null)
-  
+
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -150,12 +152,12 @@ export default function ResumeEditPage() {
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
 
   const resumeId = params?.id as string
-  
+
   // 调试信息
   console.log('Resume ID from params:', resumeId)
   console.log('Parsed Resume ID:', parseInt(resumeId))
   console.log('Current user:', user)
-  
+
   // 流式聊天Hook
   const {
     isStreaming,
@@ -307,6 +309,120 @@ export default function ResumeEditPage() {
     }, AUTO_SAVE_DELAY)
   }, [performAutoSave])
 
+  // 导出PDF
+  const handleExportPDF = async () => {
+    const element = document.getElementById('resume-export-content')
+    if (!element) {
+      toast.error('无法找到简历内容')
+      return
+    }
+
+    try {
+      setExporting(true)
+      const toastId = toast.loading('正在生成PDF...')
+
+      // 动态导入库
+      const html2canvas = (await import('html2canvas')).default
+      const jsPDF = (await import('jspdf')).default
+
+      // 克隆元素以去除缩放
+      const clone = element.cloneNode(true) as HTMLElement
+      clone.style.transform = 'none'
+      clone.style.padding = '0'
+      clone.style.margin = '0'
+
+      // 确保克隆元素可见且宽度正确
+      const container = document.createElement('div')
+      container.style.position = 'fixed' // 使用 fixed 而不是 absolute
+      container.style.top = '0'
+      container.style.left = '0'
+      container.style.width = '816px' // A4 宽度
+      container.style.zIndex = '-9999' // 使用 z-index 隐藏
+      container.style.visibility = 'hidden' // 额外隐藏，但有些浏览器可能不渲染 hidden 元素，html2canvas 通常可以处理
+      // 为了安全起见，我们不使用 visibility: hidden，而是依靠 z-index 和被覆盖
+      container.style.visibility = 'visible'
+      container.style.backgroundColor = '#ffffff'
+      container.appendChild(clone)
+      document.body.appendChild(container)
+
+      // 等待图片加载和样式计算
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // 获取所有页面
+      const pages = Array.from(clone.getElementsByClassName('resume-page')) as HTMLElement[]
+
+      if (pages.length === 0) {
+        throw new Error('No pages found')
+      }
+
+      // 初始化 PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4'
+      })
+
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+
+      // 逐页生成
+      for (let i = 0; i < pages.length; i++) {
+        if (i > 0) {
+          pdf.addPage()
+        }
+
+        const page = pages[i]
+        // 临时移除边框和阴影以获得更干净的输出
+        const originalBorder = page.style.border
+        const originalShadow = page.style.boxShadow
+        const originalMargin = page.style.margin
+
+        page.style.border = 'none'
+        page.style.boxShadow = 'none'
+        page.style.margin = '0'
+        // 不再强制高度，允许内容自然撑开
+        page.style.width = '816px'
+        page.style.minHeight = '1154px' // 保持最小高度为 A4
+        page.style.backgroundColor = '#ffffff'
+
+        const canvas = await html2canvas(page, {
+          scale: 2, // 提高清晰度
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: 816,
+          // 不指定 height，让它自动捕获
+          windowWidth: 816,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0
+        } as any)
+
+        // 恢复样式
+        page.style.border = originalBorder
+        page.style.boxShadow = originalShadow
+        page.style.margin = originalMargin
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95)
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
+
+        // 更新进度
+        toast.loading(`正在生成第 ${i + 1}/${pages.length} 页...`, { id: toastId })
+      }
+
+      pdf.save(`${resume?.title || 'resume'}.pdf`)
+
+      document.body.removeChild(container)
+      toast.success('PDF导出成功', { id: toastId })
+    } catch (error) {
+      console.error('PDF export error:', error)
+      toast.error('PDF导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // 保存简历
   const handleSave = async () => {
     if (!resume) return
@@ -427,7 +543,7 @@ export default function ResumeEditPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
@@ -439,8 +555,25 @@ export default function ResumeEditPage() {
                 <span>返回简历中心</span>
               </Link>
             </div>
-            
+
             <div className="flex items-center space-x-3">
+              <button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                    <span>生成中...</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    <span>导出 PDF</span>
+                  </>
+                )}
+              </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -476,7 +609,7 @@ export default function ResumeEditPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="flex flex-col min-h-0"
+            className="flex flex-col min-h-0 print:hidden"
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
@@ -496,11 +629,10 @@ export default function ResumeEditPage() {
                     <button
                       key={section.key}
                       onClick={() => setActiveSection(section.key)}
-                      className={`flex-1 flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeSection === section.key
-                          ? 'bg-white text-primary-600 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
+                      className={`flex-1 flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeSection === section.key
+                        ? 'bg-white text-primary-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
                     >
                       <span>{section.label}</span>
                     </button>
@@ -517,35 +649,35 @@ export default function ResumeEditPage() {
                       onTitleChange={updateResumeTitle}
                     />
                   )}
-                  
+
                   {activeSection === 'personal' && (
                     <PersonalInfoEditor
                       data={resume.content.personal_info || {}}
                       onChange={(data) => updateResumeContent('personal_info', data)}
                     />
                   )}
-                  
+
                   {activeSection === 'education' && (
                     <EducationEditor
                       data={resume.content.education || []}
                       onChange={(data) => updateResumeContent('education', data)}
                     />
                   )}
-                  
+
                   {activeSection === 'work' && (
                     <WorkExperienceEditor
                       data={resume.content.work_experience || []}
                       onChange={(data) => updateResumeContent('work_experience', data)}
                     />
                   )}
-                  
+
                   {activeSection === 'skills' && (
                     <SkillsEditor
                       data={resume.content.skills || []}
                       onChange={(data) => updateResumeContent('skills', data)}
                     />
                   )}
-                  
+
                   {activeSection === 'projects' && (
                     <ProjectsEditor
                       data={resume.content.projects || []}
@@ -562,7 +694,7 @@ export default function ResumeEditPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col min-h-0"
+            className="flex flex-col min-h-0 print:hidden"
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -570,7 +702,7 @@ export default function ResumeEditPage() {
                   简历优化Agent
                 </h2>
               </div>
-              
+
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700 flex-shrink-0">
@@ -586,11 +718,10 @@ export default function ResumeEditPage() {
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] px-4 py-3 rounded-lg ${
-                          message.type === 'user'
-                            ? 'bg-blue-600 text-white rounded-br-sm text-sm'
-                            : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
-                        }`}
+                        className={`max-w-[85%] px-4 py-3 rounded-lg ${message.type === 'user'
+                          ? 'bg-blue-600 text-white rounded-br-sm text-sm'
+                          : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
+                          }`}
                       >
                         {message.type === 'ai' ? (
                           <MarkdownMessage content={message.content} />
@@ -608,7 +739,7 @@ export default function ResumeEditPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* 等待响应动画 */}
                   {(isSending || isStreaming) && !currentStreamingMessage && (
                     <div className="flex justify-start">
@@ -639,11 +770,10 @@ export default function ResumeEditPage() {
                     <button
                       onClick={sendMessage}
                       disabled={!inputMessage.trim() || isSending || isStreaming}
-                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
-                        inputMessage.trim() 
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      } disabled:cursor-not-allowed`}
+                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        } disabled:cursor-not-allowed`}
                     >
                       <ArrowUpIcon className="w-4 h-4" />
                     </button>
@@ -658,10 +788,10 @@ export default function ResumeEditPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col min-h-0"
+            className="flex flex-col min-h-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
           >
-            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div className="card p-4 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
+              <div className="flex items-center justify-between mb-4 flex-shrink-0 print:hidden">
                 <h2 className="text-lg font-semibold text-gray-900">
                   实时预览
                 </h2>
@@ -670,7 +800,7 @@ export default function ResumeEditPage() {
                   onConfigChange={handleLayoutConfigChange}
                 />
               </div>
-              <div className="flex-1 overflow-hidden min-h-0">
+              <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
                 <ResumePreview
                   key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
                   content={resume.content}
