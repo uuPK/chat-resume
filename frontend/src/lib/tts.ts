@@ -77,7 +77,7 @@ class TTSService {
    * 面试问题语音生成
    */
   async generateInterviewQuestionSpeech(
-    text: string, 
+    text: string,
     voiceConfig?: Partial<VoiceConfig>
   ): Promise<TTSResponse> {
     const request: TTSRequest = {
@@ -89,6 +89,8 @@ class TTSService {
       sample_rate: 32000
     }
 
+    console.log('[TTS] 开始生成面试问题语音:', { textLength: text.length, voiceId: request.voice_id })
+
     try {
       const response = await fetch(`${this.apiBase}/api/tts/interview-question-speech`, {
         method: 'POST',
@@ -99,16 +101,38 @@ class TTSService {
         body: JSON.stringify(request)
       })
 
+      console.log('[TTS] API响应状态:', response.status, response.statusText)
+
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[TTS] API错误响应:', errorText)
         throw new Error(`面试问题TTS API请求失败: ${response.status}`)
       }
 
       const result = await response.json()
+      console.log('[TTS] API响应成功:', {
+        success: result.success,
+        hasAudioBase64: !!result.data?.audio_base64,
+        audioBase64Length: result.data?.audio_base64?.length,
+        format: result.data?.format
+      })
       return result
     } catch (error) {
-      console.error('面试问题TTS服务错误:', error)
+      console.error('[TTS] 面试问题TTS服务错误:', error)
       throw error
     }
+  }
+
+  /**
+   * 检查是否有用户交互（用于自动播放策略）
+   */
+  private hasUserInteraction: boolean = false
+
+  /**
+   * 标记用户已交互（应在用户点击时调用）
+   */
+  markUserInteraction(): void {
+    this.hasUserInteraction = true
   }
 
   /**
@@ -120,17 +144,31 @@ class TTSService {
       this.stopAudio()
 
       this.currentAudio = new Audio(audioUrl)
-      
+
       this.currentAudio.addEventListener('ended', () => {
         resolve()
       })
-      
+
       this.currentAudio.addEventListener('error', (error) => {
-        console.error('音频播放错误:', error)
+        console.error('[TTS] 音频播放错误:', error)
         reject(error)
       })
 
-      this.currentAudio.play().catch(reject)
+      // 尝试播放，处理自动播放限制
+      this.currentAudio.play()
+        .then(() => {
+          console.log('[TTS] 音频开始播放')
+          this.hasUserInteraction = true // 播放成功意味着有用户交互权限
+        })
+        .catch((error) => {
+          if (error.name === 'NotAllowedError') {
+            console.warn('[TTS] 浏览器阻止自动播放，需要用户交互后才能播放')
+            // 创建一个友好的提示，让用户知道需要手动点击
+            reject(new Error('请先点击页面任意位置以启用音频播放功能'))
+          } else {
+            reject(error)
+          }
+        })
     })
   }
 

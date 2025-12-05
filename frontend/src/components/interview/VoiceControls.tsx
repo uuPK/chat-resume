@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { 
-  SpeakerWaveIcon, 
-  SpeakerXMarkIcon, 
+import {
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
   ArrowPathIcon,
-  Cog6ToothIcon 
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 import { ttsService } from '@/lib/tts'
 
@@ -52,14 +52,14 @@ export default function VoiceControls({
         console.error('加载音色配置失败:', error)
       }
     }
-    
+
     loadVoiceConfigs()
   }, [])
 
   // 自动播放逻辑
   const [lastAutoPlayedText, setLastAutoPlayedText] = useState<string>('')
   const MAX_RETRY_COUNT = 3
-  
+
   // 清理旧的重试记录，避免内存泄漏
   useEffect(() => {
     if (questionText !== lastAutoPlayedText) {
@@ -77,15 +77,15 @@ export default function VoiceControls({
       })
     }
   }, [questionText, lastAutoPlayedText])
-  
+
   useEffect(() => {
-    if (autoPlay && 
-        questionText && 
-        questionText.trim() && 
-        questionText !== lastAutoPlayedText && 
-        !isPlaying && 
-        !isLoading) {
-      
+    if (autoPlay &&
+      questionText &&
+      questionText.trim() &&
+      questionText !== lastAutoPlayedText &&
+      !isPlaying &&
+      !isLoading) {
+
       // 检查重试次数
       const currentRetryCount = retryCount[questionText] || 0
       if (currentRetryCount >= MAX_RETRY_COUNT) {
@@ -93,7 +93,7 @@ export default function VoiceControls({
         setLastAutoPlayedText(questionText)
         return
       }
-      
+
       // 延迟500ms开始播放，避免与其他操作冲突
       const timer = setTimeout(async () => {
         // 直接调用播放逻辑，避免依赖循环
@@ -105,7 +105,7 @@ export default function VoiceControls({
 
         try {
           const voiceConfig = voiceConfigs[selectedVoice]
-          
+
           const response = await ttsService.generateInterviewQuestionSpeech(
             questionText,
             voiceConfig
@@ -127,33 +127,45 @@ export default function VoiceControls({
             [questionText]: 0
           }))
         } catch (error) {
-          console.error('自动播放语音错误:', error)
-          
-          // 增加重试计数
-          const newRetryCount = currentRetryCount + 1
-          setRetryCount(prev => ({
-            ...prev,
-            [questionText]: newRetryCount
-          }))
-          
-          if (newRetryCount >= MAX_RETRY_COUNT) {
-            console.warn(`语音播放失败已达到最大重试次数(${MAX_RETRY_COUNT})，停止重试`)
-            setLastAutoPlayedText(questionText) // 标记为已处理，避免后续重试
+          const errorMessage = (error as Error).message || ''
+
+          // 如果是浏览器自动播放限制，不要重试
+          if (errorMessage.includes('请先点击') || errorMessage.includes('NotAllowedError')) {
+            console.warn('[TTS] 浏览器阻止自动播放，请点击播放按钮手动播放')
+            setLastAutoPlayedText(questionText) // 标记为已处理
+            // 不调用onVoiceError，因为这不是真正的错误
+          } else {
+            console.error('自动播放语音错误:', error)
+
+            // 增加重试计数
+            const newRetryCount = currentRetryCount + 1
+            setRetryCount(prev => ({
+              ...prev,
+              [questionText]: newRetryCount
+            }))
+
+            if (newRetryCount >= MAX_RETRY_COUNT) {
+              console.warn(`语音播放失败已达到最大重试次数(${MAX_RETRY_COUNT})，停止重试`)
+              setLastAutoPlayedText(questionText) // 标记为已处理，避免后续重试
+            }
+
+            onVoiceError?.(error as Error)
           }
-          
-          onVoiceError?.(error as Error)
         } finally {
           setIsLoading(false)
           setIsPlaying(false)
         }
       }, 500)
-      
+
       return () => clearTimeout(timer)
     }
   }, [autoPlay, questionText, isPlaying, isLoading, lastAutoPlayedText, voiceConfigs, selectedVoice, retryCount, onVoiceStart, onVoiceEnd, onVoiceError])
 
   // 播放语音
   const handlePlayVoice = useCallback(async () => {
+    // 标记用户已交互，允许后续自动播放
+    ttsService.markUserInteraction()
+
     if (isPlaying) {
       // 停止播放
       ttsService.stopAudio()
@@ -181,7 +193,7 @@ export default function VoiceControls({
 
     try {
       const voiceConfig = voiceConfigs[selectedVoice]
-      
+
       // 生成语音
       const response = await ttsService.generateInterviewQuestionSpeech(
         questionText,
@@ -206,14 +218,14 @@ export default function VoiceControls({
       }))
     } catch (error) {
       console.error('语音播放错误:', error)
-      
+
       // 增加重试计数
       const newRetryCount = currentRetryCount + 1
       setRetryCount(prev => ({
         ...prev,
         [manualPlayKey]: newRetryCount
       }))
-      
+
       onVoiceError?.(error as Error)
     } finally {
       setIsLoading(false)
@@ -239,8 +251,8 @@ export default function VoiceControls({
         disabled={isLoading}
         className={`
           p-2 rounded-full transition-colors
-          ${isPlaying 
-            ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+          ${isPlaying
+            ? 'bg-red-100 text-red-600 hover:bg-red-200'
             : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
           }
           ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
@@ -284,9 +296,9 @@ export default function VoiceControls({
                 >
                   <div className="font-medium">{config.description}</div>
                   <div className="text-xs text-gray-500">
-                    {config.emotion === 'neutral' ? '中性' : 
-                     config.emotion === 'happy' ? '友好' : 
-                     config.emotion === 'sad' ? '严肃' : config.emotion}
+                    {config.emotion === 'neutral' ? '中性' :
+                      config.emotion === 'happy' ? '友好' :
+                        config.emotion === 'sad' ? '严肃' : config.emotion}
                   </div>
                 </button>
               ))}

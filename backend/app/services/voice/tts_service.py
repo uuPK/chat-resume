@@ -36,8 +36,9 @@ class TTSService:
         if self.provider == TTSProvider.MINIMAX:
             self.api_key = settings.MINIMAX_API_KEY
             self.group_id = settings.MINIMAX_GROUP_ID
-            self.api_base = "https://api.minimax.chat/v1/tts"
-            self.model = "speech-01"
+            # 使用配置的API_BASE，默认为中国大陆端点
+            self.api_base = settings.MINIMAX_API_BASE or "https://api.minimaxi.chat"
+            self.model = "speech-02-hd"  # 使用更新的模型
             self.headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
@@ -156,11 +157,14 @@ class TTSService:
         }
 
         if self.provider == TTSProvider.MINIMAX:
+            # 使用新的t2a_v2 API格式
             minimax_updates: Dict[str, Any] = {
-                "voice": voice or "female-shaonv",
-                "speed": speed,
-                "vol": 1.0,
-                "pitch": pitch,
+                "voice_setting": {
+                    "voice_id": voice or "female-shaonv",
+                    "speed": speed,
+                    "vol": 1.0,
+                    "pitch": int(pitch),  # pitch在新API中是整数
+                },
                 "audio_setting": {
                     "sample_rate": sample_rate,
                     "format": format,
@@ -183,7 +187,8 @@ class TTSService:
     def _get_tts_endpoint(self) -> str:
         """获取TTS API端点URL"""
         if self.provider == TTSProvider.MINIMAX:
-            return f"{self.api_base}"
+            # 使用新的t2a_v2端点
+            return f"{self.api_base}/v1/t2a_v2?GroupId={self.group_id}"
         elif self.provider == TTSProvider.VOLCENGINE:
             return f"{self.api_base}/synthesis"
 
@@ -192,11 +197,26 @@ class TTSService:
     async def _handle_minimax_response(self, response: httpx.Response) -> bytes:
         """处理MiniMax的响应格式"""
         response_data = response.json()
-        if response_data.get("code") != 0:
-            raise Exception(f"MiniMax TTS错误: {response_data.get('msg', '未知错误')}")
 
-        # MiniMax返回音频数据，直接返回
-        return response.content
+        # 检查响应状态码
+        base_resp = response_data.get("base_resp", {})
+        status_code = base_resp.get("status_code", 0)
+
+        if status_code != 0:
+            error_msg = base_resp.get("status_msg", "未知错误")
+            raise Exception(f"MiniMax TTS错误: {error_msg}")
+
+        # 获取音频数据（十六进制编码字符串）
+        audio_hex = response_data.get("data", {}).get("audio")
+        if not audio_hex:
+            # 尝试从audio_file字段直接获取
+            audio_hex = response_data.get("audio_file")
+
+        if not audio_hex:
+            raise Exception("MiniMax TTS响应中没有音频数据")
+
+        # MiniMax t2a_v2 API返回的是十六进制字符串，需要用fromhex解码
+        return bytes.fromhex(audio_hex)
 
     def switch_provider(self, provider: TTSProvider):
         """切换TTS服务提供商

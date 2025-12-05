@@ -194,6 +194,8 @@ async def generate_interview_question_speech(
     为面试问题生成语音
     专门用于面试场景的TTS接口
     """
+    import base64
+
     try:
         tts_service = TTSService(TTSProvider.MINIMAX)
 
@@ -211,7 +213,18 @@ async def generate_interview_question_speech(
             else 24000,
         )
 
-        return {"success": True, "data": result, "message": "面试问题语音生成成功"}
+        # 将bytes音频数据编码为base64字符串
+        audio_base64 = base64.b64encode(result).decode("utf-8")
+
+        return {
+            "success": True,
+            "data": {
+                "audio_base64": audio_base64,
+                "format": request.format or "mp3",
+                "sample_rate": request.sample_rate or 24000,
+            },
+            "message": "面试问题语音生成成功",
+        }
 
     except Exception as e:
         # 如果是余额不足，返回503 Service Unavailable
