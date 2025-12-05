@@ -126,13 +126,20 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
 
   // 开始录音
   const startRecording = async () => {
-    console.log('VoiceRecorder: 开始录音被调用', { 
-      isSupported: state.isSupported, 
-      hasPermission: state.hasPermission 
+    console.log('VoiceRecorder: 开始录音被调用', {
+      isSupported: state.isSupported,
+      hasPermission: state.hasPermission
     })
-    
+
     try {
-      setState(prev => ({ ...prev, isRecording: true, recordingTime: 0 }))
+      // 完全重置所有状态
+      setState(prev => ({
+        ...prev,
+        isRecording: true,
+        recordingTime: 0,
+        audioLevel: 0,
+        isProcessing: false
+      }))
       setError(null)
       setTranscriptionText('')
       
@@ -206,17 +213,30 @@ const VoiceRecorder = forwardRef<VoiceRecorderRef, VoiceRecorderProps>(({
       
       // 停止录音并获取音频数据
       const audioBlob = await asrService.stopRecording()
-      
+
       if (audioBlob) {
+        console.log('VoiceRecorder: 获取到音频数据，大小:', audioBlob.size)
+
         // 执行语音识别
         const result = await asrService.recognizeAudio(audioBlob)
-        
-        if (result.success && result.text) {
-          setTranscriptionText(result.text)
-          onTranscriptionComplete?.(result.text)
+        console.log('VoiceRecorder: 识别结果:', result)
+
+        // 优先使用 text，其次 original_text
+        const recognizedText = (result.text || result.original_text || '').trim()
+
+        if (result.success && recognizedText) {
+          setTranscriptionText(recognizedText)
+          onTranscriptionComplete?.(recognizedText)
           toast.success('语音识别完成')
+        } else if (result.success && !recognizedText) {
+          // 识别成功但无文本
+          const errorMsg = '未识别到有效语音，请确保说话清晰'
+          setError(errorMsg)
+          onError?.(errorMsg)
+          toast.error(errorMsg)
         } else {
-          const errorMsg = result.error || '语音识别失败'
+          // 识别失败
+          const errorMsg = result.error || result.message || '语音识别失败'
           setError(errorMsg)
           onError?.(errorMsg)
           toast.error(errorMsg)

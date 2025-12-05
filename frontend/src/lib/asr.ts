@@ -26,6 +26,8 @@ interface RecognitionResult {
   sequence?: number
   confidence?: number
   word_count?: number
+  original_text?: string
+  message?: string
   error?: string
 }
 
@@ -118,16 +120,16 @@ class ASRService {
       audioContext: !!(window.AudioContext || (window as any).webkitAudioContext),
       isSecureContext: window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost'
     }
-    
+
     console.log('ASR浏览器支持检查:', checks)
-    
+
     // 基本功能检查
     const basicSupport = checks.mediaDevices && checks.getUserMedia && checks.mediaRecorder
-    
+
     if (!checks.isSecureContext) {
       console.warn('ASR警告: 需要HTTPS环境才能使用麦克风功能')
     }
-    
+
     return basicSupport
   }
 
@@ -139,7 +141,7 @@ class ASRService {
       console.error('浏览器不支持录音功能')
       return false
     }
-    
+
     try {
       // 尝试使用更低的配置以提高兼容性
       const constraints = {
@@ -149,22 +151,22 @@ class ASRService {
           autoGainControl: true
         }
       }
-      
+
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      
+
       // 测试后立即关闭
       stream.getTracks().forEach(track => track.stop())
       console.log('麦克风权限获取成功')
       return true
     } catch (error) {
       console.error('麦克风权限请求失败:', error)
-      
+
       // 详细错误信息
       if (error instanceof Error) {
         console.error('错误类型:', error.name)
         console.error('错误消息:', error.message)
       }
-      
+
       return false
     }
   }
@@ -178,7 +180,7 @@ class ASRService {
       const wsProtocol = this.apiBase.startsWith('https') ? 'wss' : 'ws'
       const wsHost = this.apiBase.replace(/^https?:\/\//, '')
       const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}`
-      
+
       console.log('尝试连接 WebSocket URL:', wsUrl)
       const ws = new WebSocket(wsUrl)
 
@@ -219,6 +221,9 @@ class ASRService {
     }
 
     try {
+      // 先清理之前的录音资源（不清空chunks，下面会重新初始化）
+      this.cleanupRecording(false)
+
       // 获取麦克风权限，使用更兼容的配置
       const constraints = {
         audio: {
@@ -227,7 +232,7 @@ class ASRService {
           autoGainControl: true
         }
       }
-      
+
       this.audioStream = await navigator.mediaDevices.getUserMedia(constraints)
 
       // 检查支持的MIME类型
@@ -240,7 +245,7 @@ class ASRService {
           'audio/ogg;codecs=opus',
           'audio/wav'
         ]
-        
+
         for (const type of alternativeTypes) {
           if (MediaRecorder.isTypeSupported(type)) {
             mimeType = type
@@ -248,7 +253,7 @@ class ASRService {
             break
           }
         }
-        
+
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           console.warn('未找到支持的音频格式，使用默认格式')
           mimeType = 'audio/webm' // 使用通用格式
@@ -257,11 +262,11 @@ class ASRService {
 
       // 创建MediaRecorder
       this.mediaRecorder = new MediaRecorder(
-        this.audioStream, 
+        this.audioStream,
         mimeType ? { mimeType } : undefined
       )
 
-      // 清空音频块
+      // 重新初始化音频块数组
       this.audioChunks = []
 
       // 设置数据处理器
@@ -288,16 +293,28 @@ class ASRService {
    */
   async stopRecording(): Promise<Blob | null> {
     if (!this.isRecording || !this.mediaRecorder) {
+      console.warn('ASR: 停止录音失败 - 未在录音中')
       return null
     }
 
     return new Promise((resolve) => {
       this.mediaRecorder!.onstop = () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
-        this.cleanupRecording()
-        resolve(audioBlob)
+        console.log('ASR: 录音停止，收集到的音频块数量:', this.audioChunks.length)
+
+        // 先创建 Blob，再清理资源
+        if (this.audioChunks.length > 0) {
+          const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
+          console.log('ASR: 创建音频 Blob，大小:', audioBlob.size)
+          this.cleanupRecording()
+          resolve(audioBlob)
+        } else {
+          console.error('ASR: 没有收集到音频数据')
+          this.cleanupRecording()
+          resolve(null)
+        }
       }
 
+      console.log('ASR: 停止 MediaRecorder')
       this.mediaRecorder!.stop()
       this.isRecording = false
     })
@@ -306,7 +323,7 @@ class ASRService {
   /**
    * 清理录音资源
    */
-  private cleanupRecording(): void {
+  private cleanupRecording(clearChunks: boolean = true): void {
     if (this.audioStream) {
       this.audioStream.getTracks().forEach(track => track.stop())
       this.audioStream = null
@@ -316,7 +333,9 @@ class ASRService {
       this.mediaRecorder = null
     }
 
-    this.audioChunks = []
+    if (clearChunks) {
+      this.audioChunks = []
+    }
   }
 
   /**
@@ -330,7 +349,7 @@ class ASRService {
           const arrayBuffer = reader.result as ArrayBuffer
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-          
+
           // 转换为16kHz单声道PCM
           const pcmData = this.resampleAudio(audioBuffer, 16000)
           resolve(pcmData)
@@ -367,9 +386,14 @@ class ASRService {
    */
   async recognizeAudio(audioBlob: Blob): Promise<RecognitionResult> {
     try {
+      console.log('ASR: 开始转换音频格式，原始大小:', audioBlob.size)
+
       // 转换音频格式
       const pcmData = await this.convertAudioToPCM(audioBlob)
+      console.log('ASR: 音频转换完成，PCM大小:', pcmData.byteLength)
+
       const audioBase64 = this.arrayBufferToBase64(pcmData)
+      console.log('ASR: Base64编码完成，长度:', audioBase64.length)
 
       const response = await fetch(`${this.apiBase}/api/asr/interview-recognition`, {
         method: 'POST',
@@ -384,14 +408,27 @@ class ASRService {
         })
       })
 
+      console.log('ASR: 后端响应状态:', response.status)
+
       if (!response.ok) {
-        throw new Error(`语音识别失败: ${response.status}`)
+        let errorMessage = `语音识别失败: ${response.status}`
+        try {
+          const errorData = await response.json()
+          console.error('ASR: 后端错误详情:', errorData)
+          if (errorData.detail) {
+            errorMessage += ` - ${errorData.detail}`
+          }
+        } catch (e) {
+          // 忽略JSON解析错误
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
+      console.log('ASR: 识别成功，结果:', result)
       return result
     } catch (error) {
-      console.error('语音识别失败:', error)
+      console.error('ASR: 语音识别失败:', error)
       return {
         success: false,
         text: '',
@@ -420,7 +457,7 @@ class ASRService {
   async recordAndRecognize(): Promise<RecognitionResult> {
     try {
       await this.startRecording()
-      
+
       // 等待用户操作（这里需要外部控制停止）
       return new Promise((resolve) => {
         // 这个方法需要与UI组件配合使用
@@ -470,7 +507,7 @@ class ASRService {
    */
   destroy(): void {
     this.cleanupRecording()
-    
+
     if (this.websocket) {
       this.websocket.close()
       this.websocket = null
