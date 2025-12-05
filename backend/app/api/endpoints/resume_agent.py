@@ -10,9 +10,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
-from app.services.ai import ChatService
+from app.services.ai import ChatService, ResumeOptimizationAgent
 from app.services.core import ResumeService
-from app.prompt import ResumePrompts, InterviewPrompts
 from app.core.database import get_db
 from app.api.deps import get_current_user
 import json
@@ -76,32 +75,18 @@ async def chat_with_resume(
 
         # 使用真实简历数据
         resume_content = resume.content
-
-        # 使用新的提示词管理系统，包含聊天历史
-        chat_service = ChatService()
-        # 显式类型转换：resume.content 是 Column[JSON] 但运行时是 dict
+        # 显式类型转换
         resume_dict: Dict[str, Any] = cast(
             Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
         )
-        messages = ResumePrompts.build_chat_messages(
-            chat_request.message, resume_dict, chat_request.chat_history
+
+        # 使用简历优化 Agent（支持工具调用）
+        agent = ResumeOptimizationAgent()
+        ai_response = await agent.optimize(
+            user_message=chat_request.message,
+            resume_content=resume_dict,
+            conversation_history=chat_request.chat_history
         )
-
-        # 调用AI服务
-        response = await chat_service._chat_completion_non_stream(messages)
-
-        # 从新服务响应中提取内容
-        if chat_service.provider == "gemini":
-            ai_response = (
-                response.get("candidates", [{}])[0]
-                .get("content", {})
-                .get("parts", [{}])[0]
-                .get("text", "")
-            )
-        else:
-            ai_response = (
-                response.get("choices", [{}])[0].get("message", {}).get("content", "")
-            )
 
         return ChatResponse.model_construct(
             response=ai_response, service="openrouter", is_configured=True
@@ -129,6 +114,8 @@ async def chat_with_resume_stream(
     logger.info("=== 流式聊天API被调用 ===")
     logger.info(f"收到请求 - is_interview: {chat_request.is_interview}")
     logger.info(f"用户消息: {chat_request.message}")
+
+    agent = ResumeOptimizationAgent()
 
     async def generate_stream():
         try:
@@ -163,45 +150,17 @@ async def chat_with_resume_stream(
                 resume.content if isinstance(resume.content, dict) else {},
             )
 
-            chat_service = ChatService()
+            # 调用简历优化 Agent 获取回复
+            logger.debug("流式接口使用简历优化 Agent")
+            ai_response = await agent.optimize(
+                user_message=chat_request.message,
+                resume_content=resume_dict,
+                conversation_history=chat_request.chat_history
+            )
 
-            # 根据模式构建不同的消息
-            logger.debug(f"is_interview: {chat_request.is_interview}")
-            logger.debug(f"chat_request: {chat_request}")
-
-            if chat_request.is_interview:
-                # 面试模式：使用面试官提示词
-                logger.debug(f"使用面试官提示词，模式: {chat_request.interview_mode}")
-                messages = InterviewPrompts.build_interview_messages(
-                    chat_request.message,
-                    resume_dict,
-                    chat_request.chat_history,
-                    chat_request.interview_mode,
-                )
-            else:
-                # 普通模式：使用简历优化师提示词
-                logger.debug("使用简历优化师提示词")
-                messages = ResumePrompts.build_chat_messages(
-                    chat_request.message, resume_dict, chat_request.chat_history
-                )
-
-            # 流式响应
-            async for content_chunk in chat_service._chat_completion_stream(messages):
-                # 解析流式响应数据
-                try:
-                    chunk_data = json.loads(content_chunk)
-                    # 提取内容
-                    if "choices" in chunk_data and chunk_data["choices"]:
-                        delta = chunk_data["choices"][0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            data = {"content": content, "done": False}
-                            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-                except json.JSONDecodeError:
-                    # 如果无法解析，直接使用原始数据
-                    if content_chunk.strip() and content_chunk != "[DONE]":
-                        data = {"content": content_chunk, "done": False}
-                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+            # 将完整回复一次性输出给前端
+            data = {"content": ai_response, "done": False}
+            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
             # 发送结束标记
             end_data = {"content": "", "done": True}

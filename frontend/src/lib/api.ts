@@ -94,9 +94,7 @@ interface InterviewSession {
 
 interface InterviewConfig {
   job_position: string
-  interview_mode: string
   jd_content?: string
-  question_count?: number
 }
 
 // API基础URL

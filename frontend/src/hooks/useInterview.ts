@@ -22,7 +22,6 @@ interface InterviewHookOptions {
   onMessage?: (message: ChatMessage) => void
   onError?: (error: string) => void
   apiBaseUrl?: string
-  interviewMode?: string
   jobPosition?: string
   jdContent?: string
   existingSessionId?: number | null
@@ -40,7 +39,6 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     onMessage,
     onError,
     apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    interviewMode = 'comprehensive',
     jobPosition,
     jdContent,
     existingSessionId
@@ -176,16 +174,16 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
   }, [existingSessionId, hasAutoLoaded, isInterviewActive, isLoading, resumeId])
 
   // 开始面试会话
-  const startInterview = async (jdContent?: string, questionCount?: number) => {
-    console.log('startInterview called with:', { 
-      existingSessionId, 
-      isInterviewActive, 
-      resumeId, 
+  const startInterview = async (jdContent?: string) => {
+    console.log('startInterview called with:', {
+      existingSessionId,
+      isInterviewActive,
+      resumeId,
       isLoading,
       currentSession: currentSession?.id,
       hasAutoLoaded
     })
-    
+
     if (isInterviewActive) {
       console.log('面试已经活跃，返回现有会话:', currentSession?.id)
       return currentSession
@@ -207,14 +205,12 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     }
 
     setIsLoading(true)
-    
+
     try {
       // 使用结构化的面试API创建新会话
       const backendSession = await interviewApi.startInterview(resumeId, {
         job_position: jobPosition || '未指定职位',
-        interview_mode: interviewMode,
-        jd_content: jdContent || '',
-        question_count: questionCount || 10
+        jd_content: jdContent || ''
       })
 
       console.log('面试会话已创建:', backendSession)
@@ -240,7 +236,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         const welcomeMessage: ChatMessage = {
           id: `ai_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           type: 'ai',
-          content: `您好！我是您的AI面试官。今天我将基于您的简历为您进行${interviewMode === 'comprehensive' ? '综合面试' : interviewMode === 'technical' ? '技术面试' : '行为面试'}。\n\n${firstQuestion.question}`,
+          content: `您好！我是您的AI面试官。今天我将基于您的简历进行模拟面试。\n\n${firstQuestion.question}`,
           timestamp: new Date()
         }
         stableOnMessage(welcomeMessage)

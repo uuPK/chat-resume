@@ -1,8 +1,5 @@
 """
 面试相关数据模式
-
-定义面试创建、管理、评分等相关的Pydantic模式。
-包括面试配置、问题和结果的数据验证。
 """
 
 from typing import Optional, Dict, Any, List
@@ -11,17 +8,18 @@ from pydantic import BaseModel
 
 
 class InterviewSessionCreate(BaseModel):
+    """创建面试会话"""
+
     job_position: Optional[str] = None
-    interview_mode: Optional[str] = None  # comprehensive, technical, behavioral
     jd_content: Optional[str] = None
-    question_count: Optional[int] = 10
 
 
 class InterviewSessionResponse(BaseModel):
+    """面试会话响应"""
+
     id: int
     resume_id: int
     job_position: Optional[str] = None
-    interview_mode: Optional[str] = None
     jd_content: Optional[str] = None
     questions: List[Dict[str, Any]]
     answers: List[Dict[str, Any]]
@@ -34,17 +32,23 @@ class InterviewSessionResponse(BaseModel):
 
 
 class InterviewQuestionResponse(BaseModel):
+    """面试问题响应"""
+
     question: str
     question_type: str
     question_index: int
 
 
 class InterviewAnswerRequest(BaseModel):
+    """面试回答请求"""
+
     answer: str
     question_index: int
 
 
 class InterviewEvaluationResponse(BaseModel):
+    """面试评估响应"""
+
     question: str
     answer: str
     evaluation: Dict[str, Any]

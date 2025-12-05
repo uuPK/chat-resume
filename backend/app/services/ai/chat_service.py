@@ -137,6 +137,7 @@ class ChatService:
         temperature: float,
         max_tokens: Optional[int],
         stream: bool,
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """构建请求载荷"""
         payload = {
@@ -148,6 +149,11 @@ class ChatService:
 
         if max_tokens:
             payload["max_tokens"] = max_tokens
+
+        # 添加工具定义（Function Calling）
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
 
         # 针对不同提供商的特殊处理
         if self.provider == AIProvider.DEEPSEEK and not max_tokens:
@@ -231,6 +237,53 @@ class ChatService:
             return (
                 response.get("choices", [{}])[0].get("message", {}).get("content", "")
             )
+
+    async def chat_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """支持工具调用的聊天接口
+
+        Args:
+            messages: 消息列表
+            system_prompt: 系统提示词
+            tools: 工具定义列表
+            temperature: 生成温度
+            max_tokens: 最大token数
+
+        Returns:
+            完整的AI响应（包含工具调用信息）
+        """
+        # 添加系统提示
+        if system_prompt:
+            messages = [{"role": "system", "content": system_prompt}] + messages
+
+        # 构建载荷
+        payload = self._build_payload(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=False,
+            tools=tools
+        )
+
+        url = self._get_endpoint_url()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, json=payload, headers=self.headers)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            raise Exception(
+                f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
+            )
+        except Exception as e:
+            raise Exception(f"AI服务请求异常: {str(e)}")
 
     def switch_provider(self, provider: AIProvider):
         """切换AI服务提供商

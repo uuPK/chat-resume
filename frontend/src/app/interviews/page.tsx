@@ -43,9 +43,7 @@ export default function InterviewsPage() {
   const [formData, setFormData] = useState({
     jobPosition: '',
     selectedResumeId: '',
-    interviewMode: 'comprehensive',
-    jdContent: '',
-    questionCount: 10
+    jdContent: ''
   })
   const [isCreating, setIsCreating] = useState(false)
 
@@ -250,9 +248,7 @@ export default function InterviewsPage() {
     setFormData({
       jobPosition: '',
       selectedResumeId: '',
-      interviewMode: 'comprehensive',
-      jdContent: '',
-      questionCount: 10
+      jdContent: ''
     })
   }
 
@@ -261,9 +257,7 @@ export default function InterviewsPage() {
     setFormData({
       jobPosition: '',
       selectedResumeId: '',
-      interviewMode: 'comprehensive',
-      jdContent: '',
-      questionCount: 10
+      jdContent: ''
     })
   }
 
@@ -326,14 +320,12 @@ export default function InterviewsPage() {
     try {
       // 直接跳转到面试页面，将配置参数传递过去
       const params = new URLSearchParams({
-        mode: formData.interviewMode,
         position: formData.jobPosition,
-        questionCount: formData.questionCount.toString(),
         ...(formData.jdContent && { jd: formData.jdContent })
       })
-      
+
       router.push(`/resume/${formData.selectedResumeId}/interview?${params.toString()}`)
-      
+
     } catch (error) {
       console.error('创建面试失败:', error)
       toast.error('创建面试失败，请重试')
@@ -602,100 +594,6 @@ export default function InterviewsPage() {
                     ))}
                   </select>
                 )}
-              </div>
-
-              {/* Interview Mode */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  面试模式
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div 
-                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                      formData.interviewMode === 'comprehensive' 
-                        ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500' 
-                        : 'border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                    }`}
-                    onClick={() => handleInputChange('interviewMode', 'comprehensive')}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <input 
-                        type="radio" 
-                        name="interviewMode" 
-                        value="comprehensive" 
-                        checked={formData.interviewMode === 'comprehensive'}
-                        onChange={() => handleInputChange('interviewMode', 'comprehensive')}
-                        className="text-blue-600" 
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">综合面试</div>
-                        <div className="text-sm text-gray-500">技术+行为综合考察</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div 
-                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                      formData.interviewMode === 'technical' 
-                        ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500' 
-                        : 'border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                    }`}
-                    onClick={() => handleInputChange('interviewMode', 'technical')}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <input 
-                        type="radio" 
-                        name="interviewMode" 
-                        value="technical" 
-                        checked={formData.interviewMode === 'technical'}
-                        onChange={() => handleInputChange('interviewMode', 'technical')}
-                        className="text-blue-600" 
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">技术深挖</div>
-                        <div className="text-sm text-gray-500">专注技术能力考察</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div 
-                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                      formData.interviewMode === 'behavioral' 
-                        ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500' 
-                        : 'border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                    }`}
-                    onClick={() => handleInputChange('interviewMode', 'behavioral')}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <input 
-                        type="radio" 
-                        name="interviewMode" 
-                        value="behavioral" 
-                        checked={formData.interviewMode === 'behavioral'}
-                        onChange={() => handleInputChange('interviewMode', 'behavioral')}
-                        className="text-blue-600" 
-                      />
-                      <div>
-                        <div className="font-medium text-gray-900">行为面试</div>
-                        <div className="text-sm text-gray-500">关注软技能和文化契合</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Question Count */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  问题数量
-                </label>
-                <input
-                  type="number"
-                  min="5"
-                  max="20"
-                  value={formData.questionCount}
-                  onChange={(e) => handleInputChange('questionCount', (parseInt(e.target.value) || 10).toString())}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <p className="text-xs text-gray-500 mt-1">建议5-20个问题，默认10个</p>
               </div>
 
               {/* JD Content */}

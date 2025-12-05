@@ -49,7 +49,6 @@ export default function InterviewPage() {
   
   // 获取URL参数
   const [interviewConfig, setInterviewConfig] = useState({
-    mode: 'comprehensive',
     position: '',
     jd: '',
     sessionId: null as number | null
@@ -59,7 +58,6 @@ export default function InterviewPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [interviewTime, setInterviewTime] = useState(0)
-  const [currentQuestion, setCurrentQuestion] = useState(1)
   const [selectedInterviewer, setSelectedInterviewer] = useState<InterviewerProfile>(interviewerProfiles[0])
   const [hasStartedInterview, setHasStartedInterview] = useState(false) // 防重复标志
   const [interviewError, setInterviewError] = useState<string | null>(null)
@@ -98,11 +96,10 @@ export default function InterviewPage() {
   const interviewOptions = useMemo(() => ({
     onMessage: (msg: ChatMessage) => handleMessageRef.current(msg),
     onError: (error: string) => handleErrorRef.current(error),
-    interviewMode: interviewConfig.mode,
     jobPosition: interviewConfig.position,
     jdContent: interviewConfig.jd,
     existingSessionId: interviewConfig.sessionId
-  }), [interviewConfig.mode, interviewConfig.position, interviewConfig.jd, interviewConfig.sessionId])
+  }), [interviewConfig.position, interviewConfig.jd, interviewConfig.sessionId])
 
   // 面试Hook
   const {
@@ -142,20 +139,18 @@ export default function InterviewPage() {
     
     // 解析URL参数
     const urlParams = new URLSearchParams(window.location.search)
-    const mode = urlParams.get('mode') || 'comprehensive'
     const position = urlParams.get('position') || ''
     const jd = urlParams.get('jd') || ''
     const sessionId = urlParams.get('session') ? parseInt(urlParams.get('session')!) : null
-    
-    console.log('URL参数解析完成:', { mode, position, jd, sessionId })
-    
+
+    console.log('URL参数解析完成:', { position, jd, sessionId })
+
     // 如果URL中有sessionId，标记为已处理
     if (sessionId) {
       processedSessionRef.current = sessionId
     }
-    
+
     setInterviewConfig({
-      mode,
       position,
       jd,
       sessionId
@@ -237,12 +232,11 @@ export default function InterviewPage() {
       // 先清空消息，然后等待hook添加欢迎消息
       setMessages([])
       setInterviewTime(0)
-      setCurrentQuestion(1)
-      
-      const session = await startInterview(interviewConfig.jd, parseInt(new URLSearchParams(window.location.search).get('questionCount') || '10'))
+
+      const session = await startInterview(interviewConfig.jd)
       if (session) {
         const action = interviewConfig.sessionId ? '继续' : '开始'
-        toast.success(`面试已${action}！模式：${getModeDisplayName(interviewConfig.mode)}`)
+        toast.success(`面试已${action}！`)
       }
     } catch (error) {
       console.error('Failed to start interview:', error)
@@ -371,15 +365,6 @@ export default function InterviewPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // 获取模式显示名称
-  const getModeDisplayName = (mode: string) => {
-    const modes = {
-      'comprehensive': '综合面试',
-      'technical': '技术深挖', 
-      'behavioral': '行为面试'
-    }
-    return modes[mode as keyof typeof modes] || '综合面试'
-  }
 
   // 结束面试
   const handleEndInterview = async () => {
@@ -400,10 +385,9 @@ export default function InterviewPage() {
 
     const currentMessage = inputMessage.trim()
     setInputMessage('')
-    
+
     try {
       await sendAnswer(currentMessage)
-      setCurrentQuestion(prev => prev + 1)
     } catch (error) {
       console.error('Failed to send message:', error)
       toast.error('发送消息失败，请重试')
@@ -489,27 +473,9 @@ export default function InterviewPage() {
                       <span>{interviewConfig.position}</span>
                     </>
                   )}
-                  <span>•</span>
-                  <span>{getModeDisplayName(interviewConfig.mode)}</span>
                 </div>
               </div>
             </div>
-            
-            {/* 中间：进度条（仅在面试进行时显示） */}
-            {isInterviewActive && (
-              <div className="flex-1 max-w-md mx-8">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-500">面试进度</span>
-                  <span className="text-xs text-gray-500">{currentQuestion}/15 问</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{width: `${(currentQuestion / 15) * 100}%`}}
-                  ></div>
-                </div>
-              </div>
-            )}
             
             {/* 右侧：状态和控制 */}
             {isInterviewActive && (
@@ -519,12 +485,7 @@ export default function InterviewPage() {
                   <ClockIcon className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-700">{formatTime(interviewTime)}</span>
                 </div>
-                
-                {/* 当前问题数 */}
-                <div className="flex items-center space-x-2 px-3 py-1 bg-green-50 rounded-full">
-                  <span className="text-sm font-medium text-green-700">第 {currentQuestion} 问</span>
-                </div>
-                
+
                 {/* 控制按钮 */}
                 <div className="flex items-center space-x-2">
                   {/* 自动播放开关 */}
