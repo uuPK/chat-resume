@@ -92,12 +92,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings.model_validate({})
-
-# 调试配置加载
-print("=== 配置加载调试信息 ===")
-print(f"OPENROUTER_API_KEY 是否为空: {not settings.OPENROUTER_API_KEY.strip()}")
-print(f"OPENROUTER_API_KEY 长度: {len(settings.OPENROUTER_API_KEY)}")
-print(
-    f"OPENROUTER_API_KEY 前10字符: {settings.OPENROUTER_API_KEY[:10] if settings.OPENROUTER_API_KEY else 'EMPTY'}"
-)
-print("========================")
