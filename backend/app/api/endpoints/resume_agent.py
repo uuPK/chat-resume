@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
-from app.services.ai import ChatService, ResumeOptimizationAgent
+from app.services.ai import ChatService, ResumeAgent
 from app.services.core import ResumeService
 from app.core.database import get_db
 from app.api.deps import get_current_user
@@ -81,15 +81,21 @@ async def chat_with_resume(
         )
 
         # 使用简历优化 Agent（支持工具调用）
-        agent = ResumeOptimizationAgent()
-        ai_response = await agent.optimize(
+        agent = ResumeAgent()
+        ai_result = await agent.optimize(
             user_message=chat_request.message,
             resume_content=resume_dict,
-            conversation_history=chat_request.chat_history
+            conversation_history=chat_request.chat_history,
+        )
+
+        content = (
+            ai_result.get("content")
+            if isinstance(ai_result, dict)
+            else str(ai_result)
         )
 
         return ChatResponse.model_construct(
-            response=ai_response, service="openrouter", is_configured=True
+            response=content, service="openrouter", is_configured=True
         )
 
     except HTTPException:
@@ -115,7 +121,7 @@ async def chat_with_resume_stream(
     logger.info(f"收到请求 - is_interview: {chat_request.is_interview}")
     logger.info(f"用户消息: {chat_request.message}")
 
-    agent = ResumeOptimizationAgent()
+    agent = ResumeAgent()
 
     async def generate_stream():
         try:
@@ -152,18 +158,25 @@ async def chat_with_resume_stream(
 
             # 调用简历优化 Agent 获取回复
             logger.debug("流式接口使用简历优化 Agent")
-            ai_response = await agent.optimize(
+            ai_result = await agent.optimize(
                 user_message=chat_request.message,
                 resume_content=resume_dict,
-                conversation_history=chat_request.chat_history
+                conversation_history=chat_request.chat_history,
             )
 
             # 将完整回复一次性输出给前端
-            data = {"content": ai_response, "done": False}
+            if isinstance(ai_result, dict):
+                data = {
+                    "content": ai_result.get("content", ""),
+                    "qr_images": ai_result.get("qr_images", []),
+                    "done": False,
+                }
+            else:
+                data = {"content": str(ai_result), "qr_images": [], "done": False}
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
             # 发送结束标记
-            end_data = {"content": "", "done": True}
+            end_data = {"content": "", "qr_images": [], "done": True}
             yield f"data: {json.dumps(end_data, ensure_ascii=False)}\n\n"
 
         except Exception as e:

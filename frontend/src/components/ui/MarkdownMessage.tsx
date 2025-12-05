@@ -113,6 +113,13 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
               {children}
             </a>
           ),
+          img: ({ src = '', alt = '' }) => (
+            <img
+              src={src}
+              alt={alt as string}
+              className="my-2 max-w-[240px] border border-gray-200 rounded-lg shadow-sm"
+            />
+          ),
         }}
       >
         {content}

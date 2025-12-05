@@ -6,13 +6,12 @@ AI服务模块
 
 from .interview_agent import InterviewAgent
 from .chat_service import ChatService, AIProvider
-from .resume_optimization_agent import ResumeOptimizationAgent
-from .resume_tools import ResumeTools
+from .resume_agent import ResumeAgent
+
 
 __all__ = [
     "InterviewAgent",
     "ChatService",
     "AIProvider",
-    "ResumeOptimizationAgent",
-    "ResumeTools",
+    "ResumeAgent",
 ]

@@ -11,7 +11,8 @@ import {
   ArrowLeftIcon,
   CheckIcon,
   ArrowUpIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
@@ -146,6 +147,8 @@ export default function ResumeEditPage() {
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [qrImages, setQrImages] = useState<string[]>([])
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 布局配置状态
@@ -177,6 +180,12 @@ export default function ResumeEditPage() {
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
+    },
+    onQrImages: (images) => {
+      if (images && images.length > 0) {
+        setQrImages(images)
+        setIsQrModalOpen(true)
+      }
     }
   })
 
@@ -811,6 +820,34 @@ export default function ResumeEditPage() {
           </motion.div>
         </div>
       </main>
+
+      {/* Boss直聘二维码弹窗 */}
+      {isQrModalOpen && qrImages.length > 0 && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md relative border border-gray-200">
+            <button
+              onClick={() => setIsQrModalOpen(false)}
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Boss直聘登录二维码</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              请使用 Boss 直聘 App 扫描二维码完成登录。二维码将在登录完成前保持有效。
+            </p>
+            <div className="flex flex-col items-center space-y-4">
+              {qrImages.map((img, index) => (
+                <img
+                  key={`${img}-${index}`}
+                  src={`data:image/png;base64,${img}`}
+                  alt="Boss直聘二维码"
+                  className="w-48 h-48 object-contain border border-gray-200 rounded-lg shadow"
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

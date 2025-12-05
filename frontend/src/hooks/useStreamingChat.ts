@@ -11,6 +11,7 @@ interface StreamingChatOptions {
   onMessage?: (message: ChatMessage) => void
   onError?: (error: string) => void
   apiBaseUrl?: string
+  onQrImages?: (images: string[]) => void
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
@@ -21,7 +22,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const {
     onMessage,
     onError,
-    apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    onQrImages
   } = options
 
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
@@ -109,6 +111,10 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   return
                 }
                 
+                if (data.qr_images && Array.isArray(data.qr_images) && data.qr_images.length > 0) {
+                  onQrImages?.(data.qr_images)
+                }
+
                 if (data.content) {
                   streamingContent += data.content
                   setCurrentStreamingMessage(streamingContent)
