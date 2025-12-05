@@ -33,8 +33,8 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
   const [isLoading, setIsLoading] = useState(false)
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('')
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false) // 防止重复自动加载
-  
-  
+
+
   const {
     onMessage,
     onError,
@@ -57,32 +57,32 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
   const loadExistingSession = useCallback(async (sessionId: number) => {
     console.log('loadExistingSession started for session:', sessionId)
     setIsLoading(true)
-    
+
     try {
       console.log('获取面试会话列表...')
       // 首先获取会话详情，检查状态
       const sessions = await interviewApi.getInterviewSessions(resumeId)
       console.log('面试会话列表:', sessions.map(s => ({ id: s.id, status: s.status })))
-      
+
       const existingSession = sessions.find(s => s.id === sessionId)
       console.log('找到的会话:', existingSession ? { id: existingSession.id, status: existingSession.status } : '未找到')
-      
+
       if (!existingSession) {
         throw new Error('面试会话不存在')
       }
-      
+
       if (existingSession.status === 'completed') {
         stableOnError('该面试已经完成，无法继续')
         return null
       }
-      
+
       // 计算已完成的问题数和当前问题索引
       const answeredCount = (existingSession.answers || []).length
       const totalQuestions = (existingSession.questions || []).length
       const currentQuestionIndex = answeredCount // 当前应该回答的问题索引
-      
+
       console.log(`面试状态分析: 已回答${answeredCount}题，总共${totalQuestions}题，当前问题索引: ${currentQuestionIndex}`)
-      
+
       // 创建本地面试会话状态
       const session: InterviewSession = {
         id: sessionId,
@@ -98,7 +98,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
       setCurrentSession(session)
       setIsInterviewActive(true)
       console.log('面试状态已设置为活跃')
-      
+
       // 检查是否还有问题需要回答
       if (currentQuestionIndex < totalQuestions) {
         // 还有预设问题未回答
@@ -133,12 +133,12 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
         stableOnMessage(welcomeMessage)
       }
       console.log('欢迎消息已发送')
-      
+
       return session
     } catch (error) {
       console.error('Load existing session error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      
+
       // 提供更详细的错误信息
       if (errorMessage.includes('404')) {
         stableOnError('面试会话不存在或已被删除')
@@ -149,7 +149,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
       } else {
         stableOnError(`加载面试会话失败: ${errorMessage}`)
       }
-      
+
       return null
     } finally {
       setIsLoading(false)
@@ -228,37 +228,16 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
 
       setCurrentSession(session)
       setIsInterviewActive(true)
-      
-      // 获取第一个问题
-      try {
-        const firstQuestion = await interviewApi.getNextInterviewQuestion(resumeId, backendSession.id)
-        
-        const welcomeMessage: ChatMessage = {
-          id: `ai_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'ai',
-          content: `您好！我是您的AI面试官。今天我将基于您的简历进行模拟面试。\n\n${firstQuestion.question}`,
-          timestamp: new Date()
-        }
-        stableOnMessage(welcomeMessage)
-        
-        // 更新会话状态，记录当前问题
-        setCurrentSession(prev => prev ? {
-          ...prev,
-          currentQuestionIndex: firstQuestion.question_index
-        } : null)
-        
-      } catch (error) {
-        console.error('获取第一个问题失败:', error)
-        // 使用默认欢迎消息
-        const welcomeMessage: ChatMessage = {
-          id: `ai_fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'ai',
-          content: `您好！我是您的AI面试官。今天我将基于您的简历进行模拟面试。请先做一个简单的自我介绍，包括您的姓名、职位和主要工作经验。`,
-          timestamp: new Date()
-        }
-        stableOnMessage(welcomeMessage)
+
+      // 发送简单的欢迎消息（不再获取预设问题）
+      const welcomeMessage: ChatMessage = {
+        id: `ai_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'ai',
+        content: `您好！我是您的AI面试官。今天我将基于您的简历进行模拟面试。\n\n请先做一个简单的自我介绍吧，包括您的姓名、目前的职位和主要工作经验。`,
+        timestamp: new Date()
       }
-      
+      stableOnMessage(welcomeMessage)
+
       return session
     } catch (error) {
       console.error('Start interview error:', error)
@@ -270,69 +249,79 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     }
   }
 
-  // 发送面试答案并获取下一个问题
-  const sendAnswer = async (answer: string) => {
+  // 发送面试消息（简单chatbot模式）
+  const sendAnswer = async (message: string) => {
     if (!currentSession || !isInterviewActive) return
 
     setIsLoading(true)
-    
+
     try {
-      // 发送用户答案消息
+      // 发送用户消息
       const userMessage: ChatMessage = {
         id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'user',
-        content: answer,
+        content: message,
         timestamp: new Date()
       }
       stableOnMessage(userMessage)
 
-      // 检查当前问题索引是否有效
-      if (currentSession.currentQuestionIndex >= currentSession.questions.length) {
-        // 所有预设问题已完成，需要生成新问题或结束面试
-        const aiMessage: ChatMessage = {
-          id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'ai',
-          content: `感谢您的回答！您已经完成了所有预设的面试问题。\n\n🎉 恭喜您完成面试！您可以选择结束面试查看详细报告，或者我可以为您提出一些额外的深入问题。请告诉我您的选择。`,
-          timestamp: new Date()
-        }
-        stableOnMessage(aiMessage)
-        return
+      // 使用简单的chat API进行对话
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        throw new Error('未登录，请先登录')
       }
 
-      // 提交答案到后端并获取评估
-      const evaluation = await interviewApi.submitInterviewAnswer(
-        resumeId, 
-        currentSession.id, 
-        answer, 
-        currentSession.currentQuestionIndex
-      )
-      
-      console.log('答案评估结果:', evaluation)
+      // 构建对话历史
+      const chatHistory = currentSession.answers.map((item: any, index: number) => {
+        const question = currentSession.questions[index]
+        return [
+          { role: 'assistant', content: question?.question || '' },
+          { role: 'user', content: item.answer || '' }
+        ]
+      }).flat().filter((msg: any) => msg.content)
 
-      // 直接使用面试官的自然回应，不再单独获取下一个问题
+      // 调用简单的面试chat API
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/${currentSession.id}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          message: message,
+          chat_history: chatHistory
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || '面试对话失败')
+      }
+
+      const data = await response.json()
+
+      // 显示AI回复
       const aiMessage: ChatMessage = {
         id: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'ai',
-        content: evaluation.feedback || '好的，让我们继续下一个问题。',
+        content: data.response || '好的，请继续。',
         timestamp: new Date()
       }
       stableOnMessage(aiMessage)
-      
-      // 更新会话状态，记录当前答案并增加问题索引
+
+      // 更新会话状态
       setCurrentSession(prev => prev ? {
         ...prev,
-        currentQuestionIndex: prev.currentQuestionIndex + 1,
         answers: [...prev.answers, {
-          answer,
-          evaluation: evaluation.evaluation,
-          question_index: currentSession.currentQuestionIndex
+          answer: message,
+          question_index: prev.answers.length
         }]
       } : null)
-      
+
     } catch (error) {
-      console.error('Send answer error:', error)
+      console.error('Send message error:', error)
       let errorMessage = 'Unknown error'
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Load failed') || error.message.includes('fetch')) {
           errorMessage = '网络连接失败，请检查后端服务是否运行'
@@ -342,7 +331,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
           errorMessage = error.message
         }
       }
-      
+
       stableOnError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -358,19 +347,19 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
       // 调用结构化的面试API结束会话
       await interviewApi.endInterview(resumeId, currentSession.id)
       console.log('面试会话已结束并保存')
-      
+
       setIsInterviewActive(false)
-      
+
       const endMessage: ChatMessage = {
         id: `ai_end_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'ai',
         content: `面试结束！感谢您的参与。\n\n**面试问题数**: ${currentSession.answers.length}\n**面试时长**: ${Math.floor((Date.now() - currentSession.startTime.getTime()) / 1000 / 60)} 分钟\n\n您可以回到简历编辑页面继续优化简历，或查看面试反馈报告。`,
         timestamp: new Date()
       }
-      
+
       stableOnMessage(endMessage)
       setCurrentSession(null)
-      
+
     } catch (error) {
       console.error('End interview error:', error)
       stableOnError('结束面试时出现错误')

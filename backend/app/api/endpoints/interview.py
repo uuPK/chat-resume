@@ -8,6 +8,7 @@
 from typing import List, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.services.core import ResumeService
 from app.models.resume import InterviewSession
@@ -59,7 +60,7 @@ async def start_interview(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
 
-    # 检查是否已有进行中的面试会话，避免重复创建
+    # 检查是否已有进行中的面试会话
     existing_active_session = (
         db.query(InterviewSession)
         .filter(
@@ -69,9 +70,12 @@ async def start_interview(
     )
 
     if existing_active_session:
-        # 如果已有进行中的会话，返回现有会话而不是创建新的
-        logger.info(f"发现现有活跃会话 {existing_active_session.id}，返回现有会话")
-        return InterviewSessionResponse.model_validate(existing_active_session)
+        # 自动结束旧的活跃会话，以便创建新会话
+        logger.info(
+            f"发现现有活跃会话 {existing_active_session.id}，自动结束旧会话以创建新会话"
+        )
+        existing_active_session.status = "completed"  # type: ignore
+        db.commit()
 
     try:
         # 创建面试会话，初始不生成问题
@@ -927,4 +931,161 @@ async def get_interview_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate report: {str(e)}",
+        )
+
+
+class InterviewChatRequest(BaseModel):
+    """面试对话请求"""
+
+    message: str
+    chat_history: List[Dict[str, str]] = []
+
+
+class InterviewChatResponse(BaseModel):
+    """面试对话响应"""
+
+    response: str
+
+
+@router.post(
+    "/{resume_id}/interview/{session_id}/chat",
+    response_model=InterviewChatResponse,
+)
+async def interview_chat(
+    resume_id: int,
+    session_id: int,
+    chat_request: InterviewChatRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    简单的面试对话接口
+
+    这是一个纯chatbot模式的面试接口，用户说什么AI就回答什么，
+    不使用复杂的预设问题逻辑。
+    """
+
+    # 验证权限
+    interview_session = (
+        db.query(InterviewSession)
+        .filter(
+            InterviewSession.id == session_id, InterviewSession.resume_id == resume_id
+        )
+        .first()
+    )
+
+    if not interview_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found"
+        )
+
+    # 验证简历权限
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
+
+    try:
+        from app.services.ai import InterviewAgent
+        from app.services.ai.chat_service import AIProvider
+
+        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+
+        # 从数据库构建完整的对话历史
+        current_questions = list(cast(List[Any], interview_session.questions) or [])
+        current_answers = list(cast(List[Any], interview_session.answers) or [])
+
+        logger.info(f"=== 面试对话调试 ===")
+        logger.info(f"当前用户消息: {chat_request.message}")
+        logger.info(f"数据库中questions数量: {len(current_questions)}")
+        logger.info(f"数据库中answers数量: {len(current_answers)}")
+
+        # 构建对话历史：按顺序交替添加用户消息和AI回复
+        conversation_history = []
+
+        # 遍历已存储的对话记录
+        for i, question_item in enumerate(current_questions):
+            # 新格式：user_message 和 ai_response 在同一个对象中
+            user_content = question_item.get("user_message", "")
+            ai_content = question_item.get("ai_response", "")
+
+            # 兼容旧格式
+            if not user_content and not ai_content:
+                # 旧格式可能是 question 字段
+                old_question = question_item.get("question", "")
+                if old_question:
+                    # 尝试从 answers 获取对应的用户回答
+                    if i < len(current_answers):
+                        user_content = current_answers[i].get("answer", "")
+                    ai_content = old_question
+
+            if user_content:
+                conversation_history.append({"role": "user", "content": user_content})
+                logger.info(f"历史[{i}] 用户: {user_content[:50]}...")
+
+            if ai_content:
+                conversation_history.append(
+                    {"role": "assistant", "content": ai_content}
+                )
+                logger.info(f"历史[{i}] AI: {ai_content[:50]}...")
+
+        logger.info(f"构建的对话历史长度: {len(conversation_history)}")
+        logger.info(f"即将发送给AI的当前消息: {chat_request.message}")
+
+        # 使用chat方法进行对话 - 当前消息会在 chat_with_context 中作为最后一条消息添加
+        response = await interview_agent.chat(
+            message=chat_request.message,
+            job_title=str(interview_session.job_position)
+            if interview_session.job_position is not None
+            else None,
+            job_description=str(interview_session.jd_content)
+            if interview_session.jd_content is not None
+            else None,
+            resume_content=str(resume.content)
+            if resume is not None and resume.content is not None
+            else None,
+            conversation_history=conversation_history,
+        )
+
+        logger.info(f"AI回复: {response[:100]}...")
+
+        # 保存对话记录：用户消息和AI回复放在一起
+        current_questions.append(
+            {
+                "user_message": chat_request.message,  # 用户消息
+                "ai_response": response,  # AI回复
+                "type": "chat",
+                "index": len(current_questions),
+            }
+        )
+
+        # 为了兼容旧代码，也保存一条answer记录
+        current_answers.append(
+            {
+                "answer": chat_request.message,
+                "question_index": len(current_answers),
+            }
+        )
+
+        interview_session.questions = current_questions  # type: ignore
+        interview_session.answers = current_answers  # type: ignore
+        db.commit()
+
+        logger.info(f"对话已保存，当前questions数量: {len(current_questions)}")
+
+        return InterviewChatResponse(response=response)
+
+    except Exception as e:
+        logger.error(f"Interview chat error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to chat: {str(e)}",
         )

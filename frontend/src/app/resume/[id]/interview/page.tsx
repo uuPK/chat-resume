@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
-import { 
+import {
   ArrowLeftIcon,
   StopIcon,
   ClockIcon,
@@ -46,14 +46,14 @@ export default function InterviewPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [resumeFetched, setResumeFetched] = useState(false)
-  
+
   // 获取URL参数
   const [interviewConfig, setInterviewConfig] = useState({
     position: '',
     jd: '',
     sessionId: null as number | null
   })
-  
+
   // 面试相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
@@ -86,7 +86,7 @@ export default function InterviewPage() {
   // 使用 useRef 确保回调稳定性
   const handleMessageRef = useRef(handleMessage)
   const handleErrorRef = useRef(handleError)
-  
+
   useEffect(() => {
     handleMessageRef.current = handleMessage
     handleErrorRef.current = handleError
@@ -115,28 +115,28 @@ export default function InterviewPage() {
 
   useEffect(() => {
     setMounted(true)
-    
+
     // 重置检查标志
     hasCheckedExistingSession.current = false
     processedSessionRef.current = null
-    
+
     // 抑制Chrome扩展的runtime.lastError错误
     const originalError = console.error
     console.error = (...args) => {
       const message = args[0]?.toString() || ''
-      if (message.includes('runtime.lastError') || 
-          message.includes('message channel closed')) {
+      if (message.includes('runtime.lastError') ||
+        message.includes('message channel closed')) {
         // 静默忽略Chrome扩展错误
         return
       }
       originalError.apply(console, args)
     }
-    
+
     // 清理函数
     return () => {
       console.error = originalError
     }
-    
+
     // 解析URL参数
     const urlParams = new URLSearchParams(window.location.search)
     const position = urlParams.get('position') || ''
@@ -183,11 +183,11 @@ export default function InterviewPage() {
   // 监听面试状态变化（减少日志输出）
   useEffect(() => {
     if (isInterviewActive !== undefined) {
-      console.log('面试状态变化:', { 
-        isInterviewActive, 
-        interviewLoading, 
+      console.log('面试状态变化:', {
+        isInterviewActive,
+        interviewLoading,
         currentSession: currentSession?.id,
-        messagesCount: messages.length 
+        messagesCount: messages.length
       })
     }
   }, [isInterviewActive, interviewLoading, currentSession?.id, messages.length])
@@ -219,11 +219,11 @@ export default function InterviewPage() {
     // 如果是继续现有会话，不需要防重复逻辑
     if (!interviewConfig.sessionId && hasStartedInterview) return
 
-    console.log('Debug - handleStartInterview 被调用', { 
+    console.log('Debug - handleStartInterview 被调用', {
       existingSessionId: interviewConfig.sessionId,
-      hasStartedInterview 
+      hasStartedInterview
     })
-    
+
     if (!interviewConfig.sessionId) {
       setHasStartedInterview(true) // 只对新面试设置标志
     }
@@ -247,94 +247,18 @@ export default function InterviewPage() {
     }
   }, [resume, hasStartedInterview, startInterview, interviewConfig.jd])
 
-  // 自动开始面试 - 仅在没有指定sessionId时运行
+  // 自动开始面试 - 直接开始新面试，不检查未完成的会话
   useEffect(() => {
-    if (resume && 
-        !isInterviewActive && 
-        !interviewLoading && 
-        !hasStartedInterview && 
-        !interviewConfig.sessionId &&
-        !hasCheckedExistingSession.current) {
-      
-      console.log('自动检查面试会话 - 没有指定sessionId')
-      hasCheckedExistingSession.current = true // 立即设置标志，防止重复检查
-      
-      // 检查是否已有进行中的面试会话，避免重复创建
-      const checkAndStartInterview = async () => {
-        try {
-          const token = localStorage.getItem('access_token')
-          if (!token) return
-          
-          // 检查现有的面试会话
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/sessions`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          })
-          
-          if (response.ok) {
-            const sessions = await response.json()
-            const activeSession = sessions.find((s: any) => s.status === 'active')
-            
-            if (activeSession && processedSessionRef.current !== activeSession.id) {
-              console.log('发现进行中的面试会话:', activeSession.id)
-              console.log('会话详情:', activeSession)
-              
-              const answeredCount = (activeSession.answers || []).length
-              const totalQuestions = (activeSession.questions || []).length
-              
-              // 检查会话是否实际已完成（所有问题都已回答）
-              if (answeredCount >= totalQuestions && totalQuestions > 0) {
-                console.log('检测到会话实际已完成，但状态未更新，自动更新状态')
-                try {
-                  await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/${activeSession.id}/end`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  })
-                  console.log('已完成会话状态已更新，继续创建新会话')
-                  // 继续创建新会话
-                } catch (error) {
-                  console.error('更新会话状态失败:', error)
-                }
-              } else {
-                // 会话确实未完成，询问用户是否继续
-                const shouldContinue = confirm(`发现您有一个未完成的面试会话（已回答 ${answeredCount}/${totalQuestions} 题）。\n\n点击"确定"继续上次面试\n点击"取消"开始新面试`)
-                
-                if (shouldContinue) {
-                  console.log('用户选择继续现有会话')
-                  processedSessionRef.current = activeSession.id
-                  setInterviewConfig(prev => ({
-                    ...prev,
-                    sessionId: activeSession.id
-                  }))
-                  setHasStartedInterview(true)
-                  return
-                } else {
-                  console.log('用户选择开始新面试，将结束现有会话')
-                  try {
-                    // 结束现有会话
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/resumes/${resumeId}/interview/${activeSession.id}/end`, {
-                      method: 'POST',
-                      headers: { 'Authorization': `Bearer ${token}` }
-                    })
-                    console.log('现有会话已结束，将创建新会话')
-                    toast.success('已结束上次面试，开始新面试')
-                  } catch (error) {
-                    console.error('结束现有会话失败:', error)
-                    toast.error('结束上次面试失败，请稍后重试')
-                    return
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('检查现有会话失败:', error)
-        }
-        
-        console.log('Debug - 开始新的面试会话')
-        handleStartInterview()
-      }
-      
-      checkAndStartInterview()
+    if (resume &&
+      !isInterviewActive &&
+      !interviewLoading &&
+      !hasStartedInterview &&
+      !interviewConfig.sessionId &&
+      !hasCheckedExistingSession.current) {
+
+      console.log('自动开始新的面试会话')
+      hasCheckedExistingSession.current = true
+      handleStartInterview()
     }
   }, [resume, isInterviewActive, interviewLoading, hasStartedInterview, handleStartInterview, resumeId])
 
@@ -476,7 +400,7 @@ export default function InterviewPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* 右侧：状态和控制 */}
             {isInterviewActive && (
               <div className="flex items-center space-x-6">
@@ -498,9 +422,9 @@ export default function InterviewPage() {
                     />
                     <span className="text-gray-700">自动播放</span>
                   </label>
-                  
+
                   <button
-                    onClick={() => {/* TODO: 暂停功能 */}}
+                    onClick={() => {/* TODO: 暂停功能 */ }}
                     className="btn-secondary text-sm px-3 py-1"
                   >
                     暂停
@@ -545,7 +469,7 @@ export default function InterviewPage() {
                     <p className="text-sm mt-2">{interviewError}</p>
                   </div>
                   <div className="space-x-4">
-                    <button 
+                    <button
                       onClick={() => {
                         setInterviewError(null)
                         setHasStartedInterview(false)
@@ -577,7 +501,7 @@ export default function InterviewPage() {
             <div className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
               {/* 面试官信息卡片 */}
               <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-                <InterviewerAvatar 
+                <InterviewerAvatar
                   selectedInterviewer={selectedInterviewer}
                   onSelect={setSelectedInterviewer}
                   showSelector={!isInterviewActive} // 只在面试开始前允许更换面试官
@@ -596,7 +520,7 @@ export default function InterviewPage() {
                         {message.type === 'ai' && (
                           <div className="mb-2 flex items-center justify-between">
                             <QuestionTypeLabel type={detectQuestionType(message.content)} />
-                            <VoiceControls 
+                            <VoiceControls
                               questionText={message.content}
                               isVisible={true}
                               autoPlay={autoPlayVoice}
@@ -610,11 +534,10 @@ export default function InterviewPage() {
                           </div>
                         )}
                         <div
-                          className={`px-4 py-3 rounded-lg ${
-                            message.type === 'user'
+                          className={`px-4 py-3 rounded-lg ${message.type === 'user'
                               ? 'bg-blue-600 text-white rounded-br-sm'
                               : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
-                          }`}
+                            }`}
                         >
                           {message.type === 'ai' ? (
                             <MarkdownMessage content={message.content} />
@@ -625,14 +548,14 @@ export default function InterviewPage() {
                       </div>
                     </div>
                   ))}
-                  
+
                   {/* 流式传输中的消息 */}
                   {currentStreamingMessage && (
                     <div className="flex justify-start">
                       <div className="max-w-[85%]">
                         <div className="mb-2 flex items-center justify-between">
                           <QuestionTypeLabel type={detectQuestionType(currentStreamingMessage)} />
-                          <VoiceControls 
+                          <VoiceControls
                             questionText={currentStreamingMessage}
                             isVisible={currentStreamingMessage.length > 10}
                             onVoiceStart={() => console.log('语音开始播放')}
@@ -649,7 +572,7 @@ export default function InterviewPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* 等待响应动画 */}
                   {interviewLoading && !currentStreamingMessage && (
                     <div className="flex justify-start">
@@ -703,30 +626,28 @@ export default function InterviewPage() {
                     rows={3}
                     disabled={interviewLoading}
                   />
-                  
+
                   {/* 语音输入按钮 */}
                   <button
                     onClick={handleVoiceButtonClick}
                     disabled={interviewLoading}
-                    className={`absolute right-12 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
-                      isVoiceRecording
+                    className={`absolute right-12 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${isVoiceRecording
                         ? 'bg-red-500 text-white hover:bg-red-600'
                         : 'bg-gray-400 text-white hover:bg-gray-500'
-                    } disabled:cursor-not-allowed disabled:opacity-50`}
+                      } disabled:cursor-not-allowed disabled:opacity-50`}
                     title={isVoiceRecording ? '停止录音' : '开始录音'}
                   >
                     <MicrophoneIcon className="w-4 h-4" />
                   </button>
-                  
+
                   {/* 发送按钮 */}
                   <button
                     onClick={handleSendMessage}
                     disabled={!inputMessage.trim() || interviewLoading}
-                    className={`absolute right-3 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${
-                      inputMessage.trim() 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    className={`absolute right-3 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    } disabled:cursor-not-allowed`}
+                      } disabled:cursor-not-allowed`}
                   >
                     <ArrowUpIcon className="w-4 h-4" />
                   </button>
