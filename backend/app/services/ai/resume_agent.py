@@ -45,6 +45,7 @@ class ResumeAgent:
 
         extra_display: List[str] = []
         qr_images: List[str] = []
+        executed_tools: List[Dict[str, Any]] = []
 
         # 迭代执行，支持多轮工具调用
         for iteration in range(self.max_iterations):
@@ -79,20 +80,43 @@ class ResumeAgent:
                     if qr_image:
                         qr_images.append(qr_image)
 
+                    # 记录工具调用的简要信息，供前端展示
+                    tool_call_id = tool_result["tool_call_id"]
+                    tool_name = "unknown"
+                    # 从 response 中找到对应的 tool name
+                    resp_tool_calls = response["choices"][0]["message"].get(
+                        "tool_calls", []
+                    )
+                    for tc in resp_tool_calls:
+                        if tc["id"] == tool_call_id:
+                            tool_name = tc["function"]["name"]
+                            break
+
+                    # 构建精简的自然语言描述
+                    tool_desc = f"调用工具 {tool_name}"
+                    tool_res_str = str(display) if display else "执行完成"
+
+                    executed_tools.append({"name": tool_name, "result": tool_res_str})
+
                 # 继续下一轮对话
                 continue
             else:
                 # 没有工具调用，返回最终结果
                 final_text = self._extract_content(response)
-                if extra_display:
-                    final_text = f"{final_text}\n\n" + "\n\n".join(extra_display)
-                return {"content": final_text, "qr_images": qr_images}
+
+                return {
+                    "content": final_text,
+                    "qr_images": qr_images,
+                    "tool_calls": executed_tools,
+                }
 
         # 达到最大迭代次数
         timeout_message = "抱歉，优化过程超时，请重新尝试。"
-        if extra_display:
-            timeout_message = f"{timeout_message}\n\n" + "\n\n".join(extra_display)
-        return {"content": timeout_message, "qr_images": qr_images}
+        return {
+            "content": timeout_message,
+            "qr_images": qr_images,
+            "tool_calls": executed_tools,
+        }
 
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
         """构建系统提示词"""

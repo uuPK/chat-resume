@@ -260,7 +260,9 @@ class ChatService:
         """
         # 添加系统提示
         if system_prompt:
-            messages = [{"role": "system", "content": system_prompt}] + messages
+            # 检查是否已经有系统提示，避免重复添加
+            if not messages or messages[0].get("role") != "system":
+                messages = [{"role": "system", "content": system_prompt}] + messages
 
         # 构建载荷
         payload = self._build_payload(
@@ -268,7 +270,7 @@ class ChatService:
             temperature=temperature,
             max_tokens=max_tokens,
             stream=False,
-            tools=tools
+            tools=tools,
         )
 
         url = self._get_endpoint_url()

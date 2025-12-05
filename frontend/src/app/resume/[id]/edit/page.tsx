@@ -35,6 +35,7 @@ import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useStreamingChat } from '@/hooks/useStreamingChat'
 // 已移除错误的前端Gemini集成
 
+
 interface ChatMessage {
   id: string
   type: 'user' | 'ai'
@@ -165,6 +166,7 @@ export default function ResumeEditPage() {
   const {
     isStreaming,
     currentStreamingMessage,
+    currentToolCalls,
     sendStreamingMessage,
     stopStreaming
   } = useStreamingChat(parseInt(resumeId), {
@@ -525,6 +527,70 @@ export default function ResumeEditPage() {
     scrollToBottom()
   }, [messages])
 
+  // 用于追踪登录成功是否已处理，避免重复触发
+  const loginSuccessHandledRef = useRef(false)
+
+  // 轮询 Boss 直聘扫码登录状态
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null
+    let isCleanedUp = false  // 追踪清理状态
+
+    const checkLoginStatus = async () => {
+      // 如果已经清理或已经处理过登录成功，直接返回
+      if (isCleanedUp || loginSuccessHandledRef.current) return
+
+      try {
+        const token = localStorage.getItem('access_token')
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+        const response = await fetch(`${apiBaseUrl}/api/ai/boss/status`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (!response.ok) return
+
+        const data = await response.json()
+
+        // 双重检查：避免竞态条件
+        if (data.is_logged_in && !loginSuccessHandledRef.current && !isCleanedUp) {
+          // 立即标记为已处理，防止重复触发
+          loginSuccessHandledRef.current = true
+
+          // 立即清除定时器
+          if (intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+
+          setIsQrModalOpen(false)
+          toast.success('Boss直聘登录成功')
+
+          // 登录成功后，自动让 Agent 继续（只触发一次）
+          sendStreamingMessage('登录成功，请继续。', messages).catch(console.error)
+        }
+      } catch (e) {
+        console.error('Check login status failed', e)
+      }
+    }
+
+    if (isQrModalOpen) {
+      // 当打开二维码弹窗时，重置登录成功处理标记
+      loginSuccessHandledRef.current = false
+      // 立即检查一次
+      checkLoginStatus()
+      // 然后定期轮询
+      intervalId = setInterval(checkLoginStatus, 2000)
+    }
+
+    return () => {
+      isCleanedUp = true  // 标记为已清理
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+  }, [isQrModalOpen])
+
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -733,7 +799,26 @@ export default function ResumeEditPage() {
                           }`}
                       >
                         {message.type === 'ai' ? (
-                          <MarkdownMessage content={message.content} />
+                          <>
+                            {message.toolCalls && message.toolCalls.length > 0 && (
+                              <div className="mb-3 space-y-2">
+                                {message.toolCalls.map((tool, index) => (
+                                  <div key={index} className="bg-white border text-xs rounded-md overflow-hidden shadow-sm">
+                                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                        <span className="font-medium text-gray-700">工具调用: {tool.name}</span>
+                                      </div>
+                                    </div>
+                                    <div className="px-3 py-2 text-gray-600 bg-white font-mono break-all whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                      {tool.result}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <MarkdownMessage content={message.content} />
+                          </>
                         ) : (
                           <span className="text-sm">{message.content}</span>
                         )}
@@ -741,9 +826,26 @@ export default function ResumeEditPage() {
                     </div>
                   ))}
                   {/* 流式传输中的消息 */}
-                  {isStreaming && currentStreamingMessage && (
+                  {isStreaming && (currentStreamingMessage || (currentToolCalls && currentToolCalls.length > 0)) && (
                     <div className="flex w-full justify-start">
                       <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
+                        {currentToolCalls && currentToolCalls.length > 0 && (
+                          <div className="mb-3 space-y-2">
+                            {currentToolCalls.map((tool, index) => (
+                              <div key={index} className="bg-white border text-xs rounded-md overflow-hidden shadow-sm">
+                                <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                    <span className="font-medium text-gray-700">工具调用: {tool.name}</span>
+                                  </div>
+                                </div>
+                                <div className="px-3 py-2 text-gray-600 bg-white font-mono break-all whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                  {tool.result}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <StreamingMessage content={currentStreamingMessage} isComplete={false} />
                       </div>
                     </div>

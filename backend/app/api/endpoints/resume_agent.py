@@ -40,6 +40,7 @@ class ChatResponse(BaseModel):
     response: str
     service: str = "openrouter"
     is_configured: bool = True
+    tool_calls: list = []  # 工具调用列表
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -89,13 +90,17 @@ async def chat_with_resume(
         )
 
         content = (
-            ai_result.get("content")
-            if isinstance(ai_result, dict)
-            else str(ai_result)
+            ai_result.get("content") if isinstance(ai_result, dict) else str(ai_result)
+        )
+        tool_calls = (
+            ai_result.get("tool_calls", []) if isinstance(ai_result, dict) else []
         )
 
         return ChatResponse.model_construct(
-            response=content, service="openrouter", is_configured=True
+            response=content,
+            service="openrouter",
+            is_configured=True,
+            tool_calls=tool_calls,
         )
 
     except HTTPException:
@@ -169,14 +174,20 @@ async def chat_with_resume_stream(
                 data = {
                     "content": ai_result.get("content", ""),
                     "qr_images": ai_result.get("qr_images", []),
+                    "tool_calls": ai_result.get("tool_calls", []),
                     "done": False,
                 }
             else:
-                data = {"content": str(ai_result), "qr_images": [], "done": False}
+                data = {
+                    "content": str(ai_result),
+                    "qr_images": [],
+                    "tool_calls": [],
+                    "done": False,
+                }
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
             # 发送结束标记
-            end_data = {"content": "", "qr_images": [], "done": True}
+            end_data = {"content": "", "qr_images": [], "tool_calls": [], "done": True}
             yield f"data: {json.dumps(end_data, ensure_ascii=False)}\n\n"
 
         except Exception as e:
@@ -216,3 +227,20 @@ async def get_ai_status():
             }
     except Exception:
         return {"service": "mock", "status": "error", "is_configured": False}
+
+
+@router.get("/boss/status")
+async def get_boss_status(
+    current_user: dict = Depends(get_current_user),
+):
+    """获取Boss直聘登录状态"""
+    try:
+        from app.services.ai.resume_tools.boss_client import get_login_status
+
+        return get_login_status()
+    except Exception as e:
+        logger.error(f"获取Boss状态失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取状态失败: {str(e)}",
+        )
