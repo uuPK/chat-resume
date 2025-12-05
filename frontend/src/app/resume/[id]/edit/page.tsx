@@ -553,7 +553,7 @@ export default function ResumeEditPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <Link
@@ -724,7 +724,7 @@ export default function ResumeEditPage() {
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
                         className={`max-w-[85%] px-4 py-3 rounded-lg ${message.type === 'user'
@@ -742,7 +742,7 @@ export default function ResumeEditPage() {
                   ))}
                   {/* 流式传输中的消息 */}
                   {isStreaming && currentStreamingMessage && (
-                    <div className="flex justify-start">
+                    <div className="flex w-full justify-start">
                       <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
                         <StreamingMessage content={currentStreamingMessage} isComplete={false} />
                       </div>
@@ -751,7 +751,7 @@ export default function ResumeEditPage() {
 
                   {/* 等待响应动画 */}
                   {(isSending || isStreaming) && !currentStreamingMessage && (
-                    <div className="flex justify-start">
+                    <div className="flex w-full justify-start">
                       <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm text-sm">
                         <div className="flex items-center space-x-1">
                           <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
