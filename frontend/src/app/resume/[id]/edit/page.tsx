@@ -32,16 +32,8 @@ import {
 } from '@/lib/resumeLayoutConfig'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import { useStreamingChat } from '@/hooks/useStreamingChat'
+import { useStreamingChat, ChatMessage } from '@/hooks/useStreamingChat'
 // 已移除错误的前端Gemini集成
-
-
-interface ChatMessage {
-  id: string
-  type: 'user' | 'ai'
-  content: string
-  timestamp: Date
-}
 
 interface Resume {
   id: number
