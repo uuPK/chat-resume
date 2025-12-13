@@ -227,7 +227,7 @@ async def recognize_audio(
         audio_data = base64.b64decode(request.audio_data)
 
         # 执行识别
-        result = await asr_service.recognize_speech(audio_data, format=request.format)
+        result = await asr_service.recognize_speech(audio_data, format=request.format or "mp3")
 
         return {
             "success": True,
@@ -304,7 +304,7 @@ async def interview_recognition(
         # 执行识别
         result = await asr_service.recognize_speech(
             audio_data,
-            format=request.format,
+            format=request.format or "mp3",
             sample_rate=request.sample_rate or 16000,
             language="zh-CN",
         )

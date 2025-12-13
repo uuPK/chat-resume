@@ -53,7 +53,7 @@ def save_qrcode_image(session, url, qr_id):
             try:
                 os.system(f"open {filename}")
                 print("已尝试用系统默认程序打开二维码图片")
-            except:
+            except Exception:
                 pass
 
         return filename
@@ -183,23 +183,14 @@ def main():
 
             # 解析Set-Cookie头
             cookies = {}
-            if isinstance(set_cookie_headers, str):
-                # 处理单个Set-Cookie头
-                cookie_parts = set_cookie_headers.split(",")
-                for part in cookie_parts:
-                    if "=" in part:
-                        name_value = part.strip().split(";")[0].strip()
-                        if "=" in name_value:
-                            name, value = name_value.split("=", 1)
-                            cookies[name.strip()] = value.strip()
-            else:
-                # 处理多个Set-Cookie头（某些requests版本可能会返回列表）
-                for header in set_cookie_headers:
-                    if "=" in header:
-                        name_value = header.split(";")[0].strip()
-                        if "=" in name_value:
-                            name, value = name_value.split("=", 1)
-                            cookies[name.strip()] = value.strip()
+            # 处理单个Set-Cookie头
+            cookie_parts = set_cookie_headers.split(",")
+            for part in cookie_parts:
+                if "=" in part:
+                    name_value = part.strip().split(";")[0].strip()
+                    if "=" in name_value:
+                        name, value = name_value.split("=", 1)
+                        cookies[name.strip()] = value.strip()
 
             # 打印所有Cookie
             for name, value in cookies.items():
@@ -230,7 +221,7 @@ def main():
         try:
             os.remove(qrcode_file)
             print(f"🧹 已清理二维码文件: {qrcode_file}")
-        except:
+        except Exception:
             pass
 
 
@@ -275,7 +266,8 @@ def get_current_cookie() -> str:
     """获取当前cookie"""
     global _global_session
     if _global_session:
-        return _global_session.headers.get("Cookie", "")
+        cookie = _global_session.headers.get("Cookie", "")
+        return cookie if isinstance(cookie, str) else ""
     return ""
 
 
@@ -326,7 +318,7 @@ def check_login_confirmation(session, qr_id):
 def get_final_cookie(session, qr_id):
     """步骤5：获取最终cookie"""
     # 构造登录页URL
-    login_url = f"https://login.zhipin.com/?ka=header-login&zpwww=1"
+    login_url = "https://login.zhipin.com/?ka=header-login&zpwww=1"
 
     # 需要从之前的响应中获取i_str和e_b64来生成fp
     # 这里使用默认值，实际应用中需要从randkey响应中获取

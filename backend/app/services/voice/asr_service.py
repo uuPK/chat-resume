@@ -119,7 +119,10 @@ class VolcengineASRProtocol:
             raise ValueError("响应数据太短")
 
         # 解析头部
-        byte0, byte1, byte2, _ = data[0], data[1], data[2], data[3]
+        byte0 = int(data[0])
+        byte1 = int(data[1])
+        byte2 = int(data[2])
+        byte3 = int(data[3])
 
         protocol_version = (byte0 >> 4) & 0x0F
         header_size = (byte0 & 0x0F) * 4
@@ -128,7 +131,7 @@ class VolcengineASRProtocol:
         serialization = (byte2 >> 4) & 0x0F
         compression = byte2 & 0x0F
 
-        result = {
+        result: Dict[str, Any] = {
             "protocol_version": protocol_version,
             "header_size": header_size,
             "msg_type": msg_type,
@@ -145,7 +148,8 @@ class VolcengineASRProtocol:
             if len(data) >= offset + 8:
                 error_code = struct.unpack(">I", data[offset : offset + 4])[0]
                 error_size = struct.unpack(">I", data[offset + 4 : offset + 8])[0]
-                error_msg = data[offset + 8 : offset + 8 + error_size].decode("utf-8")
+                error_msg_bytes = data[offset + 8 : offset + 8 + error_size]
+                error_msg = error_msg_bytes.decode("utf-8")
                 result["error_code"] = error_code
                 result["error_message"] = error_msg
             return result
@@ -167,7 +171,7 @@ class VolcengineASRProtocol:
                 payload_size = struct.unpack(">I", data[offset : offset + 4])[0]
                 offset += 4
 
-                payload_bytes = data[offset : offset + payload_size]
+                payload_bytes: bytes = data[offset : offset + payload_size]
 
                 # 解压
                 if compression == cls.COMPRESSION_GZIP:
@@ -240,6 +244,10 @@ class ASRService:
         if not self.app_key or not self.access_token:
             raise ValueError("未配置火山引擎 APP_KEY 或 ACCESS_TOKEN")
 
+        # 初始化变量
+        result_text = ""
+        confidence = 0.95
+
         # 生成连接ID
         connect_id = str(uuid.uuid4())
 
@@ -281,8 +289,6 @@ class ASRService:
             pass
 
         try:
-            result_text = ""
-            confidence = 0.95
 
             async with websockets.connect(
                 self.ws_url,
@@ -301,6 +307,9 @@ class ASRService:
 
                 # 等待服务器确认
                 response_data = await asyncio.wait_for(ws.recv(), timeout=10)
+                # 确保数据是bytes类型
+                if isinstance(response_data, str):
+                    response_data = response_data.encode('utf-8')
                 response = VolcengineASRProtocol.parse_response(response_data)
                 logger.debug(f"收到服务器响应: {response}")
 
@@ -349,6 +358,9 @@ class ASRService:
                                 logger.info("WebSocket 正常关闭")
                                 break
 
+                            # 确保数据是bytes类型
+                            if isinstance(response_data, str):
+                                response_data = response_data.encode('utf-8')
                             response = VolcengineASRProtocol.parse_response(response_data)
 
                             if (

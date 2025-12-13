@@ -6,20 +6,17 @@ Boss直聘 FastMCP 服务器
 
 import asyncio
 import json
-import os
 import time
 import base64
 import threading
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 import requests
 from fastmcp import FastMCP, Context
-from fastmcp.server.dependencies import get_http_request
 from starlette.requests import Request
 from starlette.responses import JSONResponse, FileResponse
-from starlette.staticfiles import StaticFiles
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -110,179 +107,6 @@ class BossZhipinState:
 state = BossZhipinState()
 
 
-# 后台线程函数：在独立线程中调用scan接口，不阻塞主线程
-def background_scan_monitor(qr_id: str):
-    """在后台线程中监控扫码状态和确认状态，不阻塞主线程"""
-    try:
-        session = state.get_session()
-        scan_url = f"https://www.zhipin.com/wapi/zppassport/qrcode/scan?uuid={qr_id}"
-        confirm_url = f"https://www.zhipin.com/wapi/zppassport/qrcode/scanLogin?qrId={qr_id}&status=1"
-
-        # 阶段1：等待扫码（长轮询）
-        print(f"[后台监控] 开始监控扫码状态，QR ID: {qr_id}")
-        scan_count = 0
-        while True:
-            if state.login_status.login_step == "logged_in":
-                print(f"[后台监控] 已登录，停止监控")
-                return
-
-            try:
-                scan_count += 1
-                print(f"[后台监控] 第{scan_count}次调用scan接口")
-                resp = session.get(scan_url, timeout=35)
-
-                # 检查响应内容，而不只是状态码
-                if resp.status_code == 200:
-                    json_data = resp.json()
-                    if json_data.get("scaned"):
-                        print(f"[后台监控] ✅ 检测到用户已扫码，进入确认阶段")
-                        state.update_login_status(login_step="scanned")
-                        break  # 退出扫码循环，进入确认阶段
-                    elif json_data.get("msg") == "timeout":
-                        print(f"[后台监控] ⏱️ 等待扫码超时，继续轮询... ({scan_count})")
-                    else:
-                        print(f"[后台监控] 🔄 轮询中... ({scan_count}) - {json_data}")
-                else:
-                    print(f"[后台监控] ⚠️ 未知扫码状态码: {resp.status_code}")
-
-            except requests.exceptions.ReadTimeout:
-                print(f"[后台监控] ⏱️ 等待扫码超时，继续轮询... ({scan_count})")
-                continue
-            except Exception as e:
-                print(f"[后台监控] ❌ 调用scan接口出错: {e}")
-                time.sleep(2)
-
-            time.sleep(1)
-
-        # 阶段2：等待确认（长轮询）
-        if state.login_status.login_step == "scanned":
-            print(f"[后台监控] 开始监控确认状态")
-            confirm_count = 0
-            while True:
-                try:
-                    confirm_count += 1
-                    print(f"[后台监控] 第{confirm_count}次调用confirm接口")
-                    resp = session.get(confirm_url, timeout=35)
-
-                    # 检查响应内容
-                    if resp.status_code == 200:
-                        print(f"[后台监控] ✅ 用户已确认登录，获取Cookie")
-
-                        # 获取最终Cookie
-                        i_str = "8048b8676fb7d3d8952276e6e98e0bde.f2dc7a63c4b0fbfa4b51a07e2710cf83.fef7e750fc3a1e6327e8a880915aee9c.ae00f848beb1aa591d71d5a80dd3bd95"
-                        e_b64 = "clRwXUJBK1VKK0k0IWFbbQ=="
-
-                        key_bytes = base64.b64decode(e_b64)
-                        plaintext_bytes = i_str.encode('utf-8')
-                        iv_bytes = get_random_bytes(16)
-                        cipher = AES.new(key_bytes, AES.MODE_CBC, iv_bytes)
-                        padded_plaintext = pad(plaintext_bytes, AES.block_size)
-                        ciphertext_bytes = cipher.encrypt(padded_plaintext)
-                        result_bytes = iv_bytes + ciphertext_bytes
-                        fp = base64.b64encode(result_bytes).decode('utf-8')
-
-                        dispatcher_url = f"https://www.zhipin.com/wapi/zppassport/qrcode/dispatcher?qrId={qr_id}&pk=header-login&fp={fp}"
-                        cookie_resp = session.get(dispatcher_url, allow_redirects=False)
-
-                        # 解析Cookie
-                        set_cookie_headers = cookie_resp.headers.get('Set-Cookie', '')
-                        cookie_str = ''
-                        bst_value = ''
-
-                        if set_cookie_headers:
-                            cookies = {}
-                            cookie_parts = set_cookie_headers.split(',')
-                            for part in cookie_parts:
-                                if '=' in part:
-                                    name_value = part.strip().split(';')[0].strip()
-                                    if '=' in name_value:
-                                        name, value = name_value.split('=', 1)
-                                        cookies[name.strip()] = value.strip()
-
-                            cookie_str = '; '.join([f"{k}={v}" for k, v in cookies.items()])
-                            # if 'wt2' in cookies:
-                            #     cookie_str = f"wt2={cookies['wt2']}"
-                            if 'bst' in cookies:
-                                bst_value = cookies['bst']
-
-                        # 阶段3：使用无头浏览器完成安全验证
-                        print(f"[后台监控] 开始安全验证流程...")
-                        state.update_login_status(login_step="security_check")
-
-                        # 在新的事件循环中运行异步安全验证
-                        try:
-                            # 创建新的事件循环（因为我们在同步线程中）
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-
-                            # 运行安全验证
-                            final_cookie_str = loop.run_until_complete(
-                                BossZhipinAPI.complete_security_check(cookie_str)
-                            )
-
-                            loop.close()
-
-                            print(f"[后台监控] ✅ 安全验证完成")
-
-                            # 使用最终 Cookie 更新 session
-                            for cookie_pair in final_cookie_str.split('; '):
-                                if '=' in cookie_pair:
-                                    name, value = cookie_pair.split('=', 1)
-                                    session.cookies.set(name, value)
-
-                            # 更新状态为最终 Cookie
-                            state.update_login_status(
-                                is_logged_in=True,
-                                cookie=final_cookie_str,
-                                bst=bst_value,
-                                login_step="logged_in"
-                            )
-
-                            print(f"[后台监控] 🎉 登录成功！最终 Cookie 已保存")
-
-                        except Exception as e:
-                            print(f"[后台监控] ⚠️ 安全验证失败，使用初始 Cookie: {e}")
-
-                            # 如果安全验证失败，仍然使用初始 Cookie
-                            if cookie_str:
-                                for cookie_pair in cookie_str.split('; '):
-                                    if '=' in cookie_pair:
-                                        name, value = cookie_pair.split('=', 1)
-                                        session.cookies.set(name, value)
-
-                            state.update_login_status(
-                                is_logged_in=True,
-                                cookie=cookie_str,
-                                bst=bst_value,
-                                login_step="logged_in"
-                            )
-
-                            print(f"[后台监控] 🎉 登录成功！初始 Cookie 已保存")
-
-                        return
-                    else:
-                        # 检查响应内容
-                        json_data = resp.json()
-                        if json_data.get("msg") == "timeout":
-                            print(f"[后台监控] ⏱️ 等待确认超时，继续轮询... ({confirm_count})")
-                        else:
-                            print(f"[后台监控] 🔄 轮询中... ({confirm_count}) - {json_data}")
-
-                except requests.exceptions.ReadTimeout:
-                    print(f"[后台监控] ⏱️ 等待确认超时，继续轮询... ({confirm_count})")
-                    continue
-                except Exception as e:
-                    print(f"[后台监控] ❌ 调用confirm接口出错: {e}")
-                    time.sleep(2)
-
-                time.sleep(1)
-
-    except Exception as e:
-        print(f"[后台监控] ❌ 监控线程异常: {e}")
-    finally:
-        print(f"[后台监控] 监控线程结束")
-
-
 # Boss直聘API工具类
 class BossZhipinAPI:
     """Boss直聘API操作类"""
@@ -320,7 +144,7 @@ class BossZhipinAPI:
             "&callbackUrl=https%3A%2F%2Fwww.zhipin.com%2Fweb%2Fgeek%2Fjobs"
         )
 
-        print(f"[安全验证] 开始使用无头浏览器完成安全验证")
+        print("[安全验证] 开始使用无头浏览器完成安全验证")
 
         try:
             async with async_playwright() as p:
@@ -345,30 +169,30 @@ class BossZhipinAPI:
 
                 # 访问 security-check 页面
                 page = await context.new_page()
-                print(f"[安全验证] 正在访问 security-check 页面...")
+                print("[安全验证] 正在访问 security-check 页面...")
                 await page.goto(security_check_url, wait_until='domcontentloaded')
 
                 # 等待网络空闲
-                print(f"[安全验证] 等待网络空闲...")
+                print("[安全验证] 等待网络空闲...")
                 try:
                     await page.wait_for_load_state('networkidle', timeout=30000)
-                    print(f"[安全验证] ✅ 网络已空闲")
+                    print("[安全验证] ✅ 网络已空闲")
                 except Exception as e:
                     print(f"[安全验证] ⚠️ 等待网络空闲超时: {e}")
 
                 # 额外等待，确保 JS 执行完成并设置 Cookie
-                print(f"[安全验证] 额外等待 3 秒，确保 Cookie 完全设置...")
+                print("[安全验证] 额外等待 3 秒,确保 Cookie 完全设置...")
                 await asyncio.sleep(3)
 
                 # 方法1：通过 JS 直接从页面读取 Cookie
-                print(f"[安全验证] 通过 JavaScript 读取页面 Cookie...")
+                print("[安全验证] 通过 JavaScript 读取页面 Cookie...")
                 js_cookies = await page.evaluate("() => document.cookie")
                 print(f"[安全验证] JS 获取的 Cookie: {js_cookies[:200]}...")
 
                 # 方法2：通过 Playwright API 获取 Cookie
-                print(f"[安全验证] 通过 Playwright API 获取 Cookie...")
+                print("[安全验证] 通过 Playwright API 获取 Cookie...")
                 final_cookies = await context.cookies()
-                playwright_cookie_str = '; '.join([f"{c['name']}={c['value']}" for c in final_cookies])
+                playwright_cookie_str = '; '.join([f"{c.get('name', '')}={c.get('value', '')}" for c in final_cookies])
                 print(f"[安全验证] Playwright API 获取的 Cookie: {playwright_cookie_str[:200]}...")
 
                 # 使用 JS 读取的 Cookie（这是浏览器中真实的 Cookie）
@@ -384,9 +208,9 @@ class BossZhipinAPI:
                             print(f"[安全验证] ✅ 成功获取 __zp_stoken__: {stoken_value[:20]}...")
                             break
                 else:
-                    print(f"[安全验证] ⚠️ 未找到 __zp_stoken__")
+                    print("[安全验证] ⚠️ 未找到 __zp_stoken__")
 
-                print(f"[安全验证] ✅ 安全验证完成")
+                print("[安全验证] ✅ 安全验证完成")
 
                 # 关闭浏览器
                 await browser.close()
@@ -490,11 +314,11 @@ class BossZhipinAPI:
         return cookie_str, bst_value
 
     @staticmethod
-    def setup_api_headers(session: requests.Session, cookie: str, bst: str):
+    def setup_api_headers(session: requests.Session, cookie: Optional[str], bst: Optional[str]):
         """设置API请求头"""
         session.headers.update({
-            'Cookie': cookie,
-            'zp_token': bst,
+            'Cookie': cookie or '',
+            'zp_token': bst or '',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Referer': 'https://www.zhipin.com/web/user/?ka=header-login',
             'Origin': 'https://www.zhipin.com'
@@ -665,22 +489,6 @@ mcp = FastMCP(
 )
 
 
-# 静态文件路由
-@mcp.custom_route("/static/{filename:path}", methods=["GET"])
-async def serve_static_file(request: Request) -> FileResponse:
-    """提供静态文件服务"""
-    filename = request.path_params["filename"]
-    file_path = state.static_dir / filename
-
-    if file_path.exists() and file_path.is_file():
-        return FileResponse(str(file_path))
-
-    return JSONResponse(
-        {"error": "文件未找到", "filename": filename},
-        status_code=404
-    )
-
-
 # Resources 定义
 @mcp.resource("boss-zp://status")
 async def get_server_status() -> str:
@@ -714,7 +522,7 @@ async def get_job_config() -> str:
 async def start_login(ctx: Context) -> str:
     """启动登录流程"""
     try:
-        await ctx.info("开始启动Boss直聘登录流程")
+        ctx.info("开始启动Boss直聘登录流程")
 
         # 重置登录状态
         state.reset_login()
@@ -740,7 +548,7 @@ async def start_login(ctx: Context) -> str:
         image_url = f"http://127.0.0.1:8000/static/{filename}"
         state.update_login_status(image_url=image_url)
 
-        await ctx.info(f"二维码已生成，QR ID: {qr_id}")
+        ctx.info(f"二维码已生成，QR ID: {qr_id}")
 
         return json.dumps({
             "status": "success",
@@ -752,7 +560,7 @@ async def start_login(ctx: Context) -> str:
 
     except Exception as e:
         error_msg = f"启动登录流程失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         state.update_login_status(error_message=error_msg)
 
         return json.dumps({
@@ -790,15 +598,15 @@ async def get_login_info(ctx: Context) -> str:
                         cookies_dict[name] = value
                 result["cookies_detail"] = cookies_dict
 
-            await ctx.info("✅ 已登录")
+            ctx.info("✅ 已登录")
         else:
-            await ctx.info(f"⏳ 当前状态: {login_status.login_step}")
+            ctx.info(f"⏳ 当前状态: {login_status.login_step}")
 
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
         error_msg = f"获取登录信息失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "status": "error",
             "message": error_msg
@@ -821,15 +629,7 @@ async def get_recommend_jobs(
                 "message": "请先完成登录再获取职位信息"
             }, ensure_ascii=False, indent=2)
 
-        await ctx.info(f"获取推荐职位: 页码{page}, 经验{experience}, 类型{job_type}, 薪资{salary}")
-
-        session = state.get_session()
-        headers = {
-            'Cookie': state.login_status.cookie,
-            'Origin': 'https://www.zhipin.com',
-            'Referer': 'https://www.zhipin.com/web/geek/job',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        }
+        ctx.info(f"获取推荐职位: 页码{page}, 经验{experience}, 类型{job_type}, 薪资{salary}")
 
         # TODO: 实现具体的职位获取API调用
         # 这里暂时返回示例数据
@@ -868,12 +668,12 @@ async def get_recommend_jobs(
             }
         }
 
-        await ctx.info(f"成功获取 {len(jobs)} 个职位")
+        ctx.info(f"成功获取 {len(jobs)} 个职位")
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
         error_msg = f"获取职位失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "error": "获取职位失败",
             "message": error_msg
@@ -885,7 +685,7 @@ async def get_recommend_jobs(
 async def login_full_auto(ctx: Context) -> str:
     """完全自动化登录流程，生成二维码并在后台监控扫码状态（无交互版本）"""
     try:
-        await ctx.info("开始自动化登录流程")
+        ctx.info("开始自动化登录流程")
 
         # 启动登录并生成二维码
         session = state.get_session()
@@ -906,12 +706,8 @@ async def login_full_auto(ctx: Context) -> str:
         image_url = f"http://127.0.0.1:8000/static/{filename}"
         state.update_login_status(image_url=image_url)
 
-        # 启动后台线程监控扫码状态，不阻塞主线程
-        monitor_thread = threading.Thread(target=background_scan_monitor, args=(qr_id,), daemon=True)
-        monitor_thread.start()
-
-        await ctx.info(f"二维码已生成: {image_url}")
-        await ctx.info("后台监控线程已启动，二维码将保持有效1分钟")
+        ctx.info(f"二维码已生成: {image_url}")
+        ctx.info("后台监控线程已启动，二维码将保持有效1分钟")
 
         return json.dumps({
             "status": "qr_generated",
@@ -924,187 +720,7 @@ async def login_full_auto(ctx: Context) -> str:
 
     except Exception as e:
         error_msg = f"自动登录失败: {str(e)}"
-        await ctx.error(error_msg)
-        return json.dumps({
-            "status": "error",
-            "message": error_msg
-        }, ensure_ascii=False, indent=2)
-
-
-@mcp.tool()
-async def login_start_interactive(ctx: Context) -> str:
-    """交互式启动登录流程，引导用户完成扫码和确认"""
-    try:
-        await ctx.info("开始交互式登录流程")
-
-        while True:  # 外层循环处理整个登录流程重试
-            while True:  # 内层循环处理重新生成二维码的情况
-                # 步骤1：启动登录并生成二维码
-                session = state.get_session()
-                qr_id = await BossZhipinAPI.get_randkey(session)
-                state.update_login_status(qr_id=qr_id, login_step="qr_generated")
-
-                # 获取二维码
-                qr_image_data = await BossZhipinAPI.get_qrcode(session, qr_id)
-
-                # 保存二维码图片
-                filename = f"qrcode_{qr_id}.png"
-                filepath = state.static_dir / filename
-
-                with open(filepath, "wb") as f:
-                    f.write(qr_image_data)
-
-                # 生成图片URL
-                image_url = f"http://127.0.0.1:8000/static/{filename}"
-                state.update_login_status(image_url=image_url)
-
-                # 显示二维码信息
-                await ctx.info("=" * 50)
-                await ctx.info("🔥 Boss直聘登录二维码已生成！")
-                await ctx.info(f"📱 二维码图片URL: {image_url}")
-                await ctx.info(f"🆔 QR ID: {qr_id}")
-                await ctx.info("=" * 50)
-
-                # 步骤2：询问用户是否已扫码
-                scan_result = await ctx.elicit(
-                    "请使用Boss直聘APP扫描上方的二维码图片，扫描完成后请选择'已扫码'",
-                    response_type=["已扫码", "重新生成二维码", "取消登录"]
-                )
-
-                if scan_result.action != "accept" or scan_result.data not in ["已扫码", "重新生成二维码"]:
-                    return json.dumps({
-                        "status": "cancelled",
-                        "message": "用户取消了登录流程"
-                    }, ensure_ascii=False, indent=2)
-
-                # 如果用户选择重新生成二维码，继续内层循环
-                if scan_result.data == "重新生成二维码":
-                    await ctx.info("正在重新生成二维码...")
-                    state.reset_login()
-                    continue
-
-                # 步骤3：检查扫码状态
-                await ctx.info("🔍 正在验证扫码状态...")
-                status_code = await BossZhipinAPI.check_scan_status(session, qr_id)
-
-                if status_code == 200:
-                    scan_check = {"status": "scanned"}
-                elif status_code == 409:
-                    scan_check = {"status": "waiting"}
-                else:
-                    scan_check = {"status": "error", "message": f"未知状态: {status_code}"}
-
-                if scan_check["status"] != "scanned":
-                    await ctx.warning("⚠️ 未检测到扫码状态，请确认是否已成功扫码")
-                    # 给用户重试机会
-                    retry_result = await ctx.elicit(
-                        "是否重新扫码？",
-                        response_type=["重新扫码", "继续等待确认", "取消登录"]
-                    )
-
-                    if retry_result.action != "accept" or retry_result.data == "取消登录":
-                        return json.dumps({
-                            "status": "cancelled",
-                            "message": "用户取消了登录流程"
-                        }, ensure_ascii=False, indent=2)
-
-                    if retry_result.data == "重新扫码":
-                        state.reset_login()
-                        continue
-
-                # 扫码成功，退出内层循环
-                break
-
-            # 步骤4：等待用户在手机上确认
-            await ctx.info("📱 请在Boss直聘APP上确认登录...")
-
-            # 显示等待动画
-            wait_messages = [
-                "⏳ 等待确认中...",
-                "🔄 正在等待用户确认...",
-                "⌛ 请在手机上点击确认...",
-                "🕐 等待确认登录..."
-            ]
-
-            login_success = False
-            for i in range(60):  # 最多等待60秒
-                message = wait_messages[i % len(wait_messages)]
-                await ctx.info(f"{message} ({i+1}/60秒)")
-
-                # 检查登录确认状态
-                confirm_status_code = await BossZhipinAPI.check_login_confirmation(session, qr_id)
-
-                if confirm_status_code == 200:
-                    # 获取最终Cookie
-                    cookie_str, bst_value = await BossZhipinAPI.get_final_cookie(session, qr_id)
-
-                    state.update_login_status(
-                        is_logged_in=True,
-                        cookie=cookie_str,
-                        bst=bst_value,
-                        login_step="logged_in"
-                    )
-
-                    confirm_result = {
-                        "status": "logged_in",
-                        "message": "登录成功！",
-                        "has_cookie": True,
-                        "has_bst": True,
-                        "login_step": "logged_in"
-                    }
-
-                    await ctx.info("🎉 登录成功！")
-                    return json.dumps(confirm_result, ensure_ascii=False, indent=2)
-                elif confirm_status_code == 409:
-                    await asyncio.sleep(1)
-                    continue
-                elif confirm_status_code == 408:
-                    confirm_result = {"status": "timeout", "message": "登录确认超时"}
-                else:
-                    confirm_result = {"status": "error", "message": f"未知确认状态: {confirm_status_code}"}
-
-                if confirm_result["status"] in ["timeout", "error"]:
-                    await ctx.error(f"❌ {confirm_result['message']}")
-
-                    # 询问用户是否重试
-                    retry_result = await ctx.elicit(
-                        f"登录失败: {confirm_result['message']}。是否重新开始登录？",
-                        response_type=["重新登录", "取消"]
-                    )
-
-                    if retry_result.action == "accept" and retry_result.data == "重新登录":
-                        # 重置状态并重新开始外层循环
-                        state.reset_login()
-                        await ctx.info("重新开始登录流程...")
-                        break  # 退出当前确认等待，重新开始整个流程
-                    else:
-                        return json.dumps({
-                            "status": "cancelled",
-                            "message": "用户选择不重试登录"
-                        }, ensure_ascii=False, indent=2)
-
-            # 如果到达这里，说明登录超时
-            if not login_success:
-                await ctx.warning("⏰ 等待确认超时")
-                timeout_result = await ctx.elicit(
-                    "等待确认超时，是否重新开始登录？",
-                    response_type=["重新登录", "取消"]
-                )
-
-                if timeout_result.action == "accept" and timeout_result.data == "重新登录":
-                    # 重置状态并重新开始外层循环
-                    state.reset_login()
-                    await ctx.info("重新开始登录流程...")
-                    continue  # 重新开始整个流程
-                else:
-                    return json.dumps({
-                        "status": "timeout",
-                        "message": "登录超时，用户选择不重试"
-                    }, ensure_ascii=False, indent=2)
-
-    except Exception as e:
-        error_msg = f"交互式登录失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "status": "error",
             "message": error_msg
@@ -1140,15 +756,15 @@ async def get_login_info_tool(ctx: Context) -> str:
                         cookies_dict[name] = value
                 result["cookies_detail"] = cookies_dict
 
-            await ctx.info("✅ 已登录，Cookie信息已返回")
+            ctx.info("✅ 已登录，Cookie信息已返回")
         else:
-            await ctx.info(f"⏳ 当前状态: {login_status.login_step}")
+            ctx.info(f"⏳ 当前状态: {login_status.login_step}")
 
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
         error_msg = f"获取登录信息失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "status": "error",
             "message": error_msg
@@ -1171,7 +787,7 @@ async def get_recommend_jobs_tool(
     - job_type: 工作类型，可选值：全职、兼职
     - salary: 薪资范围，可选值：3k以下、3-5k、5-10k、10-20k、20-50k、50以上
     """
-    await ctx.info(f"调用获取推荐职位工具: 页码{page}")
+    ctx.info(f"调用获取推荐职位工具: 页码{page}")
 
     try:
         if not state.login_status.is_logged_in:
@@ -1180,7 +796,7 @@ async def get_recommend_jobs_tool(
                 "message": "请先完成登录再获取职位信息"
             }, ensure_ascii=False, indent=2)
 
-        await ctx.info(f"获取推荐职位: 页码{page}, 经验{experience}, 类型{job_type}, 薪资{salary}")
+        ctx.info(f"获取推荐职位: 页码{page}, 经验{experience}, 类型{job_type}, 薪资{salary}")
 
         # 获取session并设置API请求头
         session = state.get_session()
@@ -1198,10 +814,10 @@ async def get_recommend_jobs_tool(
         result = await BossZhipinAPI.get_job_list(session, params)
 
         if result["status"] == "success":
-            await ctx.info(f"成功获取 {result['data']['total']} 个职位")
+            ctx.info(f"成功获取 {result['data']['total']} 个职位")
             return json.dumps(result, ensure_ascii=False, indent=2)
         else:
-            await ctx.error(f"获取职位失败: {result['message']}")
+            ctx.error(f"获取职位失败: {result['message']}")
             return json.dumps({
                 "error": "获取职位失败",
                 "message": result["message"]
@@ -1209,7 +825,7 @@ async def get_recommend_jobs_tool(
 
     except Exception as e:
         error_msg = f"获取职位失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "error": "获取职位失败",
             "message": error_msg
@@ -1231,7 +847,7 @@ async def send_greeting_tool(
                 "message": "请先完成登录再发送打招呼"
             }, ensure_ascii=False, indent=2)
 
-        await ctx.info(f"发送打招呼到职位 {job_id}")
+        ctx.info(f"发送打招呼到职位 {job_id}")
 
         # 获取session并设置API请求头
         session = state.get_session()
@@ -1241,10 +857,10 @@ async def send_greeting_tool(
         result = await BossZhipinAPI.greet_boss(session, security_id, job_id)
 
         if result["status"] == "success":
-            await ctx.info(f"打招呼发送成功: {job_id}")
+            ctx.info(f"打招呼发送成功: {job_id}")
             return json.dumps(result, ensure_ascii=False, indent=2)
         else:
-            await ctx.error(f"发送打招呼失败: {result['message']}")
+            ctx.error(f"发送打招呼失败: {result['message']}")
             return json.dumps({
                 "error": "发送打招呼失败",
                 "message": result["message"]
@@ -1252,7 +868,7 @@ async def send_greeting_tool(
 
     except Exception as e:
         error_msg = f"发送打招呼失败: {str(e)}"
-        await ctx.error(error_msg)
+        ctx.error(error_msg)
         return json.dumps({
             "error": "发送打招呼失败",
             "message": error_msg
@@ -1266,4 +882,4 @@ if __name__ == "__main__":
     print("访问 http://127.0.0.1:8000/static/ 查看静态文件")
 
     # 运行FastMCP服务器
-    mcp.run(transport="streamable-http")
+    mcp.run(transport="stdio")

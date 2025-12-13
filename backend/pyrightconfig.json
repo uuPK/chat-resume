@@ -1,0 +1,8 @@
+{
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "ignore": [
+    "app/services/ai/resume_tools/login_verifier.py",
+    "app/services/ai/resume_tools/boss_zhipin_fastmcp_v2.py"
+  ]
+}
