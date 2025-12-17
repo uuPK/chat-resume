@@ -36,25 +36,6 @@ class InterviewFeedback(BaseModel):
     improvements: List[str]
 
 
-class InterviewEvaluation(BaseModel):
-    """面试评估结果"""
-
-    feedback: InterviewFeedback
-    strengths: List[str]
-    weaknesses: List[str]
-    overall_assessment: str
-
-
-class InterviewPerformanceResult(BaseModel):
-    """面试表现评估结果"""
-
-    total_score: int
-    detailed_scores: Dict[str, int]
-    strengths: List[str]
-    weaknesses: List[str]
-    recommendations: List[str]
-    overall_assessment: str
-
 
 class InterviewAgent:
     """AI面试官Chatbot"""
