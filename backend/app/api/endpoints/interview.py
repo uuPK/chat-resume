@@ -153,9 +153,8 @@ async def get_next_question(
     # 如果已经回答完所有预设问题，根据对话历史生成新问题
     try:
         from app.services.ai import InterviewAgent
-        from app.services.ai.chat_service import AIProvider
 
-        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        interview_agent = InterviewAgent()
 
         # 构建 InterviewAgent 需要的对话历史格式
         interview_history = []
@@ -274,9 +273,8 @@ async def submit_answer(
 
         # 使用 InterviewAgent 评估答案
         from app.services.ai import InterviewAgent
-        from app.services.ai.chat_service import AIProvider
 
-        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        interview_agent = InterviewAgent()
 
         # 使用 chat 方法评估答案
         evaluation_prompt = f"""作为专业面试官，请评估以下面试回答：
@@ -404,10 +402,9 @@ async def end_interview(
 
     try:
         from app.services.ai import InterviewAgent
-        from app.services.ai.chat_service import AIProvider
 
         # 计算整体面试分数
-        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        interview_agent = InterviewAgent()
 
         # 构建面试会话记录
         interview_session_data = []
@@ -629,9 +626,8 @@ async def calculate_scores_for_completed_interviews(
 
     updated_count = 0
     from app.services.ai import InterviewAgent
-    from app.services.ai.chat_service import AIProvider
 
-    interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+    interview_agent = InterviewAgent()
 
     for session in sessions:
         try:
@@ -841,9 +837,8 @@ async def get_interview_report(
 
         # 生成报告
         from app.services.ai import InterviewAgent
-        from app.services.ai.chat_service import AIProvider
 
-        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        interview_agent = InterviewAgent()
 
         # 构建面试会话记录
         interview_session_data = []
@@ -995,9 +990,8 @@ async def interview_chat(
 
     try:
         from app.services.ai import InterviewAgent
-        from app.services.ai.chat_service import AIProvider
 
-        interview_agent = InterviewAgent(AIProvider.OPENROUTER)
+        interview_agent = InterviewAgent()
 
         # 从数据库构建完整的对话历史
         current_questions = list(cast(List[Any], interview_session.questions) or [])

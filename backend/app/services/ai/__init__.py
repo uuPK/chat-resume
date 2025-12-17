@@ -5,13 +5,12 @@ AI服务模块
 """
 
 from .interview_agent import InterviewAgent
-from .chat_service import ChatService, AIProvider
+from .chat_service import ChatService
 from .resume_agent import ResumeAgent
 
 
 __all__ = [
     "InterviewAgent",
     "ChatService",
-    "AIProvider",
     "ResumeAgent",
 ]

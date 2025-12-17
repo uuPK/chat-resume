@@ -7,7 +7,7 @@
 from typing import Optional, List, Dict
 from enum import Enum
 from pydantic import BaseModel
-from .chat_service import ChatService, AIProvider
+from .chat_service import ChatService
 
 
 class QuestionType(str, Enum):
@@ -59,8 +59,8 @@ class InterviewPerformanceResult(BaseModel):
 class InterviewAgent:
     """AI面试官Chatbot"""
 
-    def __init__(self, provider: AIProvider = AIProvider.OPENROUTER):
-        self.chat_service = ChatService(provider)
+    def __init__(self):
+        self.chat_service = ChatService()
 
     async def chat(
         self,

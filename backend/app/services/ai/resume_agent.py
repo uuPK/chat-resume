@@ -6,15 +6,15 @@
 
 from typing import Dict, Any, List, Optional
 import json
-from .chat_service import ChatService, AIProvider
+from .chat_service import ChatService
 from .resume_tools import ResumeTools
 
 
 class ResumeAgent:
     """简历优化 Agent，支持工具调用"""
 
-    def __init__(self, provider: AIProvider = AIProvider.OPENROUTER):
-        self.chat_service = ChatService(provider)
+    def __init__(self):
+        self.chat_service = ChatService()
         self.tools = ResumeTools()
         self.max_iterations = 5  # 最大迭代次数，防止无限循环
 
@@ -50,10 +50,11 @@ class ResumeAgent:
         # 迭代执行，支持多轮工具调用
         for iteration in range(self.max_iterations):
             # 调用 AI，支持 function calling
-            response = await self.chat_service.chat_with_tools(
+            response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
                 tools=self.tools.get_tools_schema(),
+                stream=False,
             )
 
             # 检查是否需要调用工具

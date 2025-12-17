@@ -42,18 +42,7 @@ class Settings(BaseSettings):
             return v
         return []
 
-    # DeepSeek API
-    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
-    DEEPSEEK_API_BASE: str = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
-
-    # Gemini API (备用)
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_API_BASE: str = os.getenv(
-        "GEMINI_API_BASE", "https://generativelanguage.googleapis.com"
-    )
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
-
-    # OpenRouter API (主要)
+    # OpenRouter API
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_API_BASE: str = os.getenv(
         "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
