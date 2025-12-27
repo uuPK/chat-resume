@@ -756,11 +756,38 @@ export default function ResumeEditPage() {
             </div>
           </motion.div>
 
-          {/* Middle Panel - AI Chat */}
+          {/* Middle Panel - Preview */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex flex-col min-h-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
+          >
+            <div className="card p-4 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
+              <div className="flex items-center justify-between mb-4 flex-shrink-0 print:hidden">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  实时预览
+                </h2>
+                <ResumeLayoutControls
+                  config={layoutConfig}
+                  onConfigChange={handleLayoutConfigChange}
+                />
+              </div>
+              <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
+                <ResumePreview
+                  key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
+                  content={resume.content}
+                  moduleOrder={moduleOrder}
+                />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Right Panel - AI Chat */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
             className="flex flex-col min-h-0 print:hidden"
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
@@ -886,32 +913,6 @@ export default function ResumeEditPage() {
             </div>
           </motion.div>
 
-          {/* Right Panel - Preview */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col min-h-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
-          >
-            <div className="card p-4 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
-              <div className="flex items-center justify-between mb-4 flex-shrink-0 print:hidden">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  实时预览
-                </h2>
-                <ResumeLayoutControls
-                  config={layoutConfig}
-                  onConfigChange={handleLayoutConfigChange}
-                />
-              </div>
-              <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
-                <ResumePreview
-                  key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
-                  content={resume.content}
-                  moduleOrder={moduleOrder}
-                />
-              </div>
-            </div>
-          </motion.div>
         </div>
       </main>
 
