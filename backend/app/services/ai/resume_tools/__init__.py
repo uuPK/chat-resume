@@ -10,6 +10,7 @@ from .login_start_interactive import login_start_interactive
 from .login_info import get_login_info
 from .job_recommendations import get_recommend_jobs
 from .greeting import send_greeting
+from .read_resume import read_resume_content
 
 
 class ResumeTools:
@@ -57,6 +58,11 @@ class ResumeTools:
     ) -> Dict[str, Any]:
         """向Boss直聘职位发送打招呼"""
         return send_greeting(resume_content, security_id, job_id, message)
+
+    @staticmethod
+    def read_resume(resume_content: Dict[str, Any]) -> Dict[str, Any]:
+        """读取简历完整内容"""
+        return read_resume_content(resume_content)
 
     @classmethod
     def get_tools_schema(cls) -> List[Dict[str, Any]]:
@@ -138,7 +144,10 @@ class ResumeTools:
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "security_id": {"type": "string", "description": "职位安全ID"},
+                            "security_id": {
+                                "type": "string",
+                                "description": "职位安全ID",
+                            },
                             "job_id": {"type": "string", "description": "职位ID"},
                             "message": {
                                 "type": "string",
@@ -147,6 +156,14 @@ class ResumeTools:
                         },
                         "required": ["security_id", "job_id"],
                     },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_resume",
+                    "description": "读取简历的完整内容，包括个人信息、工作经历、项目经历等详细信息",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
                 },
             },
         ]
@@ -163,6 +180,7 @@ class ResumeTools:
             "get_login_info": cls.get_login_info,
             "get_recommend_jobs": cls.get_recommend_jobs,
             "send_greeting": cls.send_greeting,
+            "read_resume": cls.read_resume,
         }
 
         if tool_name not in tool_map:
@@ -178,5 +196,6 @@ __all__ = [
     "get_login_info",
     "get_recommend_jobs",
     "send_greeting",
+    "read_resume_content",
     "ResumeTools",
 ]

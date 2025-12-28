@@ -94,7 +94,6 @@ class ResumeAgent:
                             break
 
                     # 构建精简的自然语言描述
-                    tool_desc = f"调用工具 {tool_name}"
                     tool_res_str = str(display) if display else "执行完成"
 
                     executed_tools.append({"name": tool_name, "result": tool_res_str})
@@ -121,13 +120,8 @@ class ResumeAgent:
 
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
         """构建系统提示词"""
-        return f"""你是一位专业的简历优化专家。你可以使用各种工具来分析和优化用户的简历。
+        return """你是一位专业的简历优化专家。你可以使用各种工具来分析和优化用户的简历。
 
-当前简历概况：
-- 工作经历：{len(resume_content.get("experience", []))} 条
-- 教育背景：{len(resume_content.get("education", []))} 条
-- 技能：{len(resume_content.get("skills", []))} 项
-- 项目经验：{len(resume_content.get("projects", []))} 个
 
 你的职责：
 1. 理解用户的需求（如：匹配特定职位、优化某个章节、提升整体质量）
@@ -137,6 +131,7 @@ class ResumeAgent:
 
 可用工具：
 - score_resume: 对简历进行不同维度的评分
+- read_resume: 读取简历完整内容
 - login_full_auto: 自动生成二维码并监控Boss直聘扫码
 - login_start_interactive: 交互式引导Boss直聘扫码登录
 - get_login_info: 查询Boss直聘登录状态

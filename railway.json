@@ -9,15 +9,5 @@
     "numReplicas": 1,
     "restartPolicyType": "ON_FAILURE"
   },
-  "environments": {
-    "production": {
-      "variables": {
-        "PYTHONPATH": "backend",
-        "DATABASE_URL": "${{DATABASE_URL}}",
-        "SECRET_KEY": "${{SECRET_KEY}}",
-        "OPENROUTER_API_KEY": "${{OPENROUTER_API_KEY}}",
-        "BACKEND_CORS_ORIGINS": "https://chat-resume-five.vercel.app,https://chatresu.vercel.app,https://localhost:3000"
-      }
-    }
-  }
+  "environments": {}
 }

@@ -11,7 +11,7 @@ import json
 import struct
 import uuid
 import logging
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any
 from enum import Enum
 import websockets
 from app.core.config import settings
@@ -122,7 +122,7 @@ class VolcengineASRProtocol:
         byte0 = int(data[0])
         byte1 = int(data[1])
         byte2 = int(data[2])
-        byte3 = int(data[3])
+        # byte3 = int(data[3]) - unused
 
         protocol_version = (byte0 >> 4) & 0x0F
         header_size = (byte0 & 0x0F) * 4
@@ -289,7 +289,6 @@ class ASRService:
             pass
 
         try:
-
             async with websockets.connect(
                 self.ws_url,
                 extra_headers=headers,
@@ -309,7 +308,7 @@ class ASRService:
                 response_data = await asyncio.wait_for(ws.recv(), timeout=10)
                 # 确保数据是bytes类型
                 if isinstance(response_data, str):
-                    response_data = response_data.encode('utf-8')
+                    response_data = response_data.encode("utf-8")
                 response = VolcengineASRProtocol.parse_response(response_data)
                 logger.debug(f"收到服务器响应: {response}")
 
@@ -350,7 +349,9 @@ class ASRService:
                     try:
                         while True:
                             try:
-                                response_data = await asyncio.wait_for(ws.recv(), timeout=30)
+                                response_data = await asyncio.wait_for(
+                                    ws.recv(), timeout=30
+                                )
                             except asyncio.TimeoutError:
                                 logger.warning("接收识别结果超时")
                                 break
@@ -360,8 +361,10 @@ class ASRService:
 
                             # 确保数据是bytes类型
                             if isinstance(response_data, str):
-                                response_data = response_data.encode('utf-8')
-                            response = VolcengineASRProtocol.parse_response(response_data)
+                                response_data = response_data.encode("utf-8")
+                            response = VolcengineASRProtocol.parse_response(
+                                response_data
+                            )
 
                             if (
                                 response.get("msg_type")
@@ -370,7 +373,9 @@ class ASRService:
                                 error_msg = response.get("error_message", "未知错误")
                                 error_code = response.get("error_code", 0)
                                 logger.error(f"ASR服务错误 ({error_code}): {error_msg}")
-                                raise Exception(f"ASR服务错误 ({error_code}): {error_msg}")
+                                raise Exception(
+                                    f"ASR服务错误 ({error_code}): {error_msg}"
+                                )
 
                             # 提取识别结果
                             payload = response.get("payload", {})

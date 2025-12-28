@@ -997,7 +997,7 @@ async def interview_chat(
         current_questions = list(cast(List[Any], interview_session.questions) or [])
         current_answers = list(cast(List[Any], interview_session.answers) or [])
 
-        logger.info(f"=== 面试对话调试 ===")
+        logger.info("=== 面试对话调试 ===")
         logger.info(f"当前用户消息: {chat_request.message}")
         logger.info(f"数据库中questions数量: {len(current_questions)}")
         logger.info(f"数据库中answers数量: {len(current_answers)}")

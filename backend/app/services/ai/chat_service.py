@@ -225,7 +225,7 @@ class ChatService:
         messages.append({"role": "user", "content": message})
 
         # 调试日志：打印完整的消息列表
-        logger.info(f"=== chat_with_context 完整消息列表 ===")
+        logger.info("=== chat_with_context 完整消息列表 ===")
         logger.info(f"总共 {len(messages)} 条消息:")
         for i, msg in enumerate(messages):
             role = msg.get("role", "unknown")
