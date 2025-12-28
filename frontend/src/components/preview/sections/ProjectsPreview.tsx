@@ -49,8 +49,8 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 hover:underline"
             >
-              <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-              Github
+              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="relative -top-[6px]">Github</span>
             </a>
           )}
           {project.demo_url && (
@@ -60,8 +60,8 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 hover:underline"
             >
-              <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-              Demo
+              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="relative -top-[6px]">Demo</span>
             </a>
           )}
         </div>

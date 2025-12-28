@@ -53,22 +53,22 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
         <div data-line-index={1} className="flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3">
           {data.email && (
             <div className="inline-flex items-center gap-1">
-              <EnvelopeIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-              <span>{data.email}</span>
+              <EnvelopeIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="relative -top-[6px]">{data.email}</span>
             </div>
           )}
           
           {data.phone && (
             <div className="inline-flex items-center gap-1">
-              <PhoneIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-              <span>{data.phone}</span>
+              <PhoneIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="relative -top-[6px]">{data.phone}</span>
             </div>
           )}
           
           {data.address && (
             <div className="inline-flex items-center gap-1">
-              <MapPinIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-              <span>{data.address}</span>
+              <MapPinIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="relative -top-[6px]">{data.address}</span>
             </div>
           )}
 
@@ -76,8 +76,13 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
             <>
               {data.github && (
                 <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-                  <a href={data.github} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                  <a
+                    href={data.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline relative -top-[6px]"
+                  >
                     GitHub
                   </a>
                 </div>
@@ -85,8 +90,13 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
               
               {data.linkedin && (
                 <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-                  <a href={data.linkedin} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                  <a
+                    href={data.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline relative -top-[6px]"
+                  >
                     LinkedIn
                   </a>
                 </div>
@@ -94,8 +104,13 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
               
               {data.website && (
                 <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
-                  <a href={data.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                  <a
+                    href={data.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline relative -top-[6px]"
+                  >
                     个人网站
                   </a>
                 </div>
