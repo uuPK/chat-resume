@@ -27,7 +27,7 @@ interface SkillsEditorProps {
 }
 
 export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
-  const [skillsList, setSkillsList] = useState<Skill[]>(data || [])
+  const [skillsList, setSkillsList] = useState<Skill[]>(Array.isArray(data) ? data : [])
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['技术栈', '编程语言', '工具']))
 
   const skillCategories = [
@@ -50,7 +50,8 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   ]
 
   useEffect(() => {
-    const normalizedSkills = (data || []).map((skill, index) => ({
+    const safeData = Array.isArray(data) ? data : []
+    const normalizedSkills = safeData.map((skill, index) => ({
       ...skill,
       id: typeof skill.id === 'number' ? skill.id : Date.now() + index
     }))

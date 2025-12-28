@@ -5,6 +5,7 @@
 处理简历数据验证和业务规则。
 """
 
+from sqlalchemy.orm.attributes import flag_modified
 from typing import List
 from sqlalchemy.orm import Session
 from app.models.resume import Resume, OptimizationRecord, InterviewSession
@@ -52,6 +53,8 @@ class ResumeService:
         if resume:
             for key, value in resume_update.items():
                 setattr(resume, key, value)
+                if key == "content":
+                    flag_modified(resume, "content")
             self.db.commit()
             self.db.refresh(resume)
         return resume

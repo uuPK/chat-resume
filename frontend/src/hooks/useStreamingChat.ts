@@ -18,6 +18,7 @@ interface StreamingChatOptions {
   onError?: (error: string) => void
   apiBaseUrl?: string
   onQrImages?: (images: string[]) => void
+  onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
@@ -32,7 +33,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     onMessage,
     onError,
     apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    onQrImages
+    onQrImages,
+    onResumeUpdate
   } = options
 
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
@@ -58,8 +60,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         throw new Error('未找到认证token，请重新登录')
       }
 
-      // 过滤掉 toolCalls，避免发送过多数据给后端
-      const historyToSend = chatHistory.map(({ toolCalls, ...rest }) => rest)
+      // 转换聊天记录格式为后端需要的 OpenAI 格式
+      const historyToSend = chatHistory.map((msg) => ({
+        role: msg.type === 'ai' ? 'assistant' : 'user',
+        content: msg.content
+      }))
 
       const response = await fetch(`${apiBaseUrl}/api/ai/chat/stream`, {
         method: 'POST',
@@ -140,6 +145,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 if (data.tool_calls && Array.isArray(data.tool_calls)) {
                   toolCalls = data.tool_calls
                   setCurrentToolCalls(toolCalls)
+                }
+
+                // 处理简历更新
+                if (data.resume_content) {
+                  onResumeUpdate?.(data.resume_content)
                 }
 
                 if (data.content) {

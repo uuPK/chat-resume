@@ -26,10 +26,10 @@ interface ProjectsEditorProps {
 }
 
 export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
-  const [projectsList, setProjectsList] = useState<Project[]>(data || [])
+  const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
 
   useEffect(() => {
-    setProjectsList(data || [])
+    setProjectsList(Array.isArray(data) ? data : [])
   }, [data])
 
   const addProject = () => {

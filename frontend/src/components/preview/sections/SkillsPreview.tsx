@@ -13,7 +13,7 @@ interface SkillsPreviewProps {
 }
 
 export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps) {
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
 
@@ -41,7 +41,7 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
           技能专长
         </h2>
       )}
-      
+
       {/* 每个技能类别作为独立的行 */}
       {Object.entries(skillsByCategory).map(([category, skills], categoryIndex) => {
         const lineIndex = categoryIndex + 1

@@ -23,10 +23,10 @@ interface EducationEditorProps {
 }
 
 export default function EducationEditor({ data, onChange }: EducationEditorProps) {
-  const [educationList, setEducationList] = useState<Education[]>(data || [])
+  const [educationList, setEducationList] = useState<Education[]>(Array.isArray(data) ? data : [])
 
   useEffect(() => {
-    setEducationList(data || [])
+    setEducationList(Array.isArray(data) ? data : [])
   }, [data])
 
   const addEducation = () => {

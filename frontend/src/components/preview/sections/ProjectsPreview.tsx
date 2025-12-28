@@ -93,7 +93,7 @@ export default function ProjectsPreview({
   data,
   renderLines
 }: ProjectsPreviewProps) {
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
 

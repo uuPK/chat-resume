@@ -89,6 +89,18 @@ async def chat_with_resume(
             conversation_history=chat_request.chat_history,
         )
 
+        # 检查是否有简历更新
+        if isinstance(ai_result, dict) and "resume_content" in ai_result:
+            logger.info(f"检测到简历更新，正在保存... 简历ID: {chat_request.resume_id}")
+            try:
+                updated_content = ai_result["resume_content"]
+                resume_service.update(
+                    chat_request.resume_id, {"content": updated_content}
+                )
+                logger.info("简历更新保存成功")
+            except Exception as e:
+                logger.error(f"保存简历更新失败: {e}")
+
         content = (
             ai_result.get("content") if isinstance(ai_result, dict) else str(ai_result)
         )
@@ -169,12 +181,27 @@ async def chat_with_resume_stream(
                 conversation_history=chat_request.chat_history,
             )
 
+            # 检查是否有简历更新
+            if isinstance(ai_result, dict) and "resume_content" in ai_result:
+                logger.info(
+                    f"检测到简历更新，正在保存... 简历ID: {chat_request.resume_id}"
+                )
+                try:
+                    updated_content = ai_result["resume_content"]
+                    resume_service.update(
+                        chat_request.resume_id, {"content": updated_content}
+                    )
+                    logger.info("简历更新保存成功")
+                except Exception as e:
+                    logger.error(f"保存简历更新失败: {e}")
+
             # 将完整回复一次性输出给前端
             if isinstance(ai_result, dict):
                 data = {
                     "content": ai_result.get("content", ""),
                     "qr_images": ai_result.get("qr_images", []),
                     "tool_calls": ai_result.get("tool_calls", []),
+                    "resume_content": ai_result.get("resume_content"),
                     "done": False,
                 }
             else:
@@ -182,6 +209,7 @@ async def chat_with_resume_stream(
                     "content": str(ai_result),
                     "qr_images": [],
                     "tool_calls": [],
+                    "resume_content": None,
                     "done": False,
                 }
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"

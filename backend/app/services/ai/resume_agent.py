@@ -108,6 +108,7 @@ class ResumeAgent:
                     "content": final_text,
                     "qr_images": qr_images,
                     "tool_calls": executed_tools,
+                    "resume_content": resume_content,  # 返回最终的简历内容
                 }
 
         # 达到最大迭代次数
@@ -116,29 +117,35 @@ class ResumeAgent:
             "content": timeout_message,
             "qr_images": qr_images,
             "tool_calls": executed_tools,
+            "resume_content": resume_content,  # 返回最终的简历内容
         }
 
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
-        """构建系统提示词"""
-        return """你是一位专业的简历优化专家。你可以使用各种工具来分析和优化用户的简历。
+        """构建系统提示词，包含当前简历内容"""
+        resume_json = json.dumps(resume_content, ensure_ascii=False, indent=2)
+        return f"""你是一位专业的简历优化专家。你可以使用工具来分析和优化用户的简历。
 
+## 当前简历内容
+{resume_json}
 
-你的职责：
-1. 理解用户的需求（如：匹配特定职位、优化某个章节、提升整体质量）
-2. 主动使用工具分析简历
-3. 基于工具结果提供专业的优化建议
-4. 给出具体的修改方案
+## 可用工具
+- edit_resume: 编辑简历特定板块，传入 section（板块名）和 data（完整的新数据，JSON格式）
 
-可用工具：
-- score_resume: 对简历进行不同维度的评分
-- read_resume: 读取简历完整内容
-- login_full_auto: 自动生成二维码并监控Boss直聘扫码
-- login_start_interactive: 交互式引导Boss直聘扫码登录
-- get_login_info: 查询Boss直聘登录状态
-- get_recommend_jobs: 获取Boss直聘职位推荐
-- send_greeting: 向Boss直聘职位发送打招呼
+## 板块说明
+- personal_info: 个人信息
+- education: 教育经历（数组）
+- work_experience: 工作经历（数组）
+- skills: 技能（数组）
+- projects: 项目经历（数组）
+- summary: 个人总结（字符串）
+- languages: 语言能力（数组）
 
-请根据用户的问题，主动选择合适的工具进行分析，然后给出专业建议。"""
+## 严格规则
+1. 你已经拥有简历内容，直接根据用户需求调用 edit_resume 修改即可
+2. data 参数必须是该板块的完整新数据（不是增量更新）
+3. 每个板块最多调用一次 edit_resume
+4. 调用工具后直接给出文字回复总结修改内容
+5. 如果用户只是询问或咨询，不需要调用工具"""
 
     def _has_tool_calls(self, response: Dict[str, Any]) -> bool:
         """检查响应中是否包含工具调用"""

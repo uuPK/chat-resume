@@ -180,6 +180,18 @@ export default function ResumeEditPage() {
         setQrImages(images)
         setIsQrModalOpen(true)
       }
+    },
+    onResumeUpdate: (resumeContent) => {
+      // AI 修改简历后，更新本地状态
+      setResume(prev => {
+        if (!prev) return prev
+        const updated = {
+          ...prev,
+          content: resumeContent as Resume['content']
+        }
+        resumeRef.current = updated
+        return updated
+      })
     }
   })
 

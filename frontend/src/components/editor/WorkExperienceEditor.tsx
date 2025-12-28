@@ -23,10 +23,10 @@ interface WorkExperienceEditorProps {
 }
 
 export default function WorkExperienceEditor({ data, onChange }: WorkExperienceEditorProps) {
-  const [workList, setWorkList] = useState<WorkExperience[]>(data || [])
+  const [workList, setWorkList] = useState<WorkExperience[]>(Array.isArray(data) ? data : [])
 
   useEffect(() => {
-    setWorkList(data || [])
+    setWorkList(Array.isArray(data) ? data : [])
   }, [data])
 
   const addWork = () => {

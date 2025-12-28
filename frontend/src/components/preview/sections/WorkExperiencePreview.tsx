@@ -55,7 +55,7 @@ export default function WorkExperiencePreview({
   data,
   renderLines
 }: WorkExperiencePreviewProps) {
-  if (!data || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
 
