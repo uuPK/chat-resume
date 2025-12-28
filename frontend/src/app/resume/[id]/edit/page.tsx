@@ -332,6 +332,13 @@ export default function ResumeEditPage() {
       return
     }
 
+    // A4 尺寸（与预览分页保持一致），导出时额外增加少量高度，避免像素取整导致最后一行被裁切
+    const EXPORT_A4_WIDTH_PX = 816
+    const EXPORT_A4_HEIGHT_PX = Math.round(EXPORT_A4_WIDTH_PX * 297 / 210) // 1154px
+    const EXPORT_EXTRA_HEIGHT_PX = 8
+
+    let exportContainer: HTMLDivElement | null = null
+
     try {
       setExporting(true)
       const toastId = toast.loading('正在生成PDF...')
@@ -351,7 +358,7 @@ export default function ResumeEditPage() {
       container.style.position = 'fixed' // 使用 fixed 而不是 absolute
       container.style.top = '0'
       container.style.left = '0'
-      container.style.width = '816px' // A4 宽度
+      container.style.width = `${EXPORT_A4_WIDTH_PX}px` // A4 宽度
       container.style.zIndex = '-9999' // 使用 z-index 隐藏
       container.style.visibility = 'hidden' // 额外隐藏，但有些浏览器可能不渲染 hidden 元素，html2canvas 通常可以处理
       // 为了安全起见，我们不使用 visibility: hidden，而是依靠 z-index 和被覆盖
@@ -359,6 +366,7 @@ export default function ResumeEditPage() {
       container.style.backgroundColor = '#ffffff'
       container.appendChild(clone)
       document.body.appendChild(container)
+      exportContainer = container
 
       // 等待图片加载和样式计算
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -391,13 +399,16 @@ export default function ResumeEditPage() {
         const originalBorder = page.style.border
         const originalShadow = page.style.boxShadow
         const originalMargin = page.style.margin
+        const originalHeight = page.style.height
 
         page.style.border = 'none'
         page.style.boxShadow = 'none'
         page.style.margin = '0'
         // 不再强制高度，允许内容自然撑开
-        page.style.width = '816px'
-        page.style.minHeight = '1154px' // 保持最小高度为 A4
+        page.style.width = `${EXPORT_A4_WIDTH_PX}px`
+        page.style.minHeight = `${EXPORT_A4_HEIGHT_PX}px` // 保持最小高度为 A4
+        // 导出时增加少量高度，避免最后一行因像素取整被裁切
+        page.style.height = `${EXPORT_A4_HEIGHT_PX + EXPORT_EXTRA_HEIGHT_PX}px`
         page.style.backgroundColor = '#ffffff'
 
         const canvas = await html2canvas(page, {
@@ -405,9 +416,9 @@ export default function ResumeEditPage() {
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          width: 816,
+          width: EXPORT_A4_WIDTH_PX,
           // 不指定 height，让它自动捕获
-          windowWidth: 816,
+          windowWidth: EXPORT_A4_WIDTH_PX,
           x: 0,
           y: 0,
           scrollX: 0,
@@ -418,6 +429,7 @@ export default function ResumeEditPage() {
         page.style.border = originalBorder
         page.style.boxShadow = originalShadow
         page.style.margin = originalMargin
+        page.style.height = originalHeight
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95)
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
@@ -428,12 +440,14 @@ export default function ResumeEditPage() {
 
       pdf.save(`${resume?.title || 'resume'}.pdf`)
 
-      document.body.removeChild(container)
       toast.success('PDF导出成功', { id: toastId })
     } catch (error) {
       console.error('PDF export error:', error)
       toast.error('PDF导出失败')
     } finally {
+      if (exportContainer && exportContainer.parentNode) {
+        exportContainer.parentNode.removeChild(exportContainer)
+      }
       setExporting(false)
     }
   }

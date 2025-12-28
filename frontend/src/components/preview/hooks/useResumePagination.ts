@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 
-// A4纸张尺寸常量 (96 DPI)
-export const A4_HEIGHT = 1056 // A4高度像素值
-export const A4_WIDTH = 816   // A4宽度像素值
-export const PAGE_MARGIN = 0   // 页边距（减少以提高信息密度）
-export const PAGE_PADDING = 40 // 内容区域内边距（增加以提高可读性）
+// A4纸张尺寸常量
+export const A4_WIDTH = 816
+export const A4_HEIGHT = Math.round(A4_WIDTH * 297 / 210) // 1154px，按210:297比例
+export const PAGE_MARGIN = 0
+export const PAGE_PADDING = 40
+export const SAFETY_MARGIN = 20 // 容错余量，防止累计误差导致内容被切
 
 interface ContentSection {
   id: string
@@ -27,7 +28,7 @@ interface ResumePaginationOptions {
 export function useResumePagination({
   containerRef,
   contentRef,
-  pageHeight = A4_HEIGHT - PAGE_MARGIN * 2 - PAGE_PADDING * 2
+  pageHeight = A4_HEIGHT - PAGE_MARGIN * 2 - PAGE_PADDING * 2 - SAFETY_MARGIN
 }: ResumePaginationOptions) {
   const [pages, setPages] = useState<PageContent[]>([])
   const [totalPages, setTotalPages] = useState(1)
