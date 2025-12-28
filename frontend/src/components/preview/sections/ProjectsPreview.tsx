@@ -47,9 +47,9 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               href={project.github_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:underline"
+              className="inline-flex items-center gap-1 hover:underline"
             >
-              <LinkIcon className="w-4 h-4" />
+              <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
               Github
             </a>
           )}
@@ -58,9 +58,9 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               href={project.demo_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:underline"
+              className="inline-flex items-center gap-1 hover:underline"
             >
-              <LinkIcon className="w-4 h-4" />
+              <LinkIcon className="w-3.5 h-3.5 shrink-0" style={{ transform: 'translateY(2px)' }} />
               Demo
             </a>
           )}
