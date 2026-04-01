@@ -140,8 +140,8 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* 记住我 & 忘记密码 */}
-            <div className="flex items-center justify-between">
+            {/* 记住我 */}
+            <div className="flex items-center">
               <div className="flex items-center">
                 <input
                   id="remember-me"
@@ -151,12 +151,6 @@ export default function LoginPage() {
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
                   记住我
                 </label>
-              </div>
-
-              <div className="text-sm">
-                <a href="#" className="font-medium text-primary-600 hover:text-primary-500">
-                  忘记密码？
-                </a>
               </div>
             </div>
 

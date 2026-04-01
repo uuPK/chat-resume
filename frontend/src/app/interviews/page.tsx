@@ -133,46 +133,6 @@ export default function InterviewsPage() {
           
         } catch (error) {
           console.error(`Failed to fetch sessions for resume ${resume.id}:`, error)
-          
-          // API调用失败时才添加模拟数据
-          const baseId = resume.id * 1000 // 使用更大的基数避免冲突
-          const mockSessions = [
-            {
-              id: baseId + 1,
-              resume_id: resume.id,
-              resume_title: resume.title,
-              job_position: "AI应用开发工程师",
-              interview_mode: "综合面试",
-              jd_content: "负责AI应用开发...",
-              questions: [],
-              answers: [],
-              feedback: {},
-              status: "completed",
-              overall_score: 87,
-              current_question: 5,
-              total_questions: 5,
-              created_at: "2025-07-11T15:19:00Z",
-              updated_at: "2025-07-11T15:44:00Z"
-            },
-            {
-              id: baseId + 2,
-              resume_id: resume.id,
-              resume_title: resume.title,
-              job_position: "高级前端工程师",
-              interview_mode: "技术面试",
-              jd_content: "负责前端开发...",
-              questions: [],
-              answers: [],
-              feedback: {},
-              status: "active",
-              current_question: 7,
-              total_questions: 15,
-              created_at: "2025-07-11T16:00:00Z",
-              updated_at: "2025-07-11T16:00:00Z"
-            }
-          ]
-          console.log(`添加模拟数据，简历ID: ${resume.id}`)
-          allSessions.push(...mockSessions)
         }
       }
       
@@ -275,20 +235,10 @@ export default function InterviewsPage() {
 
     try {
       toast.loading('正在删除面试记录...', { id: 'delete-interview' })
-      
-      // 检查是否为模拟数据（ID > 1000 表示模拟数据）
-      if (sessionId > 1000) {
-        // 模拟数据只需要从本地状态中移除
-        console.log('删除模拟面试数据:', sessionId)
-        setInterviewSessions(prev => prev.filter(s => s.id !== sessionId))
-        toast.success('面试记录已删除', { id: 'delete-interview' })
-      } else {
-        // 真实数据需要调用API
-        await interviewApi.deleteInterviewSession(session.resume_id, sessionId)
-        // 从本地状态中移除
-        setInterviewSessions(prev => prev.filter(s => s.id !== sessionId))
-        toast.success('面试记录已删除', { id: 'delete-interview' })
-      }
+
+      await interviewApi.deleteInterviewSession(session.resume_id, sessionId)
+      setInterviewSessions(prev => prev.filter(s => s.id !== sessionId))
+      toast.success('面试记录已删除', { id: 'delete-interview' })
     } catch (error: any) {
       console.error('Delete interview error:', error)
       const errorMessage = error.message || '删除失败，请重试'

@@ -210,13 +210,9 @@ export default function RegisterPage() {
               />
               <label htmlFor="agree-terms" className="ml-2 block text-sm text-gray-900">
                 我同意
-                <a href="#" className="text-primary-600 hover:text-primary-500">
-                  服务条款
-                </a>
+                <span className="text-primary-600">服务条款</span>
                 和
-                <a href="#" className="text-primary-600 hover:text-primary-500">
-                  隐私政策
-                </a>
+                <span className="text-primary-600">隐私政策</span>
               </label>
             </div>
 

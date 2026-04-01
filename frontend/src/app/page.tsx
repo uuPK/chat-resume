@@ -251,25 +251,25 @@ export default function HomePage() {
             <div>
               <h3 className="font-semibold mb-4">产品</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">简历优化</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">模拟面试</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">简历模板</a></li>
+                <li>简历优化</li>
+                <li>模拟面试</li>
+                <li>简历模板</li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">支持</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">帮助中心</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">联系我们</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">反馈建议</a></li>
+                <li>帮助中心</li>
+                <li>联系我们</li>
+                <li>反馈建议</li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold mb-4">公司</h3>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">关于我们</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">隐私政策</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">服务条款</a></li>
+                <li>关于我们</li>
+                <li>隐私政策</li>
+                <li>服务条款</li>
               </ul>
             </div>
           </div>

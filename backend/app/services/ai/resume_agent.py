@@ -1,22 +1,23 @@
 """
 简历优化 Agent
 
-使用 Function Calling 实现智能简历优化助手
+使用 ReAct (推理+行动) 循环：模型自主决定是否调用工具、调用几次、何时停止。
+相比原来固定的 3 阶段流水线，减少了 LLM 调用次数，响应更快，决策更灵活。
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 import json
 from .chat_service import ChatService
 from .resume_tools import ResumeTools
 
 
 class ResumeAgent:
-    """简历优化 Agent，支持工具调用"""
+    """简历优化 Agent，基于 ReAct 循环自主执行"""
 
     def __init__(self):
         self.chat_service = ChatService()
         self.tools = ResumeTools()
-        self.max_iterations = 5  # 最大迭代次数，防止无限循环
+        self.max_iterations = 6  # 防止无限循环
 
     async def optimize(
         self,
@@ -24,176 +25,97 @@ class ResumeAgent:
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """执行简历优化对话
-
-        Args:
-            user_message: 用户消息
-            resume_content: 简历内容
-            conversation_history: 对话历史
-
-        Returns:
-            AI 回复
-        """
-        # 构建系统提示词
+        """ReAct 循环：思考 → 行动(可选) → 观察 → 思考 → ... → 最终回复"""
+        messages = self._build_messages(user_message, conversation_history)
         system_prompt = self._build_system_prompt(resume_content)
 
-        # 构建消息列表
-        messages = []
-        if conversation_history:
-            messages.extend(conversation_history)
-        messages.append({"role": "user", "content": user_message})
-
-        extra_display: List[str] = []
-        qr_images: List[str] = []
         executed_tools: List[Dict[str, Any]] = []
+        qr_images: List[str] = []
+        final_text = ""
 
-        # 迭代执行，支持多轮工具调用
-        for iteration in range(self.max_iterations):
-            # 调用 AI，支持 function calling
+        for _ in range(self.max_iterations):
             response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
                 tools=self.tools.get_tools_schema(),
+                temperature=0.3,
+                max_tokens=1500,
                 stream=False,
             )
 
-            # 检查是否需要调用工具
-            if self._has_tool_calls(response):
-                # 执行工具调用
-                tool_results = self._execute_tool_calls(response, resume_content)
+            message = response["choices"][0]["message"]
+            messages.append(message)
 
-                # 将工具结果添加到消息历史
-                messages.append(response)
-                for tool_result in tool_results:
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_result["tool_call_id"],
-                            "content": json.dumps(
-                                tool_result["result"], ensure_ascii=False
-                            ),
-                        }
-                    )
-                    display = tool_result.get("display_message")
-                    if display:
-                        extra_display.append(display)
-                    qr_image = tool_result.get("qr_image")
-                    if qr_image:
-                        qr_images.append(qr_image)
+            # 没有工具调用 → 模型已给出最终回复，循环结束
+            if not message.get("tool_calls"):
+                final_text = message.get("content") or "已完成处理。"
+                break
 
-                    # 记录工具调用的简要信息，供前端展示
-                    tool_call_id = tool_result["tool_call_id"]
-                    tool_name = "unknown"
-                    # 从 response 中找到对应的 tool name
-                    resp_tool_calls = response["choices"][0]["message"].get(
-                        "tool_calls", []
-                    )
-                    for tc in resp_tool_calls:
-                        if tc["id"] == tool_call_id:
-                            tool_name = tc["function"]["name"]
-                            break
+            # 执行所有工具调用，将结果反馈给模型（Observe 阶段）
+            for tool_call in message["tool_calls"]:
+                tool_result = self._run_tool(tool_call, resume_content)
+                executed_tools.append({
+                    "name": tool_result["tool_name"],
+                    "result": tool_result["display_message"] or "执行完成",
+                })
+                if tool_result["qr_image"]:
+                    qr_images.append(tool_result["qr_image"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(tool_result["result"], ensure_ascii=False),
+                })
 
-                    # 构建精简的自然语言描述
-                    tool_res_str = str(display) if display else "执行完成"
-
-                    executed_tools.append({"name": tool_name, "result": tool_res_str})
-
-                # 继续下一轮对话
-                continue
-            else:
-                # 没有工具调用，返回最终结果
-                final_text = self._extract_content(response)
-
-                return {
-                    "content": final_text,
-                    "qr_images": qr_images,
-                    "tool_calls": executed_tools,
-                    "resume_content": resume_content,  # 返回最终的简历内容
-                }
-
-        # 达到最大迭代次数
-        timeout_message = "抱歉，优化过程超时，请重新尝试。"
         return {
-            "content": timeout_message,
+            "content": final_text,
             "qr_images": qr_images,
             "tool_calls": executed_tools,
-            "resume_content": resume_content,  # 返回最终的简历内容
+            "resume_content": resume_content,
         }
 
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
-        """构建系统提示词，包含当前简历内容"""
+        """构建 ReAct 系统提示词"""
         resume_json = json.dumps(resume_content, ensure_ascii=False, indent=2)
-        return f"""你是一位专业的简历优化专家。你可以使用工具来分析和优化用户的简历。
+        return f"""你是一位专业的简历优化顾问 Agent。
 
 ## 当前简历内容
 {resume_json}
 
-## 可用工具
-- edit_resume: 编辑简历特定板块，传入 section（板块名）和 data（完整的新数据，JSON格式）
+## 工作方式
+1. 判断用户意图：是否需要修改简历
+2. 如果需要修改，调用 edit_resume 工具执行；观察结果后决定是否继续修改
+3. 所有修改完成后，用中文回复用户：说明改了什么、为什么这样改
+4. 如果只是咨询/提问，直接回答，不要调用工具
 
-## 板块说明
-- personal_info: 个人信息
-- education: 教育经历（数组）
-- work_experience: 工作经历（数组）
-- skills: 技能（数组）
-- projects: 项目经历（数组）
-- summary: 个人总结（字符串）
-- languages: 语言能力（数组）
+## 工具使用规则
+- edit_resume 的 data 必须是板块的完整新数据，不允许增量片段
+- 只修改用户明确要求的板块
+- 能一次改完就不要拆成多次"""
 
-## 严格规则
-1. 你已经拥有简历内容，直接根据用户需求调用 edit_resume 修改即可
-2. data 参数必须是该板块的完整新数据（不是增量更新）
-3. 每个板块最多调用一次 edit_resume
-4. 调用工具后直接给出文字回复总结修改内容
-5. 如果用户只是询问或咨询，不需要调用工具"""
-
-    def _has_tool_calls(self, response: Dict[str, Any]) -> bool:
-        """检查响应中是否包含工具调用"""
-        # 检查 OpenAI 格式
-        if "choices" in response:
-            message = response["choices"][0].get("message", {})
-            return "tool_calls" in message and message["tool_calls"]
-
-        # 检查其他格式
-        return False
-
-    def _execute_tool_calls(
-        self, response: Dict[str, Any], resume_content: Dict[str, Any]
+    def _build_messages(
+        self,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]],
     ) -> List[Dict[str, Any]]:
-        """执行工具调用"""
-        results = []
+        """构建消息列表"""
+        messages: List[Dict[str, Any]] = []
+        if conversation_history:
+            messages.extend(conversation_history[-6:])
+        messages.append({"role": "user", "content": user_message})
+        return messages
 
-        # 获取工具调用列表
-        tool_calls = response["choices"][0]["message"].get("tool_calls", [])
-
-        for tool_call in tool_calls:
-            tool_name = tool_call["function"]["name"]
-            tool_args = json.loads(tool_call["function"]["arguments"])
-
-            # 执行工具
-            result = self.tools.execute_tool(
-                tool_name=tool_name, resume_content=resume_content, **tool_args
-            )
-
-            display_message = None
-            qr_image = None
-            if isinstance(result, dict):
-                display_message = result.get("message")
-                qr_image = result.get("image_base64")
-            results.append(
-                {
-                    "tool_call_id": tool_call["id"],
-                    "result": result,
-                    "display_message": display_message,
-                    "qr_image": qr_image,
-                }
-            )
-
-        return results
-
-    def _extract_content(self, response: Dict[str, Any]) -> str:
-        """从响应中提取内容"""
-        if "choices" in response:
-            return response["choices"][0]["message"]["content"]
-
-        return "无法获取响应内容"
+    def _run_tool(
+        self, tool_call: Dict[str, Any], resume_content: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """执行单个工具调用并返回结构化结果"""
+        tool_name = tool_call["function"]["name"]
+        tool_args = json.loads(tool_call["function"]["arguments"])
+        result = self.tools.execute_tool(
+            tool_name=tool_name, resume_content=resume_content, **tool_args
+        )
+        return {
+            "tool_name": tool_name,
+            "result": result,
+            "display_message": result.get("message") if isinstance(result, dict) else None,
+            "qr_image": result.get("image_base64") if isinstance(result, dict) else None,
+        }
