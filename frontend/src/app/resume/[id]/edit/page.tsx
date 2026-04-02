@@ -673,8 +673,7 @@ export default function ResumeEditPage() {
                 href="/dashboard"
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
               >
-                <ArrowLeftIcon className="w-5 h-5" />
-                <span>返回简历中心</span>
+                <ArrowLeftIcon className="w-5 h-5 ml-9" />
               </Link>
             </div>
 
