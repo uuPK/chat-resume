@@ -94,9 +94,6 @@ export default function HomePage() {
                 立即开始
                 <ArrowRightIcon className="w-5 h-5 ml-2" />
               </Link>
-              <button className="btn-secondary btn-lg">
-                观看演示
-              </button>
             </div>
           </motion.div>
         </div>
