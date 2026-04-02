@@ -441,18 +441,35 @@ export default function ResumeEditPage() {
         page.style.backgroundColor = '#ffffff'
 
         const canvas = await html2canvas(page, {
-          scale: 2, // 提高清晰度
+          scale: 2,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
           width: EXPORT_A4_WIDTH_PX,
-          // 不指定 height，让它自动捕获
           windowWidth: EXPORT_A4_WIDTH_PX,
           x: 0,
           y: 0,
           scrollX: 0,
           scrollY: 0
         } as any)
+
+        // 在恢复样式前提取链接位置（此时尺寸与导出一致）
+        const pageRect = page.getBoundingClientRect()
+        const scaleX = pdfWidth / pageRect.width
+        const scaleY = pdfHeight / pageRect.height
+        const linkAnnotations: Array<{x: number; y: number; w: number; h: number; url: string}> = []
+        page.querySelectorAll('a[href]').forEach(link => {
+          const href = link.getAttribute('href')
+          if (!href || href.startsWith('#')) return
+          const linkRect = link.getBoundingClientRect()
+          linkAnnotations.push({
+            x: (linkRect.left - pageRect.left) * scaleX,
+            y: (linkRect.top - pageRect.top) * scaleY,
+            w: linkRect.width * scaleX,
+            h: linkRect.height * scaleY,
+            url: href.startsWith('http') ? href : `https://${href}`
+          })
+        })
 
         // 恢复样式
         page.style.border = originalBorder
@@ -462,6 +479,9 @@ export default function ResumeEditPage() {
 
         const imgData = canvas.toDataURL('image/jpeg', 0.95)
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
+
+        // 叠加可点击链接区域
+        linkAnnotations.forEach(a => pdf.link(a.x, a.y, a.w, a.h, { url: a.url }))
 
         // 更新进度
         toast.loading(`正在生成第 ${i + 1}/${pages.length} 页...`, { id: toastId })

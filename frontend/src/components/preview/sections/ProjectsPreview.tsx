@@ -1,7 +1,5 @@
 'use client'
 
-import { LinkIcon } from '@heroicons/react/24/outline'
-
 interface Project {
   id?: number
   name: string
@@ -47,10 +45,10 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               href={project.github_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 hover:underline"
+              className="inline-flex items-center gap-1 leading-none hover:underline"
             >
-              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>Github</span>
+              <span className="inline-block shrink-0 leading-none text-[0.95em]">⌁</span>
+              <span className="inline-block leading-none">Github</span>
             </a>
           )}
           {project.demo_url && (
@@ -58,10 +56,10 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               href={project.demo_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 hover:underline"
+              className="inline-flex items-center gap-1 leading-none hover:underline"
             >
-              <LinkIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>Demo</span>
+              <span className="inline-block shrink-0 leading-none text-[0.95em]">⌁</span>
+              <span className="inline-block leading-none">Demo</span>
             </a>
           )}
         </div>

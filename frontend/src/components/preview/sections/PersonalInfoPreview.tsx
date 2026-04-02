@@ -1,12 +1,5 @@
 'use client'
 
-import { 
-  EnvelopeIcon, 
-  PhoneIcon,
-  LinkIcon,
-  MapPinIcon
-} from '@heroicons/react/24/outline'
-
 interface PersonalInfo {
   name?: string
   email?: string
@@ -52,36 +45,36 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
       {shouldRenderLine(1) && (
         <div data-line-index={1} className="flex flex-wrap justify-center gap-4 text-xs text-gray-600 pb-3">
           {data.email && (
-            <div className="inline-flex items-center gap-1">
-              <EnvelopeIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>{data.email}</span>
+            <div className="inline-flex items-center gap-1 leading-none">
+              <span className="inline-block shrink-0 leading-none text-[0.95em]">✉</span>
+              <span className="inline-block leading-none">{data.email}</span>
             </div>
           )}
           
           {data.phone && (
-            <div className="inline-flex items-center gap-1">
-              <PhoneIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>{data.phone}</span>
+            <div className="inline-flex items-center gap-1 leading-none">
+              <span className="inline-block shrink-0 leading-none text-[0.95em]">☎</span>
+              <span className="inline-block leading-none">{data.phone}</span>
             </div>
           )}
           
           {data.address && (
-            <div className="inline-flex items-center gap-1">
-              <MapPinIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>{data.address}</span>
+            <div className="inline-flex items-center gap-1 leading-none">
+              <span className="inline-block shrink-0 leading-none text-[0.95em]">⌂</span>
+              <span className="inline-block leading-none">{data.address}</span>
             </div>
           )}
 
           {(data.github || data.linkedin || data.website) && (
             <>
               {data.github && (
-                <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                <div className="inline-flex items-center gap-1 text-blue-600 leading-none">
+                  <span className="inline-block shrink-0 leading-none text-[0.95em]">⌁</span>
                   <a
                     href={data.github}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline"
+                    className="inline-block leading-none hover:underline"
                   >
                     GitHub
                   </a>
@@ -89,13 +82,13 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
               )}
               
               {data.linkedin && (
-                <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                <div className="inline-flex items-center gap-1 text-blue-600 leading-none">
+                  <span className="inline-block shrink-0 leading-none text-[0.95em]">⌁</span>
                   <a
                     href={data.linkedin}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline"
+                    className="inline-block leading-none hover:underline"
                   >
                     LinkedIn
                   </a>
@@ -103,13 +96,13 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
               )}
               
               {data.website && (
-                <div className="inline-flex items-center gap-1 text-blue-600">
-                  <LinkIcon className="w-3.5 h-3.5 shrink-0" />
+                <div className="inline-flex items-center gap-1 text-blue-600 leading-none">
+                  <span className="inline-block shrink-0 leading-none text-[0.95em]">⌁</span>
                   <a
                     href={data.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline"
+                    className="inline-block leading-none hover:underline"
                   >
                     个人网站
                   </a>
