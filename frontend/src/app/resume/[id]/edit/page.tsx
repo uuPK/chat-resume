@@ -117,25 +117,30 @@ export default function ResumeEditPage() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
   const [editorOpen, setEditorOpen] = useState(false)
-  const [previewFlex, setPreviewFlex] = useState(50)
-  const middleRightRef = useRef<HTMLDivElement>(null)
+  const [editorFlex, setEditorFlex] = useState(30)
+  const [agentFlex, setAgentFlex] = useState(30)
+  const mainPanelsRef = useRef<HTMLDivElement>(null)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const resumeRef = useRef<Resume | null>(null)
 
-  // 拖拽调节预览/Agent 宽度
-  const handleDividerPointerDown = useCallback((e: React.PointerEvent) => {
+  // 拖拽调节编辑区宽度
+  const handleEditorDividerPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     const startX = e.clientX
-    const startFlex = previewFlex
+    const startFlex = editorFlex
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
     const onPointerMove = (ev: PointerEvent) => {
-      if (!middleRightRef.current) return
-      const containerWidth = middleRightRef.current.offsetWidth
+      if (!mainPanelsRef.current) return
+      const containerWidth = mainPanelsRef.current.offsetWidth
       const delta = ev.clientX - startX
       const deltaFlex = (delta / containerWidth) * 100
-      setPreviewFlex(Math.min(75, Math.max(25, startFlex + deltaFlex)))
+      const nextEditorFlex = Math.min(45, Math.max(18, startFlex + deltaFlex))
+      const previewFlex = 100 - nextEditorFlex - agentFlex
+      if (previewFlex >= 25) {
+        setEditorFlex(nextEditorFlex)
+      }
     }
     const onPointerUp = () => {
       document.body.style.userSelect = ''
@@ -145,7 +150,35 @@ export default function ResumeEditPage() {
     }
     document.addEventListener('pointermove', onPointerMove)
     document.addEventListener('pointerup', onPointerUp)
-  }, [previewFlex])
+  }, [editorFlex, agentFlex])
+
+  // 拖拽调节预览/Agent 宽度
+  const handleAgentDividerPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startFlex = agentFlex
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!mainPanelsRef.current) return
+      const containerWidth = mainPanelsRef.current.offsetWidth
+      const delta = startX - ev.clientX
+      const deltaFlex = (delta / containerWidth) * 100
+      const nextAgentFlex = Math.min(45, Math.max(18, startFlex + deltaFlex))
+      const previewFlex = 100 - editorFlex - nextAgentFlex
+      if (previewFlex >= 25) {
+        setAgentFlex(nextAgentFlex)
+      }
+    }
+    const onPointerUp = () => {
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
+    }
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', onPointerUp)
+  }, [editorFlex, agentFlex])
 
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -578,6 +611,10 @@ export default function ResumeEditPage() {
             </div>
 
             <div className="flex items-center space-x-3">
+              <ResumeLayoutControls
+                config={layoutConfig}
+                onConfigChange={handleLayoutConfigChange}
+              />
               <button
                 onClick={handleExportPDF}
                 disabled={exporting}
@@ -624,13 +661,17 @@ export default function ResumeEditPage() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className={`grid grid-cols-1 gap-6 h-[calc(100vh-140px)] ${editorOpen ? 'lg:grid-cols-[1fr_2fr]' : 'lg:grid-cols-[auto_1fr]'}`}>
+        <div
+          ref={mainPanelsRef}
+          className={`flex gap-0 h-[calc(100vh-140px)] ${editorOpen ? '' : 'lg:[&_.preview-panel]:flex-1 lg:[&_.agent-panel]:flex-1'}`}
+        >
           {/* Left Panel - Editor */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
             className="flex flex-col min-h-0 print:hidden"
+            style={editorOpen ? { flex: `0 0 calc(${editorFlex}% - 8px)` } : undefined}
           >
             {!editorOpen ? (
               /* 折叠状态：细条 */
@@ -639,15 +680,11 @@ export default function ResumeEditPage() {
                 onClick={() => setEditorOpen(true)}
                 title="展开编辑区域"
               >
-                <span className="text-xs text-gray-500 font-medium [writing-mode:vertical-rl] rotate-180 select-none mb-2">
-                  编辑区域
-                </span>
                 <ChevronRightIcon className="w-4 h-4 text-gray-500" />
               </div>
             ) : (
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between flex-shrink-0">
-                编辑区域
+              <div className="mb-4 flex justify-end flex-shrink-0">
                 <button
                   onClick={() => setEditorOpen(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -655,7 +692,7 @@ export default function ResumeEditPage() {
                 >
                   <ChevronLeftIcon className="w-5 h-5" />
                 </button>
-              </h2>
+              </div>
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs */}
                 <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg flex-shrink-0">
@@ -731,27 +768,24 @@ export default function ResumeEditPage() {
             )}
           </motion.div>
 
-          {/* Middle + Right 可拖拽容器 */}
-          <div ref={middleRightRef} className="flex min-h-0 min-w-0 gap-0">
+          {editorOpen && (
+            <div
+              className="w-3 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
+              onPointerDown={handleEditorDividerPointerDown}
+            >
+              <div className="w-1 h-full bg-gray-200 group-hover:bg-blue-400 transition-colors rounded-full" />
+            </div>
+          )}
 
           {/* Middle Panel - Preview */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
-            style={{ flex: `0 0 calc(${previewFlex}% - 6px)` }}
+            className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
+            style={{ flex: `1 1 calc(${100 - editorFlex - agentFlex}% - 16px)` }}
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
-              <div className="flex items-center justify-between mb-4 flex-shrink-0 print:hidden">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  实时预览
-                </h2>
-                <ResumeLayoutControls
-                  config={layoutConfig}
-                  onConfigChange={handleLayoutConfigChange}
-                />
-              </div>
               <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
                 <ResumePreview
                   key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
@@ -764,8 +798,8 @@ export default function ResumeEditPage() {
 
           {/* 拖拽分隔条 */}
           <div
-            className="w-3 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none"
-            onPointerDown={handleDividerPointerDown}
+            className="w-3 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
+            onPointerDown={handleAgentDividerPointerDown}
           >
             <div className="w-1 h-full bg-gray-200 group-hover:bg-blue-400 transition-colors rounded-full" />
           </div>
@@ -775,16 +809,10 @@ export default function ResumeEditPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="flex flex-col min-h-0 min-w-0 print:hidden"
-            style={{ flex: `0 0 calc(${100 - previewFlex}% - 6px)` }}
+            className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
+            style={{ flex: `0 0 calc(${agentFlex}% - 8px)` }}
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  简历优化Agent
-                </h2>
-              </div>
-
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700 flex-shrink-0">
@@ -900,8 +928,6 @@ export default function ResumeEditPage() {
               </div>
             </div>
           </motion.div>
-
-          </div>{/* 拖拽容器结束 */}
         </div>
       </main>
 
