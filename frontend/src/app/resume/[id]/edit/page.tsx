@@ -12,7 +12,9 @@ import {
   CheckIcon,
   ArrowUpIcon,
   ArrowDownTrayIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
@@ -114,6 +116,7 @@ export default function ResumeEditPage() {
   const [exporting, setExporting] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
+  const [editorOpen, setEditorOpen] = useState(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const resumeRef = useRef<Resume | null>(null)
@@ -696,7 +699,7 @@ export default function ResumeEditPage() {
 
       {/* Main Content */}
       <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+        <div className={`grid grid-cols-1 gap-6 h-[calc(100vh-140px)] ${editorOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-[auto_1fr_1fr]'}`}>
           {/* Left Panel - Editor */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -704,9 +707,29 @@ export default function ResumeEditPage() {
             transition={{ duration: 0.8 }}
             className="flex flex-col min-h-0 print:hidden"
           >
+            {!editorOpen ? (
+              /* 折叠状态：细条 */
+              <div
+                className="card flex flex-col items-center justify-center h-full w-10 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => setEditorOpen(true)}
+                title="展开编辑区域"
+              >
+                <span className="text-xs text-gray-500 font-medium [writing-mode:vertical-rl] rotate-180 select-none mb-2">
+                  编辑区域
+                </span>
+                <ChevronRightIcon className="w-4 h-4 text-gray-500" />
+              </div>
+            ) : (
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between flex-shrink-0">
                 编辑区域
+                <button
+                  onClick={() => setEditorOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="折叠"
+                >
+                  <ChevronLeftIcon className="w-5 h-5" />
+                </button>
               </h2>
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs */}
@@ -780,6 +803,7 @@ export default function ResumeEditPage() {
                 </div>
               </div>
             </div>
+            )}
           </motion.div>
 
           {/* Middle Panel - Preview */}

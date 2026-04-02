@@ -50,7 +50,7 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               className="inline-flex items-center gap-1 hover:underline"
             >
               <LinkIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="relative -top-[6px]">Github</span>
+              <span>Github</span>
             </a>
           )}
           {project.demo_url && (
@@ -61,7 +61,7 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
               className="inline-flex items-center gap-1 hover:underline"
             >
               <LinkIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="relative -top-[6px]">Demo</span>
+              <span>Demo</span>
             </a>
           )}
         </div>

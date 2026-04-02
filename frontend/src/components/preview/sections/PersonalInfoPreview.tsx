@@ -54,21 +54,21 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
           {data.email && (
             <div className="inline-flex items-center gap-1">
               <EnvelopeIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="relative -top-[6px]">{data.email}</span>
+              <span>{data.email}</span>
             </div>
           )}
           
           {data.phone && (
             <div className="inline-flex items-center gap-1">
               <PhoneIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="relative -top-[6px]">{data.phone}</span>
+              <span>{data.phone}</span>
             </div>
           )}
           
           {data.address && (
             <div className="inline-flex items-center gap-1">
               <MapPinIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="relative -top-[6px]">{data.address}</span>
+              <span>{data.address}</span>
             </div>
           )}
 
@@ -81,7 +81,7 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
                     href={data.github}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline relative -top-[6px]"
+                    className="hover:underline"
                   >
                     GitHub
                   </a>
@@ -95,7 +95,7 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
                     href={data.linkedin}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline relative -top-[6px]"
+                    className="hover:underline"
                   >
                     LinkedIn
                   </a>
@@ -109,7 +109,7 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
                     href={data.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline relative -top-[6px]"
+                    className="hover:underline"
                   >
                     个人网站
                   </a>
