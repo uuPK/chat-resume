@@ -20,9 +20,12 @@
     margin: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    width: 100% !important;
-    min-height: 100vh !important;
+    width: 816px !important;
+    min-height: 1154px !important;
+    height: 1154px !important;
     background: white !important;
+    aspect-ratio: 210 / 297 !important;
+    box-sizing: border-box !important;
   }
 
   /* 最后一页不需要分页 */
@@ -32,15 +35,21 @@
 
   /* 确保内容在页面内 */
   .resume-page > div {
-    height: auto !important;
-    overflow: visible !important;
+    height: 100% !important;
+    overflow: hidden !important;
   }
 
   /* 字体优化 */
   body, .resume-page {
-    font-family: 'Times New Roman', serif !important;
+    font-family: inherit !important;
     color: #000 !important;
     background: white !important;
+  }
+
+  #resume-export-content {
+    transform: none !important;
+    width: fit-content !important;
+    margin: 0 auto !important;
   }
 
   /* 标题样式 */
@@ -70,7 +79,7 @@
 
   /* 链接样式 */
   a {
-    color: #000 !important;
+    color: inherit !important;
     text-decoration: none !important;
   }
 
@@ -147,6 +156,11 @@
 
   .print\\:break-after-page {
     page-break-after: always;
+  }
+
+  .resume-page.print\\:break-after-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   .print\\:break-before-page {
@@ -234,6 +248,12 @@
 /* 确保缩放时的平滑过渡 */
 .resume-page {
   transition: transform 0.2s ease-in-out;
+}
+
+@media print {
+  .resume-page {
+    transition: none !important;
+  }
 }
 
 /* 防止内容溢出 */

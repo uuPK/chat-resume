@@ -5,45 +5,54 @@
 支持PDF、Word、HTML等格式的导出功能。
 """
 
+import base64
+import json
 import os
 import uuid
-from typing import Dict, Any
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
+from html import escape
+from typing import Any, Dict
+from urllib.parse import quote
+
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from playwright.async_api import async_playwright
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
 from app.core.config import settings
 
 
 class ExportService:
+    """处理简历导出。"""
+
     def __init__(self):
         self.export_dir = os.path.join(settings.UPLOAD_DIR, "exports")
         os.makedirs(self.export_dir, exist_ok=True)
 
-        # 注册中文字体（如果有的话）
-        try:
-            # 这里可以添加中文字体支持
-            # pdfmetrics.registerFont(TTFont('SimSun', 'simsun.ttc'))
-            pass
-        except Exception:
-            pass
-
-    def export_to_pdf(
+    async def export_to_pdf(
         self, resume_content: Dict[str, Any], template: str = "default"
     ) -> str:
-        """导出简历为PDF"""
+        """使用Playwright导出简历PDF。"""
 
-        # 生成唯一文件名
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
+        print_url = self._build_frontend_print_url(resume_content, template)
+        await self._render_pdf_with_playwright(print_url, filepath)
+        return filepath
 
-        # 创建PDF文档
+    def export_to_docx(
+        self, resume_content: Dict[str, Any], template: str = "default"
+    ) -> str:
+        """导出简历为Word文档。"""
+
+        del template
+        filename = f"resume_{uuid.uuid4().hex}.docx"
+        filepath = os.path.join(self.export_dir, filename)
+
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         story = []
-
-        # 获取样式
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             "CustomTitle",
@@ -51,389 +60,322 @@ class ExportService:
             fontSize=18,
             textColor=colors.black,
             spaceAfter=12,
-            alignment=1,  # 居中
+            alignment=1,
         )
-
         heading_style = ParagraphStyle(
             "CustomHeading",
             parent=styles["Heading2"],
             fontSize=14,
-            textColor=colors.darkblue,
+            textColor=colors.darkBlue,
             spaceAfter=6,
             spaceBefore=12,
         )
-
         normal_style = styles["Normal"]
 
-        # 添加个人信息
         personal_info = resume_content.get("personal_info", {})
         if personal_info.get("name"):
-            story.append(Paragraph(personal_info["name"], title_style))
+            story.append(Paragraph(escape(str(personal_info["name"])), title_style))
             story.append(Spacer(1, 12))
 
-        # 添加联系信息
-        contact_info = []
-        if personal_info.get("email"):
-            contact_info.append(f"邮箱: {personal_info['email']}")
-        if personal_info.get("phone"):
-            contact_info.append(f"电话: {personal_info['phone']}")
-        if personal_info.get("address"):
-            contact_info.append(f"地址: {personal_info['address']}")
-
+        contact_info = self._build_contact_texts(personal_info)
         if contact_info:
             story.append(Paragraph(" | ".join(contact_info), normal_style))
             story.append(Spacer(1, 12))
 
-        # 添加教育背景
         education = resume_content.get("education", [])
         if education:
             story.append(Paragraph("教育背景", heading_style))
             for edu in education:
-                edu_text = f"<b>{edu.get('school', '')}</b>"
-                if edu.get("degree"):
-                    edu_text += f" - {edu.get('degree')}"
-                if edu.get("major"):
-                    edu_text += f" - {edu.get('major')}"
-                if edu.get("duration"):
-                    edu_text += f" ({edu.get('duration')})"
-                story.append(Paragraph(edu_text, normal_style))
+                edu_text = self._join_parts(
+                    [
+                        edu.get("school", ""),
+                        edu.get("degree", ""),
+                        edu.get("major", ""),
+                        edu.get("duration", ""),
+                    ]
+                )
+                if edu_text:
+                    story.append(Paragraph(escape(edu_text), normal_style))
             story.append(Spacer(1, 12))
 
-        # 添加工作经验
         work_experience = resume_content.get("work_experience", [])
         if work_experience:
             story.append(Paragraph("工作经验", heading_style))
             for work in work_experience:
-                company_text = f"<b>{work.get('company', '')}</b>"
-                if work.get("position"):
-                    company_text += f" - {work.get('position')}"
-                if work.get("duration"):
-                    company_text += f" ({work.get('duration')})"
-                story.append(Paragraph(company_text, normal_style))
-
-                for resp in work.get("responsibilities", []):
-                    story.append(Paragraph(f"• {resp}", normal_style))
+                work_text = self._join_parts(
+                    [
+                        work.get("company", ""),
+                        work.get("position", ""),
+                        work.get("duration", ""),
+                    ]
+                )
+                if work_text:
+                    story.append(Paragraph(escape(work_text), normal_style))
+                description = str(work.get("description", "")).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
                 story.append(Spacer(1, 6))
             story.append(Spacer(1, 12))
 
-        # 添加技能
-        skills = resume_content.get("skills", [])
+        skills = self._build_skill_texts(resume_content.get("skills", []))
         if skills:
-            story.append(Paragraph("技能", heading_style))
-            skills_text = " | ".join(skills)
-            story.append(Paragraph(skills_text, normal_style))
+            story.append(Paragraph("技能专长", heading_style))
+            story.append(Paragraph(" | ".join(escape(item) for item in skills), normal_style))
             story.append(Spacer(1, 12))
 
-        # 添加项目经验
         projects = resume_content.get("projects", [])
         if projects:
             story.append(Paragraph("项目经验", heading_style))
             for project in projects:
-                project_text = f"<b>{project.get('name', '')}</b>"
-                story.append(Paragraph(project_text, normal_style))
-                story.append(Paragraph(project.get("description", ""), normal_style))
+                project_name = str(project.get("name", "")).strip()
+                if project_name:
+                    story.append(Paragraph(escape(project_name), normal_style))
+                description = str(project.get("description", "")).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
                 story.append(Spacer(1, 6))
 
-        # 构建PDF
         doc.build(story)
-
-        return filepath
-
-    def export_to_docx(
-        self, resume_content: Dict[str, Any], template: str = "default"
-    ) -> str:
-        """导出简历为Word文档"""
-
-        # 生成唯一文件名
-        filename = f"resume_{uuid.uuid4().hex}.docx"
-        filepath = os.path.join(self.export_dir, filename)
-
-        # 创建Word文档
-        doc = Document()
-
-        # 添加个人信息
-        personal_info = resume_content.get("personal_info", {})
-        if personal_info.get("name"):
-            title = doc.add_heading(personal_info["name"], 0)
-            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        # 添加联系信息
-        contact_info = []
-        if personal_info.get("email"):
-            contact_info.append(f"邮箱: {personal_info['email']}")
-        if personal_info.get("phone"):
-            contact_info.append(f"电话: {personal_info['phone']}")
-        if personal_info.get("address"):
-            contact_info.append(f"地址: {personal_info['address']}")
-
-        if contact_info:
-            contact_para = doc.add_paragraph(" | ".join(contact_info))
-            contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        # 添加教育背景
-        education = resume_content.get("education", [])
-        if education:
-            doc.add_heading("教育背景", level=1)
-            for edu in education:
-                edu_text = edu.get("school", "")
-                if edu.get("degree"):
-                    edu_text += f" - {edu.get('degree')}"
-                if edu.get("major"):
-                    edu_text += f" - {edu.get('major')}"
-                if edu.get("duration"):
-                    edu_text += f" ({edu.get('duration')})"
-                doc.add_paragraph(edu_text, style="List Bullet")
-
-        # 添加工作经验
-        work_experience = resume_content.get("work_experience", [])
-        if work_experience:
-            doc.add_heading("工作经验", level=1)
-            for work in work_experience:
-                company_text = work.get("company", "")
-                if work.get("position"):
-                    company_text += f" - {work.get('position')}"
-                if work.get("duration"):
-                    company_text += f" ({work.get('duration')})"
-                doc.add_paragraph(company_text, style="List Bullet")
-
-                for resp in work.get("responsibilities", []):
-                    doc.add_paragraph(f"• {resp}", style="List Bullet 2")
-
-        # 添加技能
-        skills = resume_content.get("skills", [])
-        if skills:
-            doc.add_heading("技能", level=1)
-            skills_text = " | ".join(skills)
-            doc.add_paragraph(skills_text)
-
-        # 添加项目经验
-        projects = resume_content.get("projects", [])
-        if projects:
-            doc.add_heading("项目经验", level=1)
-            for project in projects:
-                doc.add_paragraph(project.get("name", ""), style="List Bullet")
-                doc.add_paragraph(project.get("description", ""), style="List Bullet 2")
-
-        # 保存文档
-        doc.save(filepath)
-
         return filepath
 
     def export_to_html(
         self, resume_content: Dict[str, Any], template: str = "default"
     ) -> str:
-        """导出简历为HTML"""
+        """导出简历为HTML。"""
 
-        # 生成唯一文件名
+        del template
         filename = f"resume_{uuid.uuid4().hex}.html"
         filepath = os.path.join(self.export_dir, filename)
 
-        # 构建HTML内容
-        html_content = self._build_html_content(resume_content, template)
-
-        # 保存HTML文件
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        with open(filepath, "w", encoding="utf-8") as file:
+            file.write(self._build_html_content(resume_content))
 
         return filepath
 
-    def _build_html_content(self, resume_content: Dict[str, Any], template: str) -> str:
-        """构建HTML内容"""
+    async def _render_pdf_with_playwright(self, print_url: str, filepath: str) -> None:
+        """使用Playwright打开前端打印页并输出PDF。"""
+
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            page = await browser.new_page(viewport={"width": 1280, "height": 1810})
+            await page.goto(print_url, wait_until="networkidle")
+            await page.emulate_media(media="print")
+            await page.pdf(
+                path=filepath,
+                format="A4",
+                print_background=True,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+            )
+            await browser.close()
+
+    def _build_frontend_print_url(
+        self, resume_content: Dict[str, Any], template: str
+    ) -> str:
+        """构建前端打印页地址。"""
+
+        payload = {
+            "content": resume_content,
+            "template": template,
+        }
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).decode("utf-8")
+        return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?data={quote(encoded)}"
+
+    def _build_html_content(self, resume_content: Dict[str, Any]) -> str:
+        """构建基础HTML导出内容。"""
 
         personal_info = resume_content.get("personal_info", {})
         education = resume_content.get("education", [])
         work_experience = resume_content.get("work_experience", [])
-        skills = resume_content.get("skills", [])
+        skills = self._build_skill_texts(resume_content.get("skills", []))
         projects = resume_content.get("projects", [])
 
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>简历 - {personal_info.get("name", "")}</title>
-            <style>
-                body {{
-                    font-family: 'Microsoft YaHei', Arial, sans-serif;
-                    line-height: 1.6;
-                    margin: 0;
-                    padding: 20px;
-                    background-color: #f5f5f5;
-                }}
-                .container {{
-                    max-width: 800px;
-                    margin: 0 auto;
-                    background-color: white;
-                    padding: 40px;
-                    border-radius: 10px;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-                }}
-                .header {{
-                    text-align: center;
-                    margin-bottom: 30px;
-                    border-bottom: 2px solid #007bff;
-                    padding-bottom: 20px;
-                }}
-                .name {{
-                    font-size: 2.5em;
-                    font-weight: bold;
-                    color: #333;
-                    margin-bottom: 10px;
-                }}
-                .contact {{
-                    font-size: 1.1em;
-                    color: #666;
-                }}
-                .section {{
-                    margin-bottom: 30px;
-                }}
-                .section-title {{
-                    font-size: 1.5em;
-                    font-weight: bold;
-                    color: #007bff;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 5px;
-                    margin-bottom: 15px;
-                }}
-                .item {{
-                    margin-bottom: 15px;
-                }}
-                .item-title {{
-                    font-weight: bold;
-                    color: #333;
-                }}
-                .item-subtitle {{
-                    color: #666;
-                    font-style: italic;
-                }}
-                .item-content {{
-                    margin-top: 5px;
-                    color: #555;
-                }}
-                .skills {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 10px;
-                }}
-                .skill {{
-                    background-color: #e9ecef;
-                    padding: 5px 10px;
-                    border-radius: 15px;
-                    font-size: 0.9em;
-                }}
-                ul {{
-                    padding-left: 20px;
-                }}
-                li {{
-                    margin-bottom: 5px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="name">{personal_info.get("name", "")}</div>
-                    <div class="contact">
-        """
-
-        # 添加联系信息
-        contact_info = []
-        if personal_info.get("email"):
-            contact_info.append(f"邮箱: {personal_info['email']}")
-        if personal_info.get("phone"):
-            contact_info.append(f"电话: {personal_info['phone']}")
-        if personal_info.get("address"):
-            contact_info.append(f"地址: {personal_info['address']}")
-
-        html += " | ".join(contact_info)
-        html += """
-                    </div>
-                </div>
-        """
-
-        # 添加教育背景
-        if education:
-            html += """
-                <div class="section">
-                    <div class="section-title">教育背景</div>
-            """
-            for edu in education:
-                html += f"""
-                    <div class="item">
-                        <div class="item-title">{edu.get("school", "")}</div>
-                        <div class="item-subtitle">{edu.get("degree", "")} - {edu.get("major", "")} ({edu.get("duration", "")})</div>
-                    </div>
-                """
-            html += "</div>"
-
-        # 添加工作经验
-        if work_experience:
-            html += """
-                <div class="section">
-                    <div class="section-title">工作经验</div>
-            """
-            for work in work_experience:
-                html += f"""
-                    <div class="item">
-                        <div class="item-title">{work.get("company", "")}</div>
-                        <div class="item-subtitle">{work.get("position", "")} ({work.get("duration", "")})</div>
-                        <div class="item-content">
-                            <ul>
-                """
-                for resp in work.get("responsibilities", []):
-                    html += f"<li>{resp}</li>"
-                html += """
-                            </ul>
-                        </div>
-                    </div>
-                """
-            html += "</div>"
-
-        # 添加技能
-        if skills:
-            html += """
-                <div class="section">
-                    <div class="section-title">技能</div>
-                    <div class="skills">
-            """
-            for skill in skills:
-                html += f'<span class="skill">{skill}</span>'
-            html += """
-                    </div>
-                </div>
-            """
-
-        # 添加项目经验
-        if projects:
-            html += """
-                <div class="section">
-                    <div class="section-title">项目经验</div>
-            """
-            for project in projects:
-                html += f"""
-                    <div class="item">
-                        <div class="item-title">{project.get("name", "")}</div>
-                        <div class="item-content">{project.get("description", "")}</div>
-                    </div>
-                """
-            html += "</div>"
-
-        html += """
+        contact_html = "".join(
+            f"<span>{escape(text)}</span>"
+            for text in self._build_contact_texts(personal_info)
+        )
+        education_html = "".join(
+            f"""
+            <div class="item">
+                <div class="item-title">{escape(str(item.get("school", "")))}</div>
+                <div class="item-subtitle">{escape(self._join_parts([item.get("degree", ""), item.get("major", ""), item.get("duration", "")]))}</div>
             </div>
-        </body>
-        </html>
-        """
+            """
+            for item in education
+        )
+        work_html = "".join(
+            f"""
+            <div class="item">
+                <div class="item-title">{escape(str(item.get("company", "")))}</div>
+                <div class="item-subtitle">{escape(self._join_parts([item.get("position", ""), item.get("duration", "")]))}</div>
+                <div class="item-content">{escape(str(item.get("description", "")).strip())}</div>
+            </div>
+            """
+            for item in work_experience
+        )
+        skill_html = "".join(
+            f'<span class="skill">{escape(item)}</span>' for item in skills
+        )
+        project_html = "".join(
+            f"""
+            <div class="item">
+                <div class="item-title">{escape(str(item.get("name", "")))}</div>
+                <div class="item-subtitle">{escape(self._join_parts([item.get("role", ""), item.get("duration", "")]))}</div>
+                <div class="item-content">{escape(str(item.get("description", "")).strip())}</div>
+            </div>
+            """
+            for item in projects
+        )
 
-        return html
+        return f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简历 - {escape(str(personal_info.get("name", "")))}</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            color: #111827;
+            background: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        }}
+        .page {{
+            width: 816px;
+            margin: 0 auto;
+            padding: 48px;
+            background: white;
+        }}
+        .header {{
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            text-align: center;
+            border-bottom: 1px solid #d1d5db;
+        }}
+        .name {{
+            margin-bottom: 8px;
+            font-size: 32px;
+            font-weight: 700;
+        }}
+        .contact {{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px 18px;
+            font-size: 13px;
+            color: #4b5563;
+        }}
+        .section {{
+            margin-bottom: 24px;
+        }}
+        .section-title {{
+            margin: 0 0 12px;
+            padding-bottom: 6px;
+            font-size: 20px;
+            font-weight: 700;
+            border-bottom: 1px solid #e5e7eb;
+        }}
+        .item {{
+            margin-bottom: 14px;
+        }}
+        .item-title {{
+            font-weight: 700;
+        }}
+        .item-subtitle {{
+            color: #6b7280;
+        }}
+        .item-content {{
+            margin-top: 5px;
+            white-space: pre-wrap;
+        }}
+        .skills {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }}
+        .skill {{
+            padding: 4px 10px;
+            font-size: 12px;
+            background: #f3f4f6;
+            border-radius: 999px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <div class="name">{escape(str(personal_info.get("name", "")))}</div>
+            <div class="contact">{contact_html}</div>
+        </div>
+        {self._wrap_section("教育背景", education_html)}
+        {self._wrap_section("工作经验", work_html)}
+        {self._wrap_section("技能专长", f'<div class="skills">{skill_html}</div>' if skill_html else "")}
+        {self._wrap_section("项目经验", project_html)}
+    </div>
+</body>
+</html>
+"""
+
+    def _wrap_section(self, title: str, content: str) -> str:
+        """包装导出区块。"""
+
+        if not content:
+            return ""
+        return (
+            '<section class="section">'
+            f'<div class="section-title">{title}</div>'
+            f"{content}"
+            "</section>"
+        )
+
+    def _build_contact_texts(self, personal_info: Dict[str, Any]) -> list[str]:
+        """构建联系信息文本。"""
+
+        contact_info: list[str] = []
+        if personal_info.get("email"):
+            contact_info.append(f"邮箱：{personal_info['email']}")
+        if personal_info.get("phone"):
+            contact_info.append(f"电话：{personal_info['phone']}")
+        if personal_info.get("address"):
+            contact_info.append(f"地址：{personal_info['address']}")
+        if personal_info.get("github"):
+            contact_info.append("GitHub")
+        if personal_info.get("linkedin"):
+            contact_info.append("LinkedIn")
+        if personal_info.get("website"):
+            contact_info.append("个人网站")
+        return contact_info
+
+    def _build_skill_texts(self, skills: list[Any]) -> list[str]:
+        """构建技能文本。"""
+
+        values = []
+        for item in skills:
+            if isinstance(item, dict):
+                label = item.get("name", "")
+            else:
+                label = item
+            if label:
+                values.append(str(label))
+        return values
+
+    def _join_parts(self, parts: list[Any]) -> str:
+        """拼接非空文本。"""
+
+        return " | ".join(str(part).strip() for part in parts if str(part).strip())
 
     def get_file_url(self, filepath: str) -> str:
-        """获取文件的访问URL"""
+        """获取文件访问URL。"""
+
         filename = os.path.basename(filepath)
-        return f"/api/v1/export/download/{filename}"
+        return f"/api/resumes/download/{filename}"
 
     def delete_file(self, filepath: str) -> bool:
-        """删除导出的文件"""
+        """删除导出文件。"""
+
         try:
             if os.path.exists(filepath):
                 os.remove(filepath)

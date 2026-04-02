@@ -355,148 +355,28 @@ export default function ResumeEditPage() {
 
   // 导出PDF
   const handleExportPDF = async () => {
-    const element = document.getElementById('resume-export-content')
-    if (!element) {
-      toast.error('无法找到简历内容')
+    if (!resume) {
+      toast.error('简历不存在')
       return
     }
-
-    // A4 尺寸（与预览分页保持一致），导出时额外增加少量高度，避免像素取整导致最后一行被裁切
-    const EXPORT_A4_WIDTH_PX = 816
-    const EXPORT_A4_HEIGHT_PX = Math.round(EXPORT_A4_WIDTH_PX * 297 / 210) // 1154px
-    const EXPORT_EXTRA_HEIGHT_PX = 8
-
-    let exportContainer: HTMLDivElement | null = null
 
     try {
       setExporting(true)
       const toastId = toast.loading('正在生成PDF...')
-
-      // 动态导入库
-      const html2canvas = (await import('html2canvas')).default
-      const jsPDF = (await import('jspdf')).default
-
-      // 克隆元素以去除缩放
-      const clone = element.cloneNode(true) as HTMLElement
-      clone.style.transform = 'none'
-      clone.style.padding = '0'
-      clone.style.margin = '0'
-
-      // 确保克隆元素可见且宽度正确
-      const container = document.createElement('div')
-      container.style.position = 'fixed' // 使用 fixed 而不是 absolute
-      container.style.top = '0'
-      container.style.left = '0'
-      container.style.width = `${EXPORT_A4_WIDTH_PX}px` // A4 宽度
-      container.style.zIndex = '-9999' // 使用 z-index 隐藏
-      container.style.visibility = 'hidden' // 额外隐藏，但有些浏览器可能不渲染 hidden 元素，html2canvas 通常可以处理
-      // 为了安全起见，我们不使用 visibility: hidden，而是依靠 z-index 和被覆盖
-      container.style.visibility = 'visible'
-      container.style.backgroundColor = '#ffffff'
-      container.appendChild(clone)
-      document.body.appendChild(container)
-      exportContainer = container
-
-      // 等待图片加载和样式计算
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // 获取所有页面
-      const pages = Array.from(clone.getElementsByClassName('resume-page')) as HTMLElement[]
-
-      if (pages.length === 0) {
-        throw new Error('No pages found')
-      }
-
-      // 初始化 PDF
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'px',
-        format: 'a4'
-      })
-
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = pdf.internal.pageSize.getHeight()
-
-      // 逐页生成
-      for (let i = 0; i < pages.length; i++) {
-        if (i > 0) {
-          pdf.addPage()
-        }
-
-        const page = pages[i]
-        // 临时移除边框和阴影以获得更干净的输出
-        const originalBorder = page.style.border
-        const originalShadow = page.style.boxShadow
-        const originalMargin = page.style.margin
-        const originalHeight = page.style.height
-
-        page.style.border = 'none'
-        page.style.boxShadow = 'none'
-        page.style.margin = '0'
-        // 不再强制高度，允许内容自然撑开
-        page.style.width = `${EXPORT_A4_WIDTH_PX}px`
-        page.style.minHeight = `${EXPORT_A4_HEIGHT_PX}px` // 保持最小高度为 A4
-        // 导出时增加少量高度，避免最后一行因像素取整被裁切
-        page.style.height = `${EXPORT_A4_HEIGHT_PX + EXPORT_EXTRA_HEIGHT_PX}px`
-        page.style.backgroundColor = '#ffffff'
-
-        const canvas = await html2canvas(page, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: EXPORT_A4_WIDTH_PX,
-          windowWidth: EXPORT_A4_WIDTH_PX,
-          x: 0,
-          y: 0,
-          scrollX: 0,
-          scrollY: 0
-        } as any)
-
-        // 在恢复样式前提取链接位置（此时尺寸与导出一致）
-        const pageRect = page.getBoundingClientRect()
-        const scaleX = pdfWidth / pageRect.width
-        const scaleY = pdfHeight / pageRect.height
-        const linkAnnotations: Array<{x: number; y: number; w: number; h: number; url: string}> = []
-        page.querySelectorAll('a[href]').forEach(link => {
-          const href = link.getAttribute('href')
-          if (!href || href.startsWith('#')) return
-          const linkRect = link.getBoundingClientRect()
-          linkAnnotations.push({
-            x: (linkRect.left - pageRect.left) * scaleX,
-            y: (linkRect.top - pageRect.top) * scaleY,
-            w: linkRect.width * scaleX,
-            h: linkRect.height * scaleY,
-            url: href.startsWith('http') ? href : `https://${href}`
-          })
-        })
-
-        // 恢复样式
-        page.style.border = originalBorder
-        page.style.boxShadow = originalShadow
-        page.style.margin = originalMargin
-        page.style.height = originalHeight
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95)
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
-
-        // 叠加可点击链接区域
-        linkAnnotations.forEach(a => pdf.link(a.x, a.y, a.w, a.h, { url: a.url }))
-
-        // 更新进度
-        toast.loading(`正在生成第 ${i + 1}/${pages.length} 页...`, { id: toastId })
-      }
-
-      pdf.save(`${resume?.title || 'resume'}.pdf`)
-
+      const result = await resumeApi.exportResume(resume.id, 'pdf')
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const downloadUrl = `${apiBaseUrl}${result.download_url}`
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = result.filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
       toast.success('PDF导出成功', { id: toastId })
     } catch (error) {
       console.error('PDF export error:', error)
-      toast.error('PDF导出失败')
+      toast.error(error instanceof Error ? error.message : 'PDF导出失败')
     } finally {
-      if (exportContainer && exportContainer.parentNode) {
-        exportContainer.parentNode.removeChild(exportContainer)
-      }
       setExporting(false)
     }
   }

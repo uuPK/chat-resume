@@ -73,6 +73,12 @@ interface UpdateResumeData {
   content?: ResumeContent
 }
 
+interface ExportResponse {
+  download_url: string
+  filename: string
+  format: string
+}
+
 // 面试相关类型
 interface InterviewSession {
   id: number
@@ -209,6 +215,29 @@ class ResumeAPI {
     })
 
     return handleApiResponse<Resume>(response)
+  }
+
+  /**
+   * 导出简历
+   */
+  static async exportResume(
+    id: number,
+    format: 'pdf' | 'docx' | 'html',
+    template: string = 'default'
+  ): Promise<ExportResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        format,
+        template,
+      }),
+    })
+
+    return handleApiResponse<ExportResponse>(response)
   }
 }
 

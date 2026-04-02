@@ -45,7 +45,7 @@ async def export_resume(
         template_name: str = export_request.template or "default"
 
         if export_request.format == "pdf":
-            filepath = export_service.export_to_pdf(resume_data, template_name)
+            filepath = await export_service.export_to_pdf(resume_data, template_name)
         elif export_request.format == "docx":
             filepath = export_service.export_to_docx(resume_data, template_name)
         elif export_request.format == "html":

@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 
