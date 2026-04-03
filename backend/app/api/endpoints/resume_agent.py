@@ -173,46 +173,29 @@ async def chat_with_resume_stream(
                 resume.content if isinstance(resume.content, dict) else {},
             )
 
-            # 调用简历优化 Agent 获取回复
+            # 调用简历优化 Agent 获取阶段流式回复
             logger.debug("流式接口使用简历优化 Agent")
-            ai_result = await agent.optimize(
+            latest_resume_content = None
+            async for event in agent.optimize_stream(
                 user_message=chat_request.message,
                 resume_content=resume_dict,
                 conversation_history=chat_request.chat_history,
-            )
+            ):
+                if event.get("resume_content") is not None:
+                    latest_resume_content = event["resume_content"]
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
-            # 检查是否有简历更新
-            if isinstance(ai_result, dict) and "resume_content" in ai_result:
+            if latest_resume_content is not None:
                 logger.info(
                     f"检测到简历更新，正在保存... 简历ID: {chat_request.resume_id}"
                 )
                 try:
-                    updated_content = ai_result["resume_content"]
                     resume_service.update(
-                        chat_request.resume_id, {"content": updated_content}
+                        chat_request.resume_id, {"content": latest_resume_content}
                     )
                     logger.info("简历更新保存成功")
                 except Exception as e:
                     logger.error(f"保存简历更新失败: {e}")
-
-            # 将完整回复一次性输出给前端
-            if isinstance(ai_result, dict):
-                data = {
-                    "content": ai_result.get("content", ""),
-                    "qr_images": ai_result.get("qr_images", []),
-                    "tool_calls": ai_result.get("tool_calls", []),
-                    "resume_content": ai_result.get("resume_content"),
-                    "done": False,
-                }
-            else:
-                data = {
-                    "content": str(ai_result),
-                    "qr_images": [],
-                    "tool_calls": [],
-                    "resume_content": None,
-                    "done": False,
-                }
-            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
             # 发送结束标记
             end_data = {"content": "", "qr_images": [], "tool_calls": [], "done": True}

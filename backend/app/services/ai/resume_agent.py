@@ -5,6 +5,7 @@
 相比原来固定的 3 阶段流水线，减少了 LLM 调用次数，响应更快，决策更灵活。
 """
 
+import asyncio
 from typing import Any, Dict, List, Optional
 import json
 from .chat_service import ChatService
@@ -73,6 +74,110 @@ class ResumeAgent:
             "resume_content": resume_content,
         }
 
+    async def optimize_stream(
+        self,
+        user_message: str,
+        resume_content: Dict[str, Any],
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+    ):
+        """按阶段流式输出 Agent 执行过程。"""
+        messages = self._build_messages(user_message, conversation_history)
+        system_prompt = self._build_system_prompt(resume_content)
+
+        executed_tools: List[Dict[str, Any]] = []
+        qr_images: List[str] = []
+
+        yield {
+            "content": "正在分析你的需求，并检查当前简历内容。\n\n",
+            "qr_images": [],
+            "tool_calls": [],
+            "resume_content": None,
+            "done": False,
+        }
+
+        for iteration in range(self.max_iterations):
+            if iteration > 0:
+                yield {
+                    "content": f"继续进行第 {iteration + 1} 轮处理。\n\n",
+                    "qr_images": [],
+                    "tool_calls": executed_tools,
+                    "resume_content": None,
+                    "done": False,
+                }
+
+            response = await self.chat_service.chat_completion(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=self.tools.get_tools_schema(),
+                temperature=0.3,
+                max_tokens=1500,
+                stream=False,
+            )
+
+            message = response["choices"][0]["message"]
+            messages.append(message)
+
+            if not message.get("tool_calls"):
+                final_text = message.get("content") or "已完成处理。"
+                async for chunk in self._stream_text(final_text):
+                    yield {
+                        "content": chunk,
+                        "qr_images": [],
+                        "tool_calls": executed_tools,
+                        "resume_content": None,
+                        "done": False,
+                    }
+                break
+
+            yield {
+                "content": "已生成修改方案，开始执行具体调整。\n\n",
+                "qr_images": [],
+                "tool_calls": executed_tools,
+                "resume_content": None,
+                "done": False,
+            }
+
+            for tool_call in message["tool_calls"]:
+                tool_result = self._run_tool(tool_call, resume_content)
+                executed_tools.append(
+                    {
+                        "name": tool_result["tool_name"],
+                        "result": tool_result["display_message"] or "执行完成",
+                    }
+                )
+                if tool_result["qr_image"]:
+                    qr_images.append(tool_result["qr_image"])
+
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": json.dumps(tool_result["result"], ensure_ascii=False),
+                    }
+                )
+
+                section_name = tool_result.get("updated_section_name")
+                progress_text = (
+                    f"已完成{section_name}的更新。\n\n"
+                    if section_name
+                    else "已完成一步调整。\n\n"
+                )
+                yield {
+                    "content": progress_text,
+                    "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
+                    "tool_calls": executed_tools,
+                    "resume_content": resume_content,
+                    "done": False,
+                }
+        else:
+            yield {
+                "content": "本次处理达到最大迭代次数，已停止继续修改。\n\n",
+                "qr_images": qr_images,
+                "tool_calls": executed_tools,
+                "resume_content": resume_content,
+                "done": False,
+            }
+
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
         """构建 ReAct 系统提示词"""
         resume_json = json.dumps(resume_content, ensure_ascii=False, indent=2)
@@ -118,4 +223,28 @@ class ResumeAgent:
             "result": result,
             "display_message": result.get("message") if isinstance(result, dict) else None,
             "qr_image": result.get("image_base64") if isinstance(result, dict) else None,
+            "updated_section_name": self._get_section_name(
+                result.get("updated_section") if isinstance(result, dict) else None
+            ),
         }
+
+    async def _stream_text(self, text: str, chunk_size: int = 24):
+        """将最终回复切成小块，提升前端感知流式体验。"""
+        for i in range(0, len(text), chunk_size):
+            yield text[i : i + chunk_size]
+            await asyncio.sleep(0.02)
+
+    def _get_section_name(self, section_key: Optional[str]) -> Optional[str]:
+        """将板块键转成中文名称。"""
+        section_names = {
+            "personal_info": "个人信息",
+            "education": "教育经历",
+            "work_experience": "工作经历",
+            "skills": "技能专长",
+            "projects": "项目经历",
+            "summary": "个人总结",
+            "languages": "语言能力",
+        }
+        if not section_key:
+            return None
+        return section_names.get(section_key, section_key)
