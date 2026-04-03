@@ -28,13 +28,13 @@ class ResumeAgent:
     ) -> Dict[str, Any]:
         """ReAct 循环：思考 → 行动(可选) → 观察 → 思考 → ... → 最终回复"""
         messages = self._build_messages(user_message, conversation_history)
-        system_prompt = self._build_system_prompt(resume_content)
 
         executed_tools: List[Dict[str, Any]] = []
         qr_images: List[str] = []
         final_text = ""
 
         for _ in range(self.max_iterations):
+            system_prompt = self._build_system_prompt(resume_content)
             response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
@@ -82,29 +82,12 @@ class ResumeAgent:
     ):
         """按阶段流式输出 Agent 执行过程。"""
         messages = self._build_messages(user_message, conversation_history)
-        system_prompt = self._build_system_prompt(resume_content)
 
         executed_tools: List[Dict[str, Any]] = []
         qr_images: List[str] = []
 
-        yield {
-            "content": "正在分析你的需求，并检查当前简历内容。\n\n",
-            "qr_images": [],
-            "tool_calls": [],
-            "resume_content": None,
-            "done": False,
-        }
-
         for iteration in range(self.max_iterations):
-            if iteration > 0:
-                yield {
-                    "content": f"继续进行第 {iteration + 1} 轮处理。\n\n",
-                    "qr_images": [],
-                    "tool_calls": executed_tools,
-                    "resume_content": None,
-                    "done": False,
-                }
-
+            system_prompt = self._build_system_prompt(resume_content)
             response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
@@ -129,14 +112,6 @@ class ResumeAgent:
                     }
                 break
 
-            yield {
-                "content": "已生成修改方案，开始执行具体调整。\n\n",
-                "qr_images": [],
-                "tool_calls": executed_tools,
-                "resume_content": None,
-                "done": False,
-            }
-
             for tool_call in message["tool_calls"]:
                 tool_result = self._run_tool(tool_call, resume_content)
                 executed_tools.append(
@@ -156,27 +131,13 @@ class ResumeAgent:
                     }
                 )
 
-                section_name = tool_result.get("updated_section_name")
-                progress_text = (
-                    f"已完成{section_name}的更新。\n\n"
-                    if section_name
-                    else "已完成一步调整。\n\n"
-                )
                 yield {
-                    "content": progress_text,
+                    "content": "",
                     "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
                     "tool_calls": executed_tools,
                     "resume_content": resume_content,
                     "done": False,
                 }
-        else:
-            yield {
-                "content": "本次处理达到最大迭代次数，已停止继续修改。\n\n",
-                "qr_images": qr_images,
-                "tool_calls": executed_tools,
-                "resume_content": resume_content,
-                "done": False,
-            }
 
     def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
         """构建 ReAct 系统提示词"""
@@ -221,7 +182,11 @@ class ResumeAgent:
         return {
             "tool_name": tool_name,
             "result": result,
-            "display_message": result.get("message") if isinstance(result, dict) else None,
+            "display_message": (
+                result.get("diff_summary") or result.get("message")
+                if isinstance(result, dict)
+                else None
+            ),
             "qr_image": result.get("image_base64") if isinstance(result, dict) else None,
             "updated_section_name": self._get_section_name(
                 result.get("updated_section") if isinstance(result, dict) else None

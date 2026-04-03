@@ -181,24 +181,7 @@ export default function ResumeEditPage() {
   }, [editorFlex, agentFlex])
 
   // 聊天相关状态
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      type: 'ai',
-      content: `您好！我是您的简历优化Agent，我能提供以下服务：
-
-1. **岗位定向优化**：根据目标职位的JD，提出针对性修改建议
-
-2. **内容精炼与结构优化**：帮您梳理项目描述、强化个人亮点
-
-3. **量化成果与关键词增强**：引导您将抽象描述转化为具体成就
-
-4. **句子优化与润色建议**：对语句进行逻辑性、表达清晰度与专业度优化
-
-请输入您需要的服务的数字编号。`,
-      timestamp: new Date()
-    }
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
