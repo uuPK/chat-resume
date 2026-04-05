@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 from enum import Enum
 from pydantic import BaseModel
 from .chat_service import ChatService
+from app.prompts import load_prompt
 
 
 class QuestionType(str, Enum):
@@ -42,6 +43,7 @@ class InterviewAgent:
 
     def __init__(self):
         self.chat_service = ChatService()
+        self.prompt_spec = load_prompt("interview_agent")
 
     async def chat(
         self,
@@ -63,8 +65,10 @@ class InterviewAgent:
         Returns:
             AI回复
         """
-        system_prompt = self._build_system_prompt(
-            job_title, job_description, resume_content
+        system_prompt = self.prompt_spec.render(
+            job_title=job_title or "",
+            job_description=job_description or "",
+            resume_content=resume_content or "",
         )
 
         return await self.chat_service.chat_with_context(
@@ -72,30 +76,3 @@ class InterviewAgent:
             system_prompt=system_prompt,
             conversation_history=conversation_history,
         )
-
-    def _build_system_prompt(
-        self,
-        job_title: Optional[str],
-        job_description: Optional[str],
-        resume_content: Optional[str],
-    ) -> str:
-        """构建系统提示词"""
-        prompt = "你是一位专业的AI面试官，负责对候选人进行面试评估。\n\n"
-
-        if job_title:
-            prompt += f"目标职位：{job_title}\n\n"
-
-        if job_description:
-            prompt += f"职位描述：\n{job_description}\n\n"
-
-        if resume_content:
-            prompt += f"候选人简历：\n{resume_content}\n\n"
-
-        prompt += """你的职责是：
-1. 根据职位要求和候选人简历进行针对性提问
-2. 对候选人的回答进行专业评估和反馈
-3. 在面试过程中保持专业、友好的态度
-4. 根据候选人表现进行追问或深入探讨
-5. 最后可以提供综合评估和建议
-"""
-        return prompt

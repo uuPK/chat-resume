@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import json
 from .chat_service import ChatService
 from .resume_tools import ResumeTools
+from app.prompts import load_prompt
 
 
 class ResumeAgent:
@@ -19,6 +20,7 @@ class ResumeAgent:
         self.chat_service = ChatService()
         self.tools = ResumeTools()
         self.max_iterations = 6  # 防止无限循环
+        self.prompt_spec = load_prompt("resume_agent")
 
     async def optimize(
         self,
@@ -33,14 +35,17 @@ class ResumeAgent:
         qr_images: List[str] = []
         final_text = ""
 
+        defaults = self.prompt_spec.model_defaults
         for _ in range(self.max_iterations):
-            system_prompt = self._build_system_prompt(resume_content)
+            system_prompt = self.prompt_spec.render(
+                resume_json=json.dumps(resume_content, ensure_ascii=False, indent=2)
+            )
             response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
                 tools=self.tools.get_tools_schema(),
-                temperature=0.3,
-                max_tokens=1500,
+                temperature=defaults.get("temperature", 0.3),
+                max_tokens=defaults.get("max_tokens", 1500),
                 stream=False,
             )
 
@@ -86,14 +91,17 @@ class ResumeAgent:
         executed_tools: List[Dict[str, Any]] = []
         qr_images: List[str] = []
 
+        defaults = self.prompt_spec.model_defaults
         for iteration in range(self.max_iterations):
-            system_prompt = self._build_system_prompt(resume_content)
+            system_prompt = self.prompt_spec.render(
+                resume_json=json.dumps(resume_content, ensure_ascii=False, indent=2)
+            )
             response = await self.chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,
                 tools=self.tools.get_tools_schema(),
-                temperature=0.3,
-                max_tokens=1500,
+                temperature=defaults.get("temperature", 0.3),
+                max_tokens=defaults.get("max_tokens", 1500),
                 stream=False,
             )
 
@@ -138,25 +146,6 @@ class ResumeAgent:
                     "resume_content": resume_content,
                     "done": False,
                 }
-
-    def _build_system_prompt(self, resume_content: Dict[str, Any]) -> str:
-        """构建 ReAct 系统提示词"""
-        resume_json = json.dumps(resume_content, ensure_ascii=False, indent=2)
-        return f"""你是一位专业的简历优化顾问 Agent。
-
-## 当前简历内容
-{resume_json}
-
-## 工作方式
-1. 判断用户意图：是否需要修改简历
-2. 如果需要修改，调用 edit_resume 工具执行；观察结果后决定是否继续修改
-3. 所有修改完成后，用中文回复用户：说明改了什么、为什么这样改
-4. 如果只是咨询/提问，直接回答，不要调用工具
-
-## 工具使用规则
-- edit_resume 的 data 必须是板块的完整新数据，不允许增量片段
-- 只修改用户明确要求的板块
-- 能一次改完就不要拆成多次"""
 
     def _build_messages(
         self,

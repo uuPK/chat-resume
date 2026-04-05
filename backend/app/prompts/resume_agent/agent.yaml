@@ -1,0 +1,12 @@
+version: "1.0"
+agent:
+  name: resume_agent
+  description: >
+    ReAct Agent，负责简历优化。使用工具调用修改简历板块，
+    并向用户反馈修改内容和原因。
+  system_prompt_path: ./system.md
+  system_prompt_args:
+    resume_json: "{}"
+  model_defaults:
+    temperature: 0.3
+    max_tokens: 1500
