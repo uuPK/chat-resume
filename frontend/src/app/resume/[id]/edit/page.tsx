@@ -1010,7 +1010,7 @@ export default function ResumeEditPage() {
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
               {/* 顶栏：标题 + 清空按钮 */}
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700">简历优化助手</span>
+                <div />
                 {messages.length > 0 && (
                   <button
                     onClick={async () => {
