@@ -175,20 +175,6 @@ export default function SettingsPage() {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          语言设置
-        </label>
-        <select
-          value={userSettings.language}
-          onChange={(e) => setUserSettings(prev => ({ ...prev, language: e.target.value }))}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="zh-CN">中文（简体）</option>
-          <option value="zh-TW">中文（繁體）</option>
-          <option value="en-US">English</option>
-        </select>
-      </div>
     </div>
   )
 
