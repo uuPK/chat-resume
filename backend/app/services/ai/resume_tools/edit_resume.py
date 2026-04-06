@@ -139,6 +139,7 @@ def _summarize_dict(data: Dict[str, Any]) -> str:
         "major",
         "duration",
         "description",
+        "text",
     ]
     values = []
     for key in preferred_keys:
@@ -200,9 +201,29 @@ def update_resume_item(
     lines = []
     for key, new_val in patch.items():
         old_val = before.get(key)
-        if old_val != new_val:
+        if old_val == new_val:
+            continue
+        # 对列表字段（如 highlights）做逐项 diff，只显示变化的条目
+        if (
+            isinstance(old_val, list)
+            and isinstance(new_val, list)
+            and all(isinstance(i, dict) and "id" in i for i in old_val + new_val)
+        ):
+            old_map = {str(i["id"]): i for i in old_val}
+            new_map = {str(i["id"]): i for i in new_val}
+            for iid in sorted(set(old_map) | set(new_map)):
+                o, n = old_map.get(iid), new_map.get(iid)
+                if o == n:
+                    continue
+                if o is None:
+                    lines.append(f"  改前：（新增）\n  改后：{_summarize_value(n)}")
+                elif n is None:
+                    lines.append(f"  改前：{_summarize_value(o)}\n  改后：（已删除）")
+                else:
+                    lines.append(f"  改前：{_summarize_value(o)}\n  改后：{_summarize_value(n)}")
+        else:
             lines.append(
-                f"{key}:\n  改前：{_summarize_value(old_val)}\n  改后：{_summarize_value(new_val)}"
+                f"  改前：{_summarize_value(old_val)}\n  改后：{_summarize_value(new_val)}"
             )
     diff = (
         f"{section_name} / {item_label} 修改摘要\n"
