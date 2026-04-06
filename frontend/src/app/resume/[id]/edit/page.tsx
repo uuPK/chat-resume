@@ -1065,9 +1065,6 @@ export default function ResumeEditPage() {
                                       </div>
                                       <div className="bg-white px-0 py-1 font-mono">
                                         {diffLines.map((l, i) => {
-                                          if (l.type === 'header') return (
-                                            <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
-                                          )
                                           if (l.type === 'remove') return (
                                             <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
                                           )
@@ -1116,9 +1113,6 @@ export default function ResumeEditPage() {
                                 {/* diff 内容区 */}
                                 <div className="bg-white px-0 py-1 font-mono">
                                   {diffLines.map((l, i) => {
-                                    if (l.type === 'header') return (
-                                      <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
-                                    )
                                     if (l.type === 'remove') return (
                                       <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
                                     )
@@ -1166,9 +1160,6 @@ export default function ResumeEditPage() {
                                 {/* diff 内容 */}
                                 <div className="bg-white px-0 py-1 font-mono">
                                   {diffLines.map((l, i) => {
-                                    if (l.type === 'header') return (
-                                      <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
-                                    )
                                     if (l.type === 'remove') return (
                                       <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
                                     )
