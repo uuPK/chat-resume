@@ -148,19 +148,17 @@ class AgentRuntime:
 
                 for tc in tool_calls_list:
                     if confirmation_queue is not None:
-                        # ---- 需要用户确认：先执行工具拿到 diff，然后挂起等待 ----
-                        snapshot = deepcopy(context.get("resume_content"))
-                        tool_result = agent.tool_executor(tc, context)
-                        diff_summary = (
-                            tool_result.get("display_message") or "执行完成"
-                        )
+                        # ---- 需要用户确认：在副本上预执行拿 diff，不修改真实 context ----
+                        preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
+                        preview_result = agent.tool_executor(tc, preview_context)
+                        diff_summary = preview_result.get("display_message") or "执行完成"
 
                         # 发送 pending 事件，前端展示 diff 并等待用户操作
                         yield {
                             "content": "",
                             "tool_pending": True,
                             "call_id": tc["id"],
-                            "tool_name": tool_result["tool_name"],
+                            "tool_name": preview_result["tool_name"],
                             "diff_summary": diff_summary,
                             "tool_calls": executed_tools,
                             "done": False,
@@ -175,9 +173,7 @@ class AgentRuntime:
                             confirmed = False
 
                         if not confirmed:
-                            # 回滚 context 中对 resume_content 的修改
-                            if snapshot is not None:
-                                context["resume_content"] = snapshot
+                            # 用户拒绝：context 未被修改，无需回滚
                             tool_messages.append({
                                 "role": "tool",
                                 "tool_call_id": tc["id"],
@@ -190,12 +186,13 @@ class AgentRuntime:
                                 "content": "",
                                 "tool_rejected": True,
                                 "call_id": tc["id"],
-                                "tool_name": tool_result["tool_name"],
+                                "tool_name": preview_result["tool_name"],
                                 "tool_calls": executed_tools,
                                 "done": False,
                             }
                         else:
-                            # 确认：变更已生效，记录到 executed_tools
+                            # 用户确认：在真实 context 上执行
+                            tool_result = agent.tool_executor(tc, context)
                             executed_tools.append({
                                 "name": tool_result["tool_name"],
                                 "result": diff_summary,
