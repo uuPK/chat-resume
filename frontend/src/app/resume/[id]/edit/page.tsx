@@ -114,19 +114,17 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
 }
 
 /** 将 diffSummary 文本解析为带颜色的 diff 行 */
-function parseDiffSummary(raw: string): Array<{ type: 'header' | 'remove' | 'add' | 'meta'; text: string }> {
+function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'meta'; text: string }> {
   const lines = raw.split('\n')
-  const result: Array<{ type: 'header' | 'remove' | 'add' | 'meta'; text: string }> = []
+  const result: Array<{ type: 'remove' | 'add' | 'meta'; text: string }> = []
   for (const line of lines) {
     if (!line.trim()) continue
-    if (line.endsWith('修改摘要') || line.endsWith('新增') || line.endsWith('删除')) {
-      result.push({ type: 'header', text: line })
-    } else if (line.startsWith('改前：') || line.startsWith('  改前：')) {
+    // 跳过标题行（修改摘要/新增/删除）
+    if (line.endsWith('修改摘要') || line.endsWith('新增') || line.endsWith('删除')) continue
+    if (line.startsWith('改前：') || line.startsWith('  改前：')) {
       result.push({ type: 'remove', text: '- ' + line.replace(/^\s*改前：/, '') })
     } else if (line.startsWith('改后：') || line.startsWith('  改后：')) {
       result.push({ type: 'add', text: '+ ' + line.replace(/^\s*改后：/, '') })
-    } else {
-      result.push({ type: 'meta', text: line })
     }
   }
   return result
@@ -241,7 +239,11 @@ export default function ResumeEditPage() {
         if (lastUser && resumeId) {
           chatHistoryApi.appendMessages(parseInt(resumeId), [
             { role: 'user', content: lastUser.content },
-            { role: 'assistant', content: message.content },
+            {
+              role: 'assistant',
+              content: message.content,
+              stream_events: message.streamEvents || null,
+            },
           ]).catch(console.error)
         }
         return next
@@ -319,6 +321,7 @@ export default function ResumeEditPage() {
           type: r.role === 'user' ? 'user' : 'ai',
           content: r.content,
           timestamp: new Date(),
+          streamEvents: (r as { stream_events?: StreamEvent[] }).stream_events || undefined,
         }))
         setMessages(loaded)
       }
@@ -656,7 +659,6 @@ export default function ResumeEditPage() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
                     {change.section}
                     {change.item_label ? ` / ${change.item_label}` : ''}
-                    {change.field && change.field !== 'item' ? ` / ${change.field}` : ''}
                   </div>
                   <div className={`text-[10px] font-medium ${
                     change.op === 'add' ? 'text-green-700' : change.op === 'remove' ? 'text-red-700' : 'text-blue-700'
@@ -1044,23 +1046,50 @@ export default function ResumeEditPage() {
                       >
                         {message.type === 'ai' ? (
                           <>
-                            {/* 有 proposal 时工具调用已合并进 proposal 卡片，不单独渲染 */}
-                            {!message.proposal && message.toolCalls && message.toolCalls.length > 0 && (
-                              <div className="mb-3 space-y-2">
-                                {message.toolCalls.map((tool, index) => (
-                                  <div key={index} className="bg-white border text-xs rounded-md overflow-hidden shadow-sm">
-                                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center gap-2">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                      <span className="font-medium text-gray-700">{tool.name}</span>
+                            {/* 有 streamEvents 时按事件顺序交错渲染；否则直接渲染完整文本 */}
+                            {message.streamEvents && message.streamEvents.length > 0 ? (
+                              message.streamEvents.map((event, idx) => {
+                                if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
+                                  const isConfirmed = event.type === 'tool_confirmed'
+                                  const diffLines = parseDiffSummary(event.diffSummary)
+                                  return (
+                                    <div key={idx} className={`mb-2 rounded-lg border overflow-hidden text-xs ${isConfirmed ? 'border-green-200' : 'border-gray-300'}`}>
+                                      <div className={`px-3 py-2 flex items-center gap-2 ${isConfirmed ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                        {isConfirmed ? (
+                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                        ) : (
+                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        )}
+                                        <span className={`font-medium ${isConfirmed ? 'text-green-800' : 'text-gray-500'}`}>{event.toolName}</span>
+                                        <span className={`ml-auto ${isConfirmed ? 'text-green-500' : 'text-gray-400'}`}>{isConfirmed ? '已应用' : '已拒绝'}</span>
+                                      </div>
+                                      <div className="bg-white px-0 py-1 font-mono">
+                                        {diffLines.map((l, i) => {
+                                          if (l.type === 'header') return (
+                                            <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
+                                          )
+                                          if (l.type === 'remove') return (
+                                            <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
+                                          )
+                                          if (l.type === 'add') return (
+                                            <div key={i} className={`px-3 py-0.5 whitespace-pre-wrap ${isConfirmed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{l.text}</div>
+                                          )
+                                          return null
+                                        })}
+                                      </div>
                                     </div>
-                                    <div className="px-3 py-2 text-gray-600 bg-white text-xs leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
-                                      {tool.result}
-                                    </div>
+                                  )
+                                }
+                                if (event.type === 'text') return (
+                                  <div key={idx}>
+                                    <MarkdownMessage content={event.content} />
                                   </div>
-                                ))}
-                              </div>
+                                )
+                                return null
+                              })
+                            ) : (
+                              <MarkdownMessage content={message.content} />
                             )}
-                            <MarkdownMessage content={message.content} />
                             {renderProposalCard(message)}
                           </>
                         ) : (
@@ -1079,30 +1108,30 @@ export default function ResumeEditPage() {
                             return (
                               <div key={idx} className="mb-2 rounded-lg border border-amber-200 overflow-hidden text-xs">
                                 {/* 标题栏 */}
-                                <div className="px-3 py-2 bg-[#1e1e1e] flex items-center gap-2">
+                                <div className="px-3 py-2 bg-amber-50 flex items-center gap-2">
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                                  <span className="font-medium text-amber-300">{event.toolName}</span>
+                                  <span className="font-medium text-amber-800">{event.toolName}</span>
                                   <span className="text-amber-500 ml-auto">待确认</span>
                                 </div>
                                 {/* diff 内容区 */}
-                                <div className="bg-[#1e1e1e] px-0 py-1 font-mono">
+                                <div className="bg-white px-0 py-1 font-mono">
                                   {diffLines.map((l, i) => {
                                     if (l.type === 'header') return (
-                                      <div key={i} className="px-3 py-0.5 text-[#858585]">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
                                     )
                                     if (l.type === 'remove') return (
-                                      <div key={i} className="px-3 py-0.5 bg-[#3d1f1f] text-[#f88070] whitespace-pre-wrap">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
                                     )
                                     if (l.type === 'add') return (
-                                      <div key={i} className="px-3 py-0.5 bg-[#1f3d2a] text-[#89d185] whitespace-pre-wrap">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 bg-green-50 text-green-700 whitespace-pre-wrap">{l.text}</div>
                                     )
                                     return (
-                                      <div key={i} className="px-3 py-0.5 text-[#9cdcfe] whitespace-pre-wrap">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 text-blue-600 whitespace-pre-wrap">{l.text}</div>
                                     )
                                   })}
                                 </div>
                                 {/* 操作按钮 */}
-                                <div className="px-3 py-2 bg-[#252526] border-t border-[#333] flex gap-2">
+                                <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex gap-2">
                                   <button
                                     onClick={() => confirmTool(event.callId, true)}
                                     className="flex-1 rounded-md bg-blue-600 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
@@ -1111,7 +1140,7 @@ export default function ResumeEditPage() {
                                   </button>
                                   <button
                                     onClick={() => confirmTool(event.callId, false)}
-                                    className="flex-1 rounded-md border border-[#555] bg-[#2d2d2d] py-1.5 text-xs font-medium text-gray-300 hover:bg-[#3a3a3a]"
+                                    className="flex-1 rounded-md border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                                   >
                                     拒绝
                                   </button>
@@ -1119,21 +1148,38 @@ export default function ResumeEditPage() {
                               </div>
                             )
                           }
-                          if (event.type === 'tool_confirmed') {
+                          if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
+                            const isConfirmed = event.type === 'tool_confirmed'
+                            const diffLines = parseDiffSummary(event.diffSummary)
                             return (
-                              <div key={idx} className="mb-1 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 flex items-center gap-2 text-xs text-green-700">
-                                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                <span className="font-medium">{event.toolName}</span>
-                                <span className="text-green-500 ml-auto">已应用</span>
-                              </div>
-                            )
-                          }
-                          if (event.type === 'tool_rejected') {
-                            return (
-                              <div key={idx} className="mb-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 flex items-center gap-2 text-xs text-gray-400">
-                                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                <span className="font-medium">{event.toolName}</span>
-                                <span className="ml-auto">已拒绝</span>
+                              <div key={idx} className={`mb-2 rounded-lg border overflow-hidden text-xs ${isConfirmed ? 'border-green-200' : 'border-gray-300'}`}>
+                                {/* 标题栏 */}
+                                <div className={`px-3 py-2 flex items-center gap-2 ${isConfirmed ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                  {isConfirmed ? (
+                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  )}
+                                  <span className={`font-medium ${isConfirmed ? 'text-green-800' : 'text-gray-500'}`}>{event.toolName}</span>
+                                  <span className={`ml-auto ${isConfirmed ? 'text-green-500' : 'text-gray-400'}`}>{isConfirmed ? '已应用' : '已拒绝'}</span>
+                                </div>
+                                {/* diff 内容 */}
+                                <div className="bg-white px-0 py-1 font-mono">
+                                  {diffLines.map((l, i) => {
+                                    if (l.type === 'header') return (
+                                      <div key={i} className="px-3 py-0.5 text-gray-400">{l.text}</div>
+                                    )
+                                    if (l.type === 'remove') return (
+                                      <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
+                                    )
+                                    if (l.type === 'add') return (
+                                      <div key={i} className={`px-3 py-0.5 whitespace-pre-wrap ${isConfirmed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{l.text}</div>
+                                    )
+                                    return (
+                                      <div key={i} className="px-3 py-0.5 text-blue-600 whitespace-pre-wrap">{l.text}</div>
+                                    )
+                                  })}
+                                </div>
                               </div>
                             )
                           }

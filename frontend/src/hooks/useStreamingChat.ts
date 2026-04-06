@@ -9,8 +9,8 @@ export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
   | { type: 'tool_pending'; callId: string; toolName: string; diffSummary: string }
-  | { type: 'tool_confirmed'; callId: string; toolName: string }
-  | { type: 'tool_rejected'; callId: string; toolName: string }
+  | { type: 'tool_confirmed'; callId: string; toolName: string; diffSummary: string }
+  | { type: 'tool_rejected'; callId: string; toolName: string; diffSummary: string }
 
 export interface ChatProposal {
   proposalId: number
@@ -35,6 +35,7 @@ export interface ChatMessage {
   timestamp: Date
   toolCalls?: ToolCall[]
   proposal?: ChatProposal
+  streamEvents?: StreamEvent[]
 }
 
 interface StreamingChatOptions {
@@ -161,19 +162,19 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     console.log('[useStreamingChat] done 事件收到 resume_content', Object.keys(data.resume_content))
                     onResumeUpdate?.(data.resume_content)
                   }
-                  // 流式传输完成，创建完整的AI消息
-                  // 不携带 toolCalls：工具确认已在流式过程中内联展示，无需重复显示
+                  // 流式传输完成，创建完整的AI消息（携带工具事件快照，用于历史渲染）
                   const aiMessage: ChatMessage = {
                     id: Date.now().toString(),
                     type: 'ai',
                     content: streamingContent,
                     timestamp: new Date(),
+                    streamEvents: eventsBuffer.length > 0 ? [...eventsBuffer] : undefined,
                   }
                   onMessage?.(aiMessage)
                   setCurrentStreamingMessage('')
                   setCurrentToolCalls([])
                   setCurrentProposal(null)
-                  setStreamEvents([])
+                  setStreamEvents([])  // 清掉流式 state，历史由 message.streamEvents 接管
                   return
                 }
 
@@ -198,14 +199,15 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   setStreamEvents([...eventsBuffer])
                 }
 
-                // tool_confirmed / tool_rejected: 更新对应的 pending 事件状态
+                // tool_confirmed / tool_rejected: 更新对应的 pending 事件状态（保留 diffSummary）
                 if ((data.tool_confirmed || data.tool_rejected) && data.call_id) {
                   const newType = data.tool_confirmed ? 'tool_confirmed' : 'tool_rejected'
-                  eventsBuffer = eventsBuffer.map(e =>
-                    e.type === 'tool_pending' && (e as { type: 'tool_pending'; callId: string }).callId === data.call_id
-                      ? { type: newType, callId: data.call_id, toolName: data.tool_name || '' }
-                      : e
-                  )
+                  eventsBuffer = eventsBuffer.map(e => {
+                    if (e.type === 'tool_pending' && e.callId === data.call_id) {
+                      return { type: newType, callId: e.callId, toolName: e.toolName, diffSummary: e.diffSummary }
+                    }
+                    return e
+                  })
                   setStreamEvents([...eventsBuffer])
                 }
 

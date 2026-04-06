@@ -225,12 +225,14 @@ async def reject_resume_proposal(
 class ChatMessageIn(BaseModel):
     role: str   # "user" | "assistant"
     content: str
+    stream_events: list | None = None
 
 
 class ChatMessageOut(BaseModel):
     id: int
     role: str
     content: str
+    stream_events: list | None = None
 
     model_config = {"from_attributes": True}
 
@@ -277,7 +279,12 @@ async def append_chat_messages(
     for msg in messages:
         if msg.role not in ("user", "assistant"):
             continue
-        row = ResumeChatMessage(resume_id=resume_id, role=msg.role, content=msg.content)
+        row = ResumeChatMessage(
+            resume_id=resume_id,
+            role=msg.role,
+            content=msg.content,
+            stream_events=msg.stream_events,
+        )
         db.add(row)
         saved.append(row)
     db.commit()

@@ -94,6 +94,7 @@ class ResumeChatMessage(Base):
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
     role = Column(String, nullable=False)   # "user" | "assistant"
     content = Column(Text, nullable=False)
+    stream_events = Column(JSON, nullable=True)  # 工具确认事件流（confirmed/rejected + diffSummary）
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     resume = relationship("Resume", back_populates="chat_messages")

@@ -618,6 +618,7 @@ export interface ChatMessageRecord {
   id: number
   role: 'user' | 'assistant'
   content: string
+  stream_events?: Array<{ type: string; [key: string]: unknown }> | null
 }
 
 export class ChatHistoryAPI {
@@ -631,7 +632,7 @@ export class ChatHistoryAPI {
 
   static async appendMessages(
     resumeId: number,
-    messages: { role: string; content: string }[]
+    messages: { role: string; content: string; stream_events?: unknown }[]
   ): Promise<ChatMessageRecord[]> {
     const token = localStorage.getItem('access_token')
     const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
