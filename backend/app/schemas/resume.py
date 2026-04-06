@@ -1,74 +1,403 @@
 """
 简历相关数据模式
 
-定义简历创建、更新、查询等相关的Pydantic模式。
-包括简历内容验证和API数据交换格式。
+为 AI 编辑提供更稳定的结构：
+- 强类型文档 schema
+- 数组项稳定 id
+- summary / highlights 友好的字段设计
+- 兼容旧版 description / duration 数据
 """
 
-from typing import Optional, Dict, Any
+from __future__ import annotations
+
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Any, Optional
+from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _stable_id(prefix: str) -> str:
+    return f"{prefix}_{uuid4().hex[:12]}"
+
+
+def _parse_json_if_needed(value: Any) -> Any:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return value
+        if stripped.startswith("{") or stripped.startswith("["):
+            try:
+                import json
+
+                return json.loads(stripped)
+            except Exception:
+                return value
+    return value
+
+
+def _split_text_items(value: str) -> list[str]:
+    normalized = value.replace("；", "\n").replace("•", "\n").replace("·", "\n")
+    parts = [item.strip(" -\n\t\r") for item in normalized.splitlines()]
+    return [item for item in parts if item]
+
+
+class ResumeBaseModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+class ResumeLink(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("link"))
+    label: str = ""
+    url: str = ""
+
+
+class ResumeHighlight(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("hl"))
+    text: str = ""
+
+
+class ResumeMeta(ResumeBaseModel):
+    schema_version: str = "2.0"
+    language: str = "zh-CN"
+    target_role: str = ""
+
+
+class JobApplication(ResumeBaseModel):
+    target_title: str = ""
+    target_company: str = ""
+    jd_text: str = ""
+    strategy: str = ""
+
+
+class PersonalInfo(ResumeBaseModel):
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    position: str = ""
+    headline: str = ""
+    location: str = ""
+    github: str = ""
+    linkedin: str = ""
+    website: str = ""
+    address: str = ""
+    links: list[ResumeLink] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def populate_links(self) -> "PersonalInfo":
+        existing = {item.label.lower(): item for item in self.links}
+        for label, url in (
+            ("GitHub", self.github),
+            ("LinkedIn", self.linkedin),
+            ("Website", self.website),
+        ):
+            if url and label.lower() not in existing:
+                self.links.append(ResumeLink(label=label, url=url))
+        return self
+
+
+class Summary(ResumeBaseModel):
+    text: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def from_string(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return {"text": value}
+        return value
+
+
+class EducationItem(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("edu"))
+    school: str = ""
+    major: str = ""
+    degree: str = ""
+    duration: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    location: str = ""
+    gpa: str = ""
+    description: str = ""
+    highlights: list[ResumeHighlight] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def migrate_description(self) -> "EducationItem":
+        if self.description and not self.highlights:
+            self.highlights = [ResumeHighlight(text=self.description)]
+        return self
+
+
+class WorkExperienceItem(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("work"))
+    company: str = ""
+    position: str = ""
+    duration: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    is_current: bool = False
+    location: str = ""
+    employment_type: str = ""
+    description: str = ""
+    summary: str = ""
+    highlights: list[ResumeHighlight] = Field(default_factory=list)
+    technologies: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def migrate_description(self) -> "WorkExperienceItem":
+        if self.description and not self.highlights:
+            lines = [line.strip("• ").strip() for line in self.description.splitlines() if line.strip()]
+            if len(lines) > 1:
+                self.highlights = [ResumeHighlight(text=line) for line in lines]
+            elif lines and not self.summary:
+                self.summary = lines[0]
+        return self
+
+
+class SkillItem(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("skill"))
+    name: str = ""
+    level: str = ""
+    category: str = ""
+
+
+class ProjectItem(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("proj"))
+    name: str = ""
+    description: str = ""
+    summary: str = ""
+    technologies: list[str] = Field(default_factory=list)
+    role: str = ""
+    duration: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    github_url: str = ""
+    demo_url: str = ""
+    achievements: list[str] = Field(default_factory=list)
+    highlights: list[ResumeHighlight] = Field(default_factory=list)
+    links: list[ResumeLink] = Field(default_factory=list)
+
+    @field_validator("technologies", mode="before")
+    @classmethod
+    def ensure_technologies(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()]
+        return [str(value)]
+
+    @field_validator("achievements", mode="before")
+    @classmethod
+    def ensure_achievements(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()]
+        return [str(value)]
+
+    @model_validator(mode="after")
+    def migrate_fields(self) -> "ProjectItem":
+        if self.description and not self.summary:
+            self.summary = self.description
+        if self.achievements and not self.highlights:
+            self.highlights = [ResumeHighlight(text=item) for item in self.achievements]
+        existing = {item.label.lower(): item for item in self.links}
+        for label, url in (("GitHub", self.github_url), ("Demo", self.demo_url)):
+            if url and label.lower() not in existing:
+                self.links.append(ResumeLink(label=label, url=url))
+        return self
+
+
+class LanguageItem(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("lang"))
+    name: str = ""
+    level: str = ""
+
+
+class CustomSection(ResumeBaseModel):
+    id: str = Field(default_factory=lambda: _stable_id("section"))
+    title: str = ""
+    content: str = ""
+
+
+class ResumeContent(ResumeBaseModel):
+    meta: ResumeMeta = Field(default_factory=ResumeMeta)
+    parsing_quality: Optional[float] = None
+    parsing_method: Optional[str] = None
+    job_application: JobApplication = Field(default_factory=JobApplication)
+    personal_info: PersonalInfo = Field(default_factory=PersonalInfo)
+    summary: Summary = Field(default_factory=Summary)
+    education: list[EducationItem] = Field(default_factory=list)
+    work_experience: list[WorkExperienceItem] = Field(default_factory=list)
+    skills: list[SkillItem] = Field(default_factory=list)
+    projects: list[ProjectItem] = Field(default_factory=list)
+    languages: list[LanguageItem] = Field(default_factory=list)
+    custom_sections: list[CustomSection] = Field(default_factory=list)
+
+    @field_validator(
+        "meta",
+        "job_application",
+        "personal_info",
+        "summary",
+        mode="before",
+    )
+    @classmethod
+    def parse_object_json(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return {}
+        return parsed
+
+    @field_validator(
+        "education",
+        "work_experience",
+        "skills",
+        "projects",
+        "languages",
+        "custom_sections",
+        mode="before",
+    )
+    @classmethod
+    def parse_list_json(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return []
+        return parsed
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def normalize_skills(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return []
+        if isinstance(parsed, str):
+            return [
+                {"name": item, "level": "熟练", "category": "其他"}
+                for item in _split_text_items(parsed)
+            ]
+        return parsed
+
+    @field_validator("projects", mode="before")
+    @classmethod
+    def normalize_projects(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return []
+        if isinstance(parsed, str):
+            text = parsed.strip()
+            if not text:
+                return []
+            return [
+                {
+                    "name": "历史项目",
+                    "summary": text,
+                    "description": text,
+                    "role": "",
+                    "duration": "",
+                    "highlights": [{"text": item} for item in _split_text_items(text)],
+                }
+            ]
+        return parsed
+
+    @field_validator("work_experience", mode="before")
+    @classmethod
+    def normalize_work_experience(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return []
+        if isinstance(parsed, str):
+            text = parsed.strip()
+            if not text:
+                return []
+            return [
+                {
+                    "company": "",
+                    "position": "",
+                    "duration": "",
+                    "summary": text,
+                    "description": text,
+                    "highlights": [{"text": item} for item in _split_text_items(text)],
+                }
+            ]
+        return parsed
+
+    @field_validator("education", mode="before")
+    @classmethod
+    def normalize_education(cls, value: Any) -> Any:
+        parsed = _parse_json_if_needed(value)
+        if parsed in (None, ""):
+            return []
+        if isinstance(parsed, str):
+            text = parsed.strip()
+            if not text:
+                return []
+            return [
+                {
+                    "school": text,
+                    "major": "",
+                    "degree": "",
+                    "duration": "",
+                    "description": text,
+                }
+            ]
+        return parsed
 
 
 class ResumeCreate(BaseModel):
-    """简历创建模式
-
-    用于创建新简历时的数据验证，包含简历标题、内容和原始文件名。
-    """
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     title: str
-    content: Dict[str, Any]
+    content: ResumeContent
     original_filename: Optional[str] = None
 
 
 class ResumeUpdate(BaseModel):
-    """简历更新模式
-
-    用于更新现有简历时的数据验证，所有字段都是可选的。
-    """
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     title: Optional[str] = None
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[ResumeContent] = None
     original_filename: Optional[str] = None
 
 
 class ResumeResponse(BaseModel):
-    """简历响应模式
-
-    用于API返回简历数据，包含完整的简历信息和时间戳。
-    """
     id: int
     title: str
-    content: Dict[str, Any]
+    content: ResumeContent
     original_filename: Optional[str] = None
     owner_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OptimizationRequest(BaseModel):
-    """简历优化请求模式
-
-    用于提交简历优化请求，包含职位描述内容。
-    """
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     jd_content: str
 
 
 class OptimizationResponse(BaseModel):
-    """简历优化响应模式
-
-    用于返回简历优化结果，包含优化建议和相关信息。
-    """
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     resume_id: int
     jd_content: str
-    suggestions: Dict[str, Any]
+    suggestions: dict[str, Any]
     created_at: datetime
+
+
+class ResumeProposalResponse(BaseModel):
+    id: int
+    resume_id: int
+    user_message: str
+    section: Optional[str] = None
+    status: str
+    summary: Optional[str] = None
+    proposed_content: ResumeContent
+    proposed_patch: Optional[dict[str, Any]] = None
+    tool_calls: Optional[list[dict[str, Any]]] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    applied_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)

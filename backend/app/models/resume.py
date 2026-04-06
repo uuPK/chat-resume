@@ -27,6 +27,7 @@ class Resume(Base):
     owner = relationship("User", back_populates="resumes")
     optimization_records = relationship("OptimizationRecord", back_populates="resume")
     interview_sessions = relationship("InterviewSession", back_populates="resume")
+    proposals = relationship("ResumeProposal", back_populates="resume")
 
 
 class OptimizationRecord(Base):
@@ -64,3 +65,22 @@ class InterviewSession(Base):
 
     # Relationships
     resume = relationship("Resume", back_populates="interview_sessions")
+
+
+class ResumeProposal(Base):
+    __tablename__ = "resume_proposals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
+    user_message = Column(Text, nullable=False)
+    section = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="pending")  # pending, applied, rejected
+    summary = Column(Text, nullable=True)
+    proposed_content = Column(JSON, nullable=False)
+    proposed_patch = Column(JSON, nullable=True)
+    tool_calls = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+
+    resume = relationship("Resume", back_populates="proposals")

@@ -1,15 +1,20 @@
 'use client'
 
 interface Project {
-  id?: number
+  id?: string
   name: string
-  description: string
-  technologies: string[]
+  description?: string
+  summary?: string
+  technologies?: string[]
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements: string[]
+  achievements?: string[]
+  highlights?: Array<{
+    id?: string
+    text: string
+  }>
 }
 
 interface ProjectsPreviewProps {
@@ -47,6 +52,10 @@ const DemoIcon = () => (
 
 // 单个项目项组件
 export function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
+  const highlights = project.highlights && project.highlights.length > 0
+    ? project.highlights.map(item => item.text)
+    : (project.achievements || [])
+
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
       <div className="flex justify-between items-start mb-2">
@@ -93,18 +102,17 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
         </div>
       )}
 
-      {project.description && (
+      {(project.summary || project.description) && (
         <p className="text-sm text-gray-600 mb-2 leading-relaxed">
-          {project.description}
+          {project.summary || project.description}
         </p>
       )}
 
-      {/* 项目成果 */}
-      {project.achievements && project.achievements.length > 0 && (
+      {highlights.length > 0 && (
         <div className="mb-2">
           <span className="text-sm font-medium text-gray-700">主要成果:</span>
           <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
-            {project.achievements.map((achievement, achIndex) => (
+            {highlights.map((achievement, achIndex) => (
               <li key={achIndex}>{achievement}</li>
             ))}
           </ul>

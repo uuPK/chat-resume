@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { 
+import { useEffect, useState } from 'react'
+import {
   FolderIcon,
   PlusIcon,
   TrashIcon,
@@ -9,15 +9,23 @@ import {
   CalendarIcon
 } from '@heroicons/react/24/outline'
 
+interface Highlight {
+  id?: string
+  text: string
+}
+
 interface Project {
-  id?: number
+  id?: string
   name: string
-  description: string
+  description?: string
+  summary?: string
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements: string[]
+  achievements?: string[]
+  highlights?: Highlight[]
+  technologies?: string[]
 }
 
 interface ProjectsEditorProps {
@@ -25,66 +33,96 @@ interface ProjectsEditorProps {
   onChange: (data: Project[]) => void
 }
 
+function normalizeHighlights(project: Project): Highlight[] {
+  if (project.highlights && project.highlights.length > 0) {
+    return project.highlights
+  }
+  if (project.achievements && project.achievements.length > 0) {
+    return project.achievements.map((text, index) => ({
+      id: `${project.id || 'proj'}_hl_${index}`,
+      text
+    }))
+  }
+  return [{ id: `${project.id || 'proj'}_hl_0`, text: '' }]
+}
+
 export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
 
   useEffect(() => {
-    setProjectsList(Array.isArray(data) ? data : [])
+    const next = Array.isArray(data)
+      ? data.map((project, index) => ({
+          ...project,
+          id: project.id || `proj_${Date.now()}_${index}`,
+          summary: project.summary || project.description || '',
+          description: project.description || project.summary || '',
+          highlights: normalizeHighlights(project)
+        }))
+      : []
+    setProjectsList(next)
   }, [data])
 
+  const commit = (next: Project[]) => {
+    setProjectsList(next)
+    onChange(next.map(project => ({
+      ...project,
+      description: project.summary || project.description || '',
+      achievements: (project.highlights || []).map(item => item.text)
+    })))
+  }
+
   const addProject = () => {
-    const newProject: Project = {
-      id: Date.now(),
-      name: '',
-      description: '',
-      role: '',
-      duration: '',
-      github_url: '',
-      demo_url: '',
-      achievements: ['']
-    }
-    const newList = [...projectsList, newProject]
-    setProjectsList(newList)
-    onChange(newList)
+    commit([
+      ...projectsList,
+      {
+        id: `proj_${Date.now()}`,
+        name: '',
+        description: '',
+        summary: '',
+        role: '',
+        duration: '',
+        github_url: '',
+        demo_url: '',
+        achievements: [''],
+        highlights: [{ id: `hl_${Date.now()}`, text: '' }],
+        technologies: []
+      }
+    ])
   }
 
-  const removeProject = (id: number) => {
-    const newList = projectsList.filter(project => project.id !== id)
-    setProjectsList(newList)
-    onChange(newList)
+  const removeProject = (id: string) => {
+    commit(projectsList.filter(project => project.id !== id))
   }
 
-  const updateProject = (id: number, field: keyof Project, value: any) => {
-    const newList = projectsList.map(project => 
+  const updateProject = (id: string, field: keyof Project, value: unknown) => {
+    commit(projectsList.map(project => (
       project.id === id ? { ...project, [field]: value } : project
-    )
-    setProjectsList(newList)
-    onChange(newList)
+    )))
   }
 
-  const addAchievement = (projectId: number) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project) {
-      const newAchievements = [...project.achievements, '']
-      updateProject(projectId, 'achievements', newAchievements)
-    }
+  const addHighlight = (projectId: string) => {
+    const project = projectsList.find(item => item.id === projectId)
+    if (!project) return
+    updateProject(projectId, 'highlights', [
+      ...(project.highlights || []),
+      { id: `hl_${Date.now()}`, text: '' }
+    ])
   }
 
-  const updateAchievement = (projectId: number, achievementIndex: number, value: string) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project) {
-      const newAchievements = [...project.achievements]
-      newAchievements[achievementIndex] = value
-      updateProject(projectId, 'achievements', newAchievements)
-    }
+  const updateHighlight = (projectId: string, index: number, value: string) => {
+    const project = projectsList.find(item => item.id === projectId)
+    if (!project) return
+    const next = [...(project.highlights || [])]
+    next[index] = { ...next[index], text: value }
+    updateProject(projectId, 'highlights', next)
   }
 
-  const removeAchievement = (projectId: number, achievementIndex: number) => {
-    const project = projectsList.find(p => p.id === projectId)
-    if (project && project.achievements.length > 1) {
-      const newAchievements = project.achievements.filter((_, index) => index !== achievementIndex)
-      updateProject(projectId, 'achievements', newAchievements)
-    }
+  const removeHighlight = (projectId: string, index: number) => {
+    const project = projectsList.find(item => item.id === projectId)
+    if (!project) return
+    const current = project.highlights || []
+    if (current.length <= 1) return
+    updateProject(projectId, 'highlights', current.filter((_, itemIndex) => itemIndex !== index))
   }
 
   return (
@@ -133,7 +171,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
               </div>
 
               <div className="space-y-6">
-                {/* 基本信息 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -216,28 +253,26 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                   </div>
                 </div>
 
-                {/* 项目描述 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    项目描述 <span className="text-red-500">*</span>
+                    项目概述 <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    value={project.description}
-                    onChange={(e) => updateProject(project.id!, 'description', e.target.value)}
+                    value={project.summary || ''}
+                    onChange={(e) => updateProject(project.id!, 'summary', e.target.value)}
                     placeholder="简要描述项目背景、目标和主要功能..."
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   />
                 </div>
 
-                {/* 项目成果 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
                       项目成果与亮点 <span className="text-red-500">*</span>
                     </label>
                     <button
-                      onClick={() => addAchievement(project.id!)}
+                      onClick={() => addHighlight(project.id!)}
                       className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                     >
                       <PlusIcon className="w-3 h-3" />
@@ -245,19 +280,19 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {project.achievements && project.achievements.map((achievement, achievementIndex) => (
-                      <div key={achievementIndex} className="flex items-start space-x-2">
+                    {(project.highlights || []).map((highlight, highlightIndex) => (
+                      <div key={highlight.id || highlightIndex} className="flex items-start space-x-2">
                         <span className="text-gray-400 mt-2">•</span>
                         <textarea
-                          value={achievement}
-                          onChange={(e) => updateAchievement(project.id!, achievementIndex, e.target.value)}
+                          value={highlight.text}
+                          onChange={(e) => updateHighlight(project.id!, highlightIndex, e.target.value)}
                           placeholder="实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%"
                           rows={2}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                         />
-                        {project.achievements && project.achievements.length > 1 && (
+                        {(project.highlights || []).length > 1 && (
                           <button
-                            onClick={() => removeAchievement(project.id!, achievementIndex)}
+                            onClick={() => removeHighlight(project.id!, highlightIndex)}
                             className="text-red-600 hover:text-red-800 p-1 mt-1"
                           >
                             <TrashIcon className="w-4 h-4" />

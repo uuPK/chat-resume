@@ -1,12 +1,16 @@
 'use client'
 
 interface Education {
-  id?: number
+  id?: string
   school: string
   major: string
   degree: string
   duration: string
   description?: string
+  highlights?: Array<{
+    id?: string
+    text: string
+  }>
 }
 
 interface EducationPreviewProps {
@@ -16,6 +20,10 @@ interface EducationPreviewProps {
 
 // 单个教育项组件
 export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: number }) {
+  const highlights = edu.highlights && edu.highlights.length > 0
+    ? edu.highlights.map(item => item.text)
+    : []
+
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-3">
       <div className="flex justify-between items-start mb-1">
@@ -39,6 +47,14 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
         <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">
           {edu.description}
         </p>
+      )}
+
+      {highlights.length > 0 && (
+        <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+          {highlights.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ul>
       )}
     </div>
   )

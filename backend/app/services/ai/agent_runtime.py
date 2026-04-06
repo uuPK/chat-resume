@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from .chat_service import ChatService
 from app.prompts import AgentPromptSpec
@@ -77,38 +81,171 @@ class AgentRuntime:
         user_message: str,
         context: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        confirmation_queue: Optional[asyncio.Queue] = None,
     ) -> Iterable[Dict[str, Any]]:
-        """按阶段输出 Agent 执行事件。"""
+        """真正的上游流式转发：
+        - tool_call 轮次：积累完整响应后执行工具，期间发送工具进度事件
+        - 文本轮次：直接将上游 SSE delta token 转发给客户端
+        - confirmation_queue 不为 None 时，每个工具调用前暂停等待用户确认
+        """
         messages = self._build_messages(user_message, conversation_history)
         executed_tools: List[Dict[str, Any]] = []
 
         for _ in range(agent.max_iterations):
-            message = await self._next_message(agent, messages, context)
-            messages.append(message)
+            prompt_context = agent.prompt_context_builder(context)
+            system_prompt = agent.prompt_spec.render(**prompt_context)
+            defaults = agent.prompt_spec.model_defaults
 
-            if not message.get("tool_calls"):
-                final_text = message.get("content") or "已完成处理。"
-                async for chunk in self._stream_text(final_text):
+            accumulated_content = ""
+            # index -> {id, type, function: {name, arguments}}
+            accumulated_tool_calls: Dict[int, Dict[str, Any]] = {}
+
+            async for delta in self.chat_service.chat_completion_stream_deltas(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=agent.tools_schema,
+                temperature=defaults.get("temperature", 0.3),
+                max_tokens=defaults.get("max_tokens", 1500),
+            ):
+                # 同时积累 content 和 tool_calls（模型可能先输出分析文本再调用工具）
+                chunk = delta.get("content") or ""
+                if chunk:
+                    accumulated_content += chunk
                     yield {
                         "content": chunk,
                         "tool_calls": executed_tools,
                         "context": None,
                         "done": False,
                     }
+
+                for tc_delta in (delta.get("tool_calls") or []):
+                    idx = tc_delta.get("index", 0)
+                    if idx not in accumulated_tool_calls:
+                        accumulated_tool_calls[idx] = {
+                            "id": "",
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    tc = accumulated_tool_calls[idx]
+                    if tc_delta.get("id"):
+                        tc["id"] = tc_delta["id"]
+                    func = tc_delta.get("function") or {}
+                    tc["function"]["name"] += func.get("name") or ""
+                    tc["function"]["arguments"] += func.get("arguments") or ""
+
+            # --- 本轮 delta 读完，按是否有 tool_calls 决定后续 ---
+
+            if accumulated_tool_calls:
+                tool_calls_list = list(accumulated_tool_calls.values())
+                logger.debug(f"[run_stream] accumulated tool_calls: {json.dumps(tool_calls_list, ensure_ascii=False)}")
+                messages.append({
+                    "role": "assistant",
+                    "content": accumulated_content or None,
+                    "tool_calls": tool_calls_list,
+                })
+
+                tool_messages: List[Dict[str, Any]] = []
+
+                for tc in tool_calls_list:
+                    if confirmation_queue is not None:
+                        # ---- 需要用户确认：先执行工具拿到 diff，然后挂起等待 ----
+                        snapshot = deepcopy(context.get("resume_content"))
+                        tool_result = agent.tool_executor(tc, context)
+                        diff_summary = (
+                            tool_result.get("display_message") or "执行完成"
+                        )
+
+                        # 发送 pending 事件，前端展示 diff 并等待用户操作
+                        yield {
+                            "content": "",
+                            "tool_pending": True,
+                            "call_id": tc["id"],
+                            "tool_name": tool_result["tool_name"],
+                            "diff_summary": diff_summary,
+                            "tool_calls": executed_tools,
+                            "done": False,
+                        }
+
+                        # 挂起，等待确认信号（超时 5 分钟视为拒绝）
+                        try:
+                            confirmed = await asyncio.wait_for(
+                                confirmation_queue.get(), timeout=300
+                            )
+                        except asyncio.TimeoutError:
+                            confirmed = False
+
+                        if not confirmed:
+                            # 回滚 context 中对 resume_content 的修改
+                            if snapshot is not None:
+                                context["resume_content"] = snapshot
+                            tool_messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": json.dumps(
+                                    {"error": "用户拒绝了此修改", "success": False},
+                                    ensure_ascii=False,
+                                ),
+                            })
+                            yield {
+                                "content": "",
+                                "tool_rejected": True,
+                                "call_id": tc["id"],
+                                "tool_name": tool_result["tool_name"],
+                                "tool_calls": executed_tools,
+                                "done": False,
+                            }
+                        else:
+                            # 确认：变更已生效，记录到 executed_tools
+                            executed_tools.append({
+                                "name": tool_result["tool_name"],
+                                "result": diff_summary,
+                            })
+                            tool_messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": json.dumps(
+                                    tool_result["result"], ensure_ascii=False
+                                ),
+                            })
+                            qr_images = (
+                                [tool_result["qr_image"]]
+                                if tool_result.get("qr_image")
+                                else []
+                            )
+                            yield {
+                                "content": "",
+                                "tool_confirmed": True,
+                                "call_id": tc["id"],
+                                "tool_name": tool_result["tool_name"],
+                                "tool_calls": executed_tools,
+                                "qr_images": qr_images,
+                                "context": context,
+                                "done": False,
+                            }
+                    else:
+                        # ---- 无需确认：原有逻辑直接执行 ----
+                        tool_events = self._execute_tool_calls(agent, [tc], context)
+                        executed_tools.extend(tool_events["executed_tools"])
+                        tool_messages.extend(tool_events["tool_messages"])
+                        for stream_event in tool_events["stream_events"]:
+                            yield {
+                                "content": "",
+                                "tool_calls": executed_tools,
+                                "context": context,
+                                "done": False,
+                                **stream_event,
+                            }
+
+                messages.extend(tool_messages)
+                continue
+
+            if accumulated_content:
+                # 纯文本轮次：agent 完成
+                messages.append({"role": "assistant", "content": accumulated_content})
                 return
 
-            tool_events = self._execute_tool_calls(agent, message["tool_calls"], context)
-            executed_tools.extend(tool_events["executed_tools"])
-            messages.extend(tool_events["tool_messages"])
-
-            for stream_event in tool_events["stream_events"]:
-                yield {
-                    "content": "",
-                    "tool_calls": executed_tools,
-                    "context": context,
-                    "done": False,
-                    **stream_event,
-                }
+            # 空响应，终止
+            break
 
     def _build_messages(
         self,
@@ -177,7 +314,3 @@ class AgentRuntime:
             "stream_events": stream_events,
         }
 
-    async def _stream_text(self, text: str, chunk_size: int = 24):
-        for i in range(0, len(text), chunk_size):
-            yield text[i : i + chunk_size]
-            await asyncio.sleep(0.02)

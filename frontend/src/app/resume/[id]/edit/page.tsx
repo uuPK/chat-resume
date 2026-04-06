@@ -34,7 +34,7 @@ import {
 } from '@/lib/resumeLayoutConfig'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import { useStreamingChat, ChatMessage } from '@/hooks/useStreamingChat'
+import { useStreamingChat, ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
 // 已移除错误的前端Gemini集成
 
 interface Resume {
@@ -42,9 +42,10 @@ interface Resume {
   title: string
   content: {
     job_application?: {
-      company?: string
-      position?: string
-      jd?: string
+      target_company?: string
+      target_title?: string
+      jd_text?: string
+      strategy?: string
     }
     personal_info?: {
       name?: string
@@ -54,36 +55,43 @@ interface Resume {
       github?: string
     }
     education?: Array<{
-      id?: number
+      id?: string
       school: string
       major: string
       degree: string
       duration: string
       description?: string
+      highlights?: Array<{ id?: string; text: string }>
     }>
     work_experience?: Array<{
-      id?: number
+      id?: string
       company: string
       position: string
       duration: string
-      description: string
+      description?: string
+      summary?: string
+      location?: string
+      employment_type?: string
+      highlights?: Array<{ id?: string; text: string }>
     }>
     skills?: Array<{
-      id?: number
+      id?: string
       name: string
       level: string
       category: string
     }>
     projects?: Array<{
-      id?: number
+      id?: string
       name: string
-      description: string
-      technologies: string[]
+      description?: string
+      summary?: string
+      technologies?: string[]
       role: string
       duration: string
       github_url?: string
       demo_url?: string
-      achievements: string[]
+      achievements?: string[]
+      highlights?: Array<{ id?: string; text: string }>
     }>
   }
   created_at: string
@@ -103,6 +111,25 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
   saving: { text: '自动保存中…', className: 'text-blue-600' },
   success: { text: '已自动保存', className: 'text-green-600' },
   error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
+}
+
+/** 将 diffSummary 文本解析为带颜色的 diff 行 */
+function parseDiffSummary(raw: string): Array<{ type: 'header' | 'remove' | 'add' | 'meta'; text: string }> {
+  const lines = raw.split('\n')
+  const result: Array<{ type: 'header' | 'remove' | 'add' | 'meta'; text: string }> = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    if (line.endsWith('修改摘要') || line.endsWith('新增') || line.endsWith('删除')) {
+      result.push({ type: 'header', text: line })
+    } else if (line.startsWith('改前：') || line.startsWith('  改前：')) {
+      result.push({ type: 'remove', text: '- ' + line.replace(/^\s*改前：/, '') })
+    } else if (line.startsWith('改后：') || line.startsWith('  改后：')) {
+      result.push({ type: 'add', text: '+ ' + line.replace(/^\s*改后：/, '') })
+    } else {
+      result.push({ type: 'meta', text: line })
+    }
+  }
+  return result
 }
 
 export default function ResumeEditPage() {
@@ -184,6 +211,7 @@ export default function ResumeEditPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [qrImages, setQrImages] = useState<string[]>([])
   const [isQrModalOpen, setIsQrModalOpen] = useState(false)
@@ -194,18 +222,16 @@ export default function ResumeEditPage() {
 
   const resumeId = params?.id as string
 
-  // 调试信息
-  console.log('Resume ID from params:', resumeId)
-  console.log('Parsed Resume ID:', parseInt(resumeId))
-  console.log('Current user:', user)
-
   // 流式聊天Hook
   const {
     isStreaming,
     currentStreamingMessage,
     currentToolCalls,
+    currentProposal,
+    streamEvents,
     sendStreamingMessage,
-    stopStreaming
+    stopStreaming,
+    confirmTool,
   } = useStreamingChat(parseInt(resumeId), {
     onMessage: (message) => {
       setMessages(prev => [...prev, message])
@@ -226,18 +252,14 @@ export default function ResumeEditPage() {
         setIsQrModalOpen(true)
       }
     },
-    onResumeUpdate: (resumeContent) => {
-      // AI 修改简历后，更新本地状态
+    onResumeUpdate: (content) => {
       setResume(prev => {
         if (!prev) return prev
-        const updated = {
-          ...prev,
-          content: resumeContent as Resume['content']
-        }
+        const updated = { ...prev, content: content as Resume['content'] }
         resumeRef.current = updated
         return updated
       })
-    }
+    },
   })
 
   useEffect(() => {
@@ -476,6 +498,163 @@ export default function ResumeEditPage() {
     }
   }
 
+  const updateMessageProposalStatus = (
+    messageId: string,
+    status: 'pending' | 'applied' | 'rejected'
+  ) => {
+    setMessages(prev =>
+      prev.map(message =>
+        message.id === messageId && message.proposal
+          ? { ...message, proposal: { ...message.proposal, proposalStatus: status } }
+          : message
+      )
+    )
+  }
+
+  const handleApplyProposal = async (message: ChatMessage) => {
+    if (!resume || !message.proposal) return
+
+    try {
+      setProposalActionLoadingId(message.proposal.proposalId)
+      const result = await resumeApi.applyResumeProposal(
+        resume.id,
+        message.proposal.proposalId
+      )
+      setResume(prev => {
+        if (!prev) return prev
+        const updated = {
+          ...prev,
+          content: result.proposed_content as Resume['content']
+        }
+        resumeRef.current = updated
+        return updated
+      })
+      updateMessageProposalStatus(message.id, 'applied')
+      toast.success('已应用这次修改')
+    } catch (error) {
+      console.error('Apply proposal failed:', error)
+      toast.error(error instanceof Error ? error.message : '应用修改失败')
+    } finally {
+      setProposalActionLoadingId(null)
+    }
+  }
+
+  const handleRejectProposal = (message: ChatMessage) => {
+    if (!message.proposal || !resume) return
+    setProposalActionLoadingId(message.proposal.proposalId)
+    resumeApi.rejectResumeProposal(resume.id, message.proposal.proposalId)
+      .then(() => {
+        updateMessageProposalStatus(message.id, 'rejected')
+        toast.success('已拒绝这次修改')
+      })
+      .catch((error) => {
+        console.error('Reject proposal failed:', error)
+        toast.error(error instanceof Error ? error.message : '拒绝修改失败')
+      })
+      .finally(() => {
+        setProposalActionLoadingId(null)
+      })
+  }
+
+  const renderProposalCard = (message: ChatMessage) => {
+    if (!message.proposal) return null
+
+    const status = message.proposal.proposalStatus
+    const isPending = status === 'pending'
+    const isLoadingProposal = proposalActionLoadingId === message.proposal.proposalId
+
+    const statusColor = status === 'applied'
+      ? 'border-green-200 bg-green-50'
+      : status === 'rejected'
+        ? 'border-gray-200 bg-gray-50'
+        : 'border-blue-200 bg-blue-50'
+
+    return (
+      <div className={`mt-3 rounded-lg border overflow-hidden ${statusColor}`}>
+        {/* 工具调用行 */}
+        {message.toolCalls && message.toolCalls.length > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 py-2 space-y-1">
+            {message.toolCalls.map((tool, index) => (
+              <div key={index} className="flex items-start gap-2 text-xs text-gray-600">
+                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-medium text-gray-700">{tool.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Proposal 头部 */}
+        <div className="px-3 py-2 flex items-center justify-between gap-3">
+          <div>
+            <div className={`text-sm font-medium ${
+              status === 'applied' ? 'text-green-900' : status === 'rejected' ? 'text-gray-500' : 'text-blue-900'
+            }`}>
+              {status === 'applied' ? '已接受修改' : status === 'rejected' ? '已拒绝修改' : '待确认修改'}
+            </div>
+            <div className="text-xs text-gray-400">Proposal #{message.proposal.proposalId}</div>
+          </div>
+
+          {isPending && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => handleApplyProposal(message)}
+                disabled={isLoadingProposal}
+                className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isLoadingProposal ? '应用中...' : '接受'}
+              </button>
+              <button
+                onClick={() => handleRejectProposal(message)}
+                disabled={isLoadingProposal}
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                拒绝
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Diff */}
+        {message.proposal.proposalPatch?.changes?.length ? (
+          <div className="px-3 pb-3 space-y-2">
+            {message.proposal.proposalPatch.changes.map((change, index) => (
+              <div key={`${change.section}-${index}`} className="rounded-md border border-blue-100 bg-white p-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                    {change.section}
+                    {change.item_label ? ` / ${change.item_label}` : ''}
+                    {change.field && change.field !== 'item' ? ` / ${change.field}` : ''}
+                  </div>
+                  <div className={`text-[10px] font-medium ${
+                    change.op === 'add' ? 'text-green-700' : change.op === 'remove' ? 'text-red-700' : 'text-blue-700'
+                  }`}>
+                    {change.op === 'add' ? '新增' : change.op === 'remove' ? '删除' : '修改'}
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <div className="mb-0.5 font-medium text-gray-400">改前</div>
+                    <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-600 leading-relaxed">
+                      {change.before || '空'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-0.5 font-medium text-gray-400">改后</div>
+                    <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-gray-800 leading-relaxed">
+                      {change.after || '空'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -485,10 +664,10 @@ export default function ResumeEditPage() {
 
 
 
-  // 自动滚动到底部
+  // 自动滚动到底部（新消息 + 流式 token 更新时均触发）
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, currentStreamingMessage])
 
   // 用于追踪登录成功是否已处理，避免重复触发
   const loginSuccessHandledRef = useRef(false)
@@ -818,17 +997,16 @@ export default function ResumeEditPage() {
                       >
                         {message.type === 'ai' ? (
                           <>
-                            {message.toolCalls && message.toolCalls.length > 0 && (
+                            {/* 有 proposal 时工具调用已合并进 proposal 卡片，不单独渲染 */}
+                            {!message.proposal && message.toolCalls && message.toolCalls.length > 0 && (
                               <div className="mb-3 space-y-2">
                                 {message.toolCalls.map((tool, index) => (
                                   <div key={index} className="bg-white border text-xs rounded-md overflow-hidden shadow-sm">
-                                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                        <span className="font-medium text-gray-700">工具调用: {tool.name}</span>
-                                      </div>
+                                    <div className="px-3 py-2 bg-gray-50 border-b flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                      <span className="font-medium text-gray-700">{tool.name}</span>
                                     </div>
-                                    <div className="px-3 py-2 text-gray-600 bg-white font-mono break-all whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                    <div className="px-3 py-2 text-gray-600 bg-white text-xs leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
                                       {tool.result}
                                     </div>
                                   </div>
@@ -836,6 +1014,7 @@ export default function ResumeEditPage() {
                               </div>
                             )}
                             <MarkdownMessage content={message.content} />
+                            {renderProposalCard(message)}
                           </>
                         ) : (
                           <span className="text-sm">{message.content}</span>
@@ -843,34 +1022,96 @@ export default function ResumeEditPage() {
                       </div>
                     </div>
                   ))}
-                  {/* 流式传输中的消息 */}
-                  {isStreaming && (currentStreamingMessage || (currentToolCalls && currentToolCalls.length > 0)) && (
+                  {/* 流式传输中的消息（按事件顺序渲染） */}
+                  {isStreaming && streamEvents.length > 0 && (
                     <div className="flex w-full justify-start">
                       <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
-                        {currentToolCalls && currentToolCalls.length > 0 && (
-                          <div className="mb-3 space-y-2">
-                            {currentToolCalls.map((tool, index) => (
-                              <div key={index} className="bg-white border text-xs rounded-md overflow-hidden shadow-sm">
-                                <div className="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                    <span className="font-medium text-gray-700">工具调用: {tool.name}</span>
-                                  </div>
+                        {streamEvents.map((event: StreamEvent, idx: number) => {
+                          if (event.type === 'tool_pending') {
+                            const diffLines = parseDiffSummary(event.diffSummary)
+                            return (
+                              <div key={idx} className="mb-2 rounded-lg border border-amber-200 overflow-hidden text-xs">
+                                {/* 标题栏 */}
+                                <div className="px-3 py-2 bg-[#1e1e1e] flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                                  <span className="font-medium text-amber-300">{event.toolName}</span>
+                                  <span className="text-amber-500 ml-auto">待确认</span>
                                 </div>
-                                <div className="px-3 py-2 text-gray-600 bg-white font-mono break-all whitespace-pre-wrap max-h-40 overflow-y-auto">
-                                  {tool.result}
+                                {/* diff 内容区 */}
+                                <div className="bg-[#1e1e1e] px-0 py-1 font-mono">
+                                  {diffLines.map((l, i) => {
+                                    if (l.type === 'header') return (
+                                      <div key={i} className="px-3 py-0.5 text-[#858585]">{l.text}</div>
+                                    )
+                                    if (l.type === 'remove') return (
+                                      <div key={i} className="px-3 py-0.5 bg-[#3d1f1f] text-[#f88070] whitespace-pre-wrap">{l.text}</div>
+                                    )
+                                    if (l.type === 'add') return (
+                                      <div key={i} className="px-3 py-0.5 bg-[#1f3d2a] text-[#89d185] whitespace-pre-wrap">{l.text}</div>
+                                    )
+                                    return (
+                                      <div key={i} className="px-3 py-0.5 text-[#9cdcfe] whitespace-pre-wrap">{l.text}</div>
+                                    )
+                                  })}
+                                </div>
+                                {/* 操作按钮 */}
+                                <div className="px-3 py-2 bg-[#252526] border-t border-[#333] flex gap-2">
+                                  <button
+                                    onClick={() => confirmTool(event.callId, true)}
+                                    className="flex-1 rounded-md bg-blue-600 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                                  >
+                                    确认修改
+                                  </button>
+                                  <button
+                                    onClick={() => confirmTool(event.callId, false)}
+                                    className="flex-1 rounded-md border border-[#555] bg-[#2d2d2d] py-1.5 text-xs font-medium text-gray-300 hover:bg-[#3a3a3a]"
+                                  >
+                                    拒绝
+                                  </button>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        <StreamingMessage content={currentStreamingMessage} isComplete={false} />
+                            )
+                          }
+                          if (event.type === 'tool_confirmed') {
+                            return (
+                              <div key={idx} className="mb-1 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 flex items-center gap-2 text-xs text-green-700">
+                                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                <span className="font-medium">{event.toolName}</span>
+                                <span className="text-green-500 ml-auto">已应用</span>
+                              </div>
+                            )
+                          }
+                          if (event.type === 'tool_rejected') {
+                            return (
+                              <div key={idx} className="mb-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 flex items-center gap-2 text-xs text-gray-400">
+                                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                <span className="font-medium">{event.toolName}</span>
+                                <span className="ml-auto">已拒绝</span>
+                              </div>
+                            )
+                          }
+                          if (event.type === 'tool') {
+                            return (
+                              <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+                                <span>{event.name}</span>
+                              </div>
+                            )
+                          }
+                          // text event
+                          const isLastEvent = idx === streamEvents.length - 1
+                          return (
+                            <div key={idx} className={idx > 0 ? 'mt-2' : ''}>
+                              <StreamingMessage content={event.content} isComplete={!isLastEvent} />
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
 
                   {/* 等待响应动画 */}
-                  {(isSending || isStreaming) && !currentStreamingMessage && (
+                  {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
                       <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm text-sm">
                         <div className="flex items-center space-x-1">

@@ -57,39 +57,44 @@ interface PersonalInfo {
 }
 
 interface Education {
-  id?: number
+  id?: string
   school: string
   major: string
   degree: string
   duration: string
   description?: string
+  highlights?: Array<{ id?: string; text: string }>
 }
 
 interface WorkExperience {
-  id?: number
+  id?: string
   company: string
   position: string
   duration: string
-  description: string
+  description?: string
+  summary?: string
+  highlights?: Array<{ id?: string; text: string }>
 }
 
 interface Skill {
-  id?: number
+  id?: string
   name: string
   level: string
   category: string
 }
 
 interface Project {
-  id?: number
+  id?: string
   name: string
-  description: string
-  technologies: string[]
+  description?: string
+  summary?: string
+  technologies?: string[]
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements: string[]
+  achievements?: string[]
+  highlights?: Array<{ id?: string; text: string }>
 }
 
 interface ResumeContent {

@@ -4,9 +4,10 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 
 interface JobApplicationData {
-  company?: string
-  position?: string
-  jd?: string
+  target_company?: string
+  target_title?: string
+  jd_text?: string
+  strategy?: string
 }
 
 interface JobApplicationEditorProps {
@@ -18,9 +19,10 @@ interface JobApplicationEditorProps {
 
 export default function JobApplicationEditor({ data, onChange, resumeTitle, onTitleChange }: JobApplicationEditorProps) {
   const [formData, setFormData] = useState<JobApplicationData>({
-    company: data.company || '',
-    position: data.position || '',
-    jd: data.jd || ''
+    target_company: data.target_company || '',
+    target_title: data.target_title || '',
+    jd_text: data.jd_text || '',
+    strategy: data.strategy || ''
   })
 
   const handleInputChange = (field: keyof JobApplicationData, value: string) => {
@@ -62,8 +64,8 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
           </label>
           <input
             type="text"
-            value={formData.company}
-            onChange={(e) => handleInputChange('company', e.target.value)}
+            value={formData.target_company || ''}
+            onChange={(e) => handleInputChange('target_company', e.target.value)}
             placeholder="请输入目标公司名称"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -75,8 +77,8 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
           </label>
           <input
             type="text"
-            value={formData.position}
-            onChange={(e) => handleInputChange('position', e.target.value)}
+            value={formData.target_title || ''}
+            onChange={(e) => handleInputChange('target_title', e.target.value)}
             placeholder="请输入目标岗位名称"
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -87,10 +89,23 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             职位描述 (JD)
           </label>
           <textarea
-            value={formData.jd}
-            onChange={(e) => handleInputChange('jd', e.target.value)}
+            value={formData.jd_text || ''}
+            onChange={(e) => handleInputChange('jd_text', e.target.value)}
             placeholder="请粘贴完整的职位描述，包括岗位职责、任职要求等信息"
             rows={12}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            优化策略备注
+          </label>
+          <textarea
+            value={formData.strategy || ''}
+            onChange={(e) => handleInputChange('strategy', e.target.value)}
+            placeholder="例如：优先突出后端性能优化、强调 AI 项目经验、突出量化结果"
+            rows={4}
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
         </div>

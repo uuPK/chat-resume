@@ -10,7 +10,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
+from copy import deepcopy
+from uuid import uuid4
 from app.services.ai import ChatService, ResumeAgent
+from app.services.ai.session_manager import confirmation_manager
 from app.services.core import ResumeService
 from app.core.database import get_db
 from app.api.deps import get_current_user
@@ -34,6 +37,12 @@ class ChatRequest(BaseModel):
     )
 
 
+class ConfirmToolRequest(BaseModel):
+    session_id: str
+    call_id: str
+    confirmed: bool
+
+
 class ChatResponse(BaseModel):
     """聊天响应模型"""
 
@@ -41,6 +50,145 @@ class ChatResponse(BaseModel):
     service: str = "openrouter"
     is_configured: bool = True
     tool_calls: list = []  # 工具调用列表
+    proposal_id: int | None = None
+    proposal_status: str | None = None
+    proposal_patch: dict | None = None
+
+
+def _truncate_text(value: Any, max_length: int = 220) -> str:
+    if isinstance(value, list):
+        # highlights / achievements 等 [{id, text}, ...] 结构 → 提取纯文本
+        if value and all(isinstance(i, dict) and "text" in i for i in value):
+            text = " | ".join(i["text"] for i in value if i.get("text"))
+        else:
+            text = json.dumps(value, ensure_ascii=False)
+    elif not isinstance(value, str):
+        text = json.dumps(value, ensure_ascii=False)
+    else:
+        text = value
+    text = text.replace("\n", " ")
+    return text if len(text) <= max_length else text[: max_length - 1] + "…"
+
+
+def _extract_item_label(item: Any) -> str:
+    if not isinstance(item, dict):
+        return _truncate_text(item, 80)
+    for key in ("name", "company", "school", "title", "position", "category"):
+        value = item.get(key)
+        if value:
+            return str(value)
+    return item.get("id", "未命名项")
+
+
+def _build_object_changes(section: str, before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for key in sorted(set(before.keys()) | set(after.keys())):
+        if before.get(key) != after.get(key):
+            changes.append(
+                {
+                    "section": section,
+                    "op": "update",
+                    "field": key,
+                    "before": _truncate_text(before.get(key, "空")),
+                    "after": _truncate_text(after.get(key, "空")),
+                }
+            )
+    return changes
+
+
+def _build_list_changes(section: str, before: list[Any], after: list[Any]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    before_map = {
+        str(item.get("id")): item
+        for item in before
+        if isinstance(item, dict) and item.get("id")
+    }
+    after_map = {
+        str(item.get("id")): item
+        for item in after
+        if isinstance(item, dict) and item.get("id")
+    }
+
+    for item_id in sorted(set(before_map.keys()) | set(after_map.keys())):
+        before_item = before_map.get(item_id)
+        after_item = after_map.get(item_id)
+        item_label = _extract_item_label(after_item or before_item)
+        if before_item is None and after_item is not None:
+            changes.append(
+                {
+                    "section": section,
+                    "op": "add",
+                    "item_id": item_id,
+                    "item_label": item_label,
+                    "field": "item",
+                    "before": "空",
+                    "after": _truncate_text(after_item),
+                }
+            )
+            continue
+        if before_item is not None and after_item is None:
+            changes.append(
+                {
+                    "section": section,
+                    "op": "remove",
+                    "item_id": item_id,
+                    "item_label": item_label,
+                    "field": "item",
+                    "before": _truncate_text(before_item),
+                    "after": "空",
+                }
+            )
+            continue
+        if before_item != after_item and before_item and after_item:
+            for field in sorted(set(before_item.keys()) | set(after_item.keys())):
+                if before_item.get(field) != after_item.get(field):
+                    changes.append(
+                        {
+                            "section": section,
+                            "op": "update",
+                            "item_id": item_id,
+                            "item_label": item_label,
+                            "field": field,
+                            "before": _truncate_text(before_item.get(field, "空")),
+                            "after": _truncate_text(after_item.get(field, "空")),
+                        }
+                    )
+
+    if not changes and before != after:
+        changes.append(
+            {
+                "section": section,
+                "op": "update",
+                "field": "list",
+                "before": _truncate_text(before),
+                "after": _truncate_text(after),
+            }
+        )
+    return changes
+
+
+def _build_proposal_patch(before: Dict[str, Any], after: Dict[str, Any]) -> dict[str, Any]:
+    changes: list[dict[str, Any]] = []
+    for key in sorted(set(before.keys()) | set(after.keys())):
+        before_value = before.get(key)
+        after_value = after.get(key)
+        if before_value == after_value:
+            continue
+        if isinstance(before_value, dict) and isinstance(after_value, dict):
+            changes.extend(_build_object_changes(key, before_value, after_value))
+        elif isinstance(before_value, list) and isinstance(after_value, list):
+            changes.extend(_build_list_changes(key, before_value, after_value))
+        else:
+            changes.append(
+                {
+                    "section": key,
+                    "op": "update",
+                    "field": "value",
+                    "before": _truncate_text(before_value if before_value is not None else "空"),
+                    "after": _truncate_text(after_value if after_value is not None else "空"),
+                }
+            )
+    return {"changes": changes}
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -80,6 +228,7 @@ async def chat_with_resume(
         resume_dict: Dict[str, Any] = cast(
             Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
         )
+        original_resume = deepcopy(resume_dict)
 
         # 使用简历优化 Agent（支持工具调用）
         agent = ResumeAgent()
@@ -89,30 +238,44 @@ async def chat_with_resume(
             conversation_history=chat_request.chat_history,
         )
 
-        # 检查是否有简历更新
-        if isinstance(ai_result, dict) and "resume_content" in ai_result:
-            logger.info(f"检测到简历更新，正在保存... 简历ID: {chat_request.resume_id}")
-            try:
-                updated_content = ai_result["resume_content"]
-                resume_service.update(
-                    chat_request.resume_id, {"content": updated_content}
-                )
-                logger.info("简历更新保存成功")
-            except Exception as e:
-                logger.error(f"保存简历更新失败: {e}")
-
         content = (
             ai_result.get("content") if isinstance(ai_result, dict) else str(ai_result)
         )
         tool_calls = (
             ai_result.get("tool_calls", []) if isinstance(ai_result, dict) else []
         )
+        proposal_id = None
+        proposal_status = None
+        proposal_patch = None
+
+        if isinstance(ai_result, dict) and ai_result.get("resume_content") != original_resume:
+            updated_content = ai_result["resume_content"]
+            proposal_patch = _build_proposal_patch(original_resume, updated_content)
+            section = (
+                proposal_patch["changes"][0]["section"]
+                if proposal_patch.get("changes")
+                else None
+            )
+            proposal = resume_service.create_proposal(
+                resume_id=chat_request.resume_id,
+                user_message=chat_request.message,
+                proposed_content=updated_content,
+                summary=content,
+                section=section,
+                proposed_patch=proposal_patch,
+                tool_calls=tool_calls,
+            )
+            proposal_id = proposal.id
+            proposal_status = proposal.status
 
         return ChatResponse.model_construct(
             response=content,
             service="openrouter",
             is_configured=True,
             tool_calls=tool_calls,
+            proposal_id=proposal_id,
+            proposal_status=proposal_status,
+            proposal_patch=proposal_patch,
         )
 
     except HTTPException:
@@ -139,24 +302,26 @@ async def chat_with_resume_stream(
     logger.info(f"用户消息: {chat_request.message}")
 
     agent = ResumeAgent()
+    session_id = uuid4().hex
+    confirmation_queue = confirmation_manager.create(session_id)
 
     async def generate_stream():
         try:
+            # 先发送 session_id，前端确认时需要
+            yield f"data: {json.dumps({'session_id': session_id, 'content': '', 'done': False}, ensure_ascii=False)}\n\n"
+
             # 获取用户真实简历数据
             resume_service = ResumeService(db)
             resume = resume_service.get_by_id(chat_request.resume_id)
 
-            # 验证简历存在性和用户权限
             if not resume:
                 error_data = {"error": "简历不存在", "done": True}
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
                 return
 
-            # 调试信息
             logger.debug(f"Stream Resume ID: {chat_request.resume_id}")
             logger.debug(f"Stream Resume owner_id: {resume.owner_id}")
             logger.debug(f"Stream Current user ID: {current_user['id']}")
-            logger.debug(f"Stream Current user: {current_user}")
 
             if resume.owner_id != current_user["id"]:
                 error_data = {
@@ -166,45 +331,64 @@ async def chat_with_resume_stream(
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
                 return
 
-            # 使用真实简历数据
-            # 显式类型转换：resume.content 是 Column[JSON] 但运行时是 dict
             resume_dict: Dict[str, Any] = cast(
                 Dict[str, Any],
                 resume.content if isinstance(resume.content, dict) else {},
             )
 
-            # 调用简历优化 Agent 获取阶段流式回复
-            logger.debug("流式接口使用简历优化 Agent")
+            logger.debug("流式接口使用简历优化 Agent（逐工具确认模式）")
             latest_resume_content = None
+            original_resume = deepcopy(resume_dict)
+
             async for event in agent.optimize_stream(
                 user_message=chat_request.message,
                 resume_content=resume_dict,
                 conversation_history=chat_request.chat_history,
+                confirmation_queue=confirmation_queue,
             ):
                 if event.get("resume_content") is not None:
                     latest_resume_content = event["resume_content"]
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                # 过滤掉值为 None 的键，减少传输体积
+                payload = {k: v for k, v in event.items() if v is not None}
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-            if latest_resume_content is not None:
-                logger.info(
-                    f"检测到简历更新，正在保存... 简历ID: {chat_request.resume_id}"
+            # 如果有最终修改，直接持久化到简历，并存档 proposal
+            if latest_resume_content is not None and latest_resume_content != original_resume:
+                resume_service.update(
+                    chat_request.resume_id,
+                    {"content": latest_resume_content},
                 )
-                try:
-                    resume_service.update(
-                        chat_request.resume_id, {"content": latest_resume_content}
-                    )
-                    logger.info("简历更新保存成功")
-                except Exception as e:
-                    logger.error(f"保存简历更新失败: {e}")
+                proposal_patch = _build_proposal_patch(original_resume, latest_resume_content)
+                resume_service.create_proposal(
+                    resume_id=chat_request.resume_id,
+                    user_message=chat_request.message,
+                    proposed_content=latest_resume_content,
+                    summary="已通过逐步确认完成的简历修改",
+                    section=(
+                        proposal_patch["changes"][0]["section"]
+                        if proposal_patch.get("changes")
+                        else None
+                    ),
+                    proposed_patch=proposal_patch,
+                    tool_calls=[],
+                )
 
-            # 发送结束标记
-            end_data = {"content": "", "qr_images": [], "tool_calls": [], "done": True}
+            # 发送结束标记，附带最终简历内容用于刷新预览
+            end_data: Dict[str, Any] = {
+                "content": "",
+                "qr_images": [],
+                "tool_calls": [],
+                "done": True,
+            }
+            if latest_resume_content is not None:
+                end_data["resume_content"] = latest_resume_content
             yield f"data: {json.dumps(end_data, ensure_ascii=False)}\n\n"
 
         except Exception as e:
-            # 发送错误信息
             error_data = {"error": f"AI服务暂时不可用: {str(e)}", "done": True}
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+        finally:
+            confirmation_manager.remove(session_id)
 
     return StreamingResponse(
         generate_stream(),
@@ -216,6 +400,21 @@ async def chat_with_resume_stream(
             "Access-Control-Allow-Headers": "*",
         },
     )
+
+
+@router.post("/chat/confirm-tool")
+async def confirm_tool(
+    request: ConfirmToolRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """接收前端对某个工具调用的确认或拒绝信号。"""
+    ok = await confirmation_manager.put(request.session_id, request.confirmed)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {request.session_id} 不存在或已过期",
+        )
+    return {"ok": True}
 
 
 @router.get("/status")

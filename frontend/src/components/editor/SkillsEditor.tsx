@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 interface Skill {
-  id?: number
+  id?: string
   name: string
   level: string
   category: string
@@ -53,14 +53,14 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     const safeData = Array.isArray(data) ? data : []
     const normalizedSkills = safeData.map((skill, index) => ({
       ...skill,
-      id: typeof skill.id === 'number' ? skill.id : Date.now() + index
+      id: skill.id || `skill_${Date.now()}_${index}`
     }))
     setSkillsList(normalizedSkills)
   }, [data])
 
   const addSkill = (category?: string) => {
     const newSkill: Skill = {
-      id: Date.now(),
+      id: `skill_${Date.now()}`,
       name: '',
       level: '熟悉',
       category: category || '编程语言'
@@ -70,13 +70,13 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     onChange(newList)
   }
 
-  const removeSkill = (id: number) => {
+  const removeSkill = (id: string) => {
     const newList = skillsList.filter(skill => skill.id !== id)
     setSkillsList(newList)
     onChange(newList)
   }
 
-  const updateSkill = (id: number, field: keyof Skill, value: string) => {
+  const updateSkill = (id: string, field: keyof Skill, value: string) => {
     const newList = skillsList.map(skill => 
       skill.id === id ? { ...skill, [field]: value } : skill
     )

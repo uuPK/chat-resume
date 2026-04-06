@@ -23,9 +23,10 @@ interface Resume {
   title: string
   content: {
     job_application?: {
-      company?: string
-      position?: string
-      jd?: string
+      target_company?: string
+      target_title?: string
+      jd_text?: string
+      strategy?: string
     }
     personal_info?: any
     education?: any
@@ -193,9 +194,10 @@ export default function DashboardPage() {
       // 创建空白简历模板
       const emptyResumeContent = {
         job_application: {
-          company: '',
-          position: '',
-          jd: ''
+          target_company: '',
+          target_title: '',
+          jd_text: '',
+          strategy: ''
         },
         personal_info: {
           name: '',
@@ -383,17 +385,17 @@ export default function DashboardPage() {
                           <BriefcaseIcon className="w-4 h-4 mr-1" />
                           <span>
                             投递岗位: {resume.content.job_application && (
-                              resume.content.job_application.company || resume.content.job_application.position
+                              resume.content.job_application.target_company || resume.content.job_application.target_title
                             ) && (
                               <>
-                                {resume.content.job_application.company && (
-                                  <span>{resume.content.job_application.company}</span>
+                                {resume.content.job_application.target_company && (
+                                  <span>{resume.content.job_application.target_company}</span>
                                 )}
-                                {resume.content.job_application.company && resume.content.job_application.position && (
+                                {resume.content.job_application.target_company && resume.content.job_application.target_title && (
                                   <span className="mx-1">•</span>
                                 )}
-                                {resume.content.job_application.position && (
-                                  <span>{resume.content.job_application.position}</span>
+                                {resume.content.job_application.target_title && (
+                                  <span>{resume.content.job_application.target_title}</span>
                                 )}
                               </>
                             )}

@@ -96,6 +96,8 @@ class ExportService:
                 )
                 if edu_text:
                     story.append(Paragraph(escape(edu_text), normal_style))
+                for highlight in self._build_highlight_texts(edu.get("highlights", [])):
+                    story.append(Paragraph(escape(highlight), normal_style))
             story.append(Spacer(1, 12))
 
         work_experience = resume_content.get("work_experience", [])
@@ -111,9 +113,13 @@ class ExportService:
                 )
                 if work_text:
                     story.append(Paragraph(escape(work_text), normal_style))
-                description = str(work.get("description", "")).strip()
+                description = str(
+                    work.get("summary", "") or work.get("description", "")
+                ).strip()
                 if description:
                     story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(work.get("highlights", [])):
+                    story.append(Paragraph(escape(highlight), normal_style))
                 story.append(Spacer(1, 6))
             story.append(Spacer(1, 12))
 
@@ -130,9 +136,15 @@ class ExportService:
                 project_name = str(project.get("name", "")).strip()
                 if project_name:
                     story.append(Paragraph(escape(project_name), normal_style))
-                description = str(project.get("description", "")).strip()
+                description = str(
+                    project.get("summary", "") or project.get("description", "")
+                ).strip()
                 if description:
                     story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(
+                    project.get("highlights", []) or project.get("achievements", [])
+                ):
+                    story.append(Paragraph(escape(highlight), normal_style))
                 story.append(Spacer(1, 6))
 
         doc.build(story)
@@ -200,6 +212,7 @@ class ExportService:
             <div class="item">
                 <div class="item-title">{escape(str(item.get("school", "")))}</div>
                 <div class="item-subtitle">{escape(self._join_parts([item.get("degree", ""), item.get("major", ""), item.get("duration", "")]))}</div>
+                {self._build_highlights_html(item.get("highlights", []))}
             </div>
             """
             for item in education
@@ -209,7 +222,8 @@ class ExportService:
             <div class="item">
                 <div class="item-title">{escape(str(item.get("company", "")))}</div>
                 <div class="item-subtitle">{escape(self._join_parts([item.get("position", ""), item.get("duration", "")]))}</div>
-                <div class="item-content">{escape(str(item.get("description", "")).strip())}</div>
+                <div class="item-content">{escape(str(item.get("summary", "") or item.get("description", "")).strip())}</div>
+                {self._build_highlights_html(item.get("highlights", []))}
             </div>
             """
             for item in work_experience
@@ -222,7 +236,8 @@ class ExportService:
             <div class="item">
                 <div class="item-title">{escape(str(item.get("name", "")))}</div>
                 <div class="item-subtitle">{escape(self._join_parts([item.get("role", ""), item.get("duration", "")]))}</div>
-                <div class="item-content">{escape(str(item.get("description", "")).strip())}</div>
+                <div class="item-content">{escape(str(item.get("summary", "") or item.get("description", "")).strip())}</div>
+                {self._build_highlights_html(item.get("highlights", []) or item.get("achievements", []))}
             </div>
             """
             for item in projects
@@ -290,6 +305,13 @@ class ExportService:
         .item-content {{
             margin-top: 5px;
             white-space: pre-wrap;
+        }}
+        .item-highlights {{
+            margin: 8px 0 0 18px;
+            padding: 0;
+        }}
+        .item-highlight {{
+            margin-top: 4px;
         }}
         .skills {{
             display: flex;
@@ -361,6 +383,30 @@ class ExportService:
             if label:
                 values.append(str(label))
         return values
+
+    def _build_highlight_texts(self, highlights: list[Any]) -> list[str]:
+        """将高亮点统一成文本列表。"""
+
+        values = []
+        for item in highlights:
+            if isinstance(item, dict):
+                label = item.get("text", "")
+            else:
+                label = item
+            if label:
+                values.append(f"• {str(label).strip()}")
+        return values
+
+    def _build_highlights_html(self, highlights: list[Any]) -> str:
+        """构建高亮点 HTML。"""
+
+        values = self._build_highlight_texts(highlights)
+        if not values:
+            return ""
+        items = "".join(
+            f'<li class="item-highlight">{escape(value)}</li>' for value in values
+        )
+        return f'<ul class="item-highlights">{items}</ul>'
 
     def _join_parts(self, parts: list[Any]) -> str:
         """拼接非空文本。"""

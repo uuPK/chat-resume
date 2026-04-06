@@ -8,7 +8,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 interface Education {
-  id?: number
+  id?: string
   school: string
   major: string
   degree: string
@@ -31,7 +31,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
 
   const addEducation = () => {
     const newEducation: Education = {
-      id: Date.now(),
+      id: `edu_${Date.now()}`,
       school: '',
       major: '',
       degree: '',
@@ -44,13 +44,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     onChange(newList)
   }
 
-  const removeEducation = (id: number) => {
+  const removeEducation = (id: string) => {
     const newList = educationList.filter(edu => edu.id !== id)
     setEducationList(newList)
     onChange(newList)
   }
 
-  const updateEducation = (id: number, field: keyof Education, value: string) => {
+  const updateEducation = (id: string, field: keyof Education, value: string) => {
     const newList = educationList.map(edu => 
       edu.id === id ? { ...edu, [field]: value } : edu
     )

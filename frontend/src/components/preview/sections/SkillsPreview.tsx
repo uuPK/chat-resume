@@ -1,7 +1,7 @@
 'use client'
 
 interface Skill {
-  id?: number
+  id?: string
   name: string
   level: string
   category: string

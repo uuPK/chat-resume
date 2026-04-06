@@ -140,6 +140,46 @@ class ChatService:
         except Exception as e:
             raise Exception(f"AI服务请求异常: {str(e)}")
 
+    async def chat_completion_stream_deltas(
+        self,
+        messages: List[Dict[str, Any]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        system_prompt: Optional[str] = None,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """流式聊天，产出解析后的 delta 对象（同时支持 content 和 tool_calls）"""
+        import json as _json
+
+        if system_prompt:
+            if not messages or messages[0].get("role") != "system":
+                messages = [{"role": "system", "content": system_prompt}] + messages
+
+        payload = self._build_payload(messages, temperature, max_tokens, stream=True, tools=tools)
+        url = self._get_endpoint_url()
+
+        try:
+            async with self.client.stream(
+                "POST", url, json=payload, headers=self.headers, timeout=120.0
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:]
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = _json.loads(data)
+                        delta = chunk["choices"][0].get("delta", {})
+                        yield delta
+                    except (KeyError, IndexError, _json.JSONDecodeError):
+                        continue
+        except httpx.HTTPStatusError as e:
+            raise Exception(f"AI服务请求失败: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            raise Exception(f"AI服务请求异常: {str(e)}")
+
     def _build_payload(
         self,
         messages: List[Dict[str, str]],

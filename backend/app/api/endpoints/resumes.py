@@ -9,7 +9,12 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.resume import ResumeCreate, ResumeResponse, ResumeUpdate
+from app.schemas.resume import (
+    ResumeCreate,
+    ResumeProposalResponse,
+    ResumeResponse,
+    ResumeUpdate,
+)
 from app.services.core import ResumeService
 from app.api.deps import get_current_user
 
@@ -130,3 +135,85 @@ async def delete_resume(
         )
 
     return {"message": "Resume deleted successfully"}
+
+
+@router.get("/{resume_id}/proposals", response_model=List[ResumeProposalResponse])
+async def get_resume_proposals(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
+    proposals = resume_service.get_proposals_by_resume(resume_id)
+    return [ResumeProposalResponse.model_validate(item) for item in proposals]
+
+
+@router.post("/{resume_id}/proposals/{proposal_id}/apply", response_model=ResumeProposalResponse)
+async def apply_resume_proposal(
+    resume_id: int,
+    proposal_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
+    proposal = resume_service.get_proposal(proposal_id)
+    if not proposal or proposal.resume_id != resume_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found"
+        )
+    applied = resume_service.apply_proposal(proposal_id)
+    if not applied:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to apply proposal",
+    )
+    return ResumeProposalResponse.model_validate(applied)
+
+
+@router.post("/{resume_id}/proposals/{proposal_id}/reject", response_model=ResumeProposalResponse)
+async def reject_resume_proposal(
+    resume_id: int,
+    proposal_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
+    proposal = resume_service.get_proposal(proposal_id)
+    if not proposal or proposal.resume_id != resume_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found"
+        )
+    rejected = resume_service.reject_proposal(proposal_id)
+    if not rejected:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reject proposal",
+        )
+    return ResumeProposalResponse.model_validate(rejected)

@@ -1,11 +1,16 @@
 'use client'
 
 interface WorkExperience {
-  id?: number
+  id?: string
   company: string
   position: string
   duration: string
-  description: string
+  description?: string
+  summary?: string
+  highlights?: Array<{
+    id?: string
+    text: string
+  }>
 }
 
 interface WorkExperiencePreviewProps {
@@ -15,6 +20,10 @@ interface WorkExperiencePreviewProps {
 
 // 单个工作经验项组件
 export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; lineIndex: number }) {
+  const highlights = work.highlights && work.highlights.length > 0
+    ? work.highlights.map(item => item.text)
+    : []
+
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
       <div className="flex justify-between items-start mb-1.5">
@@ -38,13 +47,16 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
         </div>
       </div>
 
-      {work.description && (
+      {(work.summary || work.description) && (
         <div className="text-sm text-gray-600 mt-2 leading-relaxed">
-          {work.description.split('\n').map((line, lineIndex) => (
-            <p key={lineIndex} className="mb-0.5">
-              {line}
-            </p>
-          ))}
+          <p className="mb-1">{work.summary || work.description}</p>
+          {highlights.length > 0 && (
+            <ul className="list-disc list-inside">
+              {highlights.map((line, itemIndex) => (
+                <li key={itemIndex} className="mb-0.5">{line}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

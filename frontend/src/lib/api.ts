@@ -1,56 +1,125 @@
 // 简历内容接口定义
+interface ResumeHighlight {
+  id?: string
+  text: string
+}
+
+interface ResumeLink {
+  id?: string
+  label: string
+  url: string
+}
+
+interface ResumeMeta {
+  schema_version?: string
+  language?: string
+  target_role?: string
+}
+
+interface JobApplication {
+  target_title?: string
+  target_company?: string
+  jd_text?: string
+  strategy?: string
+}
+
 interface PersonalInfo {
   name?: string
   email?: string
   phone?: string
   position?: string
+  headline?: string
+  location?: string
   github?: string
+  linkedin?: string
+  website?: string
+  address?: string
+  links?: ResumeLink[]
+}
+
+interface Summary {
+  text?: string
 }
 
 interface Education {
-  id?: number
+  id?: string
   school: string
   major: string
   degree: string
   duration: string
+  start_date?: string
+  end_date?: string
+  location?: string
+  gpa?: string
   description?: string
+  highlights?: ResumeHighlight[]
 }
 
 interface WorkExperience {
-  id?: number
+  id?: string
   company: string
   position: string
   duration: string
-  description: string
+  start_date?: string
+  end_date?: string
+  is_current?: boolean
+  location?: string
+  employment_type?: string
+  description?: string
+  summary?: string
+  highlights?: ResumeHighlight[]
+  technologies?: string[]
 }
 
 interface Skill {
-  id?: number
+  id?: string
   name: string
   level: string
   category: string
 }
 
 interface Project {
-  id?: number
+  id?: string
   name: string
-  description: string
-  technologies: string[]
+  description?: string
+  summary?: string
+  technologies?: string[]
   role: string
   duration: string
+  start_date?: string
+  end_date?: string
   github_url?: string
   demo_url?: string
-  achievements: string[]
+  achievements?: string[]
+  highlights?: ResumeHighlight[]
+  links?: ResumeLink[]
+}
+
+interface Language {
+  id?: string
+  name: string
+  level: string
+}
+
+interface CustomSection {
+  id?: string
+  title: string
+  content: string
 }
 
 interface ResumeContent {
+  meta?: ResumeMeta
   parsing_quality?: number
   parsing_method?: string
+  job_application?: JobApplication
   personal_info?: PersonalInfo
+  summary?: Summary
   education?: Education[]
   work_experience?: WorkExperience[]
   skills?: Skill[]
   projects?: Project[]
+  languages?: Language[]
+  custom_sections?: CustomSection[]
 }
 
 interface Resume {
@@ -77,6 +146,21 @@ interface ExportResponse {
   download_url: string
   filename: string
   format: string
+}
+
+interface ResumeProposal {
+  id: number
+  resume_id: number
+  user_message: string
+  section?: string
+  status: string
+  summary?: string
+  proposed_content: ResumeContent
+  proposed_patch?: Record<string, unknown>
+  tool_calls?: Array<{ name: string; result: string }>
+  created_at: string
+  updated_at?: string
+  applied_at?: string
 }
 
 // 面试相关类型
@@ -238,6 +322,35 @@ class ResumeAPI {
     })
 
     return handleApiResponse<ExportResponse>(response)
+  }
+
+  static async getResumeProposals(id: number): Promise<ResumeProposal[]> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<ResumeProposal[]>(response)
+  }
+
+  static async applyResumeProposal(id: number, proposalId: number): Promise<ResumeProposal> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals/${proposalId}/apply`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<ResumeProposal>(response)
+  }
+
+  static async rejectResumeProposal(id: number, proposalId: number): Promise<ResumeProposal> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals/${proposalId}/reject`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<ResumeProposal>(response)
   }
 }
 
