@@ -8,5 +8,5 @@ agent:
   system_prompt_args:
     resume_json: "{}"
   model_defaults:
-    temperature: 0.3
+    temperature: 0.7
     max_tokens: 1500

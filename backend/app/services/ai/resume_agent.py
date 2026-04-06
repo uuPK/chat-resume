@@ -1,26 +1,30 @@
 """
 简历优化 Agent
 
-使用 ReAct (推理+行动) 循环：模型自主决定是否调用工具、调用几次、何时停止。
-相比原来固定的 3 阶段流水线，减少了 LLM 调用次数，响应更快，决策更灵活。
+保留简历领域规则，通用执行逻辑由 AgentRuntime 负责。
 """
 
-import asyncio
 from typing import Any, Dict, List, Optional
 import json
-from .chat_service import ChatService
+from .agent_runtime import AgentDefinition, AgentRuntime
 from .resume_tools import ResumeTools
 from app.prompts import load_prompt
 
 
 class ResumeAgent:
-    """简历优化 Agent，基于 ReAct 循环自主执行"""
+    """简历优化 Agent，负责定义 prompt、工具和结果映射。"""
 
     def __init__(self):
-        self.chat_service = ChatService()
         self.tools = ResumeTools()
-        self.max_iterations = 6  # 防止无限循环
         self.prompt_spec = load_prompt("resume_agent")
+        self.runtime = AgentRuntime()
+        self.definition = AgentDefinition(
+            prompt_spec=self.prompt_spec,
+            tools_schema=self.tools.get_tools_schema(),
+            tool_executor=self._run_tool,
+            prompt_context_builder=self._build_prompt_context,
+            max_iterations=6,
+        )
 
     async def optimize(
         self,
@@ -28,54 +32,17 @@ class ResumeAgent:
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """ReAct 循环：思考 → 行动(可选) → 观察 → 思考 → ... → 最终回复"""
-        messages = self._build_messages(user_message, conversation_history)
-
-        executed_tools: List[Dict[str, Any]] = []
-        qr_images: List[str] = []
-        final_text = ""
-
-        defaults = self.prompt_spec.model_defaults
-        for _ in range(self.max_iterations):
-            system_prompt = self.prompt_spec.render(
-                resume_json=json.dumps(resume_content, ensure_ascii=False, indent=2)
-            )
-            response = await self.chat_service.chat_completion(
-                messages=messages,
-                system_prompt=system_prompt,
-                tools=self.tools.get_tools_schema(),
-                temperature=defaults.get("temperature", 0.3),
-                max_tokens=defaults.get("max_tokens", 1500),
-                stream=False,
-            )
-
-            message = response["choices"][0]["message"]
-            messages.append(message)
-
-            # 没有工具调用 → 模型已给出最终回复，循环结束
-            if not message.get("tool_calls"):
-                final_text = message.get("content") or "已完成处理。"
-                break
-
-            # 执行所有工具调用，将结果反馈给模型（Observe 阶段）
-            for tool_call in message["tool_calls"]:
-                tool_result = self._run_tool(tool_call, resume_content)
-                executed_tools.append({
-                    "name": tool_result["tool_name"],
-                    "result": tool_result["display_message"] or "执行完成",
-                })
-                if tool_result["qr_image"]:
-                    qr_images.append(tool_result["qr_image"])
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(tool_result["result"], ensure_ascii=False),
-                })
-
+        """执行一次简历优化循环。"""
+        runtime_result = await self.runtime.run(
+            agent=self.definition,
+            user_message=user_message,
+            context={"resume_content": resume_content},
+            conversation_history=conversation_history,
+        )
         return {
-            "content": final_text,
-            "qr_images": qr_images,
-            "tool_calls": executed_tools,
+            "content": runtime_result["content"],
+            "qr_images": self._collect_qr_images(runtime_result["tool_calls"]),
+            "tool_calls": runtime_result["tool_calls"],
             "resume_content": resume_content,
         }
 
@@ -86,83 +53,31 @@ class ResumeAgent:
         conversation_history: Optional[List[Dict[str, str]]] = None,
     ):
         """按阶段流式输出 Agent 执行过程。"""
-        messages = self._build_messages(user_message, conversation_history)
+        async for event in self.runtime.run_stream(
+            agent=self.definition,
+            user_message=user_message,
+            context={"resume_content": resume_content},
+            conversation_history=conversation_history,
+        ):
+            yield {
+                "content": event["content"],
+                "qr_images": event.get("qr_images", []),
+                "tool_calls": event["tool_calls"],
+                "resume_content": resume_content if event.get("context") is not None else None,
+                "done": event["done"],
+            }
 
-        executed_tools: List[Dict[str, Any]] = []
-        qr_images: List[str] = []
-
-        defaults = self.prompt_spec.model_defaults
-        for iteration in range(self.max_iterations):
-            system_prompt = self.prompt_spec.render(
-                resume_json=json.dumps(resume_content, ensure_ascii=False, indent=2)
-            )
-            response = await self.chat_service.chat_completion(
-                messages=messages,
-                system_prompt=system_prompt,
-                tools=self.tools.get_tools_schema(),
-                temperature=defaults.get("temperature", 0.3),
-                max_tokens=defaults.get("max_tokens", 1500),
-                stream=False,
-            )
-
-            message = response["choices"][0]["message"]
-            messages.append(message)
-
-            if not message.get("tool_calls"):
-                final_text = message.get("content") or "已完成处理。"
-                async for chunk in self._stream_text(final_text):
-                    yield {
-                        "content": chunk,
-                        "qr_images": [],
-                        "tool_calls": executed_tools,
-                        "resume_content": None,
-                        "done": False,
-                    }
-                break
-
-            for tool_call in message["tool_calls"]:
-                tool_result = self._run_tool(tool_call, resume_content)
-                executed_tools.append(
-                    {
-                        "name": tool_result["tool_name"],
-                        "result": tool_result["display_message"] or "执行完成",
-                    }
-                )
-                if tool_result["qr_image"]:
-                    qr_images.append(tool_result["qr_image"])
-
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call["id"],
-                        "content": json.dumps(tool_result["result"], ensure_ascii=False),
-                    }
-                )
-
-                yield {
-                    "content": "",
-                    "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
-                    "tool_calls": executed_tools,
-                    "resume_content": resume_content,
-                    "done": False,
-                }
-
-    def _build_messages(
-        self,
-        user_message: str,
-        conversation_history: Optional[List[Dict[str, str]]],
-    ) -> List[Dict[str, Any]]:
-        """构建消息列表"""
-        messages: List[Dict[str, Any]] = []
-        if conversation_history:
-            messages.extend(conversation_history[-6:])
-        messages.append({"role": "user", "content": user_message})
-        return messages
+    def _build_prompt_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        resume_content = context["resume_content"]
+        return {
+            "resume_json": json.dumps(resume_content, ensure_ascii=False, indent=2)
+        }
 
     def _run_tool(
-        self, tool_call: Dict[str, Any], resume_content: Dict[str, Any]
+        self, tool_call: Dict[str, Any], context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """执行单个工具调用并返回结构化结果"""
+        resume_content = context["resume_content"]
         tool_name = tool_call["function"]["name"]
         tool_args = json.loads(tool_call["function"]["arguments"])
         result = self.tools.execute_tool(
@@ -182,11 +97,9 @@ class ResumeAgent:
             ),
         }
 
-    async def _stream_text(self, text: str, chunk_size: int = 24):
-        """将最终回复切成小块，提升前端感知流式体验。"""
-        for i in range(0, len(text), chunk_size):
-            yield text[i : i + chunk_size]
-            await asyncio.sleep(0.02)
+    def _collect_qr_images(self, tool_calls: List[Dict[str, Any]]) -> List[str]:
+        """兼容旧返回结构，目前简历工具没有稳定产出二维码。"""
+        return []
 
     def _get_section_name(self, section_key: Optional[str]) -> Optional[str]:
         """将板块键转成中文名称。"""

@@ -7,10 +7,13 @@ AI服务模块
 from .interview_agent import InterviewAgent
 from .chat_service import ChatService
 from .resume_agent import ResumeAgent
+from .agent_runtime import AgentRuntime, AgentDefinition
 
 
 __all__ = [
     "InterviewAgent",
     "ChatService",
     "ResumeAgent",
+    "AgentRuntime",
+    "AgentDefinition",
 ]

@@ -1,13 +1,13 @@
 """
 面试Chatbot模块
 
-简单的AI面试对话服务，动态插入面试相关信息到提示词中。
+简单的AI面试对话服务，复用统一 AgentRuntime。
 """
 
-from typing import Optional, List, Dict
+from typing import Any, Dict, Optional, List
 from enum import Enum
 from pydantic import BaseModel
-from .chat_service import ChatService
+from .agent_runtime import AgentDefinition, AgentRuntime
 from app.prompts import load_prompt
 
 
@@ -42,8 +42,15 @@ class InterviewAgent:
     """AI面试官Chatbot"""
 
     def __init__(self):
-        self.chat_service = ChatService()
         self.prompt_spec = load_prompt("interview_agent")
+        self.runtime = AgentRuntime()
+        self.definition = AgentDefinition(
+            prompt_spec=self.prompt_spec,
+            tools_schema=[],
+            tool_executor=self._run_tool,
+            prompt_context_builder=self._build_prompt_context,
+            max_iterations=1,
+        )
 
     async def chat(
         self,
@@ -65,14 +72,26 @@ class InterviewAgent:
         Returns:
             AI回复
         """
-        system_prompt = self.prompt_spec.render(
-            job_title=job_title or "",
-            job_description=job_description or "",
-            resume_content=resume_content or "",
-        )
-
-        return await self.chat_service.chat_with_context(
-            message=message,
-            system_prompt=system_prompt,
+        runtime_result = await self.runtime.run(
+            agent=self.definition,
+            user_message=message,
+            context={
+                "job_title": job_title or "",
+                "job_description": job_description or "",
+                "resume_content": resume_content or "",
+            },
             conversation_history=conversation_history,
         )
+        return runtime_result["content"]
+
+    def _build_prompt_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "job_title": context.get("job_title", ""),
+            "job_description": context.get("job_description", ""),
+            "resume_content": context.get("resume_content", ""),
+        }
+
+    def _run_tool(
+        self, tool_call: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        raise RuntimeError("InterviewAgent does not support tool calls")
