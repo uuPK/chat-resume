@@ -7,6 +7,7 @@
 
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.resume import (
@@ -217,3 +218,83 @@ async def reject_resume_proposal(
             detail="Failed to reject proposal",
         )
     return ResumeProposalResponse.model_validate(rejected)
+
+
+# ── 聊天记录 ──────────────────────────────────────────────────────────────────
+
+class ChatMessageIn(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+
+class ChatMessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+
+    model_config = {"from_attributes": True}
+
+
+def _check_resume_access(resume_id: int, user_id: int, db: Session):
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
+    if resume.owner_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    return resume
+
+
+@router.get("/{resume_id}/chat-messages", response_model=List[ChatMessageOut])
+async def get_chat_messages(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取某份简历的全部聊天记录"""
+    _check_resume_access(resume_id, current_user["id"], db)
+    from app.models.resume import ResumeChatMessage
+    msgs = (
+        db.query(ResumeChatMessage)
+        .filter(ResumeChatMessage.resume_id == resume_id)
+        .order_by(ResumeChatMessage.id.asc())
+        .all()
+    )
+    return [ChatMessageOut.model_validate(m) for m in msgs]
+
+
+@router.post("/{resume_id}/chat-messages", response_model=List[ChatMessageOut])
+async def append_chat_messages(
+    resume_id: int,
+    messages: List[ChatMessageIn],
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """批量追加聊天消息（一次保存用户消息 + AI 回复）"""
+    _check_resume_access(resume_id, current_user["id"], db)
+    from app.models.resume import ResumeChatMessage
+    saved = []
+    for msg in messages:
+        if msg.role not in ("user", "assistant"):
+            continue
+        row = ResumeChatMessage(resume_id=resume_id, role=msg.role, content=msg.content)
+        db.add(row)
+        saved.append(row)
+    db.commit()
+    for row in saved:
+        db.refresh(row)
+    return [ChatMessageOut.model_validate(m) for m in saved]
+
+
+@router.delete("/{resume_id}/chat-messages")
+async def clear_chat_messages(
+    resume_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """清空某份简历的聊天记录"""
+    _check_resume_access(resume_id, current_user["id"], db)
+    from app.models.resume import ResumeChatMessage
+    db.query(ResumeChatMessage).filter(ResumeChatMessage.resume_id == resume_id).delete()
+    db.commit()
+    return {"message": "cleared"}

@@ -5,7 +5,7 @@
 支持简历的存储、版本管理和面试关联。
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -28,6 +28,7 @@ class Resume(Base):
     optimization_records = relationship("OptimizationRecord", back_populates="resume")
     interview_sessions = relationship("InterviewSession", back_populates="resume")
     proposals = relationship("ResumeProposal", back_populates="resume")
+    chat_messages = relationship("ResumeChatMessage", back_populates="resume", order_by="ResumeChatMessage.id")
 
 
 class OptimizationRecord(Base):
@@ -84,3 +85,15 @@ class ResumeProposal(Base):
     applied_at = Column(DateTime(timezone=True), nullable=True)
 
     resume = relationship("Resume", back_populates="proposals")
+
+
+class ResumeChatMessage(Base):
+    __tablename__ = "resume_chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
+    role = Column(String, nullable=False)   # "user" | "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    resume = relationship("Resume", back_populates="chat_messages")

@@ -35,7 +35,7 @@ import {
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useStreamingChat, ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
-// 已移除错误的前端Gemini集成
+import { chatHistoryApi } from '@/lib/api'
 
 interface Resume {
   id: number
@@ -234,7 +234,18 @@ export default function ResumeEditPage() {
     confirmTool,
   } = useStreamingChat(parseInt(resumeId), {
     onMessage: (message) => {
-      setMessages(prev => [...prev, message])
+      setMessages(prev => {
+        const next = [...prev, message]
+        // 找到最后一条用户消息和刚收到的 AI 消息，一起持久化
+        const lastUser = [...next].reverse().find(m => m.type === 'user')
+        if (lastUser && resumeId) {
+          chatHistoryApi.appendMessages(parseInt(resumeId), [
+            { role: 'user', content: lastUser.content },
+            { role: 'assistant', content: message.content },
+          ]).catch(console.error)
+        }
+        return next
+      })
     },
     onError: (error) => {
       setApiError(error)
@@ -293,8 +304,28 @@ export default function ResumeEditPage() {
   useEffect(() => {
     if (mounted && isAuthenticated) {
       fetchResume()
+      loadChatHistory()
     }
   }, [mounted, isAuthenticated, resumeId])
+
+  // 加载聊天历史
+  const loadChatHistory = async () => {
+    if (!resumeId) return
+    try {
+      const records = await chatHistoryApi.getMessages(parseInt(resumeId))
+      if (records.length > 0) {
+        const loaded: ChatMessage[] = records.map((r) => ({
+          id: r.id.toString(),
+          type: r.role === 'user' ? 'user' : 'ai',
+          content: r.content,
+          timestamp: new Date(),
+        }))
+        setMessages(loaded)
+      }
+    } catch (e) {
+      console.error('Failed to load chat history:', e)
+    }
+  }
 
   // 加载布局配置
   useEffect(() => {
@@ -975,6 +1006,22 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${agentFlex}% - 8px)` }}
           >
             <div className="card p-4 flex-1 overflow-hidden flex flex-col">
+              {/* 顶栏：标题 + 清空按钮 */}
+              <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                <span className="text-sm font-medium text-gray-700">简历优化助手</span>
+                {messages.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      if (!resumeId) return
+                      await chatHistoryApi.clearMessages(parseInt(resumeId)).catch(console.error)
+                      setMessages([])
+                    }}
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    清空记录
+                  </button>
+                )}
+              </div>
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700 flex-shrink-0">

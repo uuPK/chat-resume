@@ -612,10 +612,51 @@ class InterviewAPI {
   }
 }
 
+// ── 聊天记录 API ──────────────────────────────────────────────────────────────
+
+export interface ChatMessageRecord {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export class ChatHistoryAPI {
+  static async getMessages(resumeId: number): Promise<ChatMessageRecord[]> {
+    const token = localStorage.getItem('access_token')
+    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    return handleApiResponse<ChatMessageRecord[]>(res)
+  }
+
+  static async appendMessages(
+    resumeId: number,
+    messages: { role: string; content: string }[]
+  ): Promise<ChatMessageRecord[]> {
+    const token = localStorage.getItem('access_token')
+    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(messages),
+    })
+    return handleApiResponse<ChatMessageRecord[]>(res)
+  }
+
+  static async clearMessages(resumeId: number): Promise<void> {
+    const token = localStorage.getItem('access_token')
+    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    await handleApiResponse<{ message: string }>(res)
+  }
+}
+
 // 导出API实例
 export const resumeApi = ResumeAPI
 export const chatApi = ChatAPI
 export const interviewApi = InterviewAPI
+export const chatHistoryApi = ChatHistoryAPI
 
 // 导出类型
 export type {

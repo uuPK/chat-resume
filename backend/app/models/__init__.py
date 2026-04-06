@@ -4,4 +4,5 @@ from .resume import (
     OptimizationRecord as OptimizationRecord,
     InterviewSession as InterviewSession,
     ResumeProposal as ResumeProposal,
+    ResumeChatMessage as ResumeChatMessage,
 )
