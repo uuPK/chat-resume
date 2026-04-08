@@ -19,7 +19,7 @@ from app.schemas.interview import (
     InterviewAnswerRequest,
     InterviewEvaluationResponse,
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_claims
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def _format_interview_session(session_data: List[Dict[str, Any]]) -> str:
 
 @router.get("/interview/sessions", response_model=List[InterviewSessionResponse])
 async def get_all_interview_sessions(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_claims),
     db: Session = Depends(get_db),
 ):
     """获取当前用户的全部面试会话列表。"""

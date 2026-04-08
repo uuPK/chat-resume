@@ -20,7 +20,7 @@ from app.schemas.resume import (
     ResumeUpdate,
 )
 from app.services.core import ResumeService
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_claims
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[ResumeListItem])
 async def get_resumes(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user_claims), db: Session = Depends(get_db)
 ):
     resume_service = ResumeService(db)
     resumes = resume_service.get_by_owner(current_user["id"])
@@ -67,7 +67,7 @@ async def create_resume(
 @router.get("/{resume_id}", response_model=ResumeResponse)
 async def get_resume(
     resume_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_claims),
     db: Session = Depends(get_db),
 ):
     started_at = perf_counter()
@@ -287,7 +287,7 @@ def _check_resume_access(resume_id: int, user_id: int, db: Session):
 @router.get("/{resume_id}/chat-messages", response_model=List[ChatMessageOut])
 async def get_chat_messages(
     resume_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_claims),
     db: Session = Depends(get_db),
 ):
     """获取某份简历的全部聊天记录"""
@@ -306,7 +306,7 @@ async def get_chat_messages(
 async def append_chat_messages(
     resume_id: int,
     messages: List[ChatMessageIn],
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_claims),
     db: Session = Depends(get_db),
 ):
     """批量追加聊天消息（一次保存用户消息 + AI 回复）"""
@@ -333,7 +333,7 @@ async def append_chat_messages(
 @router.delete("/{resume_id}/chat-messages")
 async def clear_chat_messages(
     resume_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_claims),
     db: Session = Depends(get_db),
 ):
     """清空某份简历的聊天记录"""

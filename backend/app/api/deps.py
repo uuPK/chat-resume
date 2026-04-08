@@ -20,10 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
 logger = logging.getLogger(__name__)
 
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
-):
-    started_at = perf_counter()
+def _decode_token_claims(token: str) -> dict:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -31,15 +28,39 @@ async def get_current_user(
     )
 
     try:
-        decode_started_at = perf_counter()
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
         user_id_str = payload.get("sub")
         if user_id_str is None:
             raise credentials_exception
         user_id = int(user_id_str)
     except (JWTError, ValueError, TypeError):
         raise credentials_exception
+    return {"id": user_id, **payload}
+
+
+async def get_current_user_claims(token: str = Depends(oauth2_scheme)):
+    started_at = perf_counter()
+    decode_started_at = perf_counter()
+    claims = _decode_token_claims(token)
+    decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
+    total_elapsed_ms = (perf_counter() - started_at) * 1000
+    logger.info(
+        "get_current_user_claims timings user_id=%s decode_ms=%.2f total_ms=%.2f",
+        claims["id"],
+        decode_elapsed_ms,
+        total_elapsed_ms,
+    )
+    return claims
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+):
+    started_at = perf_counter()
+    decode_started_at = perf_counter()
+    claims = _decode_token_claims(token)
+    decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
+    user_id = claims["id"]
 
     user_service = UserService(db)
     query_started_at = perf_counter()

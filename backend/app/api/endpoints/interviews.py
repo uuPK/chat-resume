@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.resume import InterviewSession, Resume
 from app.schemas.interview import InterviewSessionResponse
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user_claims
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[InterviewSessionResponse])
 async def get_all_interview_sessions(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user_claims), db: Session = Depends(get_db)
 ):
     """获取当前用户的所有面试会话"""
 
@@ -38,7 +38,7 @@ async def get_all_interview_sessions(
 
 @router.get("/stats")
 async def get_interview_stats(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user_claims), db: Session = Depends(get_db)
 ):
     """获取面试统计信息"""
 
