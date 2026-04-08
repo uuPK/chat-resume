@@ -51,7 +51,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
             value={formData.name || ''}
             onChange={(e) => handleChange('name', e.target.value)}
             placeholder="请输入您的姓名"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
 
@@ -69,7 +69,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.email || ''}
               onChange={(e) => handleChange('email', e.target.value)}
               placeholder="your@email.com"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -88,7 +88,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.phone || ''}
               onChange={(e) => handleChange('phone', e.target.value)}
               placeholder="138-0000-0000"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.position || ''}
               onChange={(e) => handleChange('position', e.target.value)}
               placeholder="软件工程师"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.github || ''}
               onChange={(e) => handleChange('github', e.target.value)}
               placeholder="https://github.com/yourusername"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.linkedin || ''}
               onChange={(e) => handleChange('linkedin', e.target.value)}
               placeholder="https://linkedin.com/in/yourusername"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               value={formData.website || ''}
               onChange={(e) => handleChange('website', e.target.value)}
               placeholder="https://yourwebsite.com"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
             value={formData.address || ''}
             onChange={(e) => handleChange('address', e.target.value)}
             placeholder="北京市朝阳区"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
       </div>

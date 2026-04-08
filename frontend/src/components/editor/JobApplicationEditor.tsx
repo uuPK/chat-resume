@@ -54,7 +54,7 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             value={resumeTitle || ''}
             onChange={(e) => handleTitleChange(e.target.value)}
             placeholder="请输入简历名称"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
@@ -67,7 +67,7 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             value={formData.target_company || ''}
             onChange={(e) => handleInputChange('target_company', e.target.value)}
             placeholder="请输入目标公司名称"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
@@ -80,7 +80,7 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             value={formData.target_title || ''}
             onChange={(e) => handleInputChange('target_title', e.target.value)}
             placeholder="请输入目标岗位名称"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
@@ -93,7 +93,7 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             onChange={(e) => handleInputChange('jd_text', e.target.value)}
             placeholder="请粘贴完整的职位描述，包括岗位职责、任职要求等信息"
             rows={12}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
         </div>
       </div>
