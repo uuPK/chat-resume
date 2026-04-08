@@ -219,6 +219,8 @@ export default function ResumeEditPage() {
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
 
   const resumeId = params?.id as string
+  const previewFlex = 100 - editorFlex - agentFlex
+  const collapsedAgentFlex = 100 - previewFlex
 
   // 流式聊天Hook
   const {
@@ -803,7 +805,6 @@ export default function ResumeEditPage() {
                 title="返回仪表板"
               >
                 <ArrowLeftIcon className="w-5 h-5" />
-                <span className="ml-2 text-sm font-medium">返回</span>
               </Link>
             </div>
 
@@ -863,7 +864,7 @@ export default function ResumeEditPage() {
       <main className="max-w-full mx-auto px-6 py-3">
         <div
           ref={mainPanelsRef}
-          className={`flex gap-0 h-[calc(100vh-120px)] ${editorOpen ? '' : 'lg:[&_.preview-panel]:flex-1 lg:[&_.agent-panel]:flex-1'}`}
+          className="flex gap-0 h-[calc(100vh-120px)]"
         >
           {/* Left Panel - Editor */}
           <motion.div
@@ -876,32 +877,22 @@ export default function ResumeEditPage() {
             {!editorOpen ? (
               /* 折叠状态：现代化细条 */
               <div
-                className="flex flex-col items-center justify-center h-full w-12 cursor-pointer bg-gray-50 hover:bg-gray-100 border-r border-gray-200 transition-colors group"
+                className="flex flex-col items-center justify-center h-full w-12 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors group"
                 onClick={() => setEditorOpen(true)}
                 title="展开编辑区域"
               >
                 <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
-                <span className="mt-2 text-xs text-gray-500 group-hover:text-gray-700 writing-mode-vertical-rl">编辑器</span>
               </div>
             ) : (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-4 flex justify-end items-center flex-shrink-0">
-                <button
-                  onClick={() => setEditorOpen(false)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
-                  title="折叠编辑器"
-                >
-                  <ChevronLeftIcon className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="relative bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs - 现代化设计 */}
-                <div className="flex space-x-2 mb-5 border-b border-gray-200 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-5 border-b border-gray-200 flex-shrink-0">
                   {[
-                    { key: 'job_application', label: '投递岗位' },
-                    { key: 'personal', label: '个人信息' },
-                    { key: 'education', label: '教育经历' },
-                    { key: 'work', label: '工作经验' },
+                    { key: 'job_application', label: '岗位' },
+                    { key: 'personal', label: '个人' },
+                    { key: 'education', label: '教育' },
+                    { key: 'work', label: '工作' },
                     { key: 'projects', label: '项目' },
                     { key: 'skills', label: '技能' }
                   ].map(section => (
@@ -920,6 +911,13 @@ export default function ResumeEditPage() {
                     </button>
                   ))}
                 </div>
+                <button
+                  onClick={() => setEditorOpen(false)}
+                  className="absolute right-4 top-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                  title="折叠编辑器"
+                >
+                  <ChevronLeftIcon className="w-5 h-5" />
+                </button>
 
                 {/* Editor Content */}
                 <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar">
@@ -987,7 +985,7 @@ export default function ResumeEditPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
             className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
-            style={{ flex: `1 1 calc(${100 - editorFlex - agentFlex}% - 16px)` }}
+            style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
@@ -1012,7 +1010,7 @@ export default function ResumeEditPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
-            style={{ flex: `0 0 calc(${agentFlex}% - 8px)` }}
+            style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
               {/* API错误提示 */}
