@@ -18,12 +18,46 @@ from app.schemas.resume import (
     ResumeProposalResponse,
     ResumeResponse,
     ResumeUpdate,
+    dump_resume_content_for_frontend,
 )
 from app.services.core import ResumeService
 from app.api.deps import get_current_user, get_current_user_claims
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _build_resume_response(resume) -> ResumeResponse:
+    return ResumeResponse.model_validate(
+        {
+            "id": resume.id,
+            "title": resume.title,
+            "content": dump_resume_content_for_frontend(resume.content or {}),
+            "original_filename": resume.original_filename,
+            "owner_id": resume.owner_id,
+            "created_at": resume.created_at,
+            "updated_at": resume.updated_at,
+        }
+    )
+
+
+def _build_proposal_response(proposal) -> ResumeProposalResponse:
+    return ResumeProposalResponse.model_validate(
+        {
+            "id": proposal.id,
+            "resume_id": proposal.resume_id,
+            "user_message": proposal.user_message,
+            "section": proposal.section,
+            "status": proposal.status,
+            "summary": proposal.summary,
+            "proposed_content": dump_resume_content_for_frontend(proposal.proposed_content or {}),
+            "proposed_patch": proposal.proposed_patch,
+            "tool_calls": proposal.tool_calls,
+            "created_at": proposal.created_at,
+            "updated_at": proposal.updated_at,
+            "applied_at": proposal.applied_at,
+        }
+    )
 
 
 @router.get("/", response_model=List[ResumeListItem])
@@ -61,7 +95,7 @@ async def create_resume(
 ):
     resume_service = ResumeService(db)
     resume = resume_service.create(resume_create, current_user["id"])
-    return ResumeResponse.model_validate(resume)
+    return _build_resume_response(resume)
 
 
 @router.get("/{resume_id}", response_model=ResumeResponse)
@@ -87,7 +121,7 @@ async def get_resume(
         )
 
     validate_started_at = perf_counter()
-    response = ResumeResponse.model_validate(resume)
+    response = _build_resume_response(resume)
     validate_elapsed_ms = (perf_counter() - validate_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
@@ -139,7 +173,7 @@ async def update_resume(
             detail="Failed to update resume",
         )
 
-    return ResumeResponse.model_validate(updated_resume)
+    return _build_resume_response(updated_resume)
 
 
 @router.delete("/{resume_id}")
@@ -192,7 +226,7 @@ async def get_resume_proposals(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
     proposals = resume_service.get_proposals_by_resume(resume_id)
-    return [ResumeProposalResponse.model_validate(item) for item in proposals]
+    return [_build_proposal_response(item) for item in proposals]
 
 
 @router.post("/{resume_id}/proposals/{proposal_id}/apply", response_model=ResumeProposalResponse)
@@ -223,7 +257,7 @@ async def apply_resume_proposal(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to apply proposal",
     )
-    return ResumeProposalResponse.model_validate(applied)
+    return _build_proposal_response(applied)
 
 
 @router.post("/{resume_id}/proposals/{proposal_id}/reject", response_model=ResumeProposalResponse)
@@ -254,7 +288,7 @@ async def reject_resume_proposal(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reject proposal",
         )
-    return ResumeProposalResponse.model_validate(rejected)
+    return _build_proposal_response(rejected)
 
 
 # ── 聊天记录 ──────────────────────────────────────────────────────────────────

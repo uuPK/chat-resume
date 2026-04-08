@@ -73,6 +73,48 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "languages": [],
         }
 
+    def test_strip_redundant_fields_removes_empty_summary(self):
+        cleaned = ResumeAgent._strip_redundant_fields(
+            {
+                "personal_info": {"name": "张三"},
+                "summary": {"text": "   "},
+                "projects": [],
+                "work_experience": [],
+            }
+        )
+
+        self.assertNotIn("summary", cleaned)
+
+    def test_strip_redundant_fields_drops_summary_even_when_non_empty(self):
+        cleaned = ResumeAgent._strip_redundant_fields(
+            {
+                "personal_info": {"name": "张三"},
+                "summary": {"text": "有 3 年后端开发经验"},
+                "projects": [],
+                "work_experience": [],
+            }
+        )
+
+        self.assertNotIn("summary", cleaned)
+
+    def test_run_tool_rejects_hidden_section(self):
+        agent = ResumeAgent()
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "edit_resume",
+                    "arguments": '{"section":"skills","data":"[]"}',
+                }
+            },
+            {
+                "resume_content": self._sample_resume(),
+                "allowed_sections": {"personal_info", "work_experience"},
+            },
+        )
+
+        self.assertIn("禁止修改", result["display_message"])
+        self.assertEqual(result["updated_section_name"], "技能专长")
+
     async def test_optimize_returns_plain_text_without_mutation(self):
         chat_service = FakeChatService(
             responses=[

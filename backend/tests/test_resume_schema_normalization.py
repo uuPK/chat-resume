@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.schemas.resume import ResumeContent  # noqa: E402
+from app.schemas.resume import ResumeContent, dump_resume_content_for_frontend  # noqa: E402
 
 
 class ResumeSchemaNormalizationTests(unittest.TestCase):
@@ -78,6 +78,44 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
             ["主修计算机基础课程", "获得国家奖学金"],
         )
         self.assertEqual(education["description"], "")
+
+    def test_dump_resume_content_for_frontend_drops_non_frontend_sections(self):
+        content = dump_resume_content_for_frontend(
+            {
+                "meta": {"language": "zh-CN"},
+                "job_application": {"target_title": "AI Agent 开发工程师"},
+                "personal_info": {"name": "彭世雄", "email": "test@example.com"},
+                "summary": {"text": "这段内容不应再暴露给前端或 Agent"},
+                "skills": [],
+                "languages": [{"name": "英语", "level": "CET-6"}],
+                "custom_sections": [{"title": "其他", "content": "隐藏字段"}],
+                "projects": [
+                    {
+                        "name": "Chat Resume",
+                        "role": "开发者",
+                        "duration": "2025",
+                        "description": "AI 求职辅导平台",
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(
+            content,
+            {
+                "job_application": {"target_title": "AI Agent 开发工程师"},
+                "personal_info": {"name": "彭世雄", "email": "test@example.com"},
+                "projects": [
+                    {
+                        "id": content["projects"][0]["id"],
+                        "name": "Chat Resume",
+                        "overview": "AI 求职辅导平台",
+                        "role": "开发者",
+                        "duration": "2025",
+                    }
+                ],
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -13,7 +13,8 @@ import {
   ArrowDownTrayIcon,
   XMarkIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
@@ -26,6 +27,7 @@ import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import { ModuleConfig } from '@/components/preview/PaginatedResumePreview'
 import {
   ResumeLayoutConfig,
+  ResumeModule,
   loadLayoutConfig,
   saveLayoutConfig,
   MODULE_LABELS,
@@ -100,6 +102,14 @@ type AutoSaveStatus = 'idle' | 'pending' | 'saving' | 'success' | 'error'
 
 const AUTO_SAVE_DELAY = 1500
 
+const EDITOR_SECTION_TO_MODULE: Partial<Record<string, ResumeModule>> = {
+  personal: 'personal',
+  education: 'education',
+  work: 'work',
+  projects: 'projects',
+  skills: 'skills',
+}
+
 const AUTO_SAVE_STATUS_MESSAGE: Record<
   AutoSaveStatus,
   { text: string; className: string }
@@ -145,6 +155,8 @@ export default function ResumeEditPage() {
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const resumeRef = useRef<Resume | null>(null)
+  const hasUnsavedChangesRef = useRef(false)
+  const savePromiseRef = useRef<Promise<void> | null>(null)
 
   // 拖拽调节编辑区宽度
   const handleEditorDividerPointerDown = useCallback((e: React.PointerEvent) => {
@@ -206,6 +218,7 @@ export default function ResumeEditPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [isClearingMessages, setIsClearingMessages] = useState(false)
   const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [qrImages, setQrImages] = useState<string[]>([])
@@ -230,6 +243,7 @@ export default function ResumeEditPage() {
     stopStreaming,
     confirmTool,
   } = useStreamingChat(parseInt(resumeId), {
+    visibleModules: Array.from(layoutConfig.visibleModules),
     onMessage: (message) => {
       setMessages(prev => {
         const next = [...prev, message]
@@ -265,6 +279,8 @@ export default function ResumeEditPage() {
       }
     },
     onResumeUpdate: (content) => {
+      hasUnsavedChangesRef.current = false
+      setAutoSaveStatus('idle')
       setResume(prev => {
         if (!prev) return prev
         const updated = { ...prev, content: content as Resume['content'] }
@@ -293,6 +309,8 @@ export default function ResumeEditPage() {
       const data = await resumeApi.getResume(parseInt(resumeId))
       setResume(data)
       resumeRef.current = data
+      hasUnsavedChangesRef.current = false
+      setAutoSaveStatus('idle')
     } catch (error) {
       console.error('Failed to fetch resume:', error)
       toast.error('获取简历失败')
@@ -371,6 +389,34 @@ export default function ResumeEditPage() {
     }))
   }, [layoutConfig])
 
+  const editorSections = useMemo(() => {
+    const allSections = [
+      { key: 'job_application', label: '岗位' },
+      { key: 'personal', label: '个人' },
+      { key: 'education', label: '教育' },
+      { key: 'work', label: '工作' },
+      { key: 'projects', label: '项目' },
+      { key: 'skills', label: '技能' }
+    ]
+
+    return allSections.filter((section) => {
+      const mappedModule = EDITOR_SECTION_TO_MODULE[section.key]
+      return mappedModule ? layoutConfig.visibleModules.has(mappedModule) : true
+    })
+  }, [layoutConfig.visibleModules])
+
+  useEffect(() => {
+    const activeModule = EDITOR_SECTION_TO_MODULE[activeSection]
+    if (!activeModule || layoutConfig.visibleModules.has(activeModule)) {
+      return
+    }
+
+    const fallbackSection = editorSections[0]?.key || 'job_application'
+    if (fallbackSection !== activeSection) {
+      setActiveSection(fallbackSection)
+    }
+  }, [activeSection, editorSections, layoutConfig.visibleModules])
+
   const scheduleStatusReset = useCallback(() => {
     if (statusResetTimeoutRef.current) {
       clearTimeout(statusResetTimeoutRef.current)
@@ -386,28 +432,52 @@ export default function ResumeEditPage() {
         return
       }
 
+      if (!hasUnsavedChangesRef.current) {
+        return
+      }
+
+      if (savePromiseRef.current) {
+        return savePromiseRef.current
+      }
+
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
         autoSaveTimeoutRef.current = null
       }
 
-      setAutoSaveStatus('saving')
-      try {
-        await resumeApi.updateResume(resumeRef.current.id, {
-          title: resumeRef.current.title,
-          content: resumeRef.current.content
-        })
-        setAutoSaveStatus('success')
-        if (showSuccessToast) {
-          toast.success('简历保存成功')
+      const snapshot = resumeRef.current
+      const saveTask = (async () => {
+        setAutoSaveStatus('saving')
+        try {
+          const savedResume = await resumeApi.updateResume(snapshot.id, {
+            title: snapshot.title,
+            content: snapshot.content
+          })
+          if (resumeRef.current?.id === savedResume.id && resumeRef.current === snapshot) {
+            const updated = savedResume as Resume
+            resumeRef.current = updated
+            setResume(updated)
+            hasUnsavedChangesRef.current = false
+            setAutoSaveStatus('success')
+            scheduleStatusReset()
+          } else {
+            setAutoSaveStatus('pending')
+          }
+          if (showSuccessToast) {
+            toast.success('简历保存成功')
+          }
+        } catch (error) {
+          console.error('Auto save error:', error)
+          setAutoSaveStatus('error')
+          toast.error('自动保存失败，请检查网络或手动保存')
+          throw error
+        } finally {
+          savePromiseRef.current = null
         }
-        scheduleStatusReset()
-      } catch (error) {
-        console.error('Auto save error:', error)
-        setAutoSaveStatus('error')
-        toast.error('自动保存失败，请检查网络或手动保存')
-        throw error
-      }
+      })()
+
+      savePromiseRef.current = saveTask
+      return saveTask
     },
     [scheduleStatusReset]
   )
@@ -467,6 +537,7 @@ export default function ResumeEditPage() {
       resumeRef.current = updated
       return updated
     })
+    hasUnsavedChangesRef.current = true
     scheduleAutoSave()
   }
 
@@ -482,6 +553,7 @@ export default function ResumeEditPage() {
       resumeRef.current = updated
       return updated
     })
+    hasUnsavedChangesRef.current = true
     scheduleAutoSave()
   }
 
@@ -492,6 +564,13 @@ export default function ResumeEditPage() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isSending || isStreaming) return
+
+    try {
+      await performAutoSave()
+    } catch {
+      setApiError('简历保存失败，未发送给 Agent')
+      return
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -514,6 +593,29 @@ export default function ResumeEditPage() {
       setApiError('流式聊天发送失败，请重试')
     } finally {
       setIsSending(false)
+    }
+  }
+
+  const handleClearMessages = async () => {
+    if (!resume || isStreaming || isSending || isClearingMessages || messages.length === 0) {
+      return
+    }
+
+    if (!window.confirm('确定清空当前聊天记录吗？此操作不可恢复。')) {
+      return
+    }
+
+    try {
+      setIsClearingMessages(true)
+      await chatHistoryApi.clearMessages(resume.id)
+      setMessages([])
+      setApiError(null)
+      toast.success('已清空消息记录')
+    } catch (error) {
+      console.error('Clear chat messages failed:', error)
+      toast.error(error instanceof Error ? error.message : '清空消息失败')
+    } finally {
+      setIsClearingMessages(false)
     }
   }
 
@@ -548,6 +650,8 @@ export default function ResumeEditPage() {
         resumeRef.current = updated
         return updated
       })
+      hasUnsavedChangesRef.current = false
+      setAutoSaveStatus('idle')
       updateMessageProposalStatus(message.id, 'applied')
       toast.success('已应用这次修改')
     } catch (error) {
@@ -853,14 +957,7 @@ export default function ResumeEditPage() {
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Section Tabs - 现代化设计 */}
                 <div className="flex items-center gap-2 mb-5 border-b border-gray-200 flex-shrink-0">
-                  {[
-                    { key: 'job_application', label: '岗位' },
-                    { key: 'personal', label: '个人' },
-                    { key: 'education', label: '教育' },
-                    { key: 'work', label: '工作' },
-                    { key: 'projects', label: '项目' },
-                    { key: 'skills', label: '技能' }
-                  ].map(section => (
+                  {editorSections.map(section => (
                     <button
                       key={section.key}
                       onClick={() => setActiveSection(section.key)}
@@ -978,6 +1075,16 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
+              <div className="mb-3 flex items-center justify-end flex-shrink-0">
+                <button
+                  onClick={handleClearMessages}
+                  disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
+                  aria-label={isClearingMessages ? '清空中' : '清空消息'}
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">

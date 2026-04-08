@@ -24,6 +24,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_RESUME_SNAPSHOT_KEYWORDS = (
+    "复述",
+    "重复一遍",
+    "当前简历",
+    "现在的简历",
+    "我的简历内容",
+    "完整内容",
+    "列出我的简历",
+    "把我的简历写出来",
+)
+
 
 class ChatRequest(BaseModel):
     """聊天请求模型"""
@@ -31,6 +42,7 @@ class ChatRequest(BaseModel):
     message: str
     resume_id: int
     chat_history: list = []  # 聊天历史，可选
+    visible_modules: list[str] = []
     is_interview: bool = False  # 是否为面试模式
     interview_mode: str = (
         "comprehensive"  # 面试模式：comprehensive, technical, behavioral
@@ -53,6 +65,38 @@ class ChatResponse(BaseModel):
     proposal_id: int | None = None
     proposal_status: str | None = None
     proposal_patch: dict | None = None
+
+
+def _should_ignore_history_for_request(message: str) -> bool:
+    normalized = (message or "").strip()
+    return any(keyword in normalized for keyword in _RESUME_SNAPSHOT_KEYWORDS)
+
+
+_MODULE_TO_SECTION = {
+    "personal": "personal_info",
+    "education": "education",
+    "work": "work_experience",
+    "projects": "projects",
+    "skills": "skills",
+}
+
+
+def _filter_resume_by_visible_modules(resume_content: Dict[str, Any], visible_modules: list[str]) -> Dict[str, Any]:
+    if not visible_modules:
+        return resume_content
+
+    allowed_sections = {
+        _MODULE_TO_SECTION[module]
+        for module in visible_modules
+        if module in _MODULE_TO_SECTION
+    }
+    filtered = {}
+    if "job_application" in resume_content:
+        filtered["job_application"] = resume_content["job_application"]
+    for section in allowed_sections:
+        if section in resume_content:
+            filtered[section] = resume_content[section]
+    return filtered
 
 
 def _truncate_text(value: Any, max_length: int = 220) -> str:
@@ -228,14 +272,24 @@ async def chat_with_resume(
         resume_dict: Dict[str, Any] = cast(
             Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
         )
+        resume_dict = _filter_resume_by_visible_modules(
+            resume_dict,
+            chat_request.visible_modules,
+        )
         original_resume = deepcopy(resume_dict)
+        conversation_history = (
+            []
+            if _should_ignore_history_for_request(chat_request.message)
+            else chat_request.chat_history
+        )
 
         # 使用简历优化 Agent（支持工具调用）
         agent = ResumeAgent()
         ai_result = await agent.optimize(
             user_message=chat_request.message,
             resume_content=resume_dict,
-            conversation_history=chat_request.chat_history,
+            conversation_history=conversation_history,
+            allowed_sections=set(resume_dict.keys()),
         )
 
         content = (
@@ -335,16 +389,26 @@ async def chat_with_resume_stream(
                 Dict[str, Any],
                 resume.content if isinstance(resume.content, dict) else {},
             )
+            resume_dict = _filter_resume_by_visible_modules(
+                resume_dict,
+                chat_request.visible_modules,
+            )
 
             logger.debug("流式接口使用简历优化 Agent（逐工具确认模式）")
             latest_resume_content = None
             original_resume = deepcopy(resume_dict)
+            conversation_history = (
+                []
+                if _should_ignore_history_for_request(chat_request.message)
+                else chat_request.chat_history
+            )
 
             async for event in agent.optimize_stream(
                 user_message=chat_request.message,
                 resume_content=resume_dict,
-                conversation_history=chat_request.chat_history,
+                conversation_history=conversation_history,
                 confirmation_queue=confirmation_queue,
+                allowed_sections=set(resume_dict.keys()),
             ):
                 if event.get("resume_content") is not None:
                     latest_resume_content = event["resume_content"]

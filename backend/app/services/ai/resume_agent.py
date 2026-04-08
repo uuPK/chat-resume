@@ -11,6 +11,7 @@ import logging
 from .agent_runtime import AgentDefinition, AgentRuntime
 from .resume_tools import ResumeTools
 from app.prompts import load_prompt
+from app.schemas.resume import dump_resume_content_for_frontend
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +58,16 @@ class ResumeAgent:
         user_message: str,
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        allowed_sections: Optional[set[str]] = None,
     ) -> Dict[str, Any]:
         """执行一次简历优化循环。"""
         runtime_result = await self.runtime.run(
             agent=self.definition,
             user_message=user_message,
-            context={"resume_content": resume_content},
+            context={
+                "resume_content": resume_content,
+                "allowed_sections": allowed_sections,
+            },
             conversation_history=conversation_history,
         )
         return {
@@ -78,9 +83,13 @@ class ResumeAgent:
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         confirmation_queue: Optional[asyncio.Queue] = None,
+        allowed_sections: Optional[set[str]] = None,
     ):
         """按阶段流式输出 Agent 执行过程。"""
-        context = {"resume_content": resume_content}
+        context = {
+            "resume_content": resume_content,
+            "allowed_sections": allowed_sections,
+        }
         async for event in self.runtime.run_stream(
             agent=self.definition,
             user_message=user_message,
@@ -118,9 +127,10 @@ class ResumeAgent:
     def _strip_redundant_fields(resume_content: Dict[str, Any]) -> Dict[str, Any]:
         """移除发给 Agent 的简历 JSON 中的冗余字段，避免 Agent 重复修改同一数据。
         - achievements 与 highlights 内容相同，只保留 highlights。
+        - 空的 summary 会误导 Agent 以为用户缺少“个人总结”模块，因此不传。
         """
         import copy
-        content = copy.deepcopy(resume_content)
+        content = dump_resume_content_for_frontend(copy.deepcopy(resume_content))
         for section in ("work_experience", "projects"):
             items = content.get(section)
             if isinstance(items, list):
@@ -146,6 +156,24 @@ class ResumeAgent:
         raw_args = tool_call["function"]["arguments"]
         logger.debug(f"[tool_call] {tool_name} raw_args={raw_args!r}")
         tool_args = _parse_tool_arguments(raw_args)
+        allowed_sections = context.get("allowed_sections")
+        target_section = tool_args.get("section")
+        if (
+            allowed_sections is not None
+            and target_section
+            and target_section not in allowed_sections
+        ):
+            return {
+                "tool_name": self._TOOL_DISPLAY_NAMES.get(tool_name, tool_name),
+                "result": {
+                    "success": False,
+                    "message": f"板块 {target_section} 当前已隐藏，禁止修改",
+                    "updated_section": target_section,
+                },
+                "display_message": f"板块 {target_section} 当前已隐藏，禁止修改",
+                "qr_image": None,
+                "updated_section_name": self._get_section_name(target_section),
+            }
         result = self.tools.execute_tool(
             tool_name=tool_name, resume_content=resume_content, **tool_args
         )

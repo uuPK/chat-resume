@@ -10,7 +10,7 @@ from typing import List
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.resume import Resume, OptimizationRecord, InterviewSession, ResumeProposal
-from app.schemas.resume import ResumeCreate, ResumeContent
+from app.schemas.resume import ResumeCreate, ResumeContent, dump_resume_content_for_frontend
 from .file_service import FileService
 import logging
 
@@ -64,10 +64,7 @@ class ResumeService:
 
     def _serialize_content(self, content: ResumeContent | dict) -> dict:
         """统一将简历内容转换为稳定的 JSON 文档结构。"""
-        if isinstance(content, ResumeContent):
-            return content.model_dump(mode="json")
-        normalized = ResumeContent.model_validate(content)
-        return normalized.model_dump(mode="json")
+        return dump_resume_content_for_frontend(content)
 
     def delete(self, resume_id: int) -> bool:
         """删除简历及其关联数据"""

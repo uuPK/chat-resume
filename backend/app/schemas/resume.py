@@ -372,6 +372,49 @@ class ResumeContent(ResumeBaseModel):
             ]
         return parsed
 
+
+_FRONTEND_RESUME_CONTENT_INCLUDE = {
+    "job_application": True,
+    "personal_info": True,
+    "education": True,
+    "work_experience": True,
+    "skills": True,
+    "projects": True,
+}
+
+
+def _prune_empty_frontend_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        pruned = {
+            key: _prune_empty_frontend_value(item)
+            for key, item in value.items()
+        }
+        pruned = {
+            key: item
+            for key, item in pruned.items()
+            if item not in (None, "", [], {})
+        }
+        return pruned
+
+    if isinstance(value, list):
+        pruned = [
+            _prune_empty_frontend_value(item)
+            for item in value
+        ]
+        return [item for item in pruned if item not in (None, "", [], {})]
+
+    return value
+
+
+def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
+    """输出和前端编辑器/预览一致的简历结构，作为统一标准。"""
+    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
+    frontend_content = normalized.model_dump(
+        mode="json",
+        include=_FRONTEND_RESUME_CONTENT_INCLUDE,
+    )
+    return _prune_empty_frontend_value(frontend_content) or {}
+
     @field_validator("work_experience", mode="before")
     @classmethod
     def normalize_work_experience(cls, value: Any) -> Any:
