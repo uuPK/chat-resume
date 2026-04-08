@@ -5,9 +5,16 @@ FastAPI应用的初始化和配置入口点。
 负责路由注册、中间件配置、错误处理和启动逻辑。
 """
 
+from time import perf_counter
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.db_observability import (
+    get_request_metrics,
+    reset_request_metrics,
+    start_request_metrics,
+)
 from app.api.api import api_router
 from app.core.database import engine, Base
 import logging
@@ -32,9 +39,35 @@ app = FastAPI(
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info(f"Request: {request.method} {request.url}")
-    response = await call_next(request)
-    logger.info(f"Response: {response.status_code}")
-    return response
+    request_started_at = perf_counter()
+    metrics_token = start_request_metrics()
+    response = None
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        request_elapsed_ms = (perf_counter() - request_started_at) * 1000
+        metrics = get_request_metrics()
+        status_code = response.status_code if response is not None else 500
+        if metrics is None:
+            logger.info(
+                "Response: %s request_ms=%.2f",
+                status_code,
+                request_elapsed_ms,
+            )
+        else:
+            logger.info(
+                "Response: %s request_ms=%.2f db_checkout_count=%s db_checkout_ms=%.2f db_query_count=%s db_query_ms=%.2f db_longest_query_ms=%.2f db_longest_query_sql=%s",
+                status_code,
+                request_elapsed_ms,
+                metrics.checkout_count,
+                metrics.checkout_ms_total,
+                metrics.query_count,
+                metrics.query_ms_total,
+                metrics.longest_query_ms,
+                metrics.longest_query_statement or "-",
+            )
+        reset_request_metrics(metrics_token)
 
 
 # 数据库迁移由 Railway 的 startCommand 处理
