@@ -69,8 +69,8 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 
 # Uploads
-uploads/*
-!uploads/.gitkeep
+backend/uploads/**
+!backend/uploads/.gitkeep
 
 # Build outputs
 build/
