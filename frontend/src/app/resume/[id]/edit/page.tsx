@@ -885,8 +885,7 @@ export default function ResumeEditPage() {
               </div>
             ) : (
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-4 flex justify-between items-center flex-shrink-0">
-                <h3 className="text-sm font-semibold text-gray-900">简历编辑器</h3>
+              <div className="mb-4 flex justify-end items-center flex-shrink-0">
                 <button
                   onClick={() => setEditorOpen(false)}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
@@ -991,10 +990,6 @@ export default function ResumeEditPage() {
             style={{ flex: `1 1 calc(${100 - editorFlex - agentFlex}% - 16px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-5 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
-              <div className="mb-4 flex-shrink-0">
-                <h3 className="text-sm font-semibold text-gray-900">简历预览</h3>
-                <p className="text-xs text-gray-500 mt-1">实时预览您的简历效果</p>
-              </div>
               <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
                 <ResumePreview
                   key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
@@ -1022,25 +1017,6 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${agentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              {/* 顶栏：标题 + 清空按钮 */}
-              <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">AI简历优化助手</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">智能优化您的简历内容</p>
-                </div>
-                {messages.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      if (!resumeId) return
-                      await chatHistoryApi.clearMessages(parseInt(resumeId)).catch(console.error)
-                      setMessages([])
-                    }}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
-                  >
-                    清空记录
-                  </button>
-                )}
-              </div>
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">
