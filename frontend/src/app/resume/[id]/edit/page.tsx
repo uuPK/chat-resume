@@ -9,7 +9,6 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 import {
   ArrowLeftIcon,
-  CheckIcon,
   ArrowUpIcon,
   ArrowDownTrayIcon,
   XMarkIcon,
@@ -136,7 +135,6 @@ export default function ResumeEditPage() {
   const [mounted, setMounted] = useState(false)
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
@@ -451,20 +449,6 @@ export default function ResumeEditPage() {
       toast.error(error instanceof Error ? error.message : 'PDF导出失败')
     } finally {
       setExporting(false)
-    }
-  }
-
-  // 保存简历
-  const handleSave = async () => {
-    if (!resume) return
-
-    try {
-      setSaving(true)
-      await performAutoSave({ showSuccessToast: true })
-    } catch (error) {
-      console.error('Save error:', error)
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -813,7 +797,6 @@ export default function ResumeEditPage() {
                   config={layoutConfig}
                   onConfigChange={handleLayoutConfigChange}
                 />
-                <div className="h-6 w-px bg-gray-200"></div>
                 <button
                   onClick={handleExportPDF}
                   disabled={exporting}
@@ -828,23 +811,6 @@ export default function ResumeEditPage() {
                     <>
                       <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
                       <span>导出 PDF</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      <span>保存中...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckIcon className="w-4 h-4 mr-2" />
-                      <span>保存</span>
                     </>
                   )}
                 </button>
