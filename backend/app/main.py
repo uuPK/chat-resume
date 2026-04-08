@@ -59,6 +59,7 @@ if (
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["*"],
+        max_age=86400,
     )
 else:
     logger.info("Using wildcard CORS origins")
@@ -69,6 +70,7 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["*"],
+        max_age=86400,
     )
 
 app.include_router(api_router, prefix=settings.API_STR)
