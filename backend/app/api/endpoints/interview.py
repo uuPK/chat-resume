@@ -1,30 +1,411 @@
-"""
-面试管理API端点模块
+"""面试管理 API 端点模块。"""
 
-提供面试相关的API端点，包括面试创建、问题生成、评分等功能。
-处理面试流程管理和实时交互。
-"""
+import json
+import logging
+from typing import Any, Dict, List, Optional, cast
 
-from typing import List, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user, get_current_user_claims
 from app.core.database import get_db
-from app.services.core import ResumeService
 from app.models.resume import InterviewSession, Resume
 from app.schemas.interview import (
     InterviewSessionCreate,
-    InterviewSessionResponse,
-    InterviewQuestionResponse,
     InterviewAnswerRequest,
     InterviewEvaluationResponse,
+    InterviewQuestionResponse,
+    InterviewSessionResponse,
+    InterviewTurn,
 )
-from app.api.deps import get_current_user, get_current_user_claims
-import logging
+from app.services.core import ResumeService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+DEFAULT_MAX_TURNS = 5
+
+
+def _safe_json_loads(value: str) -> Optional[Dict[str, Any]]:
+    if not isinstance(value, str):
+        return None
+
+    candidate = value.strip()
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        candidate = "\n".join(lines).strip()
+
+    if "```" in candidate:
+        candidate = candidate.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict):
+            return parsed
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return None
+
+
+def _build_default_evaluation(text: str) -> Dict[str, Any]:
+    return {
+        "score": 7,
+        "feedback": text,
+        "improvements": [
+            "建议回答时先给出结论，再补充背景和行动细节",
+            "补充量化结果或具体案例来增强说服力",
+        ],
+    }
+
+
+def _serialize_turn(turn: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "turn_index": int(turn.get("turn_index", 0)),
+        "question": str(turn.get("question", "")),
+        "question_type": str(turn.get("question_type", "general")),
+        "intent": turn.get("intent"),
+        "answer": turn.get("answer"),
+        "evaluation": turn.get("evaluation"),
+        "score": turn.get("score"),
+        "status": str(turn.get("status", "asked")),
+    }
+
+
+def _normalize_turns(interview_session: InterviewSession) -> List[Dict[str, Any]]:
+    raw_questions = list(cast(List[Any], interview_session.questions) or [])
+    raw_answers = list(cast(List[Any], interview_session.answers) or [])
+    turns: List[Dict[str, Any]] = []
+
+    for index, raw in enumerate(raw_questions):
+        if isinstance(raw, dict) and "turn_index" in raw and "question" in raw:
+            turns.append(_serialize_turn(raw))
+            continue
+
+        question = ""
+        question_type = "general"
+        answer = None
+        evaluation = None
+        score = None
+        status = "asked"
+
+        if isinstance(raw, dict):
+            question = str(raw.get("question", raw.get("ai_response", "")))
+            question_type = str(raw.get("type", "general"))
+            if raw.get("user_message"):
+                answer = str(raw["user_message"])
+                status = "answered"
+        else:
+            question = str(raw)
+
+        if index < len(raw_answers) and isinstance(raw_answers[index], dict):
+            answer_item = raw_answers[index]
+            answer = answer or answer_item.get("answer")
+            evaluation = answer_item.get("evaluation")
+            score = (
+                answer_item.get("score")
+                if answer_item.get("score") is not None
+                else (evaluation or {}).get("score")
+            )
+            if answer:
+                status = "answered"
+
+        turns.append(
+            _serialize_turn(
+                {
+                    "turn_index": index,
+                    "question": question,
+                    "question_type": question_type,
+                    "answer": answer,
+                    "evaluation": evaluation,
+                    "score": score,
+                    "status": status,
+                }
+            )
+        )
+
+    return turns
+
+
+def _sync_session_turns(
+    interview_session: InterviewSession, turns: List[Dict[str, Any]]
+) -> None:
+    serialized_turns = [_serialize_turn(turn) for turn in turns]
+    answer_rows: List[Dict[str, Any]] = []
+    for turn in serialized_turns:
+        if turn.get("answer"):
+            answer_rows.append(
+                {
+                    "answer": turn["answer"],
+                    "question_index": turn["turn_index"],
+                    "evaluation": turn.get("evaluation"),
+                    "score": turn.get("score"),
+                }
+            )
+
+    interview_session.questions = serialized_turns  # type: ignore
+    interview_session.answers = answer_rows  # type: ignore
+
+
+def _current_turn_from(turns: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for turn in turns:
+        if turn.get("status") != "answered":
+            return turn
+    return None
+
+
+def _build_session_response(
+    interview_session: InterviewSession, resume_title: Optional[str] = None
+) -> InterviewSessionResponse:
+    turns = _normalize_turns(interview_session)
+    current_turn = _current_turn_from(turns)
+    answered_questions = sum(1 for turn in turns if turn.get("answer"))
+    payload = {
+        **InterviewSessionResponse.model_validate(interview_session).model_dump(),
+        "resume_title": resume_title,
+        "turns": [InterviewTurn.model_validate(turn) for turn in turns],
+        "current_turn": (
+            InterviewTurn.model_validate(current_turn) if current_turn else None
+        ),
+        "total_questions": len(turns),
+        "answered_questions": answered_questions,
+        "overall_score": getattr(interview_session, "overall_score", None),
+    }
+    return InterviewSessionResponse.model_validate(payload)
+
+
+def _get_max_turns(interview_session: InterviewSession) -> int:
+    feedback = cast(Dict[str, Any], interview_session.feedback) or {}
+    plan = feedback.get("plan", {}) if isinstance(feedback, dict) else {}
+    max_turns = plan.get("max_turns", DEFAULT_MAX_TURNS)
+    return max(1, int(max_turns))
+
+
+def _opening_question(job_title: Optional[str]) -> str:
+    if job_title:
+        return (
+            f"请先做一个 1-2 分钟的自我介绍，并重点说明你与 {job_title} "
+            "这个岗位最相关的经历。"
+        )
+    return "请先做一个 1-2 分钟的自我介绍，并重点说明你最近一段最有代表性的工作经历。"
+
+
+async def _generate_next_turn(
+    interview_session: InterviewSession,
+    resume: Resume,
+    turns: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    from app.services.ai import InterviewAgent
+
+    interview_agent = InterviewAgent()
+    history_lines = []
+    for turn in turns:
+        history_lines.append(f"问题：{turn.get('question', '')}")
+        history_lines.append(f"回答：{turn.get('answer', '')}")
+
+    prompt = f"""你是一名结构化面试官。请基于已有问答生成下一题。
+
+要求：
+1. 只输出 JSON
+2. JSON 格式必须为 {{"question":"...", "question_type":"...", "intent":"..."}}
+3. question_type 只能是 opening, experience, technical, behavioral, situational, follow_up 之一
+4. 问题必须简洁、单一，不要一次问多个子问题
+
+已知岗位：{interview_session.job_position or "未指定"}
+JD：
+{interview_session.jd_content or ""}
+
+历史问答：
+{chr(10).join(history_lines)}
+"""
+    response = await interview_agent.chat(
+        message=prompt,
+        job_title=str(interview_session.job_position)
+        if interview_session.job_position is not None
+        else None,
+        job_description=str(interview_session.jd_content)
+        if interview_session.jd_content is not None
+        else None,
+        resume_content=str(resume.content) if resume.content is not None else None,
+        conversation_history=[],
+    )
+    parsed = _safe_json_loads(response) or {}
+    return _serialize_turn(
+        {
+            "turn_index": len(turns),
+            "question": parsed.get("question")
+            or "请结合一个具体案例，进一步说明你的个人贡献和实际结果。",
+            "question_type": parsed.get("question_type", "follow_up"),
+            "intent": parsed.get("intent", "继续深入评估候选人的真实经验"),
+            "status": "asked",
+        }
+    )
+
+
+async def _evaluate_answer(
+    interview_session: InterviewSession,
+    resume: Resume,
+    turn: Dict[str, Any],
+    answer: str,
+) -> Dict[str, Any]:
+    from app.services.ai import InterviewAgent
+
+    interview_agent = InterviewAgent()
+    prompt = f"""你是一名专业面试官，请评估以下回答。
+
+要求：
+1. 只输出 JSON
+2. JSON 格式必须为 {{"score": 0-10 的整数, "feedback": "...", "improvements": ["...", "..."]}}
+3. feedback 控制在 2-4 句话，直接指出优缺点
+4. improvements 给出 2 条可执行建议
+
+问题：{turn.get("question", "")}
+候选人回答：{answer}
+"""
+    response = await interview_agent.chat(
+        message=prompt,
+        job_title=str(interview_session.job_position)
+        if interview_session.job_position is not None
+        else None,
+        job_description=str(interview_session.jd_content)
+        if interview_session.jd_content is not None
+        else None,
+        resume_content=str(resume.content) if resume.content is not None else None,
+        conversation_history=[],
+    )
+    return _safe_json_loads(response) or _build_default_evaluation(response)
+
+
+async def _generate_report(
+    interview_session: InterviewSession,
+    resume: Resume,
+    turns: List[Dict[str, Any]],
+    resume_title: Optional[str],
+) -> Dict[str, Any]:
+    from app.services.ai import InterviewAgent
+
+    answered_turns = [turn for turn in turns if turn.get("answer")]
+    avg_score = 0
+    if answered_turns:
+        avg_score = round(
+            sum(int(turn.get("score") or 0) for turn in answered_turns)
+            / len(answered_turns)
+            * 10
+        )
+
+    fallback_report = {
+        "id": interview_session.id,
+        "resume_title": resume_title or "",
+        "job_position": interview_session.job_position or "未指定职位",
+        "interview_mode": "structured_interview",
+        "jd_content": interview_session.jd_content or "",
+        "overall_score": avg_score,
+        "performance_level": "良好" if avg_score >= 75 else "需改进",
+        "interview_date": str(interview_session.created_at),
+        "duration_minutes": max(1, len(answered_turns) * 3) if answered_turns else 0,
+        "total_questions": len(turns),
+        "answered_questions": len(answered_turns),
+        "competency_scores": {
+            "job_fit": avg_score,
+            "technical_depth": avg_score,
+            "project_exposition": avg_score,
+            "communication": avg_score,
+            "behavioral": avg_score,
+        },
+        "ai_highlights": [],
+        "ai_improvements": [],
+        "conversation": [
+            {
+                "question": turn.get("question", ""),
+                "answer": turn.get("answer", ""),
+                "ai_feedback": {
+                    "score": int(turn.get("score") or 0) * 10,
+                    "strengths": [],
+                    "suggestions": (turn.get("evaluation") or {}).get(
+                        "improvements", []
+                    ),
+                },
+            }
+            for turn in answered_turns
+        ],
+        "all_questions": [
+            {
+                "question": turn.get("question", ""),
+                "type": turn.get("question_type", "general"),
+                "index": turn.get("turn_index", index),
+            }
+            for index, turn in enumerate(turns)
+        ],
+        "reference_answers": [],
+        "jd_keywords": [],
+        "coverage_rate": 0,
+        "frequent_words": [],
+    }
+
+    if not answered_turns:
+        fallback_report["ai_improvements"] = ["面试尚未形成有效问答，建议先完成至少 2 轮回答。"]
+        return fallback_report
+
+    interview_agent = InterviewAgent()
+    transcript = _format_interview_session(answered_turns)
+    prompt = f"""你是一名专业面试官，请基于以下结构化面试记录输出 JSON 报告。
+
+必须只输出 JSON，格式如下：
+{{
+  "overall_score": 0-100,
+  "performance_level": "...",
+  "competency_scores": {{
+    "job_fit": 0-100,
+    "technical_depth": 0-100,
+    "project_exposition": 0-100,
+    "communication": 0-100,
+    "behavioral": 0-100
+  }},
+  "ai_highlights": ["...", "..."],
+  "ai_improvements": ["...", "..."]
+}}
+
+岗位：{interview_session.job_position or "未指定"}
+JD：
+{interview_session.jd_content or ""}
+
+面试记录：
+{transcript}
+"""
+    response = await interview_agent.chat(
+        message=prompt,
+        job_title=str(interview_session.job_position)
+        if interview_session.job_position is not None
+        else None,
+        job_description=str(interview_session.jd_content)
+        if interview_session.jd_content is not None
+        else None,
+        resume_content=str(resume.content) if resume.content is not None else None,
+        conversation_history=[],
+    )
+    parsed = _safe_json_loads(response)
+    if not parsed:
+        fallback_report["ai_improvements"] = _build_default_evaluation(response)[
+            "improvements"
+        ]
+        fallback_report["ai_highlights"] = ["系统已生成基础报告，建议进一步人工复盘。"]
+        return fallback_report
+
+    fallback_report["overall_score"] = int(parsed.get("overall_score", avg_score))
+    fallback_report["performance_level"] = parsed.get(
+        "performance_level", fallback_report["performance_level"]
+    )
+    fallback_report["competency_scores"] = parsed.get(
+        "competency_scores", fallback_report["competency_scores"]
+    )
+    fallback_report["ai_highlights"] = parsed.get("ai_highlights", [])
+    fallback_report["ai_improvements"] = parsed.get("ai_improvements", [])
+    return fallback_report
 
 
 def _format_interview_session(session_data: List[Dict[str, Any]]) -> str:
@@ -51,15 +432,10 @@ async def get_all_interview_sessions(
         .all()
     )
 
-    result: list[InterviewSessionResponse] = []
-    for session in sessions:
-        payload = {
-            **InterviewSessionResponse.model_validate(session).model_dump(),
-            "resume_title": session.resume.title if session.resume else None,
-            "overall_score": getattr(session, "overall_score", None),
-        }
-        result.append(InterviewSessionResponse.model_validate(payload))
-    return result
+    return [
+        _build_session_response(session, session.resume.title if session.resume else None)
+        for session in sessions
+    ]
 
 
 @router.post("/{resume_id}/interview/start", response_model=InterviewSessionResponse)
@@ -103,21 +479,33 @@ async def start_interview(
         db.commit()
 
     try:
-        # 创建面试会话，初始不生成问题
+        first_turn = _serialize_turn(
+            {
+                "turn_index": 0,
+                "question": _opening_question(session_create.job_position),
+                "question_type": "opening",
+                "intent": "建立候选人的背景信息，并确认与目标岗位的相关性",
+                "status": "asked",
+            }
+        )
+
         interview_session = InterviewSession(
             resume_id=resume_id,
             job_position=session_create.job_position,
             jd_content=session_create.jd_content,
-            questions=[],
+            questions=[first_turn],
             answers=[],
-            feedback={},
+            feedback={
+                "mode": "structured_interview",
+                "plan": {"max_turns": DEFAULT_MAX_TURNS},
+            },
             status="active",
         )
         db.add(interview_session)
         db.commit()
         db.refresh(interview_session)
 
-        return InterviewSessionResponse.model_validate(interview_session)
+        return _build_session_response(interview_session, resume.title)
 
     except Exception as e:
         raise HTTPException(
@@ -161,81 +549,35 @@ async def get_next_question(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
 
-    # 获取当前问题索引
-    current_question_index = len(cast(List[Any], interview_session.answers))
+    turns = _normalize_turns(interview_session)
+    current_turn = _current_turn_from(turns)
 
-    # 如果还有预设问题，返回下一个
-    if current_question_index < len(cast(List[Any], interview_session.questions)):
-        question = interview_session.questions[current_question_index]
+    if current_turn:
         return InterviewQuestionResponse.model_validate(
             {
-                "question": question["question"],
-                "question_type": question.get("type", "general"),
-                "question_index": current_question_index,
+                "question": current_turn["question"],
+                "question_type": current_turn.get("question_type", "general"),
+                "question_index": current_turn["turn_index"],
             }
         )
 
-    # 如果已经回答完所有预设问题，根据对话历史生成新问题
     try:
-        from app.services.ai import InterviewAgent
+        if len(turns) >= _get_max_turns(interview_session):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Interview has reached the maximum number of questions",
+            )
 
-        interview_agent = InterviewAgent()
-
-        # 构建 InterviewAgent 需要的对话历史格式
-        interview_history = []
-        for i, answer in enumerate(cast(List[Any], interview_session.answers)):
-            if i < len(cast(List[Any], interview_session.questions)):
-                interview_history.append(
-                    {
-                        "role": "assistant",
-                        "content": interview_session.questions[i]["question"],
-                    }
-                )
-                interview_history.append({"role": "user", "content": answer["answer"]})
-
-        # 生成新问题
-        answers_list = cast(List[Any], interview_session.answers)
-        questions_list = cast(List[Any], interview_session.questions)
-        last_answer = answers_list[-1]["answer"] if answers_list else ""
-        last_question = questions_list[-1]["question"] if questions_list else ""
-
-        # 使用 chat 方法生成后续问题
-        follow_up_prompt = f"""基于以下面试对话生成一个有针对性的后续问题：
-
-上一个问题：{last_question}
-用户回答：{last_answer}
-
-请生成一个相关的后续问题来深入探讨用户的回答。只需要返回问题本身，不要其他说明。"""
-
-        follow_up_question = await interview_agent.chat(
-            message=follow_up_prompt,
-            job_title=str(interview_session.job_position)
-            if interview_session.job_position is not None
-            else None,
-            job_description=str(interview_session.jd_content)
-            if interview_session.jd_content is not None
-            else None,
-            resume_content=str(resume.content)
-            if resume is not None and resume.content is not None
-            else None,
-            conversation_history=interview_history,
-        )
-
-        new_question = {
-            "question": follow_up_question.strip(),
-            "type": "follow_up",
-            "purpose": "深入探讨用户回答",
-        }
-
-        # 更新会话问题列表
-        interview_session.questions.append(new_question)
+        next_turn = await _generate_next_turn(interview_session, resume, turns)
+        turns.append(next_turn)
+        _sync_session_turns(interview_session, turns)
         db.commit()
 
         return InterviewQuestionResponse.model_validate(
             {
-                "question": new_question["question"],
-                "question_type": new_question.get("type", "follow_up"),
-                "question_index": current_question_index,
+                "question": next_turn["question"],
+                "question_type": next_turn.get("question_type", "follow_up"),
+                "question_index": next_turn["turn_index"],
             }
         )
 
@@ -283,106 +625,63 @@ async def submit_answer(
         )
 
     try:
-        # 获取当前问题
-        question_index = answer_request.question_index
+        turns = _normalize_turns(interview_session)
+        current_turn = _current_turn_from(turns)
+        question_index = (
+            current_turn["turn_index"] if current_turn else answer_request.question_index
+        )
 
-        if question_index >= len(cast(List[Any], interview_session.questions)):
+        if question_index >= len(turns):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid question index"
             )
 
-        current_question = cast(
-            str,
-            cast(List[Any], interview_session.questions)[question_index]["question"],
+        turn = turns[question_index]
+        if turn.get("status") == "answered":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current interview question has already been answered",
+            )
+
+        evaluation = await _evaluate_answer(
+            interview_session, resume, turn, answer_request.answer
         )
 
-        # 使用 InterviewAgent 评估答案
-        from app.services.ai import InterviewAgent
+        turn["answer"] = answer_request.answer
+        turn["evaluation"] = evaluation
+        turn["score"] = int(evaluation.get("score", 7))
+        turn["status"] = "answered"
 
-        interview_agent = InterviewAgent()
+        next_turn: Optional[Dict[str, Any]] = None
+        answered_count = sum(1 for item in turns if item.get("answer"))
+        max_turns = _get_max_turns(interview_session)
+        if answered_count < max_turns:
+            next_turn = await _generate_next_turn(interview_session, resume, turns)
+            turns.append(next_turn)
+            interview_session.status = "active"  # type: ignore
+        else:
+            interview_session.status = "completed"  # type: ignore
 
-        # 使用 chat 方法评估答案
-        evaluation_prompt = f"""作为专业面试官，请评估以下面试回答：
-
-问题：{current_question}
-回答：{answer_request.answer}
-
-请从以下维度进行评估：
-1. 回答的准确性和深度
-2. 逻辑性和条理性
-3. 与职位的匹配度
-4. 沟通表达能力
-
-请给出评分（0-10分）和具体的改进建议。返回JSON格式：
-{{
-    "score": 分数,
-    "feedback": "详细反馈",
-    "improvements": ["改进建议1", "改进建议2"]
-}}"""
-
-        evaluation_response = await interview_agent.chat(
-            message=evaluation_prompt,
-            job_title=str(interview_session.job_position)
-            if interview_session.job_position is not None
-            else None,
-            job_description=str(interview_session.jd_content)
-            if interview_session.jd_content is not None
-            else None,
-            resume_content=str(resume.content)
-            if resume is not None and resume.content is not None
-            else None,
-            conversation_history=[],
-        )
-
-        # 尝试解析JSON响应，如果失败则使用默认值
-        try:
-            import json
-
-            evaluation = json.loads(evaluation_response)
-        except (json.JSONDecodeError, ValueError):
-            # 如果JSON解析失败，创建默认评估
-            evaluation = {
-                "score": 7,
-                "feedback": evaluation_response,
-                "improvements": [
-                    "建议更具体地说明相关经验",
-                    "可以提供更多实例来支持观点",
-                ],
-            }
-
-        # 保存答案和评估
-        answer_data = {
-            "answer": answer_request.answer,
-            "evaluation": evaluation,
-            "question_index": question_index,
-        }
-
-        # 更新会话答案 - 复制列表以确保SQLAlchemy检测到变化
-        current_answers = list(cast(List[Any], interview_session.answers) or [])
-
-        # 扩展答案列表到所需长度
-        while len(current_answers) <= question_index:
-            current_answers.append({})
-
-        # 设置答案数据
-        current_answers[question_index] = answer_data
-
-        # 重新分配列表以触发SQLAlchemy的变化检测
-        interview_session.answers = current_answers  # type: ignore
-
-        # 清除缓存的报告，因为面试内容已更新
+        _sync_session_turns(interview_session, turns)
         interview_session.report_data = None  # type: ignore
-
         db.commit()
 
         return InterviewEvaluationResponse.model_validate(
             {
-                "question": current_question,
+                "question": turn["question"],
                 "answer": answer_request.answer,
                 "evaluation": evaluation,
                 "score": evaluation.get("score", 7),
                 "feedback": evaluation.get("feedback", ""),
                 "suggestions": evaluation.get("improvements", []),
+                "session_status": str(interview_session.status),
+                "completed": interview_session.status == "completed",
+                "current_turn": (
+                    InterviewTurn.model_validate(next_turn) if next_turn else None
+                ),
+                "next_turn": (
+                    InterviewTurn.model_validate(next_turn) if next_turn else None
+                ),
             }
         )
 
@@ -426,92 +725,12 @@ async def end_interview(
         )
 
     try:
-        from app.services.ai import InterviewAgent
-
-        # 计算整体面试分数
-        interview_agent = InterviewAgent()
-
-        # 构建面试会话记录
-        interview_session_data = []
-        questions_list = cast(List[Any], interview_session.questions)
-        answers_list = cast(List[Any], interview_session.answers)
-        for i, question in enumerate(questions_list):
-            answer = answers_list[i] if i < len(answers_list) else ""
-            interview_session_data.append(
-                {
-                    "question": question.get("question", "")
-                    if isinstance(question, dict)
-                    else str(question),
-                    "answer": answer,
-                    "score": 0,  # 默认分数
-                }
-            )
-
-        # 生成面试表现评估
-        job_requirements = f"职位：{interview_session.job_position}\n职位描述：{interview_session.jd_content or ''}"
-
-        # 使用 chat 方法生成整体评估
-        evaluation_prompt = f"""作为专业面试官，请基于以下面试会话记录生成整体评估报告：
-
-职位要求：
-{job_requirements}
-
-面试会话记录：
-{_format_interview_session(interview_session_data)}
-
-请提供：
-1. 整体表现评分（0-100分）
-2. 各项能力评估
-3. 具体反馈和建议
-4. 改进方向
-
-返回JSON格式：
-{{
-    "total_score": 整体分数,
-    "strengths": ["优势1", "优势2"],
-    "weaknesses": ["不足1", "不足2"],
-    "recommendations": ["建议1", "建议2"],
-    "detailed_feedback": "详细反馈"
-}}"""
-
-        evaluation_response = await interview_agent.chat(
-            message=evaluation_prompt,
-            job_title=str(interview_session.job_position)
-            if interview_session.job_position is not None
-            else None,
-            job_description=str(interview_session.jd_content)
-            if interview_session.jd_content is not None
-            else None,
-            resume_content=str(resume.content)
-            if resume is not None and resume.content is not None
-            else None,
-            conversation_history=[],
-        )
-
-        # 尝试解析JSON响应，如果失败则使用默认值
-        try:
-            import json
-
-            evaluation_result = json.loads(evaluation_response)
-            overall_score = evaluation_result.get("total_score", 75)
-        except (json.JSONDecodeError, ValueError):
-            # 如果JSON解析失败，创建默认评估
-            overall_score = 75
-            evaluation_result = {
-                "total_score": overall_score,
-                "strengths": ["表现良好"],
-                "weaknesses": ["有待改进"],
-                "recommendations": ["继续努力"],
-                "detailed_feedback": evaluation_response,
-            }
-
-        # 更新会话状态和分数
+        turns = _normalize_turns(interview_session)
+        report = await _generate_report(interview_session, resume, turns, resume.title)
+        overall_score = int(report.get("overall_score", 0))
         interview_session.status = "completed"  # type: ignore
         setattr(interview_session, "overall_score", overall_score)
-
-        # 清除缓存的报告，因为面试已完成，需要重新生成完整报告
-        interview_session.report_data = None  # type: ignore
-
+        interview_session.report_data = report  # type: ignore
         db.commit()
 
         return {
@@ -522,9 +741,6 @@ async def end_interview(
     except Exception as e:
         # 即使分数计算失败，也要结束面试
         interview_session.status = "completed"  # type: ignore
-
-        # 清除缓存的报告
-        interview_session.report_data = None  # type: ignore
 
         db.commit()
 
@@ -566,16 +782,42 @@ async def get_interview_sessions(
         .all()
     )
 
-    return [
-        InterviewSessionResponse.model_validate(
-            {
-                **InterviewSessionResponse.model_validate(session).model_dump(),
-                "resume_title": resume.title if resume else None,
-                "overall_score": getattr(session, "overall_score", None),
-            }
+    return [_build_session_response(session, resume.title) for session in sessions]
+
+
+@router.get(
+    "/{resume_id}/interview/{session_id}", response_model=InterviewSessionResponse
+)
+async def get_interview_session(
+    resume_id: int,
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取单个面试会话详情。"""
+
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
         )
-        for session in sessions
-    ]
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
+
+    session = (
+        db.query(InterviewSession)
+        .filter(InterviewSession.id == session_id, InterviewSession.resume_id == resume_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found"
+        )
+
+    return _build_session_response(session, resume.title)
 
 
 @router.delete("/{resume_id}/interview/{session_id}")
@@ -659,90 +901,16 @@ async def calculate_scores_for_completed_interviews(
         return {"message": "No interviews need score calculation", "updated_count": 0}
 
     updated_count = 0
-    from app.services.ai import InterviewAgent
-
-    interview_agent = InterviewAgent()
 
     for session in sessions:
         try:
-            # 构建面试会话记录
-            interview_session_data = []
-            questions_list = cast(List[Any], session.questions)
-            answers_list = cast(List[Any], session.answers)
-            for i, question in enumerate(questions_list):
-                answer = answers_list[i] if i < len(answers_list) else ""
-                interview_session_data.append(
-                    {
-                        "question": question.get("question", "")
-                        if isinstance(question, dict)
-                        else str(question),
-                        "answer": answer,
-                        "score": 0,  # 默认分数
-                    }
-                )
-
-            # 生成面试表现评估
-            job_requirements = (
-                f"职位：{session.job_position}\n职位描述：{session.jd_content or ''}"
-            )
-
-            # 使用 chat 方法生成整体评估
-            evaluation_prompt = f"""作为专业面试官，请基于以下面试会话记录生成整体评估报告：
-
-职位要求：
-{job_requirements}
-
-面试会话记录：
-{_format_interview_session(interview_session_data)}
-
-请提供：
-1. 整体表现评分（0-100分）
-2. 各项能力评估
-3. 具体反馈和建议
-4. 改进方向
-
-返回JSON格式：
-{{
-    "total_score": 整体分数,
-    "strengths": ["优势1", "优势2"],
-    "weaknesses": ["不足1", "不足2"],
-    "recommendations": ["建议1", "建议2"],
-    "detailed_feedback": "详细反馈"
-}}"""
-
-            evaluation_response = await interview_agent.chat(
-                message=evaluation_prompt,
-                job_title=str(session.job_position)
-                if session.job_position is not None
-                else None,
-                job_description=str(session.jd_content)
-                if session.jd_content is not None
-                else None,
-                resume_content=str(resume.content)
-                if resume is not None and resume.content is not None
-                else None,
-                conversation_history=[],
-            )
-
-            # 尝试解析JSON响应，如果失败则使用默认值
-            try:
-                import json
-
-                evaluation_result = json.loads(evaluation_response)
-                overall_score = evaluation_result.get("total_score", 75)
-            except (json.JSONDecodeError, ValueError):
-                # 如果JSON解析失败，创建默认评估
-                overall_score = 75
-                evaluation_result = {
-                    "total_score": overall_score,
-                    "strengths": ["表现良好"],
-                    "weaknesses": ["有待改进"],
-                    "recommendations": ["继续努力"],
-                    "detailed_feedback": evaluation_response,
-                }
+            turns = _normalize_turns(session)
+            report = await _generate_report(session, resume, turns, resume.title)
+            overall_score = int(report.get("overall_score", 0))
 
             if overall_score > 0:  # 只有成功计算出分数才更新
                 setattr(session, "overall_score", overall_score)
+                session.report_data = report  # type: ignore
                 updated_count += 1
 
         except Exception as e:
@@ -865,89 +1033,12 @@ async def get_interview_report(
             logger.info(f"返回缓存的报告，面试会话ID: {session_id}")
             return report_data
 
-        # 添加简历信息到面试会话对象
-        interview_session.resume_title = resume.title
-        interview_session.resume = resume  # 添加完整的简历对象
-
-        # 生成报告
-        from app.services.ai import InterviewAgent
-
-        interview_agent = InterviewAgent()
-
-        # 构建面试会话记录
-        interview_session_data = []
-        questions_list = cast(List[Any], interview_session.questions)
-        answers_list = cast(List[Any], interview_session.answers)
-        for i, question in enumerate(questions_list):
-            answer = answers_list[i] if i < len(answers_list) else ""
-            interview_session_data.append(
-                {
-                    "question": question.get("question", "")
-                    if isinstance(question, dict)
-                    else str(question),
-                    "answer": answer,
-                    "score": 0,  # 默认分数
-                }
-            )
-
-        # 生成面试表现评估报告
-        job_requirements = f"职位：{interview_session.job_position}\n职位描述：{interview_session.jd_content or ''}"
-
-        # 使用 chat 方法生成报告
-        evaluation_prompt = f"""作为专业面试官，请基于以下面试会话记录生成详细评估报告：
-
-职位要求：
-{job_requirements}
-
-面试会话记录：
-{_format_interview_session(interview_session_data)}
-
-请提供：
-1. 整体表现评分（0-100分）
-2. 各项能力评估
-3. 具体反馈和建议
-4. 改进方向
-
-返回JSON格式：
-{{
-    "total_score": 整体分数,
-    "strengths": ["优势1", "优势2"],
-    "weaknesses": ["不足1", "不足2"],
-    "recommendations": ["建议1", "建议2"],
-    "detailed_feedback": "详细反馈"
-}}"""
-
-        evaluation_response = await interview_agent.chat(
-            message=evaluation_prompt,
-            job_title=str(interview_session.job_position)
-            if interview_session.job_position is not None
-            else None,
-            job_description=str(interview_session.jd_content)
-            if interview_session.jd_content is not None
-            else None,
-            resume_content=str(resume.content)
-            if resume is not None and resume.content is not None
-            else None,
-            conversation_history=[],
-        )
-
-        # 尝试解析JSON响应，如果失败则使用默认值
-        try:
-            import json
-
-            report = json.loads(evaluation_response)
-        except (json.JSONDecodeError, ValueError):
-            # 如果JSON解析失败，创建默认报告
-            report = {
-                "total_score": 75,
-                "strengths": ["表现良好"],
-                "weaknesses": ["有待改进"],
-                "recommendations": ["继续努力"],
-                "detailed_feedback": evaluation_response,
-            }
+        turns = _normalize_turns(interview_session)
+        report = await _generate_report(interview_session, resume, turns, resume.title)
 
         # 缓存报告到数据库
         interview_session.report_data = report  # type: ignore
+        interview_session.overall_score = int(report.get("overall_score", 0))  # type: ignore
         db.commit()
         logger.info(f"生成并缓存了新报告，面试会话ID: {session_id}")
 
@@ -987,12 +1078,7 @@ async def interview_chat(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    简单的面试对话接口
-
-    这是一个纯chatbot模式的面试接口，用户说什么AI就回答什么，
-    不使用复杂的预设问题逻辑。
-    """
+    """兼容旧版聊天接口，内部转到结构化问答链路。"""
 
     # 验证权限
     interview_session = (
@@ -1023,92 +1109,30 @@ async def interview_chat(
         )
 
     try:
-        from app.services.ai import InterviewAgent
+        turns = _normalize_turns(interview_session)
+        current_turn = _current_turn_from(turns)
+        if not current_turn:
+            return InterviewChatResponse(response="本场面试已完成，请查看面试报告。")
 
-        interview_agent = InterviewAgent()
-
-        # 从数据库构建完整的对话历史
-        current_questions = list(cast(List[Any], interview_session.questions) or [])
-        current_answers = list(cast(List[Any], interview_session.answers) or [])
-
-        logger.info("=== 面试对话调试 ===")
-        logger.info(f"当前用户消息: {chat_request.message}")
-        logger.info(f"数据库中questions数量: {len(current_questions)}")
-        logger.info(f"数据库中answers数量: {len(current_answers)}")
-
-        # 构建对话历史：按顺序交替添加用户消息和AI回复
-        conversation_history = []
-
-        # 遍历已存储的对话记录
-        for i, question_item in enumerate(current_questions):
-            # 新格式：user_message 和 ai_response 在同一个对象中
-            user_content = question_item.get("user_message", "")
-            ai_content = question_item.get("ai_response", "")
-
-            # 兼容旧格式
-            if not user_content and not ai_content:
-                # 旧格式可能是 question 字段
-                old_question = question_item.get("question", "")
-                if old_question:
-                    # 尝试从 answers 获取对应的用户回答
-                    if i < len(current_answers):
-                        user_content = current_answers[i].get("answer", "")
-                    ai_content = old_question
-
-            if user_content:
-                conversation_history.append({"role": "user", "content": user_content})
-                logger.info(f"历史[{i}] 用户: {user_content[:50]}...")
-
-            if ai_content:
-                conversation_history.append(
-                    {"role": "assistant", "content": ai_content}
-                )
-                logger.info(f"历史[{i}] AI: {ai_content[:50]}...")
-
-        logger.info(f"构建的对话历史长度: {len(conversation_history)}")
-        logger.info(f"即将发送给AI的当前消息: {chat_request.message}")
-
-        # 使用chat方法进行对话 - 当前消息会在 chat_with_context 中作为最后一条消息添加
-        response = await interview_agent.chat(
-            message=chat_request.message,
-            job_title=str(interview_session.job_position)
-            if interview_session.job_position is not None
-            else None,
-            job_description=str(interview_session.jd_content)
-            if interview_session.jd_content is not None
-            else None,
-            resume_content=str(resume.content)
-            if resume is not None and resume.content is not None
-            else None,
-            conversation_history=conversation_history,
+        evaluation = await _evaluate_answer(
+            interview_session, resume, current_turn, chat_request.message
         )
+        current_turn["answer"] = chat_request.message
+        current_turn["evaluation"] = evaluation
+        current_turn["score"] = int(evaluation.get("score", 7))
+        current_turn["status"] = "answered"
 
-        logger.info(f"AI回复: {response[:100]}...")
+        if sum(1 for turn in turns if turn.get("answer")) < _get_max_turns(interview_session):
+            next_turn = await _generate_next_turn(interview_session, resume, turns)
+            turns.append(next_turn)
+            response = next_turn["question"]
+        else:
+            interview_session.status = "completed"  # type: ignore
+            response = "本场模拟面试已完成。你可以结束面试并查看报告。"
 
-        # 保存对话记录：用户消息和AI回复放在一起
-        current_questions.append(
-            {
-                "user_message": chat_request.message,  # 用户消息
-                "ai_response": response,  # AI回复
-                "type": "chat",
-                "index": len(current_questions),
-            }
-        )
-
-        # 为了兼容旧代码，也保存一条answer记录
-        current_answers.append(
-            {
-                "answer": chat_request.message,
-                "question_index": len(current_answers),
-            }
-        )
-
-        interview_session.questions = current_questions  # type: ignore
-        interview_session.answers = current_answers  # type: ignore
+        _sync_session_turns(interview_session, turns)
+        interview_session.report_data = None  # type: ignore
         db.commit()
-
-        logger.info(f"对话已保存，当前questions数量: {len(current_questions)}")
-
         return InterviewChatResponse(response=response)
 
     except Exception as e:

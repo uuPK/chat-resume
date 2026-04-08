@@ -18,7 +18,6 @@ import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useInterview } from '@/hooks/useInterview'
 import InterviewerAvatar, { InterviewerProfile, interviewerProfiles } from '@/components/interview/InterviewerAvatar'
-import QuestionTypeLabel, { detectQuestionType } from '@/components/interview/QuestionTypeLabel'
 import FeedbackPanel from '@/components/interview/FeedbackPanel'
 import VoiceControls from '@/components/interview/VoiceControls'
 import VoiceRecorder, { VoiceRecorderRef } from '@/components/interview/VoiceRecorder'
@@ -112,6 +111,7 @@ export default function InterviewPage() {
     endInterview,
     stopCurrentRequest
   } = useInterview(resumeId ? parseInt(resumeId) : 0, interviewOptions)
+  const latestAiMessage = messages.filter(message => message.type === 'ai').slice(-1)[0]?.content || currentStreamingMessage
 
   useEffect(() => {
     setMounted(true)
@@ -133,10 +133,6 @@ export default function InterviewPage() {
     }
 
     // 清理函数
-    return () => {
-      console.error = originalError
-    }
-
     // 解析URL参数
     const urlParams = new URLSearchParams(window.location.search)
     const position = urlParams.get('position') || ''
@@ -155,6 +151,10 @@ export default function InterviewPage() {
       jd,
       sessionId
     })
+
+    return () => {
+      console.error = originalError
+    }
   }, [])
 
   useEffect(() => {
@@ -245,7 +245,7 @@ export default function InterviewPage() {
         setHasStartedInterview(false) // 失败时重置标志（仅限新面试）
       }
     }
-  }, [resume, hasStartedInterview, startInterview, interviewConfig.jd])
+  }, [resume, hasStartedInterview, startInterview, interviewConfig.jd, interviewConfig.sessionId])
 
   // 自动开始面试 - 直接开始新面试，不检查未完成的会话
   useEffect(() => {
@@ -402,12 +402,18 @@ export default function InterviewPage() {
                   <ClockIcon className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-700">{formatTime(interviewTime)}</span>
                 </div>
-                <button
-                  onClick={() => {/* TODO: 暂停功能 */ }}
-                  className="btn-secondary text-sm px-3 py-1"
-                >
-                  暂停
-                </button>
+                <VoiceControls
+                  questionText={latestAiMessage}
+                  isVisible={Boolean(latestAiMessage && latestAiMessage.length > 0)}
+                  autoPlay={autoPlayVoice}
+                  onAutoPlayToggle={setAutoPlayVoice}
+                  onVoiceStart={() => console.log('语音开始播放')}
+                  onVoiceEnd={() => console.log('语音播放结束')}
+                  onVoiceError={(error) => {
+                    console.error('语音播放错误:', error)
+                    toast.error('语音播放失败')
+                  }}
+                />
                 <button
                   onClick={handleEndInterview}
                   className="btn-danger text-sm px-3 py-1 flex items-center space-x-1"
@@ -486,22 +492,6 @@ export default function InterviewPage() {
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div className={`max-w-[85%] ${message.type === 'user' ? 'flex justify-end' : ''}`}>
-                        {message.type === 'ai' && (
-                          <div className="mb-2 flex items-center justify-between">
-                            <QuestionTypeLabel type={detectQuestionType(message.content)} />
-                            <VoiceControls
-                              questionText={message.content}
-                              isVisible={true}
-                              autoPlay={autoPlayVoice}
-                              onVoiceStart={() => console.log('语音开始播放')}
-                              onVoiceEnd={() => console.log('语音播放结束')}
-                              onVoiceError={(error) => {
-                                console.error('语音播放错误:', error)
-                                toast.error('语音播放失败')
-                              }}
-                            />
-                          </div>
-                        )}
                         <div
                           className={`px-4 py-3 rounded-lg ${message.type === 'user'
                               ? 'bg-blue-600 text-white rounded-br-sm'
@@ -522,19 +512,6 @@ export default function InterviewPage() {
                   {currentStreamingMessage && (
                     <div className="flex justify-start">
                       <div className="max-w-[85%]">
-                        <div className="mb-2 flex items-center justify-between">
-                          <QuestionTypeLabel type={detectQuestionType(currentStreamingMessage)} />
-                          <VoiceControls
-                            questionText={currentStreamingMessage}
-                            isVisible={currentStreamingMessage.length > 10}
-                            onVoiceStart={() => console.log('语音开始播放')}
-                            onVoiceEnd={() => console.log('语音播放结束')}
-                            onVoiceError={(error) => {
-                              console.error('语音播放错误:', error)
-                              toast.error('语音播放失败')
-                            }}
-                          />
-                        </div>
                         <div className="px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
                           <StreamingMessage content={currentStreamingMessage} isComplete={false} />
                         </div>

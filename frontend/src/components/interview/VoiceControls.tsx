@@ -22,6 +22,7 @@ interface VoiceControlsProps {
   questionText: string
   isVisible?: boolean
   autoPlay?: boolean
+  onAutoPlayToggle?: (enabled: boolean) => void
   onVoiceStart?: () => void
   onVoiceEnd?: () => void
   onVoiceError?: (error: Error) => void
@@ -31,6 +32,7 @@ export default function VoiceControls({
   questionText,
   isVisible = true,
   autoPlay = false,
+  onAutoPlayToggle,
   onVoiceStart,
   onVoiceEnd,
   onVoiceError
@@ -161,77 +163,17 @@ export default function VoiceControls({
     }
   }, [autoPlay, questionText, isPlaying, isLoading, lastAutoPlayedText, voiceConfigs, selectedVoice, retryCount, onVoiceStart, onVoiceEnd, onVoiceError])
 
-  // 播放语音
-  const handlePlayVoice = useCallback(async () => {
-    // 标记用户已交互，允许后续自动播放
+  const handleAutoPlayToggle = useCallback(() => {
+    const nextEnabled = !autoPlay
     ttsService.markUserInteraction()
-
-    if (isPlaying) {
-      // 停止播放
+    if (!nextEnabled) {
       ttsService.stopAudio()
       setIsPlaying(false)
-      onVoiceEnd?.()
-      return
-    }
-
-    if (!questionText.trim()) {
-      return
-    }
-
-    // 检查手动播放的重试次数
-    const manualPlayKey = `manual_${questionText}`
-    const currentRetryCount = retryCount[manualPlayKey] || 0
-    if (currentRetryCount >= MAX_RETRY_COUNT) {
-      console.warn(`手动播放已达到最大重试次数(${MAX_RETRY_COUNT})，停止播放`)
-      onVoiceError?.(new Error(`播放失败次数过多，请稍后重试`))
-      return
-    }
-
-    setIsLoading(true)
-    setIsPlaying(true)
-    onVoiceStart?.()
-
-    try {
-      const voiceConfig = voiceConfigs[selectedVoice]
-
-      // 生成语音
-      const response = await ttsService.generateInterviewQuestionSpeech(
-        questionText,
-        voiceConfig
-      )
-
-      if (response.success && response.data.audio_url) {
-        // 播放语音
-        await ttsService.playAudio(response.data.audio_url)
-      } else if (response.success && response.data.audio_base64) {
-        // 播放Base64音频
-        await ttsService.playBase64Audio(response.data.audio_base64, response.data.format)
-      } else {
-        throw new Error('语音生成失败')
-      }
-
-      onVoiceEnd?.()
-      // 播放成功，重置重试计数
-      setRetryCount(prev => ({
-        ...prev,
-        [manualPlayKey]: 0
-      }))
-    } catch (error) {
-      console.error('语音播放错误:', error)
-
-      // 增加重试计数
-      const newRetryCount = currentRetryCount + 1
-      setRetryCount(prev => ({
-        ...prev,
-        [manualPlayKey]: newRetryCount
-      }))
-
-      onVoiceError?.(error as Error)
-    } finally {
       setIsLoading(false)
-      setIsPlaying(false)
+      onVoiceEnd?.()
     }
-  }, [questionText, voiceConfigs, selectedVoice, retryCount, onVoiceStart, onVoiceEnd, onVoiceError])
+    onAutoPlayToggle?.(nextEnabled)
+  }, [autoPlay, onAutoPlayToggle, onVoiceEnd])
 
   // 音色选择
   const handleVoiceChange = (voiceType: string) => {
@@ -247,24 +189,22 @@ export default function VoiceControls({
     <div className="flex items-center space-x-2">
       {/* 播放/停止按钮 */}
       <button
-        onClick={handlePlayVoice}
-        disabled={isLoading}
+        onClick={handleAutoPlayToggle}
         className={`
           p-2 rounded-full transition-colors
-          ${isPlaying
-            ? 'bg-red-100 text-red-600 hover:bg-red-200'
+          ${autoPlay
+            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
             : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
           }
-          ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
         `}
-        title={isPlaying ? '停止播放' : '播放语音'}
+        title={autoPlay ? '关闭面试官语音' : '开启面试官语音'}
       >
         {isLoading ? (
           <ArrowPathIcon className="w-5 h-5 animate-spin" />
-        ) : isPlaying ? (
-          <SpeakerXMarkIcon className="w-5 h-5" />
-        ) : (
+        ) : autoPlay ? (
           <SpeakerWaveIcon className="w-5 h-5" />
+        ) : (
+          <SpeakerXMarkIcon className="w-5 h-5" />
         )}
       </button>
 

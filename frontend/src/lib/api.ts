@@ -175,7 +175,7 @@ interface InterviewSession {
   resume_id: number
   resume_title?: string
   job_position: string
-  interview_mode: string
+  interview_mode?: string
   jd_content: string
   questions: any[]
   answers: any[]
@@ -184,13 +184,27 @@ interface InterviewSession {
   overall_score?: number
   current_question?: number
   total_questions?: number
+  answered_questions?: number
+  turns?: InterviewTurn[]
+  current_turn?: InterviewTurn | null
   created_at: string
-  updated_at: string
+  updated_at?: string
 }
 
 interface InterviewConfig {
   job_position: string
   jd_content?: string
+}
+
+interface InterviewTurn {
+  turn_index: number
+  question: string
+  question_type: string
+  intent?: string
+  answer?: string | null
+  evaluation?: any
+  score?: number | null
+  status: string
 }
 
 // API基础URL
@@ -479,6 +493,17 @@ class InterviewAPI {
     return handleApiResponse<InterviewSession[]>(response)
   }
 
+  static async getInterviewSession(resumeId: number, sessionId: number): Promise<InterviewSession> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<InterviewSession>(response)
+  }
+
   /**
    * 获取当前用户的全部面试记录
    */
@@ -608,6 +633,10 @@ class InterviewAPI {
     score: number
     feedback: string
     suggestions: string[]
+    session_status: string
+    completed: boolean
+    current_turn?: InterviewTurn | null
+    next_turn?: InterviewTurn | null
   }> {
     const response = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/answer`, {
       method: 'POST',
@@ -628,6 +657,10 @@ class InterviewAPI {
       score: number
       feedback: string
       suggestions: string[]
+      session_status: string
+      completed: boolean
+      current_turn?: InterviewTurn | null
+      next_turn?: InterviewTurn | null
     }>(response)
   }
 }
@@ -692,4 +725,5 @@ export type {
   UpdateResumeData,
   InterviewSession,
   InterviewConfig,
+  InterviewTurn,
 }
