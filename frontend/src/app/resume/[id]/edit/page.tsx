@@ -141,7 +141,7 @@ export default function ResumeEditPage() {
   const [exporting, setExporting] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const [activeSection, setActiveSection] = useState('job_application')
-  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorOpen, setEditorOpen] = useState(true)
   const [editorFlex, setEditorFlex] = useState(30)
   const [agentFlex, setAgentFlex] = useState(30)
   const mainPanelsRef = useRef<HTMLDivElement>(null)
