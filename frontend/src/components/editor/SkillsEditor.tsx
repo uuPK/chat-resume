@@ -117,20 +117,6 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <CodeBracketIcon className="w-5 h-5 mr-2" />
-          技能与能力
-        </h3>
-        <button
-          onClick={() => addSkill()}
-          className="btn-secondary flex items-center space-x-1 text-sm"
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span>添加技能</span>
-        </button>
-      </div>
-
       {skillsList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <CodeBracketIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -235,6 +221,13 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
               </div>
             )
           })}
+          <button
+            onClick={() => addSkill()}
+            className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>添加技能</span>
+          </button>
         </div>
       )}
     </div>

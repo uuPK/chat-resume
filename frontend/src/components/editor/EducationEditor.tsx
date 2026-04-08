@@ -101,20 +101,6 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <AcademicCapIcon className="w-5 h-5 mr-2" />
-          教育经历
-        </h3>
-        <button
-          onClick={addEducation}
-          className="btn-secondary flex items-center space-x-1 text-sm"
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span>添加教育经历</span>
-        </button>
-      </div>
-
       {educationList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <AcademicCapIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -148,7 +134,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 学校名称 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    学校名称 <span className="text-red-500">*</span>
+                    学校名称
                   </label>
                   <input
                     type="text"
@@ -162,7 +148,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 专业 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    专业 <span className="text-red-500">*</span>
+                    专业
                   </label>
                   <input
                     type="text"
@@ -176,7 +162,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 学历 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    学历 <span className="text-red-500">*</span>
+                    学历
                   </label>
                   <select
                     value={education.degree}
@@ -196,7 +182,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 就读时间 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    就读时间 <span className="text-red-500">*</span>
+                    就读时间
                   </label>
                   <input
                     type="text"
@@ -261,6 +247,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
               </div>
             </div>
           ))}
+          <button
+            onClick={addEducation}
+            className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>添加教育经历</span>
+          </button>
         </div>
       )}
     </div>

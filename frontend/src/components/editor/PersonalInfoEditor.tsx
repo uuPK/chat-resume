@@ -40,18 +40,11 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-          <UserIcon className="w-5 h-5 mr-2" />
-          个人信息
-        </h3>
-      </div>
-
       <div className="space-y-4">
         {/* 姓名 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            姓名 <span className="text-red-500">*</span>
+            姓名
           </label>
           <input
             type="text"
@@ -65,7 +58,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 邮箱 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            邮箱 <span className="text-red-500">*</span>
+            邮箱
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -84,7 +77,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 手机号 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            手机号 <span className="text-red-500">*</span>
+            手机号
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

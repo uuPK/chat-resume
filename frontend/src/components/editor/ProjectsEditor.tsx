@@ -121,20 +121,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <FolderIcon className="w-5 h-5 mr-2" />
-          项目经验
-        </h3>
-        <button
-          onClick={addProject}
-          className="btn-secondary flex items-center space-x-1 text-sm"
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span>添加项目</span>
-        </button>
-      </div>
-
       {projectsList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <FolderIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -168,7 +154,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目名称 <span className="text-red-500">*</span>
+                      项目名称
                     </label>
                     <input
                       type="text"
@@ -181,7 +167,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目周期 <span className="text-red-500">*</span>
+                      项目周期
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -199,7 +185,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目角色 <span className="text-red-500">*</span>
+                      项目角色
                     </label>
                     <input
                       type="text"
@@ -249,7 +235,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    简介 <span className="text-red-500">*</span>
+                    简介
                   </label>
                   <textarea
                     value={project.overview || ''}
@@ -263,7 +249,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      主要成果 <span className="text-red-500">*</span>
+                      主要成果
                     </label>
                     <button
                       onClick={() => addHighlight(project.id!)}
@@ -302,6 +288,13 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
               </div>
             </div>
           ))}
+          <button
+            onClick={addProject}
+            className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>添加项目</span>
+          </button>
         </div>
       )}
     </div>

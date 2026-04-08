@@ -115,20 +115,6 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-          <BriefcaseIcon className="w-5 h-5 mr-2" />
-          工作经验
-        </h3>
-        <button
-          onClick={addWork}
-          className="btn-secondary flex items-center space-x-1 text-sm"
-        >
-          <PlusIcon className="w-4 h-4" />
-          <span>添加工作经验</span>
-        </button>
-      </div>
-
       {workList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <BriefcaseIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -162,7 +148,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      公司名称 <span className="text-red-500">*</span>
+                      公司名称
                     </label>
                     <input
                       type="text"
@@ -175,7 +161,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      职位 <span className="text-red-500">*</span>
+                      职位
                     </label>
                     <input
                       type="text"
@@ -188,7 +174,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      工作时间 <span className="text-red-500">*</span>
+                      工作时间
                     </label>
                     <input
                       type="text"
@@ -233,7 +219,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      主要成果 <span className="text-red-500">*</span>
+                      主要成果
                     </label>
                     <button
                       onClick={() => addHighlight(work.id!)}
@@ -269,6 +255,13 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
               </div>
             </div>
           ))}
+          <button
+            onClick={addWork}
+            className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            <span>添加工作经验</span>
+          </button>
         </div>
       )}
     </div>
