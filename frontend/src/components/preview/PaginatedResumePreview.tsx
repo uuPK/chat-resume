@@ -298,7 +298,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
-        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
+        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar">
           <div className="w-full flex justify-center">
             <div
               id="resume-export-content"
@@ -325,7 +325,7 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
       {/* 简单回退：如果分页计算失败，显示原始内容 */}
       {!isCalculating && pages.length === 0 && (
-        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto">
+        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar">
           <div className="w-full flex justify-center">
             <div
               className="flex flex-col items-center"

@@ -989,14 +989,12 @@ export default function ResumeEditPage() {
             className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `1 1 calc(${100 - editorFlex - agentFlex}% - 16px)` }}
           >
-            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-5 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
-              <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
-                <ResumePreview
-                  key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
-                  content={resume.content}
-                  moduleOrder={moduleOrder}
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
+              <ResumePreview
+                key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
+                content={resume.content}
+                moduleOrder={moduleOrder}
+              />
             </div>
           </motion.div>
 
