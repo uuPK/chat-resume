@@ -977,7 +977,7 @@ export default function ResumeEditPage() {
               className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
               onPointerDown={handleEditorDividerPointerDown}
             >
-              <div className="w-0.5 h-full bg-gray-300 group-hover:bg-primary-400 transition-colors rounded-full" />
+              <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
             </div>
           )}
 
@@ -1003,7 +1003,7 @@ export default function ResumeEditPage() {
             className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
             onPointerDown={handleAgentDividerPointerDown}
           >
-            <div className="w-0.5 h-full bg-gray-300 group-hover:bg-primary-400 transition-colors rounded-full" />
+            <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
           </div>
 
           {/* Right Panel - AI Chat */}
