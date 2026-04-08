@@ -29,7 +29,25 @@ async def get_resumes(
 ):
     resume_service = ResumeService(db)
     resumes = resume_service.get_by_owner(current_user["id"])
-    return [ResumeListItem.model_validate(resume) for resume in resumes]
+    result: list[ResumeListItem] = []
+    for resume in resumes:
+        content = resume.content if isinstance(resume.content, dict) else {}
+        job_application = content.get("job_application", {}) if isinstance(content, dict) else {}
+        result.append(
+            ResumeListItem.model_validate(
+                {
+                    "id": resume.id,
+                    "title": resume.title,
+                    "original_filename": resume.original_filename,
+                    "owner_id": resume.owner_id,
+                    "created_at": resume.created_at,
+                    "updated_at": resume.updated_at,
+                    "target_company": str(job_application.get("target_company", "") or ""),
+                    "target_title": str(job_application.get("target_title", "") or ""),
+                }
+            )
+        )
+    return result
 
 
 @router.post("/", response_model=ResumeResponse)

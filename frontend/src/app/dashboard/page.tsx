@@ -21,23 +21,12 @@ import {
 interface Resume {
   id: number
   title: string
-  content: {
-    job_application?: {
-      target_company?: string
-      target_title?: string
-      jd_text?: string
-      strategy?: string
-    }
-    personal_info?: any
-    education?: any
-    work_experience?: any
-    skills?: any
-    projects?: any
-    [key: string]: any
-  }
   original_filename?: string
+  owner_id?: number
   created_at: string
   updated_at?: string
+  target_company?: string
+  target_title?: string
 }
 
 export default function DashboardPage() {
@@ -384,18 +373,16 @@ export default function DashboardPage() {
                         <div className="flex items-center text-sm text-gray-500 mb-1">
                           <BriefcaseIcon className="w-4 h-4 mr-1" />
                           <span>
-                            投递岗位: {resume.content.job_application && (
-                              resume.content.job_application.target_company || resume.content.job_application.target_title
-                            ) && (
+                            投递岗位: {(resume.target_company || resume.target_title) && (
                               <>
-                                {resume.content.job_application.target_company && (
-                                  <span>{resume.content.job_application.target_company}</span>
+                                {resume.target_company && (
+                                  <span>{resume.target_company}</span>
                                 )}
-                                {resume.content.job_application.target_company && resume.content.job_application.target_title && (
+                                {resume.target_company && resume.target_title && (
                                   <span className="mx-1">•</span>
                                 )}
-                                {resume.content.job_application.target_title && (
-                                  <span>{resume.content.job_application.target_title}</span>
+                                {resume.target_title && (
+                                  <span>{resume.target_title}</span>
                                 )}
                               </>
                             )}

@@ -42,6 +42,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const USER_STORAGE_KEY = 'auth_user'
+
+function readStoredUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as User
+  } catch {
+    return null
+  }
+}
+
+function writeStoredUser(user: User | null) {
+  if (!user) {
+    localStorage.removeItem(USER_STORAGE_KEY)
+    return
+  }
+  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user))
+}
 
 // 认证相关API调用
 class AuthAPI {
@@ -119,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // 设置用户信息
       setUser(response.user)
+      writeStoredUser(response.user)
       
       return true
     } catch (error) {
@@ -148,13 +168,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 登出函数
   const logout = () => {
     localStorage.removeItem('access_token')
+    localStorage.removeItem(USER_STORAGE_KEY)
     setUser(null)
   }
 
   // 更新用户信息
   const updateUser = (userData: Partial<User>) => {
     if (user) {
-      setUser({ ...user, ...userData })
+      const nextUser = { ...user, ...userData }
+      setUser(nextUser)
+      writeStoredUser(nextUser)
     }
   }
 
@@ -165,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token) {
         const freshUser = await AuthAPI.getCurrentUser()
         setUser(freshUser)
+        writeStoredUser(freshUser)
       }
     } catch (error) {
       console.error('Refresh user error:', error)
@@ -181,12 +205,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
+      const cachedUser = readStoredUser()
+      if (cachedUser) {
+        setUser(cachedUser)
+        setIsLoading(false)
+        refreshUser().catch(() => {
+          // 后台刷新失败不阻塞首屏，交给后续显式刷新或登录态失效处理
+        })
+        return
+      }
+
       const user = await AuthAPI.getCurrentUser()
       setUser(user)
+      writeStoredUser(user)
     } catch (error) {
       console.error('Auth check error:', error)
       // 如果token无效，清除它
       localStorage.removeItem('access_token')
+      localStorage.removeItem(USER_STORAGE_KEY)
     } finally {
       setIsLoading(false)
     }

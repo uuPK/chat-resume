@@ -23,9 +23,10 @@ import {
 interface Resume {
   id: number
   title: string
-  content: any
   created_at: string
   updated_at?: string
+  target_company?: string
+  target_title?: string
 }
 
 
@@ -34,7 +35,7 @@ export default function InterviewsPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [resumes, setResumes] = useState<Resume[]>([])
-  const [resumesLoading, setResumesLoading] = useState(true)
+  const [resumesLoading, setResumesLoading] = useState(false)
   const [showNewInterviewModal, setShowNewInterviewModal] = useState(false)
   const [interviewSessions, setInterviewSessions] = useState<InterviewSession[]>([])
   const [interviewsLoading, setInterviewsLoading] = useState(true)
@@ -114,16 +115,9 @@ export default function InterviewsPage() {
 
   useEffect(() => {
     if (mounted && isAuthenticated) {
-      fetchResumes()
-    }
-  }, [mounted, isAuthenticated])
-
-  // 在简历列表加载完成后获取面试记录
-  useEffect(() => {
-    if (mounted && isAuthenticated && !resumesLoading) {
       fetchInterviewSessions()
     }
-  }, [mounted, isAuthenticated, resumesLoading])
+  }, [mounted, isAuthenticated])
 
   const formatDate = (dateString: string) => {
     // 时区处理与dashboard页面相同
@@ -144,7 +138,7 @@ export default function InterviewsPage() {
     }).format(date)
   }
 
-  const handleNewInterview = () => {
+  const handleNewInterview = async () => {
     setShowNewInterviewModal(true)
     // 重置表单
     setFormData({
@@ -152,6 +146,10 @@ export default function InterviewsPage() {
       selectedResumeId: '',
       jdContent: ''
     })
+
+    if (resumes.length === 0 && !resumesLoading) {
+      await fetchResumes()
+    }
   }
 
   const handleCloseModal = () => {

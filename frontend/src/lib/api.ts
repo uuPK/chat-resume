@@ -131,6 +131,17 @@ interface Resume {
   updated_at?: string
 }
 
+interface ResumeListItem {
+  id: number
+  title: string
+  original_filename?: string
+  owner_id: number
+  created_at: string
+  updated_at?: string
+  target_company?: string
+  target_title?: string
+}
+
 interface CreateResumeData {
   title: string
   content: ResumeContent
@@ -210,14 +221,14 @@ class ResumeAPI {
   /**
    * 获取所有简历
    */
-  static async getResumes(): Promise<Resume[]> {
+  static async getResumes(): Promise<ResumeListItem[]> {
     const response = await fetch(`${API_BASE_URL}/api/resumes/`, {
       headers: {
         ...getAuthHeaders(),
       },
     })
 
-    return handleApiResponse<Resume[]>(response)
+    return handleApiResponse<ResumeListItem[]>(response)
   }
 
   /**
