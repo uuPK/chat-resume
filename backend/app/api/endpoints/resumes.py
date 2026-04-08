@@ -5,6 +5,8 @@
 处理简历相关的所有HTTP请求和响应。
 """
 
+import logging
+from time import perf_counter
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -21,6 +23,7 @@ from app.services.core import ResumeService
 from app.api.deps import get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=List[ResumeListItem])
@@ -67,8 +70,11 @@ async def get_resume(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    started_at = perf_counter()
     resume_service = ResumeService(db)
+    query_started_at = perf_counter()
     resume = resume_service.get_by_id(resume_id)
+    query_elapsed_ms = (perf_counter() - query_started_at) * 1000
 
     if not resume:
         raise HTTPException(
@@ -80,7 +86,19 @@ async def get_resume(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
         )
 
-    return ResumeResponse.model_validate(resume)
+    validate_started_at = perf_counter()
+    response = ResumeResponse.model_validate(resume)
+    validate_elapsed_ms = (perf_counter() - validate_started_at) * 1000
+    total_elapsed_ms = (perf_counter() - started_at) * 1000
+    logger.info(
+        "get_resume timings resume_id=%s user_id=%s query_ms=%.2f validate_ms=%.2f total_ms=%.2f",
+        resume_id,
+        current_user["id"],
+        query_elapsed_ms,
+        validate_elapsed_ms,
+        total_elapsed_ms,
+    )
+    return response
 
 
 @router.put("/{resume_id}", response_model=ResumeResponse)

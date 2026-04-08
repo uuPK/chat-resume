@@ -6,6 +6,7 @@
 """
 
 from datetime import timedelta
+from time import perf_counter
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -70,7 +71,15 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """获取当前用户信息"""
-    return UserResponse.model_validate(current_user)
+    started_at = perf_counter()
+    response = UserResponse.model_validate(current_user)
+    total_elapsed_ms = (perf_counter() - started_at) * 1000
+    logger.info(
+        "auth.me timings user_id=%s model_validate_ms=%.2f",
+        current_user["id"],
+        total_elapsed_ms,
+    )
+    return response
 
 
 @router.put("/me", response_model=UserResponse)
