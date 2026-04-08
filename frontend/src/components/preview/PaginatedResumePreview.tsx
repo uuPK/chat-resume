@@ -41,8 +41,8 @@ export const DEFAULT_MODULE_ORDER: ModuleConfig[] = [
   { type: 'personal', visible: true, order: 0, label: '个人信息' },
   { type: 'education', visible: true, order: 1, label: '教育背景' },
   { type: 'work', visible: true, order: 2, label: '工作经验' },
-  { type: 'skills', visible: true, order: 3, label: '技能专长' },
-  { type: 'projects', visible: true, order: 4, label: '项目经验' },
+  { type: 'projects', visible: true, order: 3, label: '项目经验' },
+  { type: 'skills', visible: true, order: 4, label: '技能专长' },
 ]
 
 interface PersonalInfo {
@@ -72,7 +72,6 @@ interface WorkExperience {
   position: string
   duration: string
   description?: string
-  summary?: string
   highlights?: Array<{ id?: string; text: string }>
 }
 
@@ -88,6 +87,7 @@ interface Project {
   name: string
   description?: string
   summary?: string
+  overview?: string
   technologies?: string[]
   role: string
   duration: string

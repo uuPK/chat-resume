@@ -4,9 +4,17 @@ AI 聊天服务模块
 提供基于 OpenRouter 的统一 AI 聊天接口。
 """
 
-import httpx
+import asyncio
+import logging
+from time import perf_counter
 from typing import Dict, Any, List, Optional, AsyncGenerator, overload, Literal
+
+import httpx
+
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -17,13 +25,23 @@ class ChatService:
         self.api_key = settings.OPENROUTER_API_KEY
         self.api_base = settings.OPENROUTER_API_BASE
         self.model = settings.OPENROUTER_MODEL
+        self.timeout = httpx.Timeout(
+            connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+            read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+            write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
+            pool=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+        )
+        self.max_retries = max(0, settings.OPENROUTER_MAX_RETRIES)
+        self.retry_backoff_seconds = max(
+            0.0, settings.OPENROUTER_RETRY_BACKOFF_SECONDS
+        )
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://chat-resume.com",
             "X-Title": "Chat Resume AI Assistant",
         }
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=self.timeout)
 
     async def __aenter__(self):
         """上下文管理器入口"""
@@ -108,17 +126,16 @@ class ChatService:
             messages, temperature, max_tokens, stream=False, tools=tools
         )
         url = self._get_endpoint_url()
-
-        try:
-            response = await self.client.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            raise Exception(
-                f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
-            )
-        except Exception as e:
-            raise Exception(f"AI服务请求异常: {str(e)}")
+        started_at = perf_counter()
+        response = await self._post_with_retries(url, payload)
+        elapsed = perf_counter() - started_at
+        logger.info(
+            "OpenRouter non-stream completed model=%s elapsed=%.2fs tools=%s",
+            self.model,
+            elapsed,
+            bool(tools),
+        )
+        return response.json()
 
     async def _chat_completion_stream(
         self,
@@ -160,7 +177,7 @@ class ChatService:
 
         try:
             async with self.client.stream(
-                "POST", url, json=payload, headers=self.headers, timeout=120.0
+                "POST", url, json=payload, headers=self.headers, timeout=self.timeout
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
@@ -215,7 +232,7 @@ class ChatService:
     ) -> AsyncGenerator[str, None]:
         """处理流式响应"""
         async with self.client.stream(
-            "POST", url, json=payload, headers=self.headers
+            "POST", url, json=payload, headers=self.headers, timeout=self.timeout
         ) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
@@ -224,6 +241,61 @@ class ChatService:
                     if data == "[DONE]":
                         break
                     yield data
+
+    async def _post_with_retries(
+        self, url: str, payload: Dict[str, Any]
+    ) -> httpx.Response:
+        last_error: Exception | None = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                logger.debug(
+                    "OpenRouter request attempt=%s model=%s max_retries=%s",
+                    attempt + 1,
+                    self.model,
+                    self.max_retries,
+                )
+                response = await self.client.post(
+                    url,
+                    json=payload,
+                    headers=self.headers,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                body = e.response.text[:500]
+                logger.warning(
+                    "OpenRouter HTTP error attempt=%s status=%s body=%s",
+                    attempt + 1,
+                    status,
+                    body,
+                )
+                # 4xx 通常是不可恢复错误，直接抛出
+                if 400 <= status < 500 and status != 429:
+                    raise Exception(f"AI服务请求失败: {status} - {body}") from e
+                last_error = e
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                logger.warning(
+                    "OpenRouter network error attempt=%s type=%s message=%s",
+                    attempt + 1,
+                    type(e).__name__,
+                    str(e),
+                )
+                last_error = e
+            except Exception as e:
+                logger.exception("OpenRouter unexpected error attempt=%s", attempt + 1)
+                last_error = e
+
+            if attempt < self.max_retries:
+                await asyncio.sleep(self.retry_backoff_seconds * (attempt + 1))
+
+        if isinstance(last_error, httpx.HTTPStatusError):
+            raise Exception(
+                f"AI服务请求失败: {last_error.response.status_code} - {last_error.response.text[:500]}"
+            ) from last_error
+        raise Exception(f"AI服务请求异常: {str(last_error) if last_error else 'unknown error'}")
 
     async def chat_with_context(
         self,

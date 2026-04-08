@@ -66,7 +66,6 @@ interface WorkExperience {
   location?: string
   employment_type?: string
   description?: string
-  summary?: string
   highlights?: ResumeHighlight[]
   technologies?: string[]
 }
@@ -83,6 +82,7 @@ interface Project {
   name: string
   description?: string
   summary?: string
+  overview?: string
   technologies?: string[]
   role: string
   duration: string

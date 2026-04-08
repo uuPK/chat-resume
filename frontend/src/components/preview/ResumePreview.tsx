@@ -30,7 +30,6 @@ interface WorkExperience {
   position: string
   duration: string
   description?: string
-  summary?: string
   highlights?: Array<{ id?: string; text: string }>
 }
 
@@ -46,6 +45,7 @@ interface Project {
   name: string
   description?: string
   summary?: string
+  overview?: string
   technologies?: string[]
   role: string
   duration: string

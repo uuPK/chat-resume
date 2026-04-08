@@ -19,6 +19,7 @@ interface Project {
   name: string
   description?: string
   summary?: string
+  overview?: string
   role: string
   duration: string
   github_url?: string
@@ -54,8 +55,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       ? data.map((project, index) => ({
           ...project,
           id: project.id || `proj_${Date.now()}_${index}`,
-          summary: project.summary || project.description || '',
-          description: project.description || project.summary || '',
+          overview: project.overview || project.summary || project.description || '',
           highlights: normalizeHighlights(project)
         }))
       : []
@@ -64,11 +64,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
   const commit = (next: Project[]) => {
     setProjectsList(next)
-    onChange(next.map(project => ({
-      ...project,
-      description: project.summary || project.description || '',
-      achievements: (project.highlights || []).map(item => item.text)
-    })))
+    onChange(next.map(({ description, achievements, summary, ...project }) => project))
   }
 
   const addProject = () => {
@@ -77,13 +73,11 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       {
         id: `proj_${Date.now()}`,
         name: '',
-        description: '',
-        summary: '',
+        overview: '',
         role: '',
         duration: '',
         github_url: '',
         demo_url: '',
-        achievements: [''],
         highlights: [{ id: `hl_${Date.now()}`, text: '' }],
         technologies: []
       }
@@ -255,12 +249,12 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    项目概述 <span className="text-red-500">*</span>
+                    简介 <span className="text-red-500">*</span>
                   </label>
                   <textarea
-                    value={project.summary || ''}
-                    onChange={(e) => updateProject(project.id!, 'summary', e.target.value)}
-                    placeholder="简要描述项目背景、目标和主要功能..."
+                    value={project.overview || ''}
+                    onChange={(e) => updateProject(project.id!, 'overview', e.target.value)}
+                    placeholder="一句话说明项目背景、目标或你的角色..."
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   />
@@ -269,7 +263,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      项目成果与亮点 <span className="text-red-500">*</span>
+                      主要成果 <span className="text-red-500">*</span>
                     </label>
                     <button
                       onClick={() => addHighlight(project.id!)}

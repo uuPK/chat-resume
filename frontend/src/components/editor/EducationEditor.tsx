@@ -14,6 +14,10 @@ interface Education {
   degree: string
   duration: string
   description?: string
+  highlights?: Array<{
+    id?: string
+    text: string
+  }>
   gpa?: string
 }
 
@@ -29,6 +33,11 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     setEducationList(Array.isArray(data) ? data : [])
   }, [data])
 
+  const commit = (next: Education[]) => {
+    setEducationList(next)
+    onChange(next.map(({ description, ...education }) => education))
+  }
+
   const addEducation = () => {
     const newEducation: Education = {
       id: `edu_${Date.now()}`,
@@ -36,26 +45,58 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
       major: '',
       degree: '',
       duration: '',
-      description: '',
+      highlights: [{ id: `edu_hl_${Date.now()}`, text: '' }],
       gpa: ''
     }
-    const newList = [...educationList, newEducation]
-    setEducationList(newList)
-    onChange(newList)
+    commit([...educationList, newEducation])
   }
 
   const removeEducation = (id: string) => {
-    const newList = educationList.filter(edu => edu.id !== id)
-    setEducationList(newList)
-    onChange(newList)
+    commit(educationList.filter(edu => edu.id !== id))
   }
 
   const updateEducation = (id: string, field: keyof Education, value: string) => {
-    const newList = educationList.map(edu => 
+    const newList = educationList.map(edu =>
       edu.id === id ? { ...edu, [field]: value } : edu
     )
-    setEducationList(newList)
-    onChange(newList)
+    commit(newList)
+  }
+
+  const addHighlight = (educationId: string) => {
+    const education = educationList.find(item => item.id === educationId)
+    if (!education) return
+    const next = [...(education.highlights || []), { id: `edu_hl_${Date.now()}`, text: '' }]
+    updateEducationList(
+      educationList.map(item => item.id === educationId ? { ...item, highlights: next } : item)
+    )
+  }
+
+  const updateHighlight = (educationId: string, index: number, value: string) => {
+    const education = educationList.find(item => item.id === educationId)
+    if (!education) return
+    const next = [...(education.highlights || [])]
+    next[index] = { ...next[index], text: value }
+    updateEducationList(
+      educationList.map(item => item.id === educationId ? { ...item, highlights: next } : item)
+    )
+  }
+
+  const removeHighlight = (educationId: string, index: number) => {
+    const education = educationList.find(item => item.id === educationId)
+    if (!education) return
+    const current = education.highlights || []
+    if (current.length <= 1) return
+    updateEducationList(
+      educationList.map(item =>
+        item.id === educationId
+          ? { ...item, highlights: current.filter((_, itemIndex) => itemIndex !== index) }
+          : item
+      )
+    )
+  }
+
+  const updateEducationList = (next: Education[]) => {
+    commit(next)
   }
 
   return (
@@ -181,18 +222,42 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 </div>
               </div>
 
-              {/* 描述 */}
               <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  相关描述 (可选)
-                </label>
-                <textarea
-                  value={education.description || ''}
-                  onChange={(e) => updateEducation(education.id!, 'description', e.target.value)}
-                  placeholder="主要课程、获奖经历、社团活动等..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    教育亮点
+                  </label>
+                  <button
+                    onClick={() => addHighlight(education.id!)}
+                    className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
+                  >
+                    <PlusIcon className="w-3 h-3" />
+                    <span>添加亮点</span>
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {(education.highlights || [{ id: `edu_hl_${education.id || '0'}`, text: '' }]).map((highlight, highlightIndex) => (
+                    <div key={highlight.id || highlightIndex} className="flex items-start space-x-2">
+                      <span className="text-gray-400 mt-2">•</span>
+                      <textarea
+                        value={highlight.text}
+                        onChange={(e) => updateHighlight(education.id!, highlightIndex, e.target.value)}
+                        placeholder="985高校、主要课程、奖项、研究方向等"
+                        rows={2}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                      />
+                      {(education.highlights || []).length > 1 && (
+                        <button
+                          onClick={() => removeHighlight(education.id!, highlightIndex)}
+                          className="text-red-600 hover:text-red-800 p-1 mt-1"
+                          title="删除此亮点"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ))}

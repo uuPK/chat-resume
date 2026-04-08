@@ -43,12 +43,6 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
         </div>
       </div>
 
-      {edu.description && (
-        <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">
-          {edu.description}
-        </p>
-      )}
-
       {highlights.length > 0 && (
         <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
           {highlights.map((item, index) => (

@@ -6,7 +6,6 @@ interface WorkExperience {
   position: string
   duration: string
   description?: string
-  summary?: string
   highlights?: Array<{
     id?: string
     text: string
@@ -47,16 +46,13 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
         </div>
       </div>
 
-      {(work.summary || work.description) && (
+      {highlights.length > 0 && (
         <div className="text-sm text-gray-600 mt-2 leading-relaxed">
-          <p className="mb-1">{work.summary || work.description}</p>
-          {highlights.length > 0 && (
-            <ul className="list-disc list-inside">
-              {highlights.map((line, itemIndex) => (
-                <li key={itemIndex} className="mb-0.5">{line}</li>
-              ))}
-            </ul>
-          )}
+          <ul className="list-disc list-inside">
+            {highlights.map((line, itemIndex) => (
+              <li key={itemIndex} className="mb-0.5">{line}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

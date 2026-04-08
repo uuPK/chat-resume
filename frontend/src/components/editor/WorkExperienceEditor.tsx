@@ -18,7 +18,6 @@ interface WorkExperience {
   position: string
   duration: string
   description?: string
-  summary?: string
   location?: string
   employment_type?: string
   highlights?: Highlight[]
@@ -56,8 +55,6 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
       ? data.map((work, index) => ({
           ...work,
           id: work.id || `work_${Date.now()}_${index}`,
-          summary: work.summary || (work.description?.includes('\n') ? '' : work.description) || '',
-          description: work.description || work.summary || '',
           highlights: normalizeHighlights(work)
         }))
       : []
@@ -66,13 +63,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
   const commit = (next: WorkExperience[]) => {
     setWorkList(next)
-    onChange(next.map(work => ({
-      ...work,
-      description: [
-        work.summary || '',
-        ...(work.highlights || []).map(item => `• ${item.text}`),
-      ].filter(Boolean).join('\n')
-    })))
+    onChange(next.map(({ description, ...work }) => work))
   }
 
   const addWork = () => {
@@ -83,8 +74,6 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
         company: '',
         position: '',
         duration: '',
-        description: '',
-        summary: '',
         location: '',
         employment_type: '全职',
         highlights: [{ id: `hl_${Date.now()}`, text: '' }]
@@ -242,22 +231,9 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    工作概述 <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={work.summary || ''}
-                    onChange={(e) => updateWork(work.id!, 'summary', e.target.value)}
-                    placeholder="概述职责范围、业务场景和核心定位..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                  />
-                </div>
-
-                <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      关键成果与亮点 <span className="text-red-500">*</span>
+                      主要成果 <span className="text-red-500">*</span>
                     </label>
                     <button
                       onClick={() => addHighlight(work.id!)}
@@ -266,11 +242,6 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       <PlusIcon className="w-3 h-3" />
                       <span>添加亮点</span>
                     </button>
-                  </div>
-                  <div className="mb-2">
-                    <p className="text-xs text-gray-500">
-                      💡 建议写成动作 + 结果 + 数据指标
-                    </p>
                   </div>
                   <div className="space-y-2">
                     {(work.highlights || []).map((highlight, highlightIndex) => (

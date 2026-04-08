@@ -4,8 +4,9 @@
 为 AI 编辑提供更稳定的结构：
 - 强类型文档 schema
 - 数组项稳定 id
-- summary / highlights 友好的字段设计
-- 兼容旧版 description / duration 数据
+- item 级使用 summary
+- 列表级使用 highlights
+- 兼容旧版 description / achievements 数据
 """
 
 from __future__ import annotations
@@ -122,8 +123,16 @@ class EducationItem(ResumeBaseModel):
 
     @model_validator(mode="after")
     def migrate_description(self) -> "EducationItem":
-        if self.description and not self.highlights:
-            self.highlights = [ResumeHighlight(text=self.description)]
+        if self.description:
+            lines = [
+                line.strip("• ").strip()
+                for line in self.description.splitlines()
+                if line.strip()
+            ]
+            if lines and not self.highlights:
+                self.highlights = [ResumeHighlight(text=line) for line in lines]
+        # description 仅作为兼容输入保留，不再作为主存储字段输出
+        self.description = ""
         return self
 
 
@@ -138,18 +147,21 @@ class WorkExperienceItem(ResumeBaseModel):
     location: str = ""
     employment_type: str = ""
     description: str = ""
-    summary: str = ""
     highlights: list[ResumeHighlight] = Field(default_factory=list)
     technologies: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def migrate_description(self) -> "WorkExperienceItem":
-        if self.description and not self.highlights:
-            lines = [line.strip("• ").strip() for line in self.description.splitlines() if line.strip()]
-            if len(lines) > 1:
+        if self.description:
+            lines = [
+                line.strip("• ").strip()
+                for line in self.description.splitlines()
+                if line.strip()
+            ]
+            if lines and not self.highlights:
                 self.highlights = [ResumeHighlight(text=line) for line in lines]
-            elif lines and not self.summary:
-                self.summary = lines[0]
+        # description 仅作为兼容输入保留，不再作为主存储字段输出
+        self.description = ""
         return self
 
 
@@ -165,6 +177,7 @@ class ProjectItem(ResumeBaseModel):
     name: str = ""
     description: str = ""
     summary: str = ""
+    overview: str = ""
     technologies: list[str] = Field(default_factory=list)
     role: str = ""
     duration: str = ""
@@ -196,14 +209,20 @@ class ProjectItem(ResumeBaseModel):
 
     @model_validator(mode="after")
     def migrate_fields(self) -> "ProjectItem":
-        if self.description and not self.summary:
-            self.summary = self.description
+        if self.summary and not self.overview:
+            self.overview = self.summary
+        if self.description and not self.overview:
+            self.overview = self.description
         if self.achievements and not self.highlights:
             self.highlights = [ResumeHighlight(text=item) for item in self.achievements]
         existing = {item.label.lower(): item for item in self.links}
         for label, url in (("GitHub", self.github_url), ("Demo", self.demo_url)):
             if url and label.lower() not in existing:
                 self.links.append(ResumeLink(label=label, url=url))
+        # description / achievements 仅作为兼容输入保留，不再作为主存储字段输出
+        self.description = ""
+        self.summary = ""
+        self.achievements = []
         return self
 
 

@@ -96,19 +96,6 @@ export default function JobApplicationEditor({ data, onChange, resumeTitle, onTi
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            优化策略备注
-          </label>
-          <textarea
-            value={formData.strategy || ''}
-            onChange={(e) => handleInputChange('strategy', e.target.value)}
-            placeholder="例如：优先突出后端性能优化、强调 AI 项目经验、突出量化结果"
-            rows={4}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-          />
-        </div>
       </div>
 
     </motion.div>

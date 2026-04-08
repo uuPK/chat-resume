@@ -69,7 +69,6 @@ interface Resume {
       position: string
       duration: string
       description?: string
-      summary?: string
       location?: string
       employment_type?: string
       highlights?: Array<{ id?: string; text: string }>
@@ -85,6 +84,7 @@ interface Resume {
       name: string
       description?: string
       summary?: string
+      overview?: string
       technologies?: string[]
       role: string
       duration: string
@@ -896,8 +896,8 @@ export default function ResumeEditPage() {
                     { key: 'personal', label: '个人信息' },
                     { key: 'education', label: '教育经历' },
                     { key: 'work', label: '工作经验' },
-                    { key: 'skills', label: '技能' },
-                    { key: 'projects', label: '项目' }
+                    { key: 'projects', label: '项目' },
+                    { key: 'skills', label: '技能' }
                   ].map(section => (
                     <button
                       key={section.key}

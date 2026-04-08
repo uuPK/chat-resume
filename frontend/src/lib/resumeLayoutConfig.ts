@@ -68,8 +68,8 @@ export const DEFAULT_MODULE_ORDER: ResumeModule[] = [
   'personal',
   'education',
   'work',
-  'skills',
-  'projects'
+  'projects',
+  'skills'
 ]
 
 /**
@@ -141,4 +141,3 @@ export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
     return DEFAULT_LAYOUT_CONFIG
   }
 }
-

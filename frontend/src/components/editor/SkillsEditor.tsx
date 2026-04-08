@@ -237,28 +237,6 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
           })}
         </div>
       )}
-
-      {/* 技能统计 */}
-      {skillsList.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-2">技能统计</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-            {skillLevels.map(level => {
-              const count = skillsList.filter(skill => skill.level === level).length
-              return count > 0 ? (
-                <div key={level} className="text-center">
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs ${getLevelColor(level)}`}>
-                    {level}: {count}
-                  </span>
-                </div>
-              ) : null
-            })}
-          </div>
-          <p className="text-xs text-blue-700 mt-2">
-            💡 建议：保持技能的多样性，突出核心技术栈的熟练程度
-          </p>
-        </div>
-      )}
     </div>
   )
 }

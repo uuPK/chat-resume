@@ -5,6 +5,7 @@ interface Project {
   name: string
   description?: string
   summary?: string
+  overview?: string
   technologies?: string[]
   role: string
   duration: string
@@ -102,15 +103,15 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
         </div>
       )}
 
-      {(project.summary || project.description) && (
+      {(project.overview || project.summary || project.description) && (
         <p className="text-sm text-gray-600 mb-2 leading-relaxed">
-          {project.summary || project.description}
+          {project.overview || project.summary || project.description}
         </p>
       )}
 
       {highlights.length > 0 && (
         <div className="mb-2">
-          <span className="text-sm font-medium text-gray-700">主要成果:</span>
+          <span className="text-sm font-medium text-gray-700">关键亮点:</span>
           <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
             {highlights.map((achievement, achIndex) => (
               <li key={achIndex}>{achievement}</li>

@@ -48,6 +48,19 @@ class Settings(BaseSettings):
         "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
     )
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+    OPENROUTER_CONNECT_TIMEOUT_SECONDS: float = float(
+        os.getenv("OPENROUTER_CONNECT_TIMEOUT_SECONDS", "15")
+    )
+    OPENROUTER_READ_TIMEOUT_SECONDS: float = float(
+        os.getenv("OPENROUTER_READ_TIMEOUT_SECONDS", "90")
+    )
+    OPENROUTER_WRITE_TIMEOUT_SECONDS: float = float(
+        os.getenv("OPENROUTER_WRITE_TIMEOUT_SECONDS", "30")
+    )
+    OPENROUTER_MAX_RETRIES: int = int(os.getenv("OPENROUTER_MAX_RETRIES", "2"))
+    OPENROUTER_RETRY_BACKOFF_SECONDS: float = float(
+        os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "1.5")
+    )
 
     # MiniMax TTS API
     MINIMAX_API_KEY: str = os.getenv("MINIMAX_API_KEY", "")
