@@ -246,12 +246,8 @@ export default function ResumeEditPage() {
     visibleModules: Array.from(layoutConfig.visibleModules),
     onMessage: (message) => {
       setMessages(prev => {
-        const next = [...prev, message]
-        // 找到最后一条用户消息和刚收到的 AI 消息，一起持久化
-        const lastUser = [...next].reverse().find(m => m.type === 'user')
-        if (lastUser && resumeId) {
+        if (resumeId) {
           chatHistoryApi.appendMessages(parseInt(resumeId), [
-            { role: 'user', content: lastUser.content },
             {
               role: 'assistant',
               content: message.content,
@@ -259,7 +255,7 @@ export default function ResumeEditPage() {
             },
           ]).catch(console.error)
         }
-        return next
+        return [...prev, message]
       })
     },
     onError: (error) => {
@@ -580,6 +576,11 @@ export default function ResumeEditPage() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    if (resumeId) {
+      chatHistoryApi.appendMessages(parseInt(resumeId), [
+        { role: 'user', content: userMessage.content },
+      ]).catch(console.error)
+    }
     const currentMessage = inputMessage.trim()
     setInputMessage('')
     setIsSending(true)
@@ -1119,17 +1120,17 @@ export default function ResumeEditPage() {
                                   const isConfirmed = event.type === 'tool_confirmed'
                                   const diffLines = parseDiffSummary(event.diffSummary)
                                   return (
-                                    <div key={idx} className={`mb-2 rounded-lg border overflow-hidden text-xs ${isConfirmed ? 'border-green-200' : 'border-gray-300'}`}>
-                                      <div className={`px-3 py-2 flex items-center gap-2 ${isConfirmed ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                    <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
+                                      <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
+                                        <span className="font-medium text-gray-900">{event.toolName}</span>
+                                        <span className="ml-auto" />
                                         {isConfirmed ? (
                                           <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                         ) : (
-                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                         )}
-                                        <span className={`font-medium ${isConfirmed ? 'text-green-800' : 'text-gray-500'}`}>{event.toolName}</span>
-                                        <span className={`ml-auto ${isConfirmed ? 'text-green-500' : 'text-gray-400'}`}>{isConfirmed ? '已应用' : '已拒绝'}</span>
                                       </div>
-                                      <div className="bg-white px-0 py-1 font-mono">
+                                      <div className="bg-white px-0 py-2 font-mono">
                                         {diffLines.map((l, i) => {
                                           if (l.type === 'remove') return (
                                             <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
@@ -1169,15 +1170,15 @@ export default function ResumeEditPage() {
                           if (event.type === 'tool_pending') {
                             const diffLines = parseDiffSummary(event.diffSummary)
                             return (
-                              <div key={idx} className="mb-2 rounded-lg border border-amber-200 overflow-hidden text-xs">
+                              <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
-                                <div className="px-3 py-2 bg-amber-50 flex items-center gap-2">
+                                <div className="px-4 py-3 bg-white flex items-center gap-2 border-b border-gray-200">
+                                  <span className="font-medium text-gray-900">{event.toolName}</span>
+                                  <span className="ml-auto" />
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                                  <span className="font-medium text-amber-800">{event.toolName}</span>
-                                  <span className="text-amber-500 ml-auto">待确认</span>
                                 </div>
                                 {/* diff 内容区 */}
-                                <div className="bg-white px-0 py-1 font-mono">
+                                <div className="bg-white px-0 py-2 font-mono">
                                   {diffLines.map((l, i) => {
                                     if (l.type === 'remove') return (
                                       <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
@@ -1191,7 +1192,7 @@ export default function ResumeEditPage() {
                                   })}
                                 </div>
                                 {/* 操作按钮 */}
-                                <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex gap-2">
+                                <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
                                     onClick={() => confirmTool(event.callId, true)}
                                     className="flex-1 rounded-md bg-primary-600 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
@@ -1212,19 +1213,19 @@ export default function ResumeEditPage() {
                             const isConfirmed = event.type === 'tool_confirmed'
                             const diffLines = parseDiffSummary(event.diffSummary)
                             return (
-                              <div key={idx} className={`mb-2 rounded-lg border overflow-hidden text-xs ${isConfirmed ? 'border-green-200' : 'border-gray-300'}`}>
+                              <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
-                                <div className={`px-3 py-2 flex items-center gap-2 ${isConfirmed ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
+                                  <span className="font-medium text-gray-900">{event.toolName}</span>
+                                  <span className="ml-auto" />
                                   {isConfirmed ? (
                                     <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                   ) : (
-                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                   )}
-                                  <span className={`font-medium ${isConfirmed ? 'text-green-800' : 'text-gray-500'}`}>{event.toolName}</span>
-                                  <span className={`ml-auto ${isConfirmed ? 'text-green-500' : 'text-gray-400'}`}>{isConfirmed ? '已应用' : '已拒绝'}</span>
                                 </div>
                                 {/* diff 内容 */}
-                                <div className="bg-white px-0 py-1 font-mono">
+                                <div className="bg-white px-0 py-2 font-mono">
                                   {diffLines.map((l, i) => {
                                     if (l.type === 'remove') return (
                                       <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>

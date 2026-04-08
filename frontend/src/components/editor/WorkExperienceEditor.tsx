@@ -17,7 +17,6 @@ interface WorkExperience {
   company: string
   position: string
   duration: string
-  description?: string
   location?: string
   employment_type?: string
   highlights?: Highlight[]
@@ -31,18 +30,6 @@ interface WorkExperienceEditorProps {
 function normalizeHighlights(work: WorkExperience): Highlight[] {
   if (work.highlights && work.highlights.length > 0) {
     return work.highlights
-  }
-  if (work.description) {
-    const lines = work.description
-      .split('\n')
-      .map(line => line.trim().replace(/^•\s*/, ''))
-      .filter(Boolean)
-    if (lines.length > 1) {
-      return lines.map((text, index) => ({
-        id: `${work.id || 'work'}_hl_${index}`,
-        text
-      }))
-    }
   }
   return [{ id: `${work.id || 'work'}_hl_0`, text: '' }]
 }
@@ -63,7 +50,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
   const commit = (next: WorkExperience[]) => {
     setWorkList(next)
-    onChange(next.map(({ description, ...work }) => work))
+    onChange(next)
   }
 
   const addWork = () => {

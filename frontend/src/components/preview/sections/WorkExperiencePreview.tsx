@@ -5,7 +5,6 @@ interface WorkExperience {
   company: string
   position: string
   duration: string
-  description?: string
   highlights?: Array<{
     id?: string
     text: string

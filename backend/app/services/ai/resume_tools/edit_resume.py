@@ -7,97 +7,13 @@ from copy import deepcopy
 from uuid import uuid4
 import json
 
-# 支持数组的板块
-_LIST_SECTIONS = {"education", "work_experience", "skills", "projects", "languages"}
-
 _SECTION_NAMES = {
-    "personal_info": "个人信息",
     "education": "教育经历",
     "work_experience": "工作经历",
-    "skills": "技能",
     "projects": "项目经历",
-    "summary": "个人总结",
-    "languages": "语言能力",
 }
 
-
-def _stable_id(prefix: str) -> str:
-    return f"{prefix}_{uuid4().hex[:12]}"
-
-
-_ID_PREFIX = {
-    "education": "edu",
-    "work_experience": "work",
-    "skills": "skill",
-    "projects": "proj",
-    "languages": "lang",
-}
-
-
-def edit_resume_content(
-    resume_content: Dict[str, Any], section: str, data: Any
-) -> Dict[str, Any]:
-    """
-    编辑简历特定板块内容
-
-    Args:
-        resume_content: 简历内容字典（会被原地修改）
-        section: 要修改的板块名称
-        data: 新数据（可以是字符串或结构化数据）
-
-    Returns:
-        Dict[str, Any]: 操作结果
-    """
-    # 板块名称映射和描述
-    section_names = {
-        "personal_info": "个人信息",
-        "education": "教育经历",
-        "work_experience": "工作经历",
-        "skills": "技能",
-        "projects": "项目经历",
-        "summary": "个人总结",
-        "languages": "语言能力",
-    }
-
-    if section not in section_names:
-        return {"success": False, "message": f"未知的板块: {section}"}
-
-    # 解析 data（如果是 JSON 字符串则转为对象）
-    parsed_data = data
-    if isinstance(data, str):
-        try:
-            parsed_data = json.loads(data)
-        except json.JSONDecodeError:
-            # 非 JSON 字符串，保持原样（如 summary 是纯文本）
-            parsed_data = data
-
-    old_data = deepcopy(resume_content.get(section))
-
-    # 更新简历内容
-    resume_content[section] = parsed_data
-    diff_summary = _build_diff_summary(
-        section_name=section_names[section],
-        before=old_data,
-        after=parsed_data,
-    )
-
-    return {
-        "success": True,
-        "message": f"已成功更新{section_names[section]}",
-        "updated_section": section,
-        "diff_summary": diff_summary,
-    }
-
-
-def _build_diff_summary(section_name: str, before: Any, after: Any) -> str:
-    """构建可读 diff 摘要。"""
-    before_text = _summarize_value(before)
-    after_text = _summarize_value(after)
-    return (
-        f"{section_name}修改摘要\n"
-        f"改前：{before_text}\n"
-        f"改后：{after_text}"
-    )
+_HIGHLIGHT_SECTIONS = {"education", "work_experience", "projects"}
 
 
 def _summarize_value(value: Any, max_length: int = 160) -> str:
@@ -161,140 +77,173 @@ def _truncate(text: str, max_length: int) -> str:
     return text[: max_length - 1] + "…"
 
 
-# ---------------------------------------------------------------------------
-# 精细化编辑工具
-# ---------------------------------------------------------------------------
-
-def update_resume_item(
-    resume_content: Dict[str, Any], section: str, item_id: str, patch: Any
-) -> Dict[str, Any]:
-    """更新数组板块中某个条目的部分字段。"""
-    if section not in _LIST_SECTIONS:
-        return {"success": False, "message": f"{section} 不支持条目级编辑"}
-
+def _find_item(
+    resume_content: Dict[str, Any], section: str, item_id: str
+) -> tuple[List[Dict[str, Any]], int] | tuple[None, None]:
     items: List[Dict[str, Any]] = resume_content.get(section) or []
     if not isinstance(items, list):
+        return None, None
+    idx = next(
+        (i for i, item in enumerate(items) if str(item.get("id")) == str(item_id)),
+        None,
+    )
+    if idx is None:
+        return items, None
+    return items, idx
+
+
+def update_overview(
+    resume_content: Dict[str, Any], section: str, item_id: str, overview: Any
+) -> Dict[str, Any]:
+    """更新项目条目的 overview 字段。"""
+    if section != "projects":
+        return {"success": False, "message": "只有 projects 支持 overview 编辑"}
+
+    items, idx = _find_item(resume_content, section, item_id)
+    if items is None:
         return {"success": False, "message": f"{section} 数据格式异常"}
-
-    # 解析 patch
-    if isinstance(patch, str):
-        try:
-            patch = json.loads(patch)
-        except json.JSONDecodeError as e:
-            return {"success": False, "message": f"patch 解析失败: {e}"}
-
-    if not isinstance(patch, dict):
-        return {"success": False, "message": "patch 必须是对象"}
-
-    idx = next((i for i, item in enumerate(items) if str(item.get("id")) == str(item_id)), None)
     if idx is None:
         return {"success": False, "message": f"未找到 id={item_id} 的条目"}
 
+    next_overview = str(overview or "").strip()
     before = deepcopy(items[idx])
-    items[idx] = {**items[idx], **patch}
+    items[idx]["overview"] = next_overview
     resume_content[section] = items
 
     section_name = _SECTION_NAMES.get(section, section)
     item_label = _summarize_dict(items[idx])
-
-    # 字段级 diff：只显示 patch 中实际变动的字段
-    lines = []
-    for key, new_val in patch.items():
-        old_val = before.get(key)
-        if old_val == new_val:
-            continue
-        # 对列表字段（如 highlights）做逐项 diff，只显示变化的条目
-        if (
-            isinstance(old_val, list)
-            and isinstance(new_val, list)
-            and all(isinstance(i, dict) and "id" in i for i in old_val + new_val)
-        ):
-            old_map = {str(i["id"]): i for i in old_val}
-            new_map = {str(i["id"]): i for i in new_val}
-            for iid in sorted(set(old_map) | set(new_map)):
-                o, n = old_map.get(iid), new_map.get(iid)
-                if o == n:
-                    continue
-                if o is None:
-                    lines.append(f"  改前：（新增）\n  改后：{_summarize_value(n)}")
-                elif n is None:
-                    lines.append(f"  改前：{_summarize_value(o)}\n  改后：（已删除）")
-                else:
-                    lines.append(f"  改前：{_summarize_value(o)}\n  改后：{_summarize_value(n)}")
-        else:
-            lines.append(
-                f"  改前：{_summarize_value(old_val)}\n  改后：{_summarize_value(new_val)}"
-            )
     diff = (
         f"{section_name} / {item_label} 修改摘要\n"
-        + ("\n".join(lines) if lines else "无字段变动")
+        f"  改前：{_summarize_value(before.get('overview'))}\n"
+        f"  改后：{_summarize_value(next_overview)}"
     )
-
     return {
         "success": True,
-        "message": f"已更新 {section_name} 中的条目",
+        "message": f"已更新 {section_name} 的简介",
         "updated_section": section,
         "diff_summary": diff,
     }
 
 
-def add_resume_item(
-    resume_content: Dict[str, Any], section: str, item: Any
+def update_highlight(
+    resume_content: Dict[str, Any],
+    section: str,
+    item_id: str,
+    highlight_id: str,
+    text: Any,
 ) -> Dict[str, Any]:
-    """向数组板块末尾追加一个新条目。"""
-    if section not in _LIST_SECTIONS:
-        return {"success": False, "message": f"{section} 不支持条目追加"}
+    """更新某条 highlight 的文本。"""
+    if section not in _HIGHLIGHT_SECTIONS:
+        return {"success": False, "message": f"{section} 不支持亮点编辑"}
 
-    if isinstance(item, str):
-        try:
-            item = json.loads(item)
-        except json.JSONDecodeError as e:
-            return {"success": False, "message": f"item 解析失败: {e}"}
+    items, idx = _find_item(resume_content, section, item_id)
+    if items is None:
+        return {"success": False, "message": f"{section} 数据格式异常"}
+    if idx is None:
+        return {"success": False, "message": f"未找到 id={item_id} 的条目"}
 
-    if not isinstance(item, dict):
-        return {"success": False, "message": "item 必须是对象"}
+    highlights = items[idx].get("highlights") or []
+    if not isinstance(highlights, list):
+        return {"success": False, "message": "highlights 数据格式异常"}
 
-    # 保证有稳定 id
-    if not item.get("id"):
-        item = {"id": _stable_id(_ID_PREFIX.get(section, "item")), **item}
+    next_text = str(text or "").strip()
+    for highlight in highlights:
+        if str(highlight.get("id")) == str(highlight_id):
+            before = deepcopy(highlight)
+            highlight["text"] = next_text
+            section_name = _SECTION_NAMES.get(section, section)
+            item_label = _summarize_dict(items[idx])
+            return {
+                "success": True,
+                "message": f"已更新 {section_name} 中的亮点",
+                "updated_section": section,
+                "diff_summary": (
+                    f"{section_name} / {item_label} 修改摘要\n"
+                    f"  改前：{_summarize_value(before)}\n"
+                    f"  改后：{_summarize_value(highlight)}"
+                ),
+            }
+    return {"success": False, "message": f"未找到 id={highlight_id} 的亮点"}
 
-    items: List[Dict[str, Any]] = resume_content.get(section) or []
-    if not isinstance(items, list):
-        items = []
-    items.append(item)
+
+def add_highlight(
+    resume_content: Dict[str, Any], section: str, item_id: str, text: Any
+) -> Dict[str, Any]:
+    """向某个条目新增一条 highlight。"""
+    if section not in _HIGHLIGHT_SECTIONS:
+        return {"success": False, "message": f"{section} 不支持亮点编辑"}
+
+    items, idx = _find_item(resume_content, section, item_id)
+    if items is None:
+        return {"success": False, "message": f"{section} 数据格式异常"}
+    if idx is None:
+        return {"success": False, "message": f"未找到 id={item_id} 的条目"}
+
+    next_text = str(text or "").strip()
+    if not next_text:
+        return {"success": False, "message": "亮点文本不能为空"}
+
+    highlight = {
+        "id": f"{item_id}_hl_{uuid4().hex[:8]}",
+        "text": next_text,
+    }
+    highlights = items[idx].get("highlights")
+    if not isinstance(highlights, list):
+        highlights = []
+        items[idx]["highlights"] = highlights
+    highlights.append(highlight)
     resume_content[section] = items
 
     section_name = _SECTION_NAMES.get(section, section)
+    item_label = _summarize_dict(items[idx])
     return {
         "success": True,
-        "message": f"已在 {section_name} 中新增条目",
+        "message": f"已在 {section_name} 中新增亮点",
         "updated_section": section,
-        "diff_summary": f"{section_name} 新增：{_summarize_dict(item)}",
+        "diff_summary": (
+            f"{section_name} / {item_label} 新增亮点\n"
+            f"  改后：{_summarize_value(highlight)}"
+        ),
     }
 
 
-def remove_resume_item(
-    resume_content: Dict[str, Any], section: str, item_id: str
+def remove_highlight(
+    resume_content: Dict[str, Any], section: str, item_id: str, highlight_id: str
 ) -> Dict[str, Any]:
-    """从数组板块中删除指定 id 的条目。"""
-    if section not in _LIST_SECTIONS:
-        return {"success": False, "message": f"{section} 不支持条目删除"}
+    """从某个条目删除一条 highlight。"""
+    if section not in _HIGHLIGHT_SECTIONS:
+        return {"success": False, "message": f"{section} 不支持亮点编辑"}
 
-    items: List[Dict[str, Any]] = resume_content.get(section) or []
-    if not isinstance(items, list):
+    items, idx = _find_item(resume_content, section, item_id)
+    if items is None:
         return {"success": False, "message": f"{section} 数据格式异常"}
-
-    new_items = [item for item in items if str(item.get("id")) != str(item_id)]
-    if len(new_items) == len(items):
+    if idx is None:
         return {"success": False, "message": f"未找到 id={item_id} 的条目"}
 
-    removed = next(item for item in items if str(item.get("id")) == str(item_id))
-    resume_content[section] = new_items
+    highlights = items[idx].get("highlights") or []
+    if not isinstance(highlights, list):
+        return {"success": False, "message": "highlights 数据格式异常"}
+
+    remaining = [
+        highlight for highlight in highlights if str(highlight.get("id")) != str(highlight_id)
+    ]
+    if len(remaining) == len(highlights):
+        return {"success": False, "message": f"未找到 id={highlight_id} 的亮点"}
+
+    removed = next(
+        highlight for highlight in highlights if str(highlight.get("id")) == str(highlight_id)
+    )
+    items[idx]["highlights"] = remaining
+    resume_content[section] = items
 
     section_name = _SECTION_NAMES.get(section, section)
+    item_label = _summarize_dict(items[idx])
     return {
         "success": True,
-        "message": f"已从 {section_name} 中删除条目",
+        "message": f"已从 {section_name} 中删除亮点",
         "updated_section": section,
-        "diff_summary": f"{section_name} 删除：{_summarize_dict(removed)}",
+        "diff_summary": (
+            f"{section_name} / {item_label} 删除亮点\n"
+            f"  改前：{_summarize_value(removed)}"
+        ),
     }

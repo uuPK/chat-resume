@@ -67,7 +67,16 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
                 }
             ],
-            "projects": [],
+            "projects": [
+                {
+                    "id": "proj_1",
+                    "name": "Chat Resume",
+                    "role": "开发者",
+                    "duration": "2025",
+                    "overview": "AI 求职辅导平台",
+                    "highlights": [{"id": "proj_hl_1", "text": "支持流式简历优化"}],
+                }
+            ],
             "skills": [],
             "education": [],
             "languages": [],
@@ -102,8 +111,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "edit_resume",
-                    "arguments": '{"section":"skills","data":"[]"}',
+                    "name": "add_highlight",
+                    "arguments": {
+                        "section": "skills",
+                        "item_id": "skill_1",
+                        "text": "不应被允许",
+                    },
                 }
             },
             {
@@ -114,6 +127,101 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("禁止修改", result["display_message"])
         self.assertEqual(result["updated_section_name"], "技能专长")
+
+    def test_update_overview_tool_updates_project_overview(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_overview",
+                    "arguments": {
+                        "section": "projects",
+                        "item_id": "proj_1",
+                        "overview": "支持结构化简历编辑、Agent 改写和模拟面试。",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume["projects"][0]["overview"],
+            "支持结构化简历编辑、Agent 改写和模拟面试。",
+        )
+
+    def test_update_highlight_tool_updates_single_highlight(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_highlight",
+                    "arguments": {
+                        "section": "work_experience",
+                        "item_id": "work_1",
+                        "highlight_id": "hl_1",
+                        "text": "维护多个后台服务并推动关键接口性能优化",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][0]["text"],
+            "维护多个后台服务并推动关键接口性能优化",
+        )
+
+    def test_add_highlight_tool_appends_highlight(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "add_highlight",
+                    "arguments": {
+                        "section": "projects",
+                        "item_id": "proj_1",
+                        "text": "支持工具调用后的人机确认流程",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-1]["text"],
+            "支持工具调用后的人机确认流程",
+        )
+
+    def test_remove_highlight_tool_deletes_highlight(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "remove_highlight",
+                    "arguments": {
+                        "section": "projects",
+                        "item_id": "proj_1",
+                        "highlight_id": "proj_hl_1",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume["projects"][0]["highlights"], [])
 
     async def test_optimize_returns_plain_text_without_mutation(self):
         chat_service = FakeChatService(
@@ -151,12 +259,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                         "id": "call_1",
                                         "type": "function",
                                         "function": {
-                                            "name": "update_resume_item",
+                                            "name": "update_highlight",
                                             "arguments": (
                                                 '{"section":"work_experience",'
                                                 '"item_id":"work_1",'
-                                                '"patch":{"summary":"负责内部系统开发与性能优化，'
-                                                '推动核心接口响应时间下降 30%"}}'
+                                                '"highlight_id":"hl_1",'
+                                                '"text":"维护多个后台服务，并推动核心接口响应时间下降 30%"}'
                                             ),
                                         },
                                     }
@@ -183,7 +291,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("量化成果", result["content"])
         self.assertEqual(len(result["tool_calls"]), 1)
-        self.assertIn("响应时间下降 30%", resume["work_experience"][0]["summary"])
+        self.assertIn(
+            "响应时间下降 30%",
+            resume["work_experience"][0]["highlights"][0]["text"],
+        )
 
     async def test_optimize_stream_applies_change_after_confirmation(self):
         chat_service = FakeChatService(
@@ -195,12 +306,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "index": 0,
                                 "id": "call_stream_1",
                                 "function": {
-                                    "name": "update_resume_item",
+                                    "name": "update_highlight",
                                     "arguments": (
                                         '{"section":"work_experience",'
                                         '"item_id":"work_1",'
-                                        '"patch":{"summary":"负责核心后台系统开发，'
-                                        '支撑日活 10 万用户，并完成接口性能优化"}}'
+                                        '"highlight_id":"hl_1",'
+                                        '"text":"维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化"}'
                                     ),
                                 },
                             }
@@ -230,8 +341,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
         self.assertEqual(
-            resume["work_experience"][0]["summary"],
-            "负责核心后台系统开发，支撑日活 10 万用户，并完成接口性能优化",
+            resume["work_experience"][0]["highlights"][0]["text"],
+            "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
         )
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
@@ -248,11 +359,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                                 "index": 0,
                                 "id": "call_stream_2",
                                 "function": {
-                                    "name": "update_resume_item",
+                                    "name": "update_highlight",
                                     "arguments": (
                                         '{"section":"work_experience",'
                                         '"item_id":"work_1",'
-                                        '"patch":{"summary":"这是一个不应被应用的修改"}}'
+                                        '"highlight_id":"hl_1",'
+                                        '"text":"这是一个不应被应用的修改"}'
                                     ),
                                 },
                             }
@@ -279,7 +391,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             events.append(event)
 
         self.assertTrue(any(event.get("tool_rejected") for event in events))
-        self.assertEqual(resume["work_experience"][0]["summary"], "负责内部系统开发")
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][0]["text"],
+            "维护多个后台服务",
+        )
 
 
 if __name__ == "__main__":

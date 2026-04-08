@@ -3,15 +3,12 @@
 interface Project {
   id?: string
   name: string
-  description?: string
-  summary?: string
   overview?: string
   technologies?: string[]
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements?: string[]
   highlights?: Array<{
     id?: string
     text: string
@@ -55,7 +52,7 @@ const DemoIcon = () => (
 export function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
-    : (project.achievements || [])
+    : []
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
@@ -103,9 +100,9 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
         </div>
       )}
 
-      {(project.overview || project.summary || project.description) && (
+      {project.overview && (
         <p className="text-sm text-gray-600 mb-2 leading-relaxed">
-          {project.overview || project.summary || project.description}
+          {project.overview}
         </p>
       )}
 

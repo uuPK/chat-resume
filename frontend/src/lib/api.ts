@@ -65,7 +65,6 @@ interface WorkExperience {
   is_current?: boolean
   location?: string
   employment_type?: string
-  description?: string
   highlights?: ResumeHighlight[]
   technologies?: string[]
 }
@@ -79,8 +78,6 @@ interface Skill {
 interface Project {
   id?: string
   name: string
-  description?: string
-  summary?: string
   overview?: string
   technologies?: string[]
   role: string
@@ -89,7 +86,6 @@ interface Project {
   end_date?: string
   github_url?: string
   demo_url?: string
-  achievements?: string[]
   highlights?: ResumeHighlight[]
   links?: ResumeLink[]
 }

@@ -140,10 +140,10 @@ class ResumeAgent:
 
     # 工具名 -> 用户可见的中文名称
     _TOOL_DISPLAY_NAMES = {
-        "edit_resume": "编辑简历板块",
-        "update_resume_item": "更新条目",
-        "add_resume_item": "新增条目",
-        "remove_resume_item": "删除条目",
+        "update_overview": "优化简介",
+        "update_highlight": "优化成果",
+        "add_highlight": "新增成果",
+        "remove_highlight": "删除成果",
         "read_resume": "读取简历",
     }
 

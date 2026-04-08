@@ -173,11 +173,15 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     timestamp: new Date(),
                     streamEvents: eventsBuffer.length > 0 ? [...eventsBuffer] : undefined,
                   }
-                  onMessage?.(aiMessage)
+                  // 先清掉流式展示态，再把最终消息并入历史，避免同一条消息短暂重复渲染。
+                  setIsStreaming(false)
                   setCurrentStreamingMessage('')
                   setCurrentToolCalls([])
                   setCurrentProposal(null)
-                  setStreamEvents([])  // 清掉流式 state，历史由 message.streamEvents 接管
+                  setStreamEvents([])
+                  setTimeout(() => {
+                    onMessage?.(aiMessage)
+                  }, 0)
                   return
                 }
 

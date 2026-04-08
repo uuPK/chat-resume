@@ -17,14 +17,11 @@ interface Highlight {
 interface Project {
   id?: string
   name: string
-  description?: string
-  summary?: string
   overview?: string
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements?: string[]
   highlights?: Highlight[]
   technologies?: string[]
 }
@@ -38,12 +35,6 @@ function normalizeHighlights(project: Project): Highlight[] {
   if (project.highlights && project.highlights.length > 0) {
     return project.highlights
   }
-  if (project.achievements && project.achievements.length > 0) {
-    return project.achievements.map((text, index) => ({
-      id: `${project.id || 'proj'}_hl_${index}`,
-      text
-    }))
-  }
   return [{ id: `${project.id || 'proj'}_hl_0`, text: '' }]
 }
 
@@ -55,7 +46,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       ? data.map((project, index) => ({
           ...project,
           id: project.id || `proj_${Date.now()}_${index}`,
-          overview: project.overview || project.summary || project.description || '',
+          overview: project.overview || '',
           highlights: normalizeHighlights(project)
         }))
       : []
@@ -64,7 +55,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
   const commit = (next: Project[]) => {
     setProjectsList(next)
-    onChange(next.map(({ description, achievements, summary, ...project }) => project))
+    onChange(next)
   }
 
   const addProject = () => {

@@ -62,7 +62,6 @@ interface Education {
   major: string
   degree: string
   duration: string
-  description?: string
   highlights?: Array<{ id?: string; text: string }>
 }
 
@@ -71,7 +70,6 @@ interface WorkExperience {
   company: string
   position: string
   duration: string
-  description?: string
   highlights?: Array<{ id?: string; text: string }>
 }
 
@@ -84,15 +82,12 @@ interface Skill {
 interface Project {
   id?: string
   name: string
-  description?: string
-  summary?: string
   overview?: string
   technologies?: string[]
   role: string
   duration: string
   github_url?: string
   demo_url?: string
-  achievements?: string[]
   highlights?: Array<{ id?: string; text: string }>
 }
 
