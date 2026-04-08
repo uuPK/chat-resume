@@ -202,6 +202,7 @@ def add_highlight(
         "updated_section": section,
         "diff_summary": (
             f"{section_name} / {item_label} 新增亮点\n"
+            f"  改前：（新增）\n"
             f"  改后：{_summarize_value(highlight)}"
         ),
     }
@@ -244,6 +245,7 @@ def remove_highlight(
         "updated_section": section,
         "diff_summary": (
             f"{section_name} / {item_label} 删除亮点\n"
-            f"  改前：{_summarize_value(removed)}"
+            f"  改前：{_summarize_value(removed)}\n"
+            f"  改后：（已删除）"
         ),
     }

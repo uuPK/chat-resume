@@ -130,9 +130,13 @@ function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'meta';
     // 跳过标题行（修改摘要/新增/删除）
     if (line.endsWith('修改摘要') || line.endsWith('新增') || line.endsWith('删除')) continue
     if (line.startsWith('改前：') || line.startsWith('  改前：')) {
-      result.push({ type: 'remove', text: '- ' + line.replace(/^\s*改前：/, '') })
+      const text = line.replace(/^\s*改前：/, '').trim()
+      if (text === '（新增）') continue
+      result.push({ type: 'remove', text: '- ' + text })
     } else if (line.startsWith('改后：') || line.startsWith('  改后：')) {
-      result.push({ type: 'add', text: '+ ' + line.replace(/^\s*改后：/, '') })
+      const text = line.replace(/^\s*改后：/, '').trim()
+      if (text === '（已删除）') continue
+      result.push({ type: 'add', text: '+ ' + text })
     }
   }
   return result
@@ -1257,6 +1261,11 @@ export default function ResumeEditPage() {
                             </div>
                           )
                         })}
+                        {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
+                          <div className="mt-2 rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                            <span className="inline-block animate-pulse">Planning next moves</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1264,12 +1273,8 @@ export default function ResumeEditPage() {
                   {/* 等待响应动画 */}
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm text-sm">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                        <span className="inline-block animate-pulse">Planning next moves</span>
                       </div>
                     </div>
                   )}

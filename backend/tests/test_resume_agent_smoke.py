@@ -296,6 +296,65 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
+    async def test_optimize_executes_only_first_tool_call_per_round(self):
+        chat_service = FakeChatService(
+            responses=[
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_first",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "update_overview",
+                                            "arguments": (
+                                                '{"section":"projects",'
+                                                '"item_id":"proj_1",'
+                                                '"overview":"新的项目简介"}'
+                                            ),
+                                        },
+                                    },
+                                    {
+                                        "id": "call_second",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "add_highlight",
+                                            "arguments": (
+                                                '{"section":"projects",'
+                                                '"item_id":"proj_1",'
+                                                '"text":"这条不应在同一轮被执行"}'
+                                            ),
+                                        },
+                                    },
+                                ],
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "已先完成第一步修改。",
+                            }
+                        }
+                    ]
+                },
+            ]
+        )
+        agent = self._build_agent(chat_service)
+        resume = self._sample_resume()
+
+        result = await agent.optimize("优化项目内容", resume)
+
+        self.assertEqual(result["content"], "已先完成第一步修改。")
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(resume["projects"][0]["overview"], "新的项目简介")
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 1)
+
     async def test_optimize_stream_applies_change_after_confirmation(self):
         chat_service = FakeChatService(
             stream_rounds=[

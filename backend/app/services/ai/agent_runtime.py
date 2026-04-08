@@ -59,6 +59,7 @@ class AgentRuntime:
 
         for _ in range(agent.max_iterations):
             message = await self._next_message(agent, messages, context)
+            message = self._limit_tool_calls(message)
             messages.append(message)
 
             if not message.get("tool_calls"):
@@ -137,6 +138,7 @@ class AgentRuntime:
 
             if accumulated_tool_calls:
                 tool_calls_list = list(accumulated_tool_calls.values())
+                tool_calls_list = self._limit_tool_call_list(tool_calls_list)
                 logger.debug(f"[run_stream] accumulated tool_calls: {json.dumps(tool_calls_list, ensure_ascii=False)}")
                 messages.append({
                     "role": "assistant",
@@ -244,6 +246,24 @@ class AgentRuntime:
             # 空响应，终止
             break
 
+    @staticmethod
+    def _limit_tool_call_list(tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if len(tool_calls) <= 1:
+            return tool_calls
+        logger.info(
+            "Agent returned %s tool calls in one round; only the first will be executed",
+            len(tool_calls),
+        )
+        return tool_calls[:1]
+
+    def _limit_tool_calls(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        tool_calls = message.get("tool_calls")
+        if not isinstance(tool_calls, list) or len(tool_calls) <= 1:
+            return message
+        limited = dict(message)
+        limited["tool_calls"] = self._limit_tool_call_list(tool_calls)
+        return limited
+
     def _build_messages(
         self,
         user_message: str,
@@ -310,4 +330,3 @@ class AgentRuntime:
             "tool_messages": tool_messages,
             "stream_events": stream_events,
         }
-
