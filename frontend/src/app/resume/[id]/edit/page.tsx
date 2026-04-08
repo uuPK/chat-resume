@@ -108,7 +108,7 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
 > = {
   idle: { text: '', className: 'text-gray-400' },
   pending: { text: '有未保存的更改…', className: 'text-amber-500' },
-  saving: { text: '自动保存中…', className: 'text-blue-600' },
+  saving: { text: '自动保存中…', className: 'text-primary-600' },
   success: { text: '已自动保存', className: 'text-green-600' },
   error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
 }
@@ -601,7 +601,7 @@ export default function ResumeEditPage() {
       ? 'border-green-200 bg-green-50'
       : status === 'rejected'
         ? 'border-gray-200 bg-gray-50'
-        : 'border-blue-200 bg-blue-50'
+        : 'border-primary-200 bg-primary-50'
 
     return (
       <div className={`mt-3 rounded-lg border overflow-hidden ${statusColor}`}>
@@ -610,7 +610,7 @@ export default function ResumeEditPage() {
           <div className="bg-white border-b border-gray-100 px-3 py-2 space-y-1">
             {message.toolCalls.map((tool, index) => (
               <div key={index} className="flex items-start gap-2 text-xs text-gray-600">
-                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
                 <div className="min-w-0">
                   <span className="font-medium text-gray-700">{tool.name}</span>
                 </div>
@@ -623,7 +623,7 @@ export default function ResumeEditPage() {
         <div className="px-3 py-2 flex items-center justify-between gap-3">
           <div>
             <div className={`text-sm font-medium ${
-              status === 'applied' ? 'text-green-900' : status === 'rejected' ? 'text-gray-500' : 'text-blue-900'
+              status === 'applied' ? 'text-green-900' : status === 'rejected' ? 'text-gray-500' : 'text-primary-900'
             }`}>
               {status === 'applied' ? '已接受修改' : status === 'rejected' ? '已拒绝修改' : '待确认修改'}
             </div>
@@ -635,7 +635,7 @@ export default function ResumeEditPage() {
               <button
                 onClick={() => handleApplyProposal(message)}
                 disabled={isLoadingProposal}
-                className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 {isLoadingProposal ? '应用中...' : '接受'}
               </button>
@@ -654,14 +654,14 @@ export default function ResumeEditPage() {
         {message.proposal.proposalPatch?.changes?.length ? (
           <div className="px-3 pb-3 space-y-2">
             {message.proposal.proposalPatch.changes.map((change, index) => (
-              <div key={`${change.section}-${index}`} className="rounded-md border border-blue-100 bg-white p-2">
+              <div key={`${change.section}-${index}`} className="rounded-md border border-primary-100 bg-white p-2">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">
                     {change.section}
                     {change.item_label ? ` / ${change.item_label}` : ''}
                   </div>
                   <div className={`text-[10px] font-medium ${
-                    change.op === 'add' ? 'text-green-700' : change.op === 'remove' ? 'text-red-700' : 'text-blue-700'
+                    change.op === 'add' ? 'text-green-700' : change.op === 'remove' ? 'text-red-700' : 'text-primary-700'
                   }`}>
                     {change.op === 'add' ? '新增' : change.op === 'remove' ? '删除' : '修改'}
                   </div>
@@ -792,60 +792,65 @@ export default function ResumeEditPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b print:hidden">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
+      {/* Header - 现代化设计 */}
+      <header className="bg-white border-b border-gray-100 print:hidden">
+        <div className="w-full px-6">
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center">
               <Link
                 href="/dashboard"
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                title="返回仪表板"
               >
-                <ArrowLeftIcon className="w-5 h-5 ml-9" />
+                <ArrowLeftIcon className="w-5 h-5" />
+                <span className="ml-2 text-sm font-medium">返回</span>
               </Link>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <ResumeLayoutControls
-                config={layoutConfig}
-                onConfigChange={handleLayoutConfigChange}
-              />
-              <button
-                onClick={handleExportPDF}
-                disabled={exporting}
-                className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {exporting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                    <span>生成中...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowDownTrayIcon className="w-4 h-4" />
-                    <span>导出 PDF</span>
-                  </>
-                )}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>保存中...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckIcon className="w-4 h-4" />
-                    <span>保存</span>
-                  </>
-                )}
-              </button>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <ResumeLayoutControls
+                  config={layoutConfig}
+                  onConfigChange={handleLayoutConfigChange}
+                />
+                <div className="h-6 w-px bg-gray-200"></div>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {exporting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                      <span>生成中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+                      <span>导出 PDF</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      <span>保存中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckIcon className="w-4 h-4 mr-2" />
+                      <span>保存</span>
+                    </>
+                  )}
+                </button>
+              </div>
               {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text && (
-                <div className={`text-xs ${AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].className}`}>
+                <div className={`text-xs px-3 py-1 rounded-full ${autoSaveStatus === 'error' ? 'bg-error-50 text-error-600' : autoSaveStatus === 'success' ? 'bg-success-50 text-success-600' : 'bg-gray-50 text-gray-600'}`}>
                   {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text}
                 </div>
               )}
@@ -854,11 +859,11 @@ export default function ResumeEditPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Main Content - 现代化三栏布局 */}
+      <main className="max-w-full mx-auto px-6 py-3">
         <div
           ref={mainPanelsRef}
-          className={`flex gap-0 h-[calc(100vh-140px)] ${editorOpen ? '' : 'lg:[&_.preview-panel]:flex-1 lg:[&_.agent-panel]:flex-1'}`}
+          className={`flex gap-0 h-[calc(100vh-120px)] ${editorOpen ? '' : 'lg:[&_.preview-panel]:flex-1 lg:[&_.agent-panel]:flex-1'}`}
         >
           {/* Left Panel - Editor */}
           <motion.div
@@ -869,28 +874,30 @@ export default function ResumeEditPage() {
             style={editorOpen ? { flex: `0 0 calc(${editorFlex}% - 8px)` } : undefined}
           >
             {!editorOpen ? (
-              /* 折叠状态：细条 */
+              /* 折叠状态：现代化细条 */
               <div
-                className="card flex flex-col items-center justify-center h-full w-10 cursor-pointer hover:bg-gray-50 transition-colors"
+                className="flex flex-col items-center justify-center h-full w-12 cursor-pointer bg-gray-50 hover:bg-gray-100 border-r border-gray-200 transition-colors group"
                 onClick={() => setEditorOpen(true)}
                 title="展开编辑区域"
               >
-                <ChevronRightIcon className="w-4 h-4 text-gray-500" />
+                <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
+                <span className="mt-2 text-xs text-gray-500 group-hover:text-gray-700 writing-mode-vertical-rl">编辑器</span>
               </div>
             ) : (
-            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-4 flex justify-end flex-shrink-0">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
+              <div className="mb-4 flex justify-between items-center flex-shrink-0">
+                <h3 className="text-sm font-semibold text-gray-900">简历编辑器</h3>
                 <button
                   onClick={() => setEditorOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                  title="折叠"
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                  title="折叠编辑器"
                 >
                   <ChevronLeftIcon className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Section Tabs */}
-                <div className="flex space-x-1 mb-4 bg-gray-100 p-1 rounded-lg flex-shrink-0">
+                {/* Section Tabs - 现代化设计 */}
+                <div className="flex space-x-2 mb-5 border-b border-gray-200 flex-shrink-0">
                   {[
                     { key: 'job_application', label: '投递岗位' },
                     { key: 'personal', label: '个人信息' },
@@ -902,18 +909,21 @@ export default function ResumeEditPage() {
                     <button
                       key={section.key}
                       onClick={() => setActiveSection(section.key)}
-                      className={`flex-1 flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${activeSection === section.key
-                        ? 'bg-white text-primary-600 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
+                      className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${activeSection === section.key
+                        ? 'text-primary-600'
+                        : 'text-gray-500 hover:text-gray-700'
                         }`}
                     >
                       <span>{section.label}</span>
+                      {activeSection === section.key && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full"></div>
+                      )}
                     </button>
                   ))}
                 </div>
 
                 {/* Editor Content */}
-                <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar">
                   {activeSection === 'job_application' && (
                     <JobApplicationEditor
                       data={resume.content.job_application || {}}
@@ -965,10 +975,10 @@ export default function ResumeEditPage() {
 
           {editorOpen && (
             <div
-              className="w-3 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
+              className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
               onPointerDown={handleEditorDividerPointerDown}
             >
-              <div className="w-1 h-full bg-gray-200 group-hover:bg-blue-400 transition-colors rounded-full" />
+              <div className="w-0.5 h-full bg-gray-300 group-hover:bg-primary-400 transition-colors rounded-full" />
             </div>
           )}
 
@@ -980,7 +990,11 @@ export default function ResumeEditPage() {
             className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `1 1 calc(${100 - editorFlex - agentFlex}% - 16px)` }}
           >
-            <div className="card p-4 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-5 flex-1 overflow-hidden flex flex-col print:shadow-none print:border-none print:p-0">
+              <div className="mb-4 flex-shrink-0">
+                <h3 className="text-sm font-semibold text-gray-900">简历预览</h3>
+                <p className="text-xs text-gray-500 mt-1">实时预览您的简历效果</p>
+              </div>
               <div className="flex-1 overflow-hidden min-h-0 print:overflow-visible print:h-auto">
                 <ResumePreview
                   key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
@@ -993,10 +1007,10 @@ export default function ResumeEditPage() {
 
           {/* 拖拽分隔条 */}
           <div
-            className="w-3 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
+            className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
             onPointerDown={handleAgentDividerPointerDown}
           >
-            <div className="w-1 h-full bg-gray-200 group-hover:bg-blue-400 transition-colors rounded-full" />
+            <div className="w-0.5 h-full bg-gray-300 group-hover:bg-primary-400 transition-colors rounded-full" />
           </div>
 
           {/* Right Panel - AI Chat */}
@@ -1007,10 +1021,13 @@ export default function ResumeEditPage() {
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
             style={{ flex: `0 0 calc(${agentFlex}% - 8px)` }}
           >
-            <div className="card p-4 flex-1 overflow-hidden flex flex-col">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
               {/* 顶栏：标题 + 清空按钮 */}
-              <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                <div />
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">AI简历优化助手</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">智能优化您的简历内容</p>
+                </div>
                 {messages.length > 0 && (
                   <button
                     onClick={async () => {
@@ -1018,7 +1035,7 @@ export default function ResumeEditPage() {
                       await chatHistoryApi.clearMessages(parseInt(resumeId)).catch(console.error)
                       setMessages([])
                     }}
-                    className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
                   >
                     清空记录
                   </button>
@@ -1026,22 +1043,27 @@ export default function ResumeEditPage() {
               </div>
               {/* API错误提示 */}
               {apiError && (
-                <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700 flex-shrink-0">
-                  ⚠️ {apiError}
+                <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <span>{apiError}</span>
+                  </div>
                 </div>
               )}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Messages Display Area */}
-                <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2 min-h-0 max-h-full">
+                <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
                   {messages.map((message) => (
                     <div
                       key={message.id}
                       className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] px-4 py-3 rounded-lg ${message.type === 'user'
-                          ? 'bg-blue-600 text-white rounded-br-sm text-sm'
-                          : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
+                        className={`max-w-[85%] px-4 py-3 rounded-2xl ${message.type === 'user'
+                          ? 'bg-primary-600 text-white rounded-br-md text-sm shadow-sm'
+                          : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
                           }`}
                       >
                         {message.type === 'ai' ? (
@@ -1120,7 +1142,7 @@ export default function ResumeEditPage() {
                                       <div key={i} className="px-3 py-0.5 bg-green-50 text-green-700 whitespace-pre-wrap">{l.text}</div>
                                     )
                                     return (
-                                      <div key={i} className="px-3 py-0.5 text-blue-600 whitespace-pre-wrap">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 text-primary-600 whitespace-pre-wrap">{l.text}</div>
                                     )
                                   })}
                                 </div>
@@ -1128,7 +1150,7 @@ export default function ResumeEditPage() {
                                 <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex gap-2">
                                   <button
                                     onClick={() => confirmTool(event.callId, true)}
-                                    className="flex-1 rounded-md bg-blue-600 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                                    className="flex-1 rounded-md bg-primary-600 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
                                   >
                                     确认修改
                                   </button>
@@ -1167,7 +1189,7 @@ export default function ResumeEditPage() {
                                       <div key={i} className={`px-3 py-0.5 whitespace-pre-wrap ${isConfirmed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{l.text}</div>
                                     )
                                     return (
-                                      <div key={i} className="px-3 py-0.5 text-blue-600 whitespace-pre-wrap">{l.text}</div>
+                                      <div key={i} className="px-3 py-0.5 text-primary-600 whitespace-pre-wrap">{l.text}</div>
                                     )
                                   })}
                                 </div>
@@ -1177,7 +1199,7 @@ export default function ResumeEditPage() {
                           if (event.type === 'tool') {
                             return (
                               <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse flex-shrink-0" />
                                 <span>{event.name}</span>
                               </div>
                             )
@@ -1217,16 +1239,16 @@ export default function ResumeEditPage() {
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="输入消息..."
-                      className="w-full p-2 pr-12 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
                       rows={2}
                       disabled={isSending || isStreaming}
                     />
                     <button
                       onClick={sendMessage}
                       disabled={!inputMessage.trim() || isSending || isStreaming}
-                      className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
+                        ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         } disabled:cursor-not-allowed`}
                     >
                       <ArrowUpIcon className="w-4 h-4" />
