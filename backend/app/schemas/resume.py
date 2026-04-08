@@ -444,6 +444,19 @@ class ResumeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ResumeListItem(BaseModel):
+    """列表页轻量响应：content 作为 dict 透传，避免跑 ResumeContent 下的深度 Pydantic 验证。"""
+    id: int
+    title: str
+    content: Optional[dict[str, Any]] = None
+    original_filename: Optional[str] = None
+    owner_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OptimizationRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

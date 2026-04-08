@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.resume import (
     ResumeCreate,
+    ResumeListItem,
     ResumeProposalResponse,
     ResumeResponse,
     ResumeUpdate,
@@ -22,13 +23,13 @@ from app.api.deps import get_current_user
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ResumeResponse])
+@router.get("/", response_model=List[ResumeListItem])
 async def get_resumes(
     current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     resume_service = ResumeService(db)
     resumes = resume_service.get_by_owner(current_user["id"])
-    return [ResumeResponse.model_validate(resume) for resume in resumes]
+    return [ResumeListItem.model_validate(resume) for resume in resumes]
 
 
 @router.post("/", response_model=ResumeResponse)
