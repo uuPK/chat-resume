@@ -79,65 +79,7 @@ export default function InterviewsPage() {
     
     try {
       setInterviewsLoading(true)
-      const allSessions: InterviewSession[] = []
-      
-      // 为每个简历获取面试记录
-      for (const resume of resumes) {
-        try {
-          // 调用真实API获取面试会话
-          const sessions = await interviewApi.getInterviewSessions(resume.id)
-          
-          // 检查是否有已完成但没有分数的面试
-          const needScoreCalculation = sessions.some(session => 
-            session.status === 'completed' && !session.overall_score
-          )
-          
-          // 如果有需要计算分数的面试，先计算分数
-          if (needScoreCalculation) {
-            try {
-              const result = await interviewApi.calculateScoresForCompletedInterviews(resume.id)
-              if (result.updated_count > 0) {
-                console.log(`为简历ID ${resume.id} 计算了 ${result.updated_count} 个面试的分数`)
-                // 重新获取更新后的面试记录
-                const updatedSessions = await interviewApi.getInterviewSessions(resume.id)
-                const sessionsWithTitle = updatedSessions.map(session => ({
-                  ...session,
-                  resume_title: resume.title
-                }))
-                allSessions.push(...sessionsWithTitle)
-              } else {
-                const sessionsWithTitle = sessions.map(session => ({
-                  ...session,
-                  resume_title: resume.title
-                }))
-                allSessions.push(...sessionsWithTitle)
-              }
-            } catch (scoreError) {
-              console.warn(`计算分数失败，简历ID: ${resume.id}`, scoreError)
-              // 分数计算失败也继续显示面试记录
-              const sessionsWithTitle = sessions.map(session => ({
-                ...session,
-                resume_title: resume.title
-              }))
-              allSessions.push(...sessionsWithTitle)
-            }
-          } else {
-            const sessionsWithTitle = sessions.map(session => ({
-              ...session,
-              resume_title: resume.title
-            }))
-            allSessions.push(...sessionsWithTitle)
-          }
-          
-          console.log(`获取到 ${sessions.length} 个真实面试记录，简历ID: ${resume.id}`)
-          
-        } catch (error) {
-          console.error(`Failed to fetch sessions for resume ${resume.id}:`, error)
-        }
-      }
-      
-      // 按创建时间降序排序
-      allSessions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const allSessions = await interviewApi.getAllInterviewSessions()
       
       // 检测并标记可能的重复会话
       const processedSessions = allSessions.map(session => {
@@ -178,10 +120,10 @@ export default function InterviewsPage() {
 
   // 在简历列表加载完成后获取面试记录
   useEffect(() => {
-    if (resumes.length > 0 && !resumesLoading) {
+    if (mounted && isAuthenticated && !resumesLoading) {
       fetchInterviewSessions()
     }
-  }, [resumes, resumesLoading])
+  }, [mounted, isAuthenticated, resumesLoading])
 
   const formatDate = (dateString: string) => {
     // 时区处理与dashboard页面相同

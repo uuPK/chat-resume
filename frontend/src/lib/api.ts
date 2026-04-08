@@ -473,6 +473,20 @@ class InterviewAPI {
   }
 
   /**
+   * 获取当前用户的全部面试记录
+   */
+  static async getAllInterviewSessions(): Promise<InterviewSession[]> {
+    const response = await fetch(`${API_BASE_URL}/api/resumes/interview/sessions`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+
+    return handleApiResponse<InterviewSession[]>(response)
+  }
+
+  /**
    * 开始面试会话
    */
   static async startInterview(resumeId: number, config: InterviewConfig): Promise<InterviewSession> {

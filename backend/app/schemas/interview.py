@@ -25,6 +25,8 @@ class InterviewSessionResponse(BaseModel):
     answers: List[Dict[str, Any]]
     feedback: Dict[str, Any]
     status: str
+    overall_score: Optional[int] = None
+    resume_title: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

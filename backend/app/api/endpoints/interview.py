@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.services.core import ResumeService
-from app.models.resume import InterviewSession
+from app.models.resume import InterviewSession, Resume
 from app.schemas.interview import (
     InterviewSessionCreate,
     InterviewSessionResponse,
@@ -35,6 +35,31 @@ def _format_interview_session(session_data: List[Dict[str, Any]]) -> str:
         formatted.append(f"回答{i}: {item.get('answer', '')}")
         formatted.append("---")
     return "\n".join(formatted)
+
+
+@router.get("/interview/sessions", response_model=List[InterviewSessionResponse])
+async def get_all_interview_sessions(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """获取当前用户的全部面试会话列表。"""
+    sessions = (
+        db.query(InterviewSession)
+        .join(Resume, InterviewSession.resume_id == Resume.id)
+        .filter(Resume.owner_id == current_user["id"])
+        .order_by(InterviewSession.created_at.desc())
+        .all()
+    )
+
+    result: list[InterviewSessionResponse] = []
+    for session in sessions:
+        payload = {
+            **InterviewSessionResponse.model_validate(session).model_dump(),
+            "resume_title": session.resume.title if session.resume else None,
+            "overall_score": getattr(session, "overall_score", None),
+        }
+        result.append(InterviewSessionResponse.model_validate(payload))
+    return result
 
 
 @router.post("/{resume_id}/interview/start", response_model=InterviewSessionResponse)
@@ -541,7 +566,16 @@ async def get_interview_sessions(
         .all()
     )
 
-    return [InterviewSessionResponse.model_validate(session) for session in sessions]
+    return [
+        InterviewSessionResponse.model_validate(
+            {
+                **InterviewSessionResponse.model_validate(session).model_dump(),
+                "resume_title": resume.title if resume else None,
+                "overall_score": getattr(session, "overall_score", None),
+            }
+        )
+        for session in sessions
+    ]
 
 
 @router.delete("/{resume_id}/interview/{session_id}")
