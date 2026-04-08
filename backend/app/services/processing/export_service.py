@@ -377,6 +377,13 @@ class ExportService:
         values = []
         for item in skills:
             if isinstance(item, dict):
+                category = str(item.get("category", "")).strip()
+                grouped_items = item.get("items", [])
+                if isinstance(grouped_items, list) and grouped_items:
+                    labels = [str(skill).strip() for skill in grouped_items if str(skill).strip()]
+                    if labels:
+                        values.append(f"{category}：{' / '.join(labels)}" if category else " / ".join(labels))
+                    continue
                 label = item.get("name", "")
             else:
                 label = item

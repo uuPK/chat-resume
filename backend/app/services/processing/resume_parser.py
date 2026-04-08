@@ -241,9 +241,8 @@ class AIResumeParser:
   ],
   "skills": [
     {{
-      "name": "技能名称",
-      "level": "熟练程度",
-      "category": "技能类别"
+      "category": "技能类别",
+      "items": ["技能1", "技能2"]
     }}
   ],
   "projects": [
@@ -353,20 +352,29 @@ class AIResumeParser:
         skills = validated_data["skills"]
         if isinstance(skills, list):
             validated_skills = []
+            grouped_skills: dict[str, list[str]] = {}
             for skill in skills:
-                if isinstance(skill, dict) and skill.get("name"):
+                if isinstance(skill, dict) and isinstance(skill.get("items"), list):
                     validated_skills.append(
                         {
-                            "name": str(skill.get("name", "")),
-                            "level": str(skill.get("level", "熟练")),
                             "category": str(skill.get("category", "其他")),
+                            "items": [
+                                str(item).strip()
+                                for item in skill.get("items", [])
+                                if str(item).strip()
+                            ],
                         }
                     )
+                elif isinstance(skill, dict) and skill.get("name"):
+                    category = str(skill.get("category", "其他"))
+                    grouped_skills.setdefault(category, []).append(str(skill.get("name", "")).strip())
                 elif isinstance(skill, str):
-                    # 纯字符串格式的技能
-                    validated_skills.append(
-                        {"name": skill, "level": "熟练", "category": "其他"}
-                    )
+                    grouped_skills.setdefault("其他", []).append(skill.strip())
+            validated_skills.extend(
+                {"category": category, "items": [item for item in items if item]}
+                for category, items in grouped_skills.items()
+                if any(items)
+            )
             validated_data["skills"] = validated_skills
 
         # 验证项目格式

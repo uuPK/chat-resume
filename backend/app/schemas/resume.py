@@ -167,9 +167,41 @@ class WorkExperienceItem(ResumeBaseModel):
 
 class SkillItem(ResumeBaseModel):
     id: str = Field(default_factory=lambda: _stable_id("skill"))
-    name: str = ""
-    level: str = ""
     category: str = ""
+    items: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_shape(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            incoming_id = value.get("id") or _stable_id("skill")
+            if "items" in value:
+                items = value.get("items", [])
+                if isinstance(items, list):
+                    normalized_items = [str(item).strip() for item in items if str(item).strip()]
+                elif items:
+                    normalized_items = [str(items).strip()]
+                else:
+                    normalized_items = []
+                return {
+                    "id": incoming_id,
+                    "category": str(value.get("category", "")).strip(),
+                    "items": normalized_items,
+                }
+
+            name = str(value.get("name", "")).strip()
+            category = str(value.get("category", "其他")).strip() or "其他"
+            if name:
+                return {
+                    "id": incoming_id,
+                    "category": category,
+                    "items": [name],
+                }
+        elif isinstance(value, str):
+            text = value.strip()
+            if text:
+                return {"id": _stable_id("skill"), "category": "其他", "items": [text]}
+        return value
 
 
 class ProjectItem(ResumeBaseModel):
@@ -290,9 +322,32 @@ class ResumeContent(ResumeBaseModel):
             return []
         if isinstance(parsed, str):
             return [
-                {"name": item, "level": "熟练", "category": "其他"}
+                {"category": "其他", "items": [item]}
                 for item in _split_text_items(parsed)
             ]
+        if isinstance(parsed, list):
+            grouped: dict[str, list[str]] = {}
+            normalized: list[Any] = []
+            has_legacy_shape = False
+            for item in parsed:
+                if isinstance(item, dict) and "items" in item:
+                    normalized.append(item)
+                    continue
+                if isinstance(item, dict) and item.get("name"):
+                    has_legacy_shape = True
+                    category = str(item.get("category", "其他")).strip() or "其他"
+                    grouped.setdefault(category, []).append(str(item.get("name", "")).strip())
+                    continue
+                if isinstance(item, str) and item.strip():
+                    has_legacy_shape = True
+                    grouped.setdefault("其他", []).append(item.strip())
+            if has_legacy_shape:
+                normalized.extend(
+                    {"category": category, "items": items}
+                    for category, items in grouped.items()
+                    if items
+                )
+                return normalized
         return parsed
 
     @field_validator("projects", mode="before")

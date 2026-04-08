@@ -72,9 +72,8 @@ interface WorkExperience {
 
 interface Skill {
   id?: string
-  name: string
-  level: string
   category: string
+  items: string[]
 }
 
 interface Project {

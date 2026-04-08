@@ -75,9 +75,8 @@ interface Resume {
     }>
     skills?: Array<{
       id?: string
-      name: string
-      level: string
       category: string
+      items: string[]
     }>
     projects?: Array<{
       id?: string

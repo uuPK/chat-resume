@@ -136,13 +136,12 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       ) : (
         <div className="space-y-6">
           {projectsList.map((project, index) => (
-            <div key={project.id || index} className="bg-gray-50 rounded-lg p-6 border">
-              <div className="flex items-center justify-between mb-6">
-                <h4 className="font-medium text-gray-900">项目 {index + 1}</h4>
+            <div key={project.id || index} className="bg-white rounded-lg p-6 border">
+              <div className="flex items-center justify-end mb-1">
                 {projectsList.length > 1 && (
                   <button
                     onClick={() => removeProject(project.id!)}
-                    className="text-red-600 hover:text-red-800 p-1"
+                    className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                     title="删除此项目"
                   >
                     <TrashIcon className="w-4 h-4" />
@@ -161,7 +160,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                       value={project.name}
                       onChange={(e) => updateProject(project.id!, 'name', e.target.value)}
                       placeholder="智能简历生成系统"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -178,7 +177,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         value={project.duration}
                         onChange={(e) => updateProject(project.id!, 'duration', e.target.value)}
                         placeholder="2023.03 - 2023.08"
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -192,7 +191,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                       value={project.role}
                       onChange={(e) => updateProject(project.id!, 'role', e.target.value)}
                       placeholder="前端开发工程师"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -209,7 +208,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         value={project.github_url || ''}
                         onChange={(e) => updateProject(project.id!, 'github_url', e.target.value)}
                         placeholder="https://github.com/username/project"
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -227,7 +226,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         value={project.demo_url || ''}
                         onChange={(e) => updateProject(project.id!, 'demo_url', e.target.value)}
                         placeholder="https://your-project-demo.com"
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -241,8 +240,8 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                     value={project.overview || ''}
                     onChange={(e) => updateProject(project.id!, 'overview', e.target.value)}
                     placeholder="一句话说明项目背景、目标或你的角色..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    rows={1}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                   />
                 </div>
 
@@ -261,19 +260,18 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                   </div>
                   <div className="space-y-2">
                     {(project.highlights || []).map((highlight, highlightIndex) => (
-                      <div key={highlight.id || highlightIndex} className="flex items-start space-x-2">
-                        <span className="text-gray-400 mt-2">•</span>
+                      <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
                           value={highlight.text}
                           onChange={(e) => updateHighlight(project.id!, highlightIndex, e.target.value)}
                           placeholder="实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%"
-                          rows={2}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                          rows={1}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(project.highlights || []).length > 1 && (
                           <button
                             onClick={() => removeHighlight(project.id!, highlightIndex)}
-                            className="text-red-600 hover:text-red-800 p-1 mt-1"
+                            className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>

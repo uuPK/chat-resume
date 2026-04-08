@@ -130,13 +130,12 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
       ) : (
         <div className="space-y-6">
           {workList.map((work, index) => (
-            <div key={work.id || index} className="bg-gray-50 rounded-lg p-4 border">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-gray-900">工作经验 {index + 1}</h4>
+            <div key={work.id || index} className="bg-white rounded-lg p-4 border">
+              <div className="flex items-center justify-end mb-1">
                 {workList.length > 1 && (
                   <button
                     onClick={() => removeWork(work.id!)}
-                    className="text-red-600 hover:text-red-800 p-1"
+                    className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                     title="删除此工作经验"
                   >
                     <TrashIcon className="w-4 h-4" />
@@ -155,7 +154,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       value={work.company}
                       onChange={(e) => updateWork(work.id!, 'company', e.target.value)}
                       placeholder="腾讯科技"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -168,7 +167,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       value={work.position}
                       onChange={(e) => updateWork(work.id!, 'position', e.target.value)}
                       placeholder="软件工程师"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -181,7 +180,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       value={work.duration}
                       onChange={(e) => updateWork(work.id!, 'duration', e.target.value)}
                       placeholder="2022.07 - 2024.06"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -194,7 +193,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       value={work.location || ''}
                       onChange={(e) => updateWork(work.id!, 'location', e.target.value)}
                       placeholder="北京"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -205,7 +204,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     <select
                       value={work.employment_type || '全职'}
                       onChange={(e) => updateWork(work.id!, 'employment_type', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
                       <option value="全职">全职</option>
                       <option value="兼职">兼职</option>
@@ -231,19 +230,19 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                   </div>
                   <div className="space-y-2">
                     {(work.highlights || []).map((highlight, highlightIndex) => (
-                      <div key={highlight.id || highlightIndex} className="flex items-start space-x-2">
-                        <span className="text-gray-400 mt-2">•</span>
+                      <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
                           value={highlight.text}
                           onChange={(e) => updateHighlight(work.id!, highlightIndex, e.target.value)}
                           placeholder="负责后端系统重构，接口平均响应时间下降 35%"
-                          rows={2}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                          rows={1}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(work.highlights || []).length > 1 && (
                           <button
                             onClick={() => removeHighlight(work.id!, highlightIndex)}
-                            className="text-red-600 hover:text-red-800 p-1 mt-1"
+                            className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
+                            title="删除此亮点"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>

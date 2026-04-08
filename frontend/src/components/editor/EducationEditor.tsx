@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
+import {
   AcademicCapIcon,
   PlusIcon,
   TrashIcon
@@ -116,13 +116,12 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
       ) : (
         <div className="space-y-6">
           {educationList.map((education, index) => (
-            <div key={education.id || index} className="bg-gray-50 rounded-lg p-4 border">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-gray-900">教育经历 {index + 1}</h4>
+            <div key={education.id || index} className="bg-white rounded-lg p-4 border">
+              <div className="flex items-center justify-end mb-1">
                 {educationList.length > 1 && (
                   <button
                     onClick={() => removeEducation(education.id!)}
-                    className="text-red-600 hover:text-red-800 p-1"
+                    className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                     title="删除此教育经历"
                   >
                     <TrashIcon className="w-4 h-4" />
@@ -141,7 +140,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                     value={education.school}
                     onChange={(e) => updateEducation(education.id!, 'school', e.target.value)}
                     placeholder="北京大学"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
 
@@ -155,7 +154,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                     value={education.major}
                     onChange={(e) => updateEducation(education.id!, 'major', e.target.value)}
                     placeholder="计算机科学与技术"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
 
@@ -167,7 +166,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   <select
                     value={education.degree}
                     onChange={(e) => updateEducation(education.id!, 'degree', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
                     <option value="">请选择学历</option>
                     <option value="博士">博士</option>
@@ -189,7 +188,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                     value={education.duration}
                     onChange={(e) => updateEducation(education.id!, 'duration', e.target.value)}
                     placeholder="2018.09 - 2022.06"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
 
@@ -203,7 +202,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                     value={education.gpa || ''}
                     onChange={(e) => updateEducation(education.id!, 'gpa', e.target.value)}
                     placeholder="3.8/4.0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -223,19 +222,18 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 </div>
                 <div className="space-y-2">
                   {(education.highlights || [{ id: `edu_hl_${education.id || '0'}`, text: '' }]).map((highlight, highlightIndex) => (
-                    <div key={highlight.id || highlightIndex} className="flex items-start space-x-2">
-                      <span className="text-gray-400 mt-2">•</span>
+                    <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                       <textarea
                         value={highlight.text}
                         onChange={(e) => updateHighlight(education.id!, highlightIndex, e.target.value)}
                         placeholder="985高校、主要课程、奖项、研究方向等"
-                        rows={2}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                        rows={1}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
                       {(education.highlights || []).length > 1 && (
                         <button
                           onClick={() => removeHighlight(education.id!, highlightIndex)}
-                          className="text-red-600 hover:text-red-800 p-1 mt-1"
+                          className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                           title="删除此亮点"
                         >
                           <TrashIcon className="w-4 h-4" />
