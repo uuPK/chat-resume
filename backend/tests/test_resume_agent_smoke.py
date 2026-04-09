@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.services.ai.agent_runtime import AgentRuntime  # noqa: E402
+from app.services.ai.chat_service import ChatService  # noqa: E402
 from app.services.ai.resume_agent import ResumeAgent  # noqa: E402
 
 
@@ -453,6 +454,127 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务",
+        )
+
+
+class ChatServiceChunkParsingTests(unittest.TestCase):
+    def test_extract_sse_data_accepts_data_prefix_without_space(self):
+        self.assertEqual(
+            ChatService._extract_sse_data('data:{"choices":[{"text":"ok"}]}'),
+            '{"choices":[{"text":"ok"}]}',
+        )
+
+    def test_extract_stream_delta_accepts_message_content(self):
+        chunk = {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"question":"请介绍你最熟悉的 Agent 项目","question_type":"experience","intent":"评估项目经验"}'
+                    }
+                }
+            ]
+        }
+
+        self.assertEqual(
+            ChatService._extract_stream_delta(chunk),
+            {
+                "content": '{"question":"请介绍你最熟悉的 Agent 项目","question_type":"experience","intent":"评估项目经验"}'
+            },
+        )
+
+    def test_extract_stream_delta_flattens_content_parts(self):
+        chunk = {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": '{"question":"请介绍你的系统设计思路",'},
+                            {"type": "text", "text": '"question_type":"technical","intent":"评估架构能力"}'},
+                        ]
+                    }
+                }
+            ]
+        }
+
+        self.assertEqual(
+            ChatService._extract_stream_delta(chunk),
+            {
+                "content": '{"question":"请介绍你的系统设计思路","question_type":"technical","intent":"评估架构能力"}'
+            },
+        )
+
+
+class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_next_message_retries_when_length_truncated_and_content_empty(self):
+        chat_service = FakeChatService(
+            responses=[
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {
+                                "content": "",
+                            },
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "content": '{"question":"请介绍你主导的项目","question_type":"experience","intent":"评估项目 ownership"}',
+                            },
+                        }
+                    ]
+                },
+            ]
+        )
+        runtime = AgentRuntime(chat_service=chat_service)
+        agent = ResumeAgent().definition
+
+        message = await runtime._next_message(
+            agent=agent,
+            messages=[{"role": "user", "content": "test"}],
+            context={"resume_content": {}},
+        )
+
+        self.assertEqual(chat_service.chat_calls, 2)
+        self.assertEqual(
+            message["content"],
+            '{"question":"请介绍你主导的项目","question_type":"experience","intent":"评估项目 ownership"}',
+        )
+
+    async def test_next_message_normalizes_non_stream_content_parts(self):
+        chat_service = FakeChatService(
+            responses=[
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": '{"question":"请介绍你的系统设计思路",'},
+                                    {"type": "text", "text": '"question_type":"technical","intent":"评估架构能力"}'},
+                                ]
+                            },
+                        }
+                    ]
+                }
+            ]
+        )
+        runtime = AgentRuntime(chat_service=chat_service)
+        agent = ResumeAgent().definition
+
+        message = await runtime._next_message(
+            agent=agent,
+            messages=[{"role": "user", "content": "test"}],
+            context={"resume_content": {}},
+        )
+
+        self.assertEqual(
+            message["content"],
+            '{"question":"请介绍你的系统设计思路","question_type":"technical","intent":"评估架构能力"}',
         )
 
 

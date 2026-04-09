@@ -29,6 +29,40 @@ function getCurrentTurn(session: InterviewSession | null): InterviewTurn | null 
   return session?.current_turn || session?.turns?.find(turn => turn.status !== 'answered') || null
 }
 
+/**
+ * 从流式 JSON 字节流中尽力抽取 `question` 字段的当前已生成文本。
+ * 用于边出题边做打字机效果。支持常见转义字符。
+ */
+function extractQuestionProgress(buffer: string): string {
+  const key = '"question"'
+  const keyIdx = buffer.indexOf(key)
+  if (keyIdx < 0) return ''
+  let i = keyIdx + key.length
+  while (i < buffer.length && buffer[i] !== '"') i++
+  if (i >= buffer.length) return ''
+  i++ // 跳过开始引号
+  let out = ''
+  while (i < buffer.length) {
+    const ch = buffer[i]
+    if (ch === '\\' && i + 1 < buffer.length) {
+      const nx = buffer[i + 1]
+      if (nx === 'n') out += '\n'
+      else if (nx === 't') out += '\t'
+      else if (nx === 'r') out += ''
+      else if (nx === '"') out += '"'
+      else if (nx === '\\') out += '\\'
+      else if (nx === '/') out += '/'
+      else out += nx
+      i += 2
+      continue
+    }
+    if (ch === '"') break
+    out += ch
+    i++
+  }
+  return out
+}
+
 export function useInterview(resumeId: number, options: InterviewHookOptions = {}) {
   const [isInterviewActive, setIsInterviewActive] = useState(false)
   const [currentSession, setCurrentSession] = useState<InterviewSession | null>(null)
@@ -127,7 +161,7 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
   }
 
   const sendAnswer = async (message: string) => {
-    if (!currentSession || !isInterviewActive) {
+    if (!currentSession || !isInterviewActive || isLoading) {
       return
     }
 
@@ -138,30 +172,49 @@ export function useInterview(resumeId: number, options: InterviewHookOptions = {
     }
 
     setIsLoading(true)
+    setCurrentStreamingMessage('')
     try {
       stableOnMessage(createMessage('user', message))
 
-      const result = await interviewApi.submitInterviewAnswer(
+      let rawBuffer = ''
+      let lastQuestion = ''
+      let doneEvent:
+        | { type: 'done'; completed: boolean; next_turn: InterviewTurn | null }
+        | null = null
+      let errorMessage: string | null = null
+
+      for await (const evt of interviewApi.submitInterviewAnswerStream(
         resumeId,
         currentSession.id,
         message,
-        currentTurn.turn_index
-      )
+        currentTurn.turn_index,
+      )) {
+        if (evt.type === 'delta') {
+          rawBuffer += evt.content
+          const q = extractQuestionProgress(rawBuffer)
+          if (q && q !== lastQuestion) {
+            lastQuestion = q
+            setCurrentStreamingMessage(q)
+          }
+        } else if (evt.type === 'done') {
+          doneEvent = evt
+        } else if (evt.type === 'error') {
+          errorMessage = evt.message
+        }
+      }
+
+      setCurrentStreamingMessage('')
+
+      if (errorMessage) {
+        throw new Error(errorMessage)
+      }
 
       const refreshedSession = await interviewApi.getInterviewSession(resumeId, currentSession.id)
       setCurrentSession(refreshedSession)
       setIsInterviewActive(refreshedSession.status !== 'completed')
 
-      const feedbackContent = [
-        result.feedback ? `**本轮反馈：**\n${result.feedback}` : '',
-        result.suggestions?.length ? `**改进建议：**\n- ${result.suggestions.join('\n- ')}` : '',
-      ].filter(Boolean).join('\n\n')
-
-      if (feedbackContent) {
-        stableOnMessage(createMessage('ai', feedbackContent))
-      }
-
-      const nextTurn = refreshedSession.current_turn || result.next_turn
+      const nextTurn =
+        refreshedSession.current_turn || doneEvent?.next_turn || null
       if (nextTurn && refreshedSession.status !== 'completed') {
         stableOnMessage(createMessage('ai', nextTurn.question))
       } else {

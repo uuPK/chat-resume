@@ -9,7 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from typing import List
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from app.models.resume import Resume, OptimizationRecord, InterviewSession, ResumeProposal
+from app.models.resume import Resume, OptimizationRecord, ResumeProposal
 from app.schemas.resume import ResumeCreate, ResumeContent, dump_resume_content_for_frontend
 from .file_service import FileService
 import logging
@@ -77,11 +77,6 @@ class ResumeService:
             # 删除关联的优化记录
             self.db.query(OptimizationRecord).filter(
                 OptimizationRecord.resume_id == resume_id
-            ).delete()
-
-            # 删除关联的面试会话
-            self.db.query(InterviewSession).filter(
-                InterviewSession.resume_id == resume_id
             ).delete()
 
             self.db.query(ResumeProposal).filter(

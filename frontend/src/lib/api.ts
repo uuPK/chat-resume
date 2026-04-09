@@ -663,6 +663,64 @@ class InterviewAPI {
       next_turn?: InterviewTurn | null
     }>(response)
   }
+
+  /**
+   * 流式提交面试答案并生成下一题。
+   * 返回一个异步迭代器，依次产出 SSE 事件对象。
+   */
+  static async *submitInterviewAnswerStream(
+    resumeId: number,
+    sessionId: number,
+    answer: string,
+    questionIndex: number,
+  ): AsyncGenerator<
+    | { type: 'answer_saved'; turn_index: number }
+    | { type: 'delta'; content: string }
+    | { type: 'done'; completed: boolean; next_turn: InterviewTurn | null }
+    | { type: 'error'; message: string }
+  > {
+    const response = await fetch(
+      `${API_BASE_URL}/api/resumes/${resumeId}/interview/${sessionId}/answer/stream`,
+      {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({ answer, question_index: questionIndex }),
+      },
+    )
+
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `提交回答失败 (${response.status})`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let sep: number
+      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+        const frame = buffer.slice(0, sep)
+        buffer = buffer.slice(sep + 2)
+        for (const line of frame.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6).trim()
+          if (!payload) continue
+          try {
+            yield JSON.parse(payload)
+          } catch {
+            // 忽略非 JSON 帧
+          }
+        }
+      }
+    }
+  }
 }
 
 // ── 聊天记录 API ──────────────────────────────────────────────────────────────

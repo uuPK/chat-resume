@@ -174,6 +174,7 @@ class ChatService:
 
         payload = self._build_payload(messages, temperature, max_tokens, stream=True, tools=tools)
         url = self._get_endpoint_url()
+        emitted_any_delta = False
 
         try:
             async with self.client.stream(
@@ -181,21 +182,99 @@ class ChatService:
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
+                    data = self._extract_sse_data(line)
+                    if data is None:
                         continue
-                    data = line[6:]
                     if data == "[DONE]":
                         break
                     try:
                         chunk = _json.loads(data)
-                        delta = chunk["choices"][0].get("delta", {})
-                        yield delta
+                        delta = self._extract_stream_delta(chunk)
+                        if delta:
+                            emitted_any_delta = True
+                            yield delta
                     except (KeyError, IndexError, _json.JSONDecodeError):
                         continue
+                if not emitted_any_delta:
+                    logger.warning(
+                        "OpenRouter stream completed without usable deltas model=%s payload_size=%s",
+                        self.model,
+                        len(_json.dumps(payload, ensure_ascii=False)),
+                    )
         except httpx.HTTPStatusError as e:
             raise Exception(f"AI服务请求失败: {e.response.status_code} - {e.response.text}")
         except Exception as e:
             raise Exception(f"AI服务请求异常: {str(e)}")
+
+    @classmethod
+    def _extract_stream_delta(cls, chunk: Dict[str, Any]) -> Dict[str, Any]:
+        """兼容不同 provider 的流式 chunk 结构。"""
+        content = cls._coerce_content_text(chunk.get("content"))
+        if content is not None:
+            return {"content": content}
+
+        message = chunk.get("message")
+        if isinstance(message, dict):
+            content = cls._coerce_content_text(message.get("content"))
+            if content is not None:
+                return {"content": content}
+
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return {}
+
+        choice = choices[0] or {}
+        delta = choice.get("delta")
+        if isinstance(delta, dict) and delta:
+            normalized = dict(delta)
+            content = cls._coerce_content_text(normalized.get("content"))
+            if content is not None:
+                normalized["content"] = content
+            return normalized
+
+        message = choice.get("message")
+        if isinstance(message, dict):
+            content = cls._coerce_content_text(message.get("content"))
+            if content:
+                return {"content": content}
+
+        text = cls._coerce_content_text(choice.get("text"))
+        if text:
+            return {"content": text}
+
+        return {}
+
+    @staticmethod
+    def _extract_sse_data(line: str) -> Optional[str]:
+        if not line:
+            return None
+        if line.startswith("data: "):
+            return line[6:]
+        if line.startswith("data:"):
+            return line[5:].lstrip()
+        return None
+
+    @staticmethod
+    def _coerce_content_text(value: Any) -> Optional[str]:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            parts: List[str] = []
+            for item in value:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                    continue
+                content = item.get("content")
+                if item.get("type") == "text" and isinstance(content, str):
+                    parts.append(content)
+            return "".join(parts)
+        return None
 
     def _build_payload(
         self,
@@ -236,11 +315,12 @@ class ChatService:
         ) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        break
-                    yield data
+                data = self._extract_sse_data(line)
+                if data is None:
+                    continue
+                if data == "[DONE]":
+                    break
+                yield data
 
     async def _post_with_retries(
         self, url: str, payload: Dict[str, Any]

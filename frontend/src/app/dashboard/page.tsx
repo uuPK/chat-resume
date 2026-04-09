@@ -8,14 +8,14 @@ import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
-import { 
-  DocumentIcon, 
+import {
+  DocumentIcon,
   PlusIcon,
   PencilIcon,
   TrashIcon,
   CloudArrowUpIcon,
   CalendarIcon,
-  BriefcaseIcon
+  BriefcaseIcon,
 } from '@heroicons/react/24/outline'
 
 interface Resume {

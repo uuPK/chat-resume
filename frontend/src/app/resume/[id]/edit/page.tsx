@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
@@ -145,6 +145,7 @@ function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'meta';
 export default function ResumeEditPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [resume, setResume] = useState<Resume | null>(null)
@@ -219,12 +220,16 @@ export default function ResumeEditPage() {
   }, [editorFlex, agentFlex])
 
   // 聊天相关状态
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messageBuckets, setMessageBuckets] = useState<Record<'resume' | 'interview', ChatMessage[]>>({
+    resume: [],
+    interview: [],
+  })
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isClearingMessages, setIsClearingMessages] = useState(false)
   const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
   const [qrImages, setQrImages] = useState<string[]>([])
   const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -235,6 +240,27 @@ export default function ResumeEditPage() {
   const resumeId = params?.id as string
   const previewFlex = 100 - editorFlex - agentFlex
   const collapsedAgentFlex = 100 - previewFlex
+  const messages = messageBuckets[agentType]
+
+  const appendMessageForAgent = useCallback(
+    (targetAgent: 'resume' | 'interview', message: ChatMessage) => {
+      setMessageBuckets(prev => ({
+        ...prev,
+        [targetAgent]: [...prev[targetAgent], message]
+      }))
+    },
+    []
+  )
+
+  const replaceMessagesForAgent = useCallback(
+    (targetAgent: 'resume' | 'interview', nextMessages: ChatMessage[]) => {
+      setMessageBuckets(prev => ({
+        ...prev,
+        [targetAgent]: nextMessages
+      }))
+    },
+    []
+  )
 
   // 流式聊天Hook
   const {
@@ -248,19 +274,18 @@ export default function ResumeEditPage() {
     confirmTool,
   } = useStreamingChat(parseInt(resumeId), {
     visibleModules: Array.from(layoutConfig.visibleModules),
+    agentType,
     onMessage: (message) => {
-      setMessages(prev => {
-        if (resumeId) {
-          chatHistoryApi.appendMessages(parseInt(resumeId), [
-            {
-              role: 'assistant',
-              content: message.content,
-              stream_events: message.streamEvents || null,
-            },
-          ]).catch(console.error)
-        }
-        return [...prev, message]
-      })
+      appendMessageForAgent(agentType, message)
+      if (agentType === 'resume' && resumeId) {
+        chatHistoryApi.appendMessages(parseInt(resumeId), [
+          {
+            role: 'assistant',
+            content: message.content,
+            stream_events: message.streamEvents || null,
+          },
+        ]).catch(console.error)
+      }
     },
     onError: (error) => {
       setApiError(error)
@@ -270,7 +295,7 @@ export default function ResumeEditPage() {
         content: `抱歉，发生了错误：${error}`,
         timestamp: new Date()
       }
-      setMessages(prev => [...prev, errorMessage])
+      appendMessageForAgent(agentType, errorMessage)
     },
     onQrImages: (images) => {
       if (images && images.length > 0) {
@@ -293,6 +318,21 @@ export default function ResumeEditPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    const requestedAgent = searchParams?.get('agent')
+    if (requestedAgent === 'interview' || requestedAgent === 'interviewer') {
+      setAgentType('interview')
+      return
+    }
+    if (requestedAgent === 'resume') {
+      setAgentType('resume')
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    setApiError(null)
+  }, [agentType])
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
@@ -340,7 +380,7 @@ export default function ResumeEditPage() {
           timestamp: new Date(),
           streamEvents: (r as { stream_events?: StreamEvent[] }).stream_events || undefined,
         }))
-        setMessages(loaded)
+        replaceMessagesForAgent('resume', loaded)
       }
     } catch (e) {
       console.error('Failed to load chat history:', e)
@@ -579,8 +619,8 @@ export default function ResumeEditPage() {
       timestamp: new Date()
     }
 
-    setMessages(prev => [...prev, userMessage])
-    if (resumeId) {
+    appendMessageForAgent(agentType, userMessage)
+    if (agentType === 'resume' && resumeId) {
       chatHistoryApi.appendMessages(parseInt(resumeId), [
         { role: 'user', content: userMessage.content },
       ]).catch(console.error)
@@ -612,8 +652,10 @@ export default function ResumeEditPage() {
 
     try {
       setIsClearingMessages(true)
-      await chatHistoryApi.clearMessages(resume.id)
-      setMessages([])
+      if (agentType === 'resume') {
+        await chatHistoryApi.clearMessages(resume.id)
+      }
+      replaceMessagesForAgent(agentType, [])
       setApiError(null)
       toast.success('已清空消息记录')
     } catch (error) {
@@ -628,13 +670,14 @@ export default function ResumeEditPage() {
     messageId: string,
     status: 'pending' | 'applied' | 'rejected'
   ) => {
-    setMessages(prev =>
-      prev.map(message =>
+    setMessageBuckets(prev => ({
+      ...prev,
+      [agentType]: prev[agentType].map(message =>
         message.id === messageId && message.proposal
           ? { ...message, proposal: { ...message.proposal, proposalStatus: status } }
           : message
       )
-    )
+    }))
   }
 
   const handleApplyProposal = async (message: ChatMessage) => {
@@ -1080,7 +1123,31 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-3 flex items-center justify-end flex-shrink-0">
+              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setAgentType('resume')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      agentType === 'resume'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    简历 AGENT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgentType('interview')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      agentType === 'interview'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    面试 AGENT
+                  </button>
+                </div>
                 <button
                   onClick={handleClearMessages}
                   disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}

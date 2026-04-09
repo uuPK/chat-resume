@@ -1,8 +1,7 @@
 """
 智能聊天API端点模块
 
-提供与AI助手聊天交互的API端点，包括简历优化建议、面试指导等。
-处理自然语言处理和AI服务集成。
+提供与 AI Agent 聊天交互的 API 端点，包括简历优化和模拟面试。
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -12,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
 from copy import deepcopy
 from uuid import uuid4
-from app.services.ai import ChatService, ResumeAgent
+from app.services.ai import ChatService, InterviewerAgent, ResumeAgent
 from app.services.ai.session_manager import confirmation_manager
 from app.services.core import ResumeService
 from app.core.database import get_db
@@ -43,10 +42,8 @@ class ChatRequest(BaseModel):
     resume_id: int
     chat_history: list = []  # 聊天历史，可选
     visible_modules: list[str] = []
-    is_interview: bool = False  # 是否为面试模式
-    interview_mode: str = (
-        "comprehensive"  # 面试模式：comprehensive, technical, behavioral
-    )
+    agent_type: str = "resume"
+    is_interview: bool = False  # 兼容旧前端字段
 
 
 class ConfirmToolRequest(BaseModel):
@@ -65,6 +62,17 @@ class ChatResponse(BaseModel):
     proposal_id: int | None = None
     proposal_status: str | None = None
     proposal_patch: dict | None = None
+
+
+def _resolve_agent_type(chat_request: ChatRequest) -> str:
+    requested = (chat_request.agent_type or "").strip().lower()
+    if requested == "resume":
+        return "resume"
+    if requested in {"interview", "interviewer"}:
+        return "interview"
+    if chat_request.is_interview:
+        return "interview"
+    return "resume"
 
 
 def _should_ignore_history_for_request(message: str) -> bool:
@@ -283,14 +291,22 @@ async def chat_with_resume(
             else chat_request.chat_history
         )
 
-        # 使用简历优化 Agent（支持工具调用）
-        agent = ResumeAgent()
-        ai_result = await agent.optimize(
-            user_message=chat_request.message,
-            resume_content=resume_dict,
-            conversation_history=conversation_history,
-            allowed_sections=set(resume_dict.keys()),
-        )
+        agent_type = _resolve_agent_type(chat_request)
+        if agent_type == "interview":
+            agent = InterviewerAgent()
+            ai_result = await agent.chat(
+                user_message=chat_request.message,
+                resume_content=resume_dict,
+                conversation_history=conversation_history,
+            )
+        else:
+            agent = ResumeAgent()
+            ai_result = await agent.optimize(
+                user_message=chat_request.message,
+                resume_content=resume_dict,
+                conversation_history=conversation_history,
+                allowed_sections=set(resume_dict.keys()),
+            )
 
         content = (
             ai_result.get("content") if isinstance(ai_result, dict) else str(ai_result)
@@ -302,7 +318,11 @@ async def chat_with_resume(
         proposal_status = None
         proposal_patch = None
 
-        if isinstance(ai_result, dict) and ai_result.get("resume_content") != original_resume:
+        if (
+            agent_type == "resume"
+            and isinstance(ai_result, dict)
+            and ai_result.get("resume_content") != original_resume
+        ):
             updated_content = ai_result["resume_content"]
             proposal_patch = _build_proposal_patch(original_resume, updated_content)
             section = (
@@ -351,18 +371,19 @@ async def chat_with_resume_stream(
 ):
     """与AI助手进行流式聊天，基于用户真实简历内容"""
 
+    agent_type = _resolve_agent_type(chat_request)
     logger.info("=== 流式聊天API被调用 ===")
-    logger.info(f"收到请求 - is_interview: {chat_request.is_interview}")
-    logger.info(f"用户消息: {chat_request.message}")
+    logger.info("收到请求 - agent_type: %s", agent_type)
+    logger.info("用户消息: %s", chat_request.message)
 
-    agent = ResumeAgent()
-    session_id = uuid4().hex
-    confirmation_queue = confirmation_manager.create(session_id)
+    agent = ResumeAgent() if agent_type == "resume" else InterviewerAgent()
+    session_id = uuid4().hex if agent_type == "resume" else None
+    confirmation_queue = confirmation_manager.create(session_id) if session_id else None
 
     async def generate_stream():
         try:
-            # 先发送 session_id，前端确认时需要
-            yield f"data: {json.dumps({'session_id': session_id, 'content': '', 'done': False}, ensure_ascii=False)}\n\n"
+            if session_id:
+                yield f"data: {json.dumps({'session_id': session_id, 'content': '', 'done': False}, ensure_ascii=False)}\n\n"
 
             # 获取用户真实简历数据
             resume_service = ResumeService(db)
@@ -394,7 +415,7 @@ async def chat_with_resume_stream(
                 chat_request.visible_modules,
             )
 
-            logger.debug("流式接口使用简历优化 Agent（逐工具确认模式）")
+            logger.debug("流式接口 agent_type=%s", agent_type)
             latest_resume_content = None
             original_resume = deepcopy(resume_dict)
             conversation_history = (
@@ -403,21 +424,33 @@ async def chat_with_resume_stream(
                 else chat_request.chat_history
             )
 
-            async for event in agent.optimize_stream(
-                user_message=chat_request.message,
-                resume_content=resume_dict,
-                conversation_history=conversation_history,
-                confirmation_queue=confirmation_queue,
-                allowed_sections=set(resume_dict.keys()),
-            ):
+            if agent_type == "resume":
+                event_stream = agent.optimize_stream(
+                    user_message=chat_request.message,
+                    resume_content=resume_dict,
+                    conversation_history=conversation_history,
+                    confirmation_queue=confirmation_queue,
+                    allowed_sections=set(resume_dict.keys()),
+                )
+            else:
+                event_stream = agent.chat_stream(
+                    user_message=chat_request.message,
+                    resume_content=resume_dict,
+                    conversation_history=conversation_history,
+                )
+
+            async for event in event_stream:
                 if event.get("resume_content") is not None:
                     latest_resume_content = event["resume_content"]
                 # 过滤掉值为 None 的键，减少传输体积
                 payload = {k: v for k, v in event.items() if v is not None}
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-            # 如果有最终修改，直接持久化到简历，并存档 proposal
-            if latest_resume_content is not None and latest_resume_content != original_resume:
+            if (
+                agent_type == "resume"
+                and latest_resume_content is not None
+                and latest_resume_content != original_resume
+            ):
                 resume_service.update(
                     chat_request.resume_id,
                     {"content": latest_resume_content},
@@ -452,7 +485,8 @@ async def chat_with_resume_stream(
             error_data = {"error": f"AI服务暂时不可用: {str(e)}", "done": True}
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
         finally:
-            confirmation_manager.remove(session_id)
+            if session_id:
+                confirmation_manager.remove(session_id)
 
     return StreamingResponse(
         generate_stream(),

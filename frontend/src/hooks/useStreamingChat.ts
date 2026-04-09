@@ -45,6 +45,7 @@ interface StreamingChatOptions {
   onQrImages?: (images: string[]) => void
   onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
   visibleModules?: string[]
+  agentType?: 'resume' | 'interview'
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
@@ -66,7 +67,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     onQrImages,
     onResumeUpdate,
-    visibleModules = []
+    visibleModules = [],
+    agentType = 'resume'
   } = options
 
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
@@ -110,6 +112,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
           resume_id: resumeId,
           chat_history: historyToSend,
           visible_modules: visibleModules,
+          agent_type: agentType,
         }),
         signal: abortControllerRef.current.signal
       })

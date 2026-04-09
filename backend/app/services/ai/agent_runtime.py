@@ -63,7 +63,7 @@ class AgentRuntime:
             messages.append(message)
 
             if not message.get("tool_calls"):
-                final_text = message.get("content") or "已完成处理。"
+                final_text = message.get("content") or ""
                 break
 
             tool_events = self._execute_tool_calls(agent, message["tool_calls"], context)
@@ -284,15 +284,49 @@ class AgentRuntime:
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
         defaults = agent.prompt_spec.model_defaults
-        response = await self.chat_service.chat_completion(
-            messages=messages,
-            system_prompt=system_prompt,
-            tools=agent.tools_schema,
-            temperature=defaults.get("temperature", 0.3),
-            max_tokens=defaults.get("max_tokens", 1500),
-            stream=False,
+        user_message = messages[-1].get("content", "") if messages else ""
+        logger.info(
+            "AgentRuntime request agent=%s system_prompt_preview=%r user_message_preview=%r",
+            agent.prompt_spec.name,
+            system_prompt[:1500],
+            str(user_message)[:1500],
         )
-        return response["choices"][0]["message"]
+        base_max_tokens = defaults.get("max_tokens", 1500)
+        max_tokens = base_max_tokens
+
+        for attempt in range(2):
+            response = await self.chat_service.chat_completion(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=agent.tools_schema,
+                temperature=defaults.get("temperature", 0.3),
+                max_tokens=max_tokens,
+                stream=False,
+            )
+            choice = response["choices"][0]
+            message = dict(choice["message"])
+            message["content"] = ChatService._coerce_content_text(message.get("content"))
+            finish_reason = choice.get("finish_reason")
+            has_tool_calls = bool(message.get("tool_calls"))
+
+            if message.get("content") or has_tool_calls or finish_reason != "length" or attempt > 0:
+                break
+
+            max_tokens = min(max(base_max_tokens * 2, 512), 2048)
+            logger.warning(
+                "AgentRuntime empty truncated response agent=%s; retrying with max_tokens=%s",
+                agent.prompt_spec.name,
+                max_tokens,
+            )
+
+        logger.info(
+            "AgentRuntime response agent=%s finish_reason=%s content_preview=%r tool_calls=%s",
+            agent.prompt_spec.name,
+            choice.get("finish_reason"),
+            (message.get("content") or "")[:300],
+            bool(message.get("tool_calls")),
+        )
+        return message
 
     def _execute_tool_calls(
         self,

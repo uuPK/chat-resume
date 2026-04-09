@@ -1,356 +1,109 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { ArrowLeftIcon, ArrowUpIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
-import toast from 'react-hot-toast'
-import Link from 'next/link'
-import {
-  ArrowLeftIcon,
-  StopIcon,
-  ClockIcon,
-  ArrowUpIcon,
-  MicrophoneIcon
-} from '@heroicons/react/24/outline'
-import MarkdownMessage from '@/components/ui/MarkdownMessage'
+import ResumePreview from '@/components/preview/ResumePreview'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import { useInterview } from '@/hooks/useInterview'
-import InterviewerAvatar, { InterviewerProfile, interviewerProfiles } from '@/components/interview/InterviewerAvatar'
-import FeedbackPanel from '@/components/interview/FeedbackPanel'
-import VoiceControls from '@/components/interview/VoiceControls'
-import VoiceRecorder, { VoiceRecorderRef } from '@/components/interview/VoiceRecorder'
-
-interface ChatMessage {
-  id: string
-  type: 'user' | 'ai'
-  content: string
-  timestamp: Date
-}
-
-interface Resume {
-  id: number
-  title: string
-  content: any
-  created_at: string
-  updated_at?: string
-}
+import MarkdownMessage from '@/components/ui/MarkdownMessage'
+import { useStreamingChat, ChatMessage } from '@/hooks/useStreamingChat'
 
 export default function InterviewPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, isAuthenticated, isLoading } = useAuth()
-  const [mounted, setMounted] = useState(false)
-  const [resume, setResume] = useState<Resume | null>(null)
-  const [resumeLoading, setResumeLoading] = useState(true)
-  const [resumeFetched, setResumeFetched] = useState(false)
-
-  // 获取URL参数
-  const [interviewConfig, setInterviewConfig] = useState({
-    position: '',
-    jd: '',
-    sessionId: null as number | null
-  })
-
-  // 面试相关状态
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputMessage, setInputMessage] = useState('')
-  const [interviewTime, setInterviewTime] = useState(0)
-  const [selectedInterviewer, setSelectedInterviewer] = useState<InterviewerProfile>(interviewerProfiles[0])
-  const [hasStartedInterview, setHasStartedInterview] = useState(false) // 防重复标志
-  const [interviewError, setInterviewError] = useState<string | null>(null)
-  const [autoPlayVoice, setAutoPlayVoice] = useState(true) // 自动播放语音
-  const [isVoiceRecording, setIsVoiceRecording] = useState(false) // 语音录制状态
-  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text') // 输入模式
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const processedSessionRef = useRef<number | null>(null) // 防止重复处理同一会话ID
-  const hasCheckedExistingSession = useRef(false) // 防止重复检查现有会话
-  const voiceRecorderRef = useRef<VoiceRecorderRef>(null) // VoiceRecorder组件引用
-
   const resumeId = params?.id as string
 
-  // 稳定回调函数
-  const handleMessage = useCallback((message: ChatMessage) => {
-    setMessages(prev => [...prev, message])
-  }, [])
+  const { isAuthenticated, isLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  const [resume, setResume] = useState<Awaited<ReturnType<typeof resumeApi.getResume>> | null>(null)
+  const [resumeLoading, setResumeLoading] = useState(true)
 
-  const handleError = useCallback((error: string) => {
-    console.error('Interview error:', error)
-    setInterviewError(error)
-    toast.error(`面试错误: ${error}`)
-  }, [])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [inputMessage, setInputMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // 使用 useRef 确保回调稳定性
-  const handleMessageRef = useRef(handleMessage)
-  const handleErrorRef = useRef(handleError)
-
-  useEffect(() => {
-    handleMessageRef.current = handleMessage
-    handleErrorRef.current = handleError
+  const {
+    isStreaming,
+    currentStreamingMessage,
+    sendStreamingMessage,
+    stopStreaming,
+  } = useStreamingChat(parseInt(resumeId), {
+    agentType: 'interview',
+    onMessage: (message) => {
+      setMessages(prev => [...prev, message])
+      setIsSending(false)
+    },
+    onError: (error) => {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `抱歉，发生了错误：${error}`,
+          timestamp: new Date(),
+        },
+      ])
+      setIsSending(false)
+    },
   })
 
-  // 使用 useMemo 稳定 useInterview 的 options 对象
-  const interviewOptions = useMemo(() => ({
-    onMessage: (msg: ChatMessage) => handleMessageRef.current(msg),
-    onError: (error: string) => handleErrorRef.current(error),
-    jobPosition: interviewConfig.position,
-    jdContent: interviewConfig.jd,
-    existingSessionId: interviewConfig.sessionId
-  }), [interviewConfig.position, interviewConfig.jd, interviewConfig.sessionId])
-
-  // 面试Hook
-  const {
-    isInterviewActive,
-    currentSession,
-    isLoading: interviewLoading,
-    currentStreamingMessage,
-    startInterview,
-    sendAnswer,
-    endInterview,
-    stopCurrentRequest
-  } = useInterview(resumeId ? parseInt(resumeId) : 0, interviewOptions)
-  const latestAiMessage = messages.filter(message => message.type === 'ai').slice(-1)[0]?.content || currentStreamingMessage
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    setMounted(true)
-
-    // 重置检查标志
-    hasCheckedExistingSession.current = false
-    processedSessionRef.current = null
-
-    // 抑制Chrome扩展的runtime.lastError错误
-    const originalError = console.error
-    console.error = (...args) => {
-      const message = args[0]?.toString() || ''
-      if (message.includes('runtime.lastError') ||
-        message.includes('message channel closed')) {
-        // 静默忽略Chrome扩展错误
-        return
-      }
-      originalError.apply(console, args)
-    }
-
-    // 清理函数
-    // 解析URL参数
-    const urlParams = new URLSearchParams(window.location.search)
-    const position = urlParams.get('position') || ''
-    const jd = urlParams.get('jd') || ''
-    const sessionId = urlParams.get('session') ? parseInt(urlParams.get('session')!) : null
-
-    console.log('URL参数解析完成:', { position, jd, sessionId })
-
-    // 如果URL中有sessionId，标记为已处理
-    if (sessionId) {
-      processedSessionRef.current = sessionId
-    }
-
-    setInterviewConfig({
-      position,
-      jd,
-      sessionId
-    })
-
-    return () => {
-      console.error = originalError
-    }
-  }, [])
-
-  useEffect(() => {
-    if (mounted && !isLoading && !isAuthenticated) {
-      router.push('/login')
-    }
+    if (mounted && !isLoading && !isAuthenticated) router.push('/login')
   }, [mounted, isLoading, isAuthenticated, router])
 
-  // 确保 resumeLoading 状态正确重置
   useEffect(() => {
-    if (mounted && isAuthenticated && !resumeFetched && resumeId) {
-      fetchResume()
-    } else if (mounted && (!isAuthenticated || !resumeId)) {
-      setResumeLoading(false)
-    }
-  }, [mounted, isAuthenticated, resumeId, resumeFetched])
+    if (!resumeId || !isAuthenticated) return
+    resumeApi.getResume(parseInt(resumeId))
+      .then(setResume)
+      .catch(console.error)
+      .finally(() => setResumeLoading(false))
+  }, [resumeId, isAuthenticated])
 
-  // 监听面试配置变化
-  useEffect(() => {
-    console.log('面试配置已更新:', interviewConfig)
-    if (interviewConfig.sessionId) {
-      console.log('检测到面试会话ID:', interviewConfig.sessionId, '- Hook应该自动加载会话')
-    }
-  }, [interviewConfig])
-
-  // 监听面试状态变化（减少日志输出）
-  useEffect(() => {
-    if (isInterviewActive !== undefined) {
-      console.log('面试状态变化:', {
-        isInterviewActive,
-        interviewLoading,
-        currentSession: currentSession?.id,
-        messagesCount: messages.length
-      })
-    }
-  }, [isInterviewActive, interviewLoading, currentSession?.id, messages.length])
-
-  // 获取简历数据
-  const fetchResume = async () => {
-    if (!resumeId || !isAuthenticated || resumeFetched) {
-      return
-    }
-
-    try {
-      setResumeLoading(true)
-      const data = await resumeApi.getResume(parseInt(resumeId))
-      setResume(data)
-      setResumeFetched(true)
-    } catch (error) {
-      console.error('Failed to fetch resume:', error)
-      toast.error('获取简历失败')
-      router.push('/interviews')
-    } finally {
-      setResumeLoading(false)
-    }
-  }
-
-  // 开始面试
-  const handleStartInterview = useCallback(async () => {
-    if (!resume) return
-
-    // 如果是继续现有会话，不需要防重复逻辑
-    if (!interviewConfig.sessionId && hasStartedInterview) return
-
-    console.log('Debug - handleStartInterview 被调用', {
-      existingSessionId: interviewConfig.sessionId,
-      hasStartedInterview
-    })
-
-    if (!interviewConfig.sessionId) {
-      setHasStartedInterview(true) // 只对新面试设置标志
-    }
-
-    try {
-      // 先清空消息，然后等待hook添加欢迎消息
-      setMessages([])
-      setInterviewTime(0)
-
-      const session = await startInterview(interviewConfig.jd)
-      if (session) {
-        const action = interviewConfig.sessionId ? '继续' : '开始'
-        toast.success(`面试已${action}！`)
-      }
-    } catch (error) {
-      console.error('Failed to start interview:', error)
-      toast.error('开始面试失败，请重试')
-      if (!interviewConfig.sessionId) {
-        setHasStartedInterview(false) // 失败时重置标志（仅限新面试）
-      }
-    }
-  }, [resume, hasStartedInterview, startInterview, interviewConfig.jd, interviewConfig.sessionId])
-
-  // 自动开始面试 - 直接开始新面试，不检查未完成的会话
-  useEffect(() => {
-    if (resume &&
-      !isInterviewActive &&
-      !interviewLoading &&
-      !hasStartedInterview &&
-      !interviewConfig.sessionId &&
-      !hasCheckedExistingSession.current) {
-
-      console.log('自动开始新的面试会话')
-      hasCheckedExistingSession.current = true
-      handleStartInterview()
-    }
-  }, [resume, isInterviewActive, interviewLoading, hasStartedInterview, handleStartInterview, resumeId])
-
-
-  // 计时器
-  useEffect(() => {
-    if (isInterviewActive) {
-      timerRef.current = setInterval(() => {
-        setInterviewTime(prev => prev + 1)
-      }, 1000)
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
-    }
-  }, [isInterviewActive])
-
-  // 格式化时间
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
-
-  // 结束面试
-  const handleEndInterview = async () => {
-    try {
-      await endInterview()
-      setInterviewTime(0)
-      setHasStartedInterview(false) // 重置标志，允许重新开始面试
-      toast.success('面试已结束')
-    } catch (error) {
-      console.error('Failed to end interview:', error)
-      toast.error('结束面试失败')
-    }
-  }
-
-  // 发送消息
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || interviewLoading) return
-
-    const currentMessage = inputMessage.trim()
-    setInputMessage('')
-
-    try {
-      await sendAnswer(currentMessage)
-    } catch (error) {
-      console.error('Failed to send message:', error)
-      toast.error('发送消息失败，请重试')
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  // 处理录音按钮点击
-  const handleVoiceButtonClick = async () => {
-    if (isVoiceRecording) {
-      // 如果正在录音，停止录音
-      if (voiceRecorderRef.current) {
-        await voiceRecorderRef.current.stopRecording()
-      }
-    } else {
-      // 如果没有在录音，开始录音
-      if (voiceRecorderRef.current) {
-        await voiceRecorderRef.current.startRecording()
-      }
-    }
-  }
-
-  // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, currentStreamingMessage])
+
+  const sendMessage = async () => {
+    const text = inputMessage.trim()
+    if (!text || isStreaming || isSending) return
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: text,
+      timestamp: new Date(),
+    }
+    setMessages(prev => [...prev, userMessage])
+    setInputMessage('')
+    setIsSending(true)
+    await sendStreamingMessage(text, [...messages, userMessage])
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const handleClearMessages = () => {
+    if (isStreaming || isSending) return
+    setMessages([])
+  }
 
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">正在加载面试系统...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto mb-4" />
+          <p className="text-gray-600">正在加载简历...</p>
         </div>
       </div>
     )
@@ -361,255 +114,182 @@ export default function InterviewPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">简历不存在</p>
-          <Link href="/interviews" className="btn-primary mt-4">
-            返回面试中心
-          </Link>
+          <Link href="/dashboard" className="btn-primary mt-4">返回简历中心</Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col overflow-hidden">
-      {/* Enhanced Header */}
-      <header className="bg-white shadow-sm border-b flex-shrink-0">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4 py-3">
-            <Link
-              href="/interviews"
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeftIcon className="w-5 h-5" />
-            </Link>
-
-            {/* 中间：面试官信息（紧凑） */}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${selectedInterviewer.color} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
-                {selectedInterviewer.avatar}
-              </div>
-              <div className="min-w-0 text-sm">
-                <span className="font-semibold text-gray-900">{selectedInterviewer.name}</span>
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  {selectedInterviewer.title} · {selectedInterviewer.company}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-100 print:hidden">
+        <div className="w-full px-6">
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/resume/${resumeId}/edit`}
+                className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                title="返回编辑"
+              >
+                <ArrowLeftIcon className="w-5 h-5" />
+              </Link>
+              <span className="text-sm font-medium text-gray-900">
+                {resume.content?.personal_info?.name
+                  ? `${resume.content.personal_info.name} · 模拟面试`
+                  : resume.title}
+              </span>
+              {(resume.content?.job_application?.target_company || resume.content?.job_application?.target_title) && (
+                <span className="text-xs text-gray-400">
+                  {[
+                    resume.content.job_application?.target_company,
+                    resume.content.job_application?.target_title,
+                  ].filter(Boolean).join(' · ')}
                 </span>
-              </div>
+              )}
             </div>
-
-            {/* 右侧：状态和控制 */}
-            {isInterviewActive && (
-              <div className="ml-auto flex items-center gap-3">
-                <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full">
-                  <ClockIcon className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-700">{formatTime(interviewTime)}</span>
-                </div>
-                <VoiceControls
-                  questionText={latestAiMessage}
-                  isVisible={Boolean(latestAiMessage && latestAiMessage.length > 0)}
-                  autoPlay={autoPlayVoice}
-                  onAutoPlayToggle={setAutoPlayVoice}
-                  onVoiceStart={() => console.log('语音开始播放')}
-                  onVoiceEnd={() => console.log('语音播放结束')}
-                  onVoiceError={(error) => {
-                    console.error('语音播放错误:', error)
-                    toast.error('语音播放失败')
-                  }}
-                />
-                <button
-                  onClick={handleEndInterview}
-                  className="btn-danger text-sm px-3 py-1 flex items-center space-x-1"
-                >
-                  <StopIcon className="w-4 h-4" />
-                  <span>结束面试</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </header>
 
-      {/* Main Content - 三区域布局 */}
-      <main className="flex-1 flex overflow-hidden">
-        {!isInterviewActive ? (
-          // 面试未开始状态或错误状态
+      {/* Main Content */}
+      <main className="max-w-full mx-auto px-6 py-3">
+        <div className="flex gap-0 h-[calc(100vh-120px)]">
+
+          {/* Left Panel - Resume Preview */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex-1 flex items-center justify-center"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="flex flex-col min-h-0 min-w-0 overflow-hidden"
+            style={{ flex: '0 0 calc(37% - 8px)' }}
           >
-            <div className="text-center">
-              {interviewLoading ? (
-                // 面试启动中的加载状态
-                <div>
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">正在启动面试系统...</p>
-                </div>
-              ) : interviewError ? (
-                <>
-                  <div className="text-red-600 mb-4">
-                    <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-lg font-medium">面试启动失败</p>
-                    <p className="text-sm mt-2">{interviewError}</p>
-                  </div>
-                  <div className="space-x-4">
-                    <button
-                      onClick={() => {
-                        setInterviewError(null)
-                        setHasStartedInterview(false)
-                        window.location.reload()
-                      }}
-                      className="btn-primary"
-                    >
-                      重新尝试
-                    </button>
-                    <Link href="/interviews" className="btn-secondary">
-                      返回面试中心
-                    </Link>
-                  </div>
-                </>
-              ) : (
-                <p className="text-gray-600">面试系统准备就绪，等待启动...</p>
-              )}
+            <div className="flex-1 overflow-y-auto min-h-0 min-w-0 hide-scrollbar">
+              <ResumePreview content={resume.content} />
             </div>
           </motion.div>
-        ) : (
-          // 面试进行页面 - 三区域布局
+
+          {/* Divider */}
+          <div className="w-2 flex-shrink-0 flex items-center justify-center group select-none">
+            <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
+          </div>
+
+          {/* Right Panel - Interview Chat */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="flex-1 flex overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex flex-col min-h-0 min-w-0"
+            style={{ flex: '0 0 calc(63% - 8px)' }}
           >
-            {/* 左侧：模拟面试区域 */}
-            <div className="flex-1 flex flex-col bg-white border-r border-gray-200 overflow-hidden">
-              {/* 对话区域 */}
-              <div className="flex-1 p-4 overflow-y-auto min-h-0">
-                <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
+              {/* Panel header */}
+              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                  <span className="rounded-md px-3 py-1.5 text-xs font-medium bg-white text-gray-900 shadow-sm">
+                    面试 AGENT
+                  </span>
+                </div>
+                <button
+                  onClick={handleClearMessages}
+                  disabled={messages.length === 0 || isStreaming || isSending}
+                  aria-label="清空消息"
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
+                  {messages.length === 0 && !isStreaming && (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 gap-2 py-12">
+                      <p className="text-sm">发送一条消息开始模拟面试</p>
+                      <p className="text-xs text-gray-300">面试官会基于你的简历提问</p>
+                    </div>
+                  )}
+
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`max-w-[85%] ${message.type === 'user' ? 'flex justify-end' : ''}`}>
-                        <div
-                          className={`px-4 py-3 rounded-lg ${message.type === 'user'
-                              ? 'bg-blue-600 text-white rounded-br-sm'
-                              : 'bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200'
-                            }`}
-                        >
-                          {message.type === 'ai' ? (
-                            <MarkdownMessage content={message.content} />
-                          ) : (
-                            <span>{message.content}</span>
-                          )}
-                        </div>
+                      <div
+                        className={`max-w-[85%] px-4 py-3 rounded-2xl ${
+                          message.type === 'user'
+                            ? 'bg-primary-600 text-white rounded-br-md text-sm shadow-sm'
+                            : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
+                        }`}
+                      >
+                        {message.type === 'ai' ? (
+                          <MarkdownMessage content={message.content} />
+                        ) : (
+                          <span className="text-sm">{message.content}</span>
+                        )}
                       </div>
                     </div>
                   ))}
 
-                  {/* 流式传输中的消息 */}
-                  {currentStreamingMessage && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[85%]">
-                        <div className="px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
-                          <StreamingMessage content={currentStreamingMessage} isComplete={false} />
-                        </div>
+                  {/* Streaming */}
+                  {isStreaming && currentStreamingMessage && (
+                    <div className="flex w-full justify-start">
+                      <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-md bg-gray-50 text-gray-800 border border-gray-100 shadow-xs">
+                        <StreamingMessage content={currentStreamingMessage} isComplete={false} />
                       </div>
                     </div>
                   )}
 
-                  {/* 等待响应动画 */}
-                  {interviewLoading && !currentStreamingMessage && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg rounded-bl-sm">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
+                  {/* Thinking */}
+                  {(isSending || isStreaming) && !currentStreamingMessage && (
+                    <div className="flex w-full justify-start">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                        <span className="inline-block animate-pulse">思考中...</span>
                       </div>
                     </div>
                   )}
+
                   <div ref={messagesEndRef} />
                 </div>
-              </div>
 
-              {/* 输入区域 */}
-              <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                {/* 隐藏的语音录制组件 */}
-                <div style={{ display: 'none' }}>
-                  <VoiceRecorder
-                    ref={voiceRecorderRef}
-                    onTranscriptionComplete={(text) => {
-                      setInputMessage(text)
-                      // 自动发送识别结果
-                      setTimeout(() => {
-                        if (text.trim()) {
-                          handleSendMessage()
-                        }
-                      }, 500)
-                    }}
-                    onRecordingStateChange={(recording) => {
-                      setIsVoiceRecording(recording)
-                    }}
-                    onError={(error) => {
-                      console.error('语音录制错误:', error)
-                      toast.error(`语音录制失败: ${error}`)
-                    }}
-                    disabled={interviewLoading}
-                  />
-                </div>
-
-                {/* 输入框和按钮 */}
-                <div className="relative">
-                  <textarea
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="请输入您的回答..."
-                    className="w-full p-3 pr-20 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    rows={3}
-                    disabled={interviewLoading}
-                  />
-
-                  {/* 语音输入按钮 */}
-                  <button
-                    onClick={handleVoiceButtonClick}
-                    disabled={interviewLoading}
-                    className={`absolute right-12 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${isVoiceRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600'
-                        : 'bg-gray-400 text-white hover:bg-gray-500'
-                      } disabled:cursor-not-allowed disabled:opacity-50`}
-                    title={isVoiceRecording ? '停止录音' : '开始录音'}
-                  >
-                    <MicrophoneIcon className="w-4 h-4" />
-                  </button>
-
-                  {/* 发送按钮 */}
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim() || interviewLoading}
-                    className={`absolute right-3 bottom-3 w-8 h-8 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                {/* Input */}
+                <div className="pt-3 flex-shrink-0">
+                  <div className="relative">
+                    <textarea
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="输入你的回答，或让面试官开始提问..."
+                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
+                      rows={2}
+                      disabled={isSending || isStreaming}
+                    />
+                    <button
+                      onClick={isStreaming ? stopStreaming : sendMessage}
+                      disabled={isStreaming ? false : (!inputMessage.trim() || isSending)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${
+                        isStreaming
+                          ? 'bg-red-500 text-white hover:bg-red-600 shadow-md'
+                          : inputMessage.trim()
+                          ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       } disabled:cursor-not-allowed`}
-                  >
-                    <ArrowUpIcon className="w-4 h-4" />
-                  </button>
+                    >
+                      {isStreaming ? (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <rect x="4" y="4" width="12" height="12" rx="1" />
+                        </svg>
+                      ) : (
+                        <ArrowUpIcon className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* 右侧：实时反馈区域 */}
-            <FeedbackPanel
-              lastQuestion={messages.filter(m => m.type === 'ai').slice(-1)[0]?.content}
-              lastAnswer={messages.filter(m => m.type === 'user').slice(-1)[0]?.content}
-              resumeId={resumeId ? parseInt(resumeId) : undefined}
-              isLoading={interviewLoading}
-            />
           </motion.div>
-        )}
+
+        </div>
       </main>
     </div>
   )
