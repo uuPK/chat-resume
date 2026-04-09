@@ -8,6 +8,7 @@ import { resumeApi } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
+import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import {
   DocumentIcon,
   PlusIcon,
@@ -16,6 +17,7 @@ import {
   CloudArrowUpIcon,
   CalendarIcon,
   BriefcaseIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -29,6 +31,14 @@ interface Resume {
   target_title?: string
 }
 
+interface ResumeContent {
+  personal_info?: Record<string, unknown>
+  education?: unknown[]
+  work_experience?: unknown[]
+  skills?: unknown[]
+  projects?: unknown[]
+}
+
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
   const router = useRouter()
@@ -39,6 +49,7 @@ export default function DashboardPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newResumeTitle, setNewResumeTitle] = useState('')
   const [creating, setCreating] = useState(false)
+  const [resumeContents, setResumeContents] = useState<Record<number, ResumeContent>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -54,11 +65,28 @@ export default function DashboardPage() {
   // 获取简历列表
   const fetchResumes = async () => {
     if (!isAuthenticated) return
-    
+
     try {
       setResumesLoading(true)
       const data = await resumeApi.getResumes()
       setResumes(data)
+
+      // 并行加载所有简历内容用于预览
+      const contentEntries = await Promise.all(
+        data.map(async (resume) => {
+          try {
+            const full = await resumeApi.getResume(resume.id)
+            return [resume.id, full.content] as const
+          } catch {
+            return null
+          }
+        })
+      )
+      const contents: Record<number, ResumeContent> = {}
+      for (const entry of contentEntries) {
+        if (entry) contents[entry[0]] = entry[1]
+      }
+      setResumeContents(contents)
     } catch (error) {
       console.error('Failed to fetch resumes:', error)
       toast.error('获取简历列表失败')
@@ -360,64 +388,63 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: index * 0.1 }}
-                    className="card px-6 py-5 hover:shadow-lg transition-shadow"
+                    className="card overflow-hidden hover:shadow-lg transition-shadow flex flex-col group"
                   >
-                    {/* Resume Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          {resume.title}
-                        </h3>
-                        
-                        {/* 投递信息 */}
-                        <div className="flex items-center text-sm text-gray-500 mb-1">
-                          <BriefcaseIcon className="w-4 h-4 mr-1" />
-                          <span>
-                            投递岗位: {(resume.target_company || resume.target_title) && (
-                              <>
-                                {resume.target_company && (
-                                  <span>{resume.target_company}</span>
-                                )}
-                                {resume.target_company && resume.target_title && (
-                                  <span className="mx-1">•</span>
-                                )}
-                                {resume.target_title && (
-                                  <span>{resume.target_title}</span>
-                                )}
-                              </>
-                            )}
-                          </span>
+                    {/* Resume Preview Thumbnail */}
+                    <div className="relative">
+                      <Link href={`/resume/${resume.id}/edit`} className="block">
+                        <div
+                          className="overflow-hidden bg-gray-50 border-b border-gray-100"
+                          style={{ height: '220px' }}
+                        >
+                          {resumeContents[resume.id] ? (
+                            <div className="pointer-events-none select-none w-full h-full">
+                              <PaginatedResumePreview content={resumeContents[resume.id] as any} />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <div className="animate-pulse flex flex-col items-center space-y-2 w-full px-6">
+                                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                                <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                                <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                                <div className="h-3 bg-gray-200 rounded w-3/4 mt-4"></div>
+                                <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                <div className="h-3 bg-gray-200 rounded w-full"></div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        
-                        <div className="flex items-center text-sm text-gray-500">
-                          <CalendarIcon className="w-4 h-4 mr-1" />
-                          <span>
-                            最后编辑: {formatDate(resume.updated_at || resume.created_at)}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* 删除按钮 - 右上角 */}
+                      </Link>
+
+                      {/* 删除按钮 - 右上角，hover 时显示 */}
                       <button
                         onClick={() => handleDeleteResume(resume.id, resume.title)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        className="absolute top-2 right-2 p-1.5 bg-white bg-opacity-90 text-gray-400 hover:text-red-500 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"
                         title="删除简历"
                       >
-                        <TrashIcon className="w-5 h-5" />
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
 
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Card Info */}
+                    <div className="px-4 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {resume.title}
+                        </h3>
+                        {(resume.target_company || resume.target_title) && (
+                          <p className="text-xs text-gray-400 truncate mt-0.5">
+                            {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
                       <Link
                         href={`/resume/${resume.id}/edit`}
-                        className="btn-primary flex items-center justify-center space-x-1 text-sm py-2"
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium transition-colors flex-shrink-0"
                       >
-                        <PencilIcon className="w-4 h-4" />
-                        <span>编辑</span>
+                        <ChatBubbleLeftRightIcon className="w-3 h-3" />
+                        <span>Chat</span>
                       </Link>
-                      <div></div>
                     </div>
                   </motion.div>
                 )
