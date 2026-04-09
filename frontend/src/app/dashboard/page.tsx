@@ -31,13 +31,6 @@ interface Resume {
   target_title?: string
 }
 
-interface ResumeContent {
-  personal_info?: Record<string, unknown>
-  education?: unknown[]
-  work_experience?: unknown[]
-  skills?: unknown[]
-  projects?: unknown[]
-}
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
@@ -49,7 +42,7 @@ export default function DashboardPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newResumeTitle, setNewResumeTitle] = useState('')
   const [creating, setCreating] = useState(false)
-  const [resumeContents, setResumeContents] = useState<Record<number, ResumeContent>>({})
+  const [resumeContents, setResumeContents] = useState<Record<number, any>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -82,7 +75,7 @@ export default function DashboardPage() {
           }
         })
       )
-      const contents: Record<number, ResumeContent> = {}
+      const contents: Record<number, any> = {}
       for (const entry of contentEntries) {
         if (entry) contents[entry[0]] = entry[1]
       }
