@@ -139,7 +139,7 @@ class AIResumeParser:
                                 {"role": "user", "content": prompt},
                             ],
                             "temperature": 0.1,
-                            "max_tokens": 4000,
+                            "max_tokens": 8000,
                             "stream": False,
                         },
                     )
@@ -323,8 +323,38 @@ class AIResumeParser:
         if json_str.startswith("\ufeff"):
             json_str = json_str[1:]
 
+        # 修复JSON字符串内未转义的控制字符（换行、制表符等）
+        json_str = self._fix_unescaped_control_chars(json_str)
+
         logger.debug("清理后JSON长度: {len(json_str)}")
         return json_str
+
+    def _fix_unescaped_control_chars(self, json_str: str) -> str:
+        """修复JSON字符串中未转义的控制字符（如换行符）"""
+        result = []
+        in_string = False
+        escape_next = False
+
+        for char in json_str:
+            if escape_next:
+                result.append(char)
+                escape_next = False
+            elif char == "\\":
+                result.append(char)
+                escape_next = True
+            elif char == '"':
+                in_string = not in_string
+                result.append(char)
+            elif in_string and char == "\n":
+                result.append("\\n")
+            elif in_string and char == "\r":
+                result.append("\\r")
+            elif in_string and char == "\t":
+                result.append("\\t")
+            else:
+                result.append(char)
+
+        return "".join(result)
 
     def _validate_and_enhance(
         self, data: Dict[str, Any], original_text: str
