@@ -4,7 +4,7 @@
 echo "🚀 启动 Chat Resume 后端服务..."
 
 # 检查是否在正确的目录
-if [ ! -f "backend/requirements.txt" ]; then
+if [ ! -f "backend/pyproject.toml" ]; then
     echo "❌ 错误: 请在项目根目录运行此脚本"
     exit 1
 fi
@@ -20,24 +20,14 @@ if [ ! -f ".env" ]; then
 fi
 
 # 检查 Python 环境
-if ! command -v python3 &> /dev/null; then
-    echo "❌ 错误: 未找到 Python3，请先安装 Python 3.11+"
+if ! command -v uv &> /dev/null; then
+    echo "❌ 错误: 未找到 uv，请先安装 uv"
     exit 1
 fi
 
-# 检查是否存在虚拟环境
-if [ ! -d ".venv" ]; then
-    echo "📦 创建虚拟环境..."
-    python3 -m venv .venv
-fi
-
-# 激活虚拟环境
-echo "🔧 激活虚拟环境..."
-source .venv/bin/activate
-
-# 安装依赖
-echo "📚 安装依赖包..."
-pip install -r requirements.txt
+# 创建并同步虚拟环境
+echo "📦 使用 uv 同步依赖..."
+uv sync
 
 # 检查数据库
 echo "🗄️ 初始化数据库..."
@@ -55,4 +45,4 @@ echo "API 文档: http://localhost:8000/docs"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

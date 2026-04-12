@@ -81,7 +81,8 @@ chat-resume/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   ├── core/
+│   │   ├── agents/
+│   │   ├── infra/
 │   │   ├── models/
 │   │   ├── prompts/
 │   │   ├── schemas/
@@ -90,17 +91,17 @@ chat-resume/
 ├── frontend/
 │   └── src/
 ├── docs/
-├── start-backend.sh
-└── start-frontend.sh
+├── backend.sh
+└── frontend.sh
 ```
 
 ## 核心目录
 
-- `backend/app/services/ai/agent_runtime.py`
+- `backend/app/agents/runtime/agent_runtime.py`
   - 通用 Agent Runtime
-- `backend/app/services/ai/resume_agent.py`
+- `backend/app/agents/definitions/resume_agent.py`
   - 简历优化 Agent
-- `backend/app/services/ai/resume_tools/`
+- `backend/app/agents/tools/resume_tools/`
   - Agent 工具集合
 - `backend/app/api/endpoints/resume_agent.py`
   - Agent 聊天与流式接口
@@ -121,7 +122,7 @@ chat-resume/
 ### 启动后端
 
 ```bash
-./start-backend.sh
+./backend.sh
 ```
 
 默认地址：
@@ -132,7 +133,7 @@ chat-resume/
 ### 启动前端
 
 ```bash
-./start-frontend.sh
+./frontend.sh
 ```
 
 默认地址：
@@ -174,5 +175,5 @@ chat-resume/
 
 ```bash
 cd backend
-python -m pytest tests
+uv run pytest tests
 ```
