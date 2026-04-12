@@ -475,10 +475,18 @@ class ResumeUpdate(BaseModel):
     original_filename: Optional[str] = None
 
 
+class LayoutConfigUpdate(BaseModel):
+    density: str
+    moduleOrder: list[str]
+    visibleModules: list[str]
+    spacingScale: float
+
+
 class ResumeResponse(BaseModel):
     id: int
     title: str
     content: ResumeContent
+    layout_config: Optional[dict[str, Any]] = None
     original_filename: Optional[str] = None
     owner_id: int
     created_at: datetime

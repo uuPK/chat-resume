@@ -91,13 +91,11 @@ class AIResumeParser:
 
         for attempt in range(self.max_retries):
             try:
-                logger.debug("AI解析尝试 {attempt + 1}/{self.max_retries}")
-                logger.debug("API Base: {self.api_base}")
-                logger.debug("Model: {self.model}")
-                print(
-                    f"[DEBUG] API Key长度: {len(self.api_key) if self.api_key else 0}"
-                )
-                logger.debug("Prompt长度: {len(prompt)}")
+                logger.debug(f"AI解析尝试 {attempt + 1}/{self.max_retries}")
+                logger.debug(f"API Base: {self.api_base}")
+                logger.debug(f"Model: {self.model}")
+                logger.debug(f"API Key长度: {len(self.api_key) if self.api_key else 0}")
+                logger.debug(f"Prompt长度: {len(prompt)}")
 
                 # 配置更详细的超时和连接设置
                 # 根据prompt长度动态调整读取超时
@@ -116,9 +114,7 @@ class AIResumeParser:
                     pool=read_timeout,  # 连接池超时与读取超时一致
                 )
 
-                print(
-                    f"[DEBUG] 动态超时配置: 连接{timeout_config.connect}s, 读取{timeout_config.read}s"
-                )
+                logger.debug(f"动态超时配置: 连接{timeout_config.connect}s, 读取{timeout_config.read}s")
 
                 async with httpx.AsyncClient(timeout=timeout_config) as client:
                     response = await client.post(
@@ -144,54 +140,52 @@ class AIResumeParser:
                         },
                     )
 
-                logger.debug("HTTP状态码: {response.status_code}")
-                logger.debug("响应头: {dict(response.headers)}")
+                logger.debug(f"HTTP状态码: {response.status_code}")
+                logger.debug(f"响应头: {dict(response.headers)}")
 
                 if response.status_code == 200:
                     result = response.json()
                     ai_content = result["choices"][0]["message"]["content"]
-                    logger.debug("AI响应长度: {len(ai_content)}")
-                    logger.debug("AI完整响应: {ai_content}")
+                    logger.debug(f"AI响应长度: {len(ai_content)}")
+                    logger.debug(f"AI完整响应: {ai_content}")
 
                     # 解析AI返回的JSON
                     try:
                         parsed_data = self._parse_ai_response(ai_content)
-                        logger.debug("JSON解析成功，解析的数据: {parsed_data}")
+                        logger.debug(f"JSON解析成功，解析的数据: {parsed_data}")
                     except Exception as e:
-                        print(f"[ERROR] JSON解析失败: {e}")
-                        print(f"[ERROR] 原始AI响应: {ai_content}")
+                        logger.error(f"JSON解析失败: {e}")
+                        logger.debug(f"原始AI响应: {ai_content}")
                         raise e
 
                     # 验证和增强数据
                     validated_data = self._validate_and_enhance(parsed_data, text)
 
-                    print(f"[SUCCESS] AI解析成功，最终数据: {validated_data}")
+                    logger.info("AI解析成功")
                     return validated_data
                 else:
-                    print(
-                        f"[ERROR] API请求失败: {response.status_code} - {response.text[:500]}"
-                    )
+                    logger.error(f"API请求失败: {response.status_code} - {response.text[:500]}")
 
             except httpx.TimeoutException as e:
-                print(f"[ERROR] 第 {attempt + 1} 次尝试超时: {e}")
+                logger.warning(f"第 {attempt + 1} 次尝试超时: {e}")
                 if attempt == self.max_retries - 1:
                     raise Exception(f"API请求超时，已重试{self.max_retries}次")
                 await asyncio.sleep(2)  # 超时后等待更长时间
             except httpx.ConnectError as e:
-                print(f"[ERROR] 第 {attempt + 1} 次连接失败: {e}")
+                logger.warning(f"第 {attempt + 1} 次连接失败: {e}")
                 if attempt == self.max_retries - 1:
                     raise Exception(f"无法连接到OpenRouter API服务器: {e}")
                 await asyncio.sleep(2)
             except httpx.HTTPStatusError as e:
-                print(f"[ERROR] 第 {attempt + 1} 次HTTP错误: {e.response.status_code}")
-                print(f"[ERROR] 响应内容: {e.response.text[:500]}")
+                logger.error(f"第 {attempt + 1} 次HTTP错误: {e.response.status_code}")
+                logger.debug(f"响应内容: {e.response.text[:500]}")
                 if attempt == self.max_retries - 1:
                     raise Exception(f"API返回错误状态码: {e.response.status_code}")
                 await asyncio.sleep(1)
             except Exception as e:
-                print(f"[ERROR] 第 {attempt + 1} 次尝试失败: {type(e).__name__}: {e}")
+                logger.error(f"第 {attempt + 1} 次尝试失败: {type(e).__name__}: {e}")
 
-                logger.debug("详细错误信息: {traceback.format_exc()}")
+                logger.debug("详细错误信息", exc_info=True)
                 if attempt == self.max_retries - 1:
                     raise Exception(f"解析失败: {type(e).__name__}: {e}")
                 await asyncio.sleep(1)  # 等待后重试
@@ -264,7 +258,7 @@ class AIResumeParser:
     def _parse_ai_response(self, ai_content: str) -> Dict[str, Any]:
         """解析AI返回的JSON内容"""
         try:
-            logger.debug("开始解析AI响应，长度: {len(ai_content)}")
+            logger.debug(f"开始解析AI响应，长度: {len(ai_content)}")
 
             # 尝试多种方式提取JSON
             json_str = None
@@ -275,8 +269,8 @@ class AIResumeParser:
 
             if start_idx != -1 and end_idx > start_idx:
                 json_str = ai_content[start_idx:end_idx]
-                logger.debug("提取的JSON字符串长度: {len(json_str)}")
-                logger.debug("JSON前200字符: {json_str[:200]}")
+                logger.debug(f"提取的JSON字符串长度: {len(json_str)}")
+                logger.debug(f"JSON前200字符: {json_str[:200]}")
 
             # 方式2: 如果找不到完整JSON，尝试整个内容
             if not json_str:
@@ -287,10 +281,10 @@ class AIResumeParser:
             if json_str:
                 try:
                     parsed_data = json.loads(json_str)
-                    logger.debug("JSON解析成功，包含字段: {list(parsed_data.keys())}")
+                    logger.debug(f"JSON解析成功，包含字段: {list(parsed_data.keys())}")
                     return parsed_data
                 except json.JSONDecodeError as e:
-                    print(f"[ERROR] 第一次JSON解析失败: {e}")
+                    logger.warning(f"第一次JSON解析失败: {e}")
 
                     # 尝试清理和修复JSON
                     cleaned_json = self._clean_json_string(json_str)
@@ -302,11 +296,11 @@ class AIResumeParser:
             raise ValueError("无法找到有效的JSON格式")
 
         except json.JSONDecodeError as e:
-            print(f"[ERROR] 最终JSON解析失败: {e}")
-            logger.debug("失败的JSON内容: {json_str[:1000] if json_str else 'None'}")
+            logger.error(f"最终JSON解析失败: {e}")
+            logger.debug(f"失败的JSON内容: {json_str[:1000] if json_str else 'None'}")
             raise
         except Exception as e:
-            print(f"[ERROR] 解析过程出现异常: {type(e).__name__}: {e}")
+            logger.error(f"解析过程出现异常: {type(e).__name__}: {e}")
             raise
 
     def _clean_json_string(self, json_str: str) -> str:
@@ -326,7 +320,7 @@ class AIResumeParser:
         # 修复JSON字符串内未转义的控制字符（换行、制表符等）
         json_str = self._fix_unescaped_control_chars(json_str)
 
-        logger.debug("清理后JSON长度: {len(json_str)}")
+        logger.debug(f"清理后JSON长度: {len(json_str)}")
         return json_str
 
     def _fix_unescaped_control_chars(self, json_str: str) -> str:
@@ -435,12 +429,12 @@ class AIResumeParser:
         validated_data["parsing_quality"] = quality_score
         validated_data["parsing_method"] = "ai"
 
-        logger.debug("数据验证完成，质量分: {quality_score:.2f}")
+        logger.debug(f"数据验证完成，质量分: {quality_score:.2f}")
         personal_info = validated_data.get("personal_info")
         if isinstance(personal_info, dict):
-            logger.debug("个人信息字段: {list(personal_info.keys())}")
-        logger.debug("技能数量: {len(validated_data['skills'])}")
-        logger.debug("项目数量: {len(validated_data['projects'])}")
+            logger.debug(f"个人信息字段: {list(personal_info.keys())}")
+        logger.debug(f"技能数量: {len(validated_data['skills'])}")
+        logger.debug(f"项目数量: {len(validated_data['projects'])}")
         return validated_data
 
     def _calculate_parsing_quality(self, resume_data: Dict[str, Any]) -> float:

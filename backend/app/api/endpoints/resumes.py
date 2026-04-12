@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.infra.database import get_db
 from app.schemas.resume import (
+    LayoutConfigUpdate,
     ResumeCreate,
     ResumeListItem,
     ResumeProposalResponse,
@@ -33,6 +34,7 @@ def _build_resume_response(resume) -> ResumeResponse:
             "id": resume.id,
             "title": resume.title,
             "content": dump_resume_content_for_frontend(resume.content or {}),
+            "layout_config": resume.layout_config,
             "original_filename": resume.original_filename,
             "owner_id": resume.owner_id,
             "created_at": resume.created_at,
@@ -174,6 +176,25 @@ async def update_resume(
         )
 
     return _build_resume_response(updated_resume)
+
+
+@router.put("/{resume_id}/layout", response_model=ResumeResponse)
+async def update_resume_layout(
+    resume_id: int,
+    layout: LayoutConfigUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """保存简历布局配置（密度、模块顺序、可见性、间距）"""
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+
+    updated = resume_service.update(resume_id, {"layout_config": layout.model_dump()})
+    return _build_resume_response(updated)
 
 
 @router.delete("/{resume_id}")

@@ -19,6 +19,7 @@ interface Resume {
   id: number
   title: string
   content: ResumeContent
+  layout_config?: Record<string, unknown> | null
   original_filename?: string
   owner_id: number
   created_at: string

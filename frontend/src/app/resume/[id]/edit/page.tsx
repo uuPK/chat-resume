@@ -30,6 +30,8 @@ import {
   ResumeModule,
   loadLayoutConfig,
   saveLayoutConfig,
+  saveLayoutConfigToServer,
+  deserializeLayoutConfig,
   MODULE_LABELS,
   DEFAULT_LAYOUT_CONFIG
 } from '@/lib/resumeLayoutConfig'
@@ -235,6 +237,7 @@ export default function ResumeEditPage() {
 
   // 布局配置状态
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
+  const layoutSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 智能一页状态
   const [previewTotalPages, setPreviewTotalPages] = useState(0)
@@ -357,6 +360,10 @@ export default function ResumeEditPage() {
       resumeRef.current = data
       hasUnsavedChangesRef.current = false
       setAutoSaveStatus('idle')
+      // 优先使用服务端布局配置，回退到 localStorage 缓存
+      const serverConfig = deserializeLayoutConfig(data.layout_config as Record<string, unknown> | null)
+      setLayoutConfig(serverConfig)
+      saveLayoutConfig(parseInt(resumeId), serverConfig) // 同步更新本地缓存
     } catch (error) {
       console.error('Failed to fetch resume:', error)
       toast.error('获取简历失败')
@@ -393,11 +400,11 @@ export default function ResumeEditPage() {
     }
   }
 
-  // 加载布局配置
+  // 页面首次渲染时先从 localStorage 读取布局配置（避免服务端数据回来前闪烁默认值）
   useEffect(() => {
     if (resumeId) {
-      const config = loadLayoutConfig(parseInt(resumeId))
-      setLayoutConfig(config)
+      const cached = loadLayoutConfig(parseInt(resumeId))
+      setLayoutConfig(cached)
     }
   }, [resumeId])
 
@@ -413,15 +420,24 @@ export default function ResumeEditPage() {
       if (statusResetTimeoutRef.current) {
         clearTimeout(statusResetTimeoutRef.current)
       }
+      if (layoutSaveTimeoutRef.current) {
+        clearTimeout(layoutSaveTimeoutRef.current)
+      }
     }
   }, [])
 
-  // 处理布局配置变化
+  // 处理布局配置变化：立即更新本地状态，800ms debounce 后同步到服务端
   const handleLayoutConfigChange = (newConfig: ResumeLayoutConfig) => {
     setLayoutConfig(newConfig)
-    if (resumeId) {
-      saveLayoutConfig(parseInt(resumeId), newConfig)
+    if (!resumeId) return
+    const id = parseInt(resumeId)
+    saveLayoutConfig(id, newConfig) // 即时更新 localStorage
+    if (layoutSaveTimeoutRef.current) {
+      clearTimeout(layoutSaveTimeoutRef.current)
     }
+    layoutSaveTimeoutRef.current = setTimeout(() => {
+      saveLayoutConfigToServer(id, newConfig)
+    }, 800)
   }
 
   // 智能一页按钮点击
