@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
 
-from .chat_service import ChatService
+from app.services.llm.chat_service import ChatService
 from app.prompts import AgentPromptSpec
 
 

@@ -8,9 +8,12 @@ import asyncio
 from typing import Any, Dict, List, Optional
 import json
 import logging
-from .agent_runtime import AgentDefinition, AgentRuntime
-from .resume_tools import ResumeTools
-from .resume_tool_executor import ResumeToolExecutor, TOOL_REQUIRED_ARGS
+from app.agents.runtime.agent_runtime import AgentDefinition, AgentRuntime
+from app.agents.tools.resume_tool_executor import (
+    ResumeToolExecutor,
+    TOOL_REQUIRED_ARGS,
+)
+from app.agents.tools.resume_tools import ResumeTools
 from app.prompts import load_prompt
 from app.schemas.resume import dump_resume_content_for_frontend
 

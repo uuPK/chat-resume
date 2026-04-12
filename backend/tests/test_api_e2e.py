@@ -25,8 +25,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
-from app.services.ai.agent_session_store import AgentSessionStore
-from app.services.ai.session_manager import confirmation_manager
+from app.agents.state.agent_session_store import AgentSessionStore
+from app.agents.runtime.confirmation_manager import confirmation_manager
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
 

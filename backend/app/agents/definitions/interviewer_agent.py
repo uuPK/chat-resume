@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from app.prompts import load_prompt
 from app.schemas.resume import dump_resume_content_for_frontend
 
-from .agent_runtime import AgentDefinition, AgentRuntime
+from app.agents.runtime.agent_runtime import AgentDefinition, AgentRuntime
 
 
 class InterviewerAgent:

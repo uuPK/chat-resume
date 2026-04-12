@@ -13,8 +13,8 @@ from typing import Any, AsyncIterator
 
 from sqlalchemy.orm import Session
 
-from .agent_session_store import AgentSessionStore
-from .resume_agent import ResumeAgent
+from app.agents.definitions.resume_agent import ResumeAgent
+from app.agents.state.agent_session_store import AgentSessionStore
 
 
 class AgentHarness:

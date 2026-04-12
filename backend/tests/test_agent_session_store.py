@@ -12,7 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.core.database import Base  # noqa: E402
 from app.models import AgentEvent, AgentSession, Resume, User  # noqa: E402
-from app.services.ai.agent_session_store import AgentSessionStore  # noqa: E402
+from app.agents.state.agent_session_store import AgentSessionStore  # noqa: E402
 
 
 class AgentSessionStoreTests(unittest.TestCase):

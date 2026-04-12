@@ -11,11 +11,11 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
 from copy import deepcopy
 from uuid import uuid4
-from app.services.ai import ChatService, InterviewerAgent, ResumeAgent
-from app.services.ai.agent_harness import AgentHarness
-from app.services.ai.agent_session_store import AgentSessionStore
-from app.services.ai.session_manager import confirmation_manager
+from app.agents.definitions import InterviewerAgent, ResumeAgent
+from app.agents.runtime import AgentHarness, confirmation_manager
+from app.agents.state import AgentSessionStore
 from app.services.core import ResumeService
+from app.services.llm import ChatService
 from app.core.database import get_db
 from app.api.deps import get_current_user
 import json
@@ -577,7 +577,7 @@ async def get_boss_status(
 ):
     """获取Boss直聘登录状态"""
     try:
-        from app.services.ai.resume_tools.boss_client import get_login_status
+        from app.agents.tools.resume_tools.boss_client import get_login_status
 
         return get_login_status()
     except Exception as e:

@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.services.ai.agent_runtime import AgentRuntime  # noqa: E402
-from app.services.ai.interviewer_agent import InterviewerAgent  # noqa: E402
+from app.agents.definitions.interviewer_agent import InterviewerAgent  # noqa: E402
+from app.agents.runtime.agent_runtime import AgentRuntime  # noqa: E402
 
 
 class FakeChatService:
