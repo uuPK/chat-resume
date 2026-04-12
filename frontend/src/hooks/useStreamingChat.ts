@@ -45,7 +45,7 @@ interface StreamingChatOptions {
   onQrImages?: (images: string[]) => void
   onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
   visibleModules?: string[]
-  agentType?: 'resume' | 'interview'
+  agentType?: 'resume'
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {

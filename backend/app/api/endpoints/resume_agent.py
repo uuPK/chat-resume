@@ -1,7 +1,7 @@
 """
 智能聊天API端点模块
 
-提供与 AI Agent 聊天交互的 API 端点，包括简历优化和模拟面试。
+提供与 AI Agent 聊天交互的 API 端点，包括简历优化。
 """
 
 from fastapi import APIRouter, HTTPException, status, Depends
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, cast
 from copy import deepcopy
 from uuid import uuid4
-from app.agents.definitions import InterviewerAgent, ResumeAgent
+from app.agents.definitions import ResumeAgent
 from app.agents.runtime import AgentHarness, confirmation_manager
 from app.agents.state import AgentSessionStore
 from app.services.domain import ResumeService
@@ -45,7 +45,7 @@ class ChatRequest(BaseModel):
     chat_history: list = []  # 聊天历史，可选
     visible_modules: list[str] = []
     agent_type: str = "resume"
-    is_interview: bool = False  # 兼容旧前端字段
+    is_interview: bool = False  # 兼容旧前端字段；面试主链路已迁移到 /api/interviews
 
 
 class ConfirmToolRequest(BaseModel):
@@ -246,13 +246,18 @@ async def chat_with_resume_stream(
     """与AI助手进行流式聊天，基于用户真实简历内容"""
 
     agent_type = _resolve_agent_type(chat_request)
+    if agent_type != "resume":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="面试聊天入口已下线，请使用 /api/interviews 结构化面试链路。",
+        )
     logger.info("=== 流式聊天API被调用 ===")
     logger.info("收到请求 - agent_type: %s", agent_type)
     logger.info("用户消息: %s", chat_request.message)
 
-    agent = ResumeAgent() if agent_type == "resume" else InterviewerAgent()
-    session_id = uuid4().hex if agent_type == "resume" else None
-    confirmation_queue = confirmation_manager.create(session_id) if session_id else None
+    agent = ResumeAgent()
+    session_id = uuid4().hex
+    confirmation_queue = confirmation_manager.create(session_id)
 
     async def generate_stream():
         try:
@@ -308,24 +313,16 @@ async def chat_with_resume_stream(
                     visible_modules=chat_request.visible_modules,
                 )
 
-            if agent_type == "resume":
-                assert isinstance(agent, ResumeAgent)
-                assert harness is not None
-                event_stream = harness.run_resume_stream(
-                    session_id=session_id,
-                    agent=agent,
-                    user_message=chat_request.message,
-                    resume_content=resume_dict,
-                    conversation_history=conversation_history,
-                    confirmation_queue=confirmation_queue,
-                    allowed_sections=set(resume_dict.keys()),
-                )
-            else:
-                event_stream = agent.chat_stream(
-                    user_message=chat_request.message,
-                    resume_content=resume_dict,
-                    conversation_history=conversation_history,
-                )
+            assert harness is not None
+            event_stream = harness.run_resume_stream(
+                session_id=session_id,
+                agent=agent,
+                user_message=chat_request.message,
+                resume_content=resume_dict,
+                conversation_history=conversation_history,
+                confirmation_queue=confirmation_queue,
+                allowed_sections=set(resume_dict.keys()),
+            )
 
             async for event in event_stream:
                 if event.get("resume_content") is not None:
@@ -334,11 +331,7 @@ async def chat_with_resume_stream(
                 payload = {k: v for k, v in event.items() if v is not None}
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-            if (
-                agent_type == "resume"
-                and latest_resume_content is not None
-                and latest_resume_content != original_resume
-            ):
+            if latest_resume_content is not None and latest_resume_content != original_resume:
                 resume_service.update(
                     chat_request.resume_id,
                     {"content": latest_resume_content},

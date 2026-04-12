@@ -220,16 +220,15 @@ export default function ResumeEditPage() {
   }, [editorFlex, agentFlex])
 
   // 聊天相关状态
-  const [messageBuckets, setMessageBuckets] = useState<Record<'resume' | 'interview', ChatMessage[]>>({
+  const [messageBuckets, setMessageBuckets] = useState<Record<'resume', ChatMessage[]>>({
     resume: [],
-    interview: [],
   })
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isClearingMessages, setIsClearingMessages] = useState(false)
   const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
+  const [agentType, setAgentType] = useState<'resume'>('resume')
   const [qrImages, setQrImages] = useState<string[]>([])
   const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -248,7 +247,7 @@ export default function ResumeEditPage() {
   const messages = messageBuckets[agentType]
 
   const appendMessageForAgent = useCallback(
-    (targetAgent: 'resume' | 'interview', message: ChatMessage) => {
+    (targetAgent: 'resume', message: ChatMessage) => {
       setMessageBuckets(prev => ({
         ...prev,
         [targetAgent]: [...prev[targetAgent], message]
@@ -258,7 +257,7 @@ export default function ResumeEditPage() {
   )
 
   const replaceMessagesForAgent = useCallback(
-    (targetAgent: 'resume' | 'interview', nextMessages: ChatMessage[]) => {
+    (targetAgent: 'resume', nextMessages: ChatMessage[]) => {
       setMessageBuckets(prev => ({
         ...prev,
         [targetAgent]: nextMessages
@@ -327,13 +326,15 @@ export default function ResumeEditPage() {
   useEffect(() => {
     const requestedAgent = searchParams?.get('agent')
     if (requestedAgent === 'interview' || requestedAgent === 'interviewer') {
-      setAgentType('interview')
+      if (resumeId) {
+        router.replace(`/resume/${resumeId}/interview`)
+      }
       return
     }
     if (requestedAgent === 'resume') {
       setAgentType('resume')
     }
-  }, [searchParams])
+  }, [searchParams, resumeId, router])
 
   useEffect(() => {
     setApiError(null)
@@ -1193,17 +1194,12 @@ export default function ResumeEditPage() {
                   >
                     简历 AGENT
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setAgentType('interview')}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      agentType === 'interview'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
+                  <Link
+                    href={`/resume/${resumeId}/interview`}
+                    className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
                   >
-                    面试 AGENT
-                  </button>
+                    模拟面试
+                  </Link>
                 </div>
                 <button
                   onClick={handleClearMessages}
