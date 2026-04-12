@@ -1,19 +1,6 @@
 'use client'
 
-interface Project {
-  id?: string
-  name: string
-  overview?: string
-  technologies?: string[]
-  role: string
-  duration: string
-  github_url?: string
-  demo_url?: string
-  highlights?: Array<{
-    id?: string
-    text: string
-  }>
-}
+import type { Project } from '@/types/resume'
 
 interface ProjectsPreviewProps {
   data: Project[]

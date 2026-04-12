@@ -9,6 +9,7 @@ import EducationPreview from './sections/EducationPreview'
 import WorkExperiencePreview from './sections/WorkExperiencePreview'
 import SkillsPreview from './sections/SkillsPreview'
 import ProjectsPreview from './sections/ProjectsPreview'
+import type { ResumeContent } from '@/types/resume'
 
 // 模块类型定义
 export type ModuleType = 'personal' | 'education' | 'work' | 'skills' | 'projects'
@@ -45,60 +46,6 @@ export const DEFAULT_MODULE_ORDER: ModuleConfig[] = [
   { type: 'projects', visible: true, order: 3, label: '项目经验' },
   { type: 'skills', visible: true, order: 4, label: '技能专长' },
 ]
-
-interface PersonalInfo {
-  name?: string
-  email?: string
-  phone?: string
-  position?: string
-  github?: string
-  linkedin?: string
-  website?: string
-  address?: string
-}
-
-interface Education {
-  id?: string
-  school: string
-  major: string
-  degree: string
-  duration: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface WorkExperience {
-  id?: string
-  company: string
-  position: string
-  duration: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface Skill {
-  id?: string
-  category: string
-  items: string[]
-}
-
-interface Project {
-  id?: string
-  name: string
-  overview?: string
-  technologies?: string[]
-  role: string
-  duration: string
-  github_url?: string
-  demo_url?: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface ResumeContent {
-  personal_info?: PersonalInfo
-  education?: Education[]
-  work_experience?: WorkExperience[]
-  skills?: Skill[]
-  projects?: Project[]
-}
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent

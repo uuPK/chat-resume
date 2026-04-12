@@ -1,15 +1,6 @@
 'use client'
 
-interface PersonalInfo {
-  name?: string
-  email?: string
-  phone?: string
-  position?: string
-  github?: string
-  linkedin?: string
-  website?: string
-  address?: string
-}
+import type { PersonalInfo } from '@/types/resume'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo

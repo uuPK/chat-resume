@@ -6,20 +6,7 @@ import {
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
-
-interface Education {
-  id?: string
-  school: string
-  major: string
-  degree: string
-  duration: string
-  description?: string
-  highlights?: Array<{
-    id?: string
-    text: string
-  }>
-  gpa?: string
-}
+import type { Education } from '@/types/resume'
 
 interface EducationEditorProps {
   data: Education[]

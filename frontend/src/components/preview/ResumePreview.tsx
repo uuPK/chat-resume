@@ -3,60 +3,7 @@
 import { useEffect } from 'react'
 import React from 'react'
 import PaginatedResumePreview, { ModuleConfig } from './PaginatedResumePreview'
-
-interface PersonalInfo {
-  name?: string
-  email?: string
-  phone?: string
-  position?: string
-  github?: string
-  linkedin?: string
-  website?: string
-  address?: string
-}
-
-interface Education {
-  id?: string
-  school: string
-  major: string
-  degree: string
-  duration: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface WorkExperience {
-  id?: string
-  company: string
-  position: string
-  duration: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface Skill {
-  id?: string
-  category: string
-  items: string[]
-}
-
-interface Project {
-  id?: string
-  name: string
-  overview?: string
-  technologies?: string[]
-  role: string
-  duration: string
-  github_url?: string
-  demo_url?: string
-  highlights?: Array<{ id?: string; text: string }>
-}
-
-interface ResumeContent {
-  personal_info?: PersonalInfo
-  education?: Education[]
-  work_experience?: WorkExperience[]
-  skills?: Skill[]
-  projects?: Project[]
-}
+import type { ResumeContent } from '@/types/resume'
 
 interface ResumePreviewProps {
   content: ResumeContent

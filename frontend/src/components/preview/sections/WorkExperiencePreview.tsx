@@ -1,15 +1,6 @@
 'use client'
 
-interface WorkExperience {
-  id?: string
-  company: string
-  position: string
-  duration: string
-  highlights?: Array<{
-    id?: string
-    text: string
-  }>
-}
+import type { WorkExperience } from '@/types/resume'
 
 interface WorkExperiencePreviewProps {
   data: WorkExperience[]

@@ -10,10 +10,11 @@ from time import perf_counter
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import JWTError
 from sqlalchemy.orm import Session
 from app.infra.config import settings
 from app.infra.database import get_db
+from app.infra.security import decode_access_token
 from app.services.domain import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
@@ -28,7 +29,7 @@ def _decode_token_claims(token: str) -> dict:
     )
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        payload = decode_access_token(token)
         user_id_str = payload.get("sub")
         if user_id_str is None:
             raise credentials_exception

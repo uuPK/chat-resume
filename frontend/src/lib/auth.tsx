@@ -14,6 +14,7 @@ interface User {
 // 登录响应接口
 interface LoginResponse {
   access_token: string
+  refresh_token: string
   token_type: string
   user: User
 }
@@ -43,6 +44,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const USER_STORAGE_KEY = 'auth_user'
+const ACCESS_TOKEN_COOKIE_KEY = 'access_token'
+const REFRESH_TOKEN_STORAGE_KEY = 'refresh_token'
+
+function setAccessTokenCookie(token: string) {
+  document.cookie = `${ACCESS_TOKEN_COOKIE_KEY}=${encodeURIComponent(token)}; Path=/; SameSite=Lax`
+}
+
+function clearAccessTokenCookie() {
+  document.cookie = `${ACCESS_TOKEN_COOKIE_KEY}=; Path=/; Max-Age=0; SameSite=Lax`
+}
 
 function readStoredUser(): User | null {
   try {
@@ -119,6 +130,22 @@ class AuthAPI {
 
     return response.json()
   }
+
+  static async refresh(refreshToken: string): Promise<LoginResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+
+    if (!response.ok) {
+      throw new Error('刷新登录状态失败')
+    }
+
+    return response.json()
+  }
 }
 
 // 认证提供者组件
@@ -135,6 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // 保存token到localStorage
       localStorage.setItem('access_token', response.access_token)
+      localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, response.refresh_token)
+      setAccessTokenCookie(response.access_token)
       
       // 设置用户信息
       setUser(response.user)
@@ -168,8 +197,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 登出函数
   const logout = () => {
     localStorage.removeItem('access_token')
+    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
     localStorage.removeItem(USER_STORAGE_KEY)
+    clearAccessTokenCookie()
     setUser(null)
+  }
+
+  const refreshSession = async (): Promise<boolean> => {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+    if (!refreshToken) {
+      return false
+    }
+
+    try {
+      const response = await AuthAPI.refresh(refreshToken)
+      localStorage.setItem('access_token', response.access_token)
+      localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, response.refresh_token)
+      setAccessTokenCookie(response.access_token)
+      setUser(response.user)
+      writeStoredUser(response.user)
+      return true
+    } catch (error) {
+      console.error('Refresh session error:', error)
+      return false
+    }
   }
 
   // 更新用户信息
@@ -186,7 +237,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = localStorage.getItem('access_token')
       if (token) {
-        const freshUser = await AuthAPI.getCurrentUser()
+        setAccessTokenCookie(token)
+        const freshUser = await AuthAPI.getCurrentUser().catch(async () => {
+          const refreshed = await refreshSession()
+          if (!refreshed) {
+            throw new Error('获取用户信息失败')
+          }
+          return AuthAPI.getCurrentUser()
+        })
         setUser(freshUser)
         writeStoredUser(freshUser)
       }
@@ -201,9 +259,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('access_token')
       
       if (!token) {
+        const refreshed = await refreshSession()
+        if (refreshed) {
+          setIsLoading(false)
+          return
+        }
+        clearAccessTokenCookie()
         setIsLoading(false)
         return
       }
+
+      setAccessTokenCookie(token)
 
       const cachedUser = readStoredUser()
       if (cachedUser) {
@@ -215,14 +281,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const user = await AuthAPI.getCurrentUser()
+      const user = await AuthAPI.getCurrentUser().catch(async () => {
+        const refreshed = await refreshSession()
+        if (!refreshed) {
+          throw new Error('获取用户信息失败')
+        }
+        return AuthAPI.getCurrentUser()
+      })
       setUser(user)
       writeStoredUser(user)
     } catch (error) {
       console.error('Auth check error:', error)
       // 如果token无效，清除它
       localStorage.removeItem('access_token')
+      localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
       localStorage.removeItem(USER_STORAGE_KEY)
+      clearAccessTokenCookie()
     } finally {
       setIsLoading(false)
     }

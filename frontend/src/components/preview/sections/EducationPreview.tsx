@@ -1,17 +1,6 @@
 'use client'
 
-interface Education {
-  id?: string
-  school: string
-  major: string
-  degree: string
-  duration: string
-  description?: string
-  highlights?: Array<{
-    id?: string
-    text: string
-  }>
-}
+import type { Education } from '@/types/resume'
 
 interface EducationPreviewProps {
   data: Education[]

@@ -11,9 +11,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.infra.database import get_db
-from app.infra.security import create_access_token
+from app.infra.security import create_access_token, create_refresh_token, decode_access_token
 from app.infra.config import settings
-from app.schemas.auth import UserCreate, UserUpdate, UserResponse, LoginResponse
+from app.schemas.auth import (
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+    LoginResponse,
+    RefreshTokenRequest,
+)
 from app.services.domain import UserService
 from app.api.deps import get_current_user
 import logging
@@ -61,10 +67,60 @@ async def login(
     access_token = create_access_token(
         subject=user.id, expires_delta=access_token_expires
     )
+    refresh_token = create_refresh_token(subject=user.id, expires_delta=timedelta(days=30))
 
     # 返回包含用户信息的响应
     return LoginResponse.model_validate(
-        {"access_token": access_token, "token_type": "bearer", "user": user}
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": user,
+        }
+    )
+
+
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_token(
+    request: RefreshTokenRequest, db: Session = Depends(get_db)
+):
+    try:
+        claims = decode_access_token(request.refresh_token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    if claims.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    user_service = UserService(db)
+    user = user_service.get_by_id(int(claims["sub"]))
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+    access_token = create_access_token(
+        subject=user.id,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    refresh_token_value = create_refresh_token(
+        subject=user.id,
+        expires_delta=timedelta(days=30),
+    )
+    return LoginResponse.model_validate(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token_value,
+            "token_type": "bearer",
+            "user": user,
+        }
     )
 
 

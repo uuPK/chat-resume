@@ -176,10 +176,16 @@ class ASRService {
    */
   private async createWebSocketConnection(): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
+      const token = localStorage.getItem('access_token')
+      if (!token) {
+        reject(new Error('未登录，无法建立语音识别连接'))
+        return
+      }
+
       // 正确构建WebSocket URL
       const wsProtocol = this.apiBase.startsWith('https') ? 'wss' : 'ws'
       const wsHost = this.apiBase.replace(/^https?:\/\//, '')
-      const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}`
+      const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}?token=${encodeURIComponent(token)}`
 
       console.log('尝试连接 WebSocket URL:', wsUrl)
       const ws = new WebSocket(wsUrl)

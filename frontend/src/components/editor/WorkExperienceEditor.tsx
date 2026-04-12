@@ -6,21 +6,7 @@ import {
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
-
-interface Highlight {
-  id?: string
-  text: string
-}
-
-interface WorkExperience {
-  id?: string
-  company: string
-  position: string
-  duration: string
-  location?: string
-  employment_type?: string
-  highlights?: Highlight[]
-}
+import type { ResumeHighlight as Highlight, WorkExperience } from '@/types/resume'
 
 interface WorkExperienceEditorProps {
   data: WorkExperience[]

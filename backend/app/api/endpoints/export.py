@@ -1,9 +1,10 @@
 import os
 from typing import Dict, Any, cast
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.infra.database import get_db
+from app.infra.security import verify_download_token
 from app.services.processing import ExportService
 from app.services.domain import ResumeService
 from app.schemas.export import ExportRequest, ExportResponse
@@ -57,7 +58,10 @@ async def export_resume(
             )
 
         # 获取文件URL
-        download_url = export_service.get_file_url(filepath)
+        download_url = export_service.get_file_url(
+            filepath=filepath,
+            user_id=current_user["id"],
+        )
         filename = os.path.basename(filepath)
 
         return ExportResponse.model_validate(
@@ -76,8 +80,23 @@ async def export_resume(
 
 
 @router.get("/download/{filename}")
-async def download_file(filename: str):
+async def download_file(
+    filename: str,
+    expires: int = Query(...),
+    user_id: int = Query(...),
+    signature: str = Query(..., min_length=64, max_length=64),
+):
     """下载导出的文件"""
+
+    if not verify_download_token(
+        filename=filename,
+        user_id=user_id,
+        expires=expires,
+        signature=signature,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid download token"
+        )
 
     export_service = ExportService()
     filepath = os.path.join(export_service.export_dir, filename)

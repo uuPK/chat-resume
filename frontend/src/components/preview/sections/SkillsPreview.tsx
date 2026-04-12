@@ -1,10 +1,6 @@
 'use client'
 
-interface Skill {
-  id?: string
-  category: string
-  items: string[]
-}
+import type { Skill } from '@/types/resume'
 
 interface SkillsPreviewProps {
   data: Skill[]

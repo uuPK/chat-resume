@@ -6,12 +6,7 @@ import {
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
-
-interface SkillGroup {
-  id?: string
-  category: string
-  items: string[]
-}
+import type { Skill as SkillGroup } from '@/types/resume'
 
 interface SkillsEditorProps {
   data: SkillGroup[]

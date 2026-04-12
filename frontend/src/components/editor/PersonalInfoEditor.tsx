@@ -8,17 +8,7 @@ import {
   LinkIcon,
   BriefcaseIcon
 } from '@heroicons/react/24/outline'
-
-interface PersonalInfo {
-  name?: string
-  email?: string
-  phone?: string
-  position?: string
-  github?: string
-  linkedin?: string
-  website?: string
-  address?: string
-}
+import type { PersonalInfo } from '@/types/resume'
 
 interface PersonalInfoEditorProps {
   data: PersonalInfo

@@ -8,23 +8,7 @@ import {
   LinkIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline'
-
-interface Highlight {
-  id?: string
-  text: string
-}
-
-interface Project {
-  id?: string
-  name: string
-  overview?: string
-  role: string
-  duration: string
-  github_url?: string
-  demo_url?: string
-  highlights?: Highlight[]
-  technologies?: string[]
-}
+import type { Project, ResumeHighlight as Highlight } from '@/types/resume'
 
 interface ProjectsEditorProps {
   data: Project[]

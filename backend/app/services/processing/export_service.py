@@ -22,6 +22,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
+from app.infra.security import create_download_token
 
 
 class ExportService:
@@ -36,10 +37,11 @@ class ExportService:
     ) -> str:
         """使用Playwright导出简历PDF。"""
 
+        del template
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
-        print_url = self._build_frontend_print_url(resume_content, template)
-        await self._render_pdf_with_playwright(print_url, filepath)
+        html_content = self._build_html_content(resume_content)
+        await self._render_pdf_with_playwright(html_content, filepath)
         return filepath
 
     def export_to_docx(
@@ -164,13 +166,13 @@ class ExportService:
 
         return filepath
 
-    async def _render_pdf_with_playwright(self, print_url: str, filepath: str) -> None:
-        """使用Playwright打开前端打印页并输出PDF。"""
+    async def _render_pdf_with_playwright(self, html_content: str, filepath: str) -> None:
+        """使用Playwright渲染HTML并输出PDF。"""
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             page = await browser.new_page(viewport={"width": 1280, "height": 1810})
-            await page.goto(print_url, wait_until="networkidle")
+            await page.set_content(html_content, wait_until="networkidle")
             await page.emulate_media(media="print")
             await page.pdf(
                 path=filepath,
@@ -420,11 +422,12 @@ class ExportService:
 
         return " | ".join(str(part).strip() for part in parts if str(part).strip())
 
-    def get_file_url(self, filepath: str) -> str:
+    def get_file_url(self, *, filepath: str, user_id: int) -> str:
         """获取文件访问URL。"""
 
         filename = os.path.basename(filepath)
-        return f"/api/resumes/download/{filename}"
+        query = create_download_token(filename=filename, user_id=user_id)
+        return f"/api/resumes/download/{filename}?{query}"
 
     def delete_file(self, filepath: str) -> bool:
         """删除导出文件。"""
