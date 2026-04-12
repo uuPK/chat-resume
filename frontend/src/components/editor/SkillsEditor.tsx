@@ -151,7 +151,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
               return (
                 <span
                   key={key}
-                  className="group/chip relative inline-flex items-center justify-center rounded-full border border-gray-200 hover:border-gray-300 transition-colors px-3 py-1"
+                  className="group/chip relative inline-flex items-center justify-center rounded-full border border-gray-200 hover:border-gray-300 transition-colors px-2.5 py-1"
                 >
                   <input
                     ref={(el) => { chipRefs.current.set(key, el) }}
@@ -168,7 +168,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
                       }
                     }}
                     placeholder="技能"
-                    className="bg-transparent border-0 focus:ring-0 focus:outline-none text-sm text-gray-800 p-0 text-center"
+                    className="bg-transparent border-0 focus:ring-0 focus:outline-none text-xs text-gray-800 p-0 text-center"
                     style={{ width: `${Math.max(item.length, 2) + 1}ch` }}
                   />
                   <button

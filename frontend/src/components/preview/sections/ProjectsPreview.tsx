@@ -56,7 +56,7 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
-      <div className="flex justify-between items-start mb-2">
+      <div className="flex justify-between items-start" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
         <div className="flex-1 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-gray-900 text-base">
             {project.name}
@@ -74,7 +74,7 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
       </div>
 
       {(project.github_url || project.demo_url) && (
-        <div className="flex gap-4 text-sm text-blue-600 mb-2">
+        <div className="flex gap-4 text-sm text-blue-600" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           {project.github_url && (
             <a
               href={project.github_url}
@@ -101,17 +101,29 @@ export function ProjectItem({ project, lineIndex }: { project: Project; lineInde
       )}
 
       {project.overview && (
-        <p className="text-sm text-gray-600 mb-2 leading-relaxed">
+        <p
+          className="text-sm text-gray-600"
+          style={{
+            marginBottom: 'calc(var(--spacing-scale, 1) * 8px)',
+            lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+          }}
+        >
           {project.overview}
         </p>
       )}
 
       {highlights.length > 0 && (
-        <div className="mb-2">
+        <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
           <span className="text-sm font-medium text-gray-700">关键亮点:</span>
-          <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+          <ul
+            className="list-disc list-inside text-sm text-gray-600"
+            style={{
+              marginTop: 'calc(var(--spacing-scale, 1) * 4px)',
+              lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+            }}
+          >
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{achievement}</li>
             ))}
           </ul>
         </div>

@@ -26,7 +26,7 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-      <div className="flex justify-between items-start mb-1">
+      <div className="flex justify-between items-start" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}>
         <div className="flex-1 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-gray-900">
             {edu.school}
@@ -44,9 +44,15 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
       </div>
 
       {highlights.length > 0 && (
-        <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
+        <ul
+          className="list-disc list-inside text-sm text-gray-600"
+          style={{
+            marginTop: 'calc(var(--spacing-scale, 1) * 4px)',
+            lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+          }}
+        >
           {highlights.map((item, index) => (
-            <li key={index}>{item}</li>
+            <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{item}</li>
           ))}
         </ul>
       )}
