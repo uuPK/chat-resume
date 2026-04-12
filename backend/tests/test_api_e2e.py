@@ -27,6 +27,7 @@ from app.infra.database import Base, get_db
 from app.main import app
 from app.agents.state.agent_session_store import AgentSessionStore
 from app.agents.runtime.confirmation_manager import confirmation_manager
+from app.agents.definitions.interviewer_agent import InterviewerAgent
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
 
@@ -261,6 +262,75 @@ class TestResumeCRUD:
         assert del_resp.status_code == 200
         get_resp = self.client.get(f"/api/resumes/{resume_id}", headers=self.headers)
         assert get_resp.status_code == 404
+
+
+class TestInterviewSessions:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client, monkeypatch):
+        _register(client, "interview_user@example.com")
+        self.token = _login(client, "interview_user@example.com")
+        self.headers = _auth_headers(self.token)
+        self.client = client
+
+        create_resp = self.client.post(
+            "/api/resumes/",
+            json={"title": "面试简历", "content": _empty_resume_content()},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        self.resume_id = create_resp.json()["id"]
+
+        async def _fake_chat(self, user_message, resume_content, conversation_history=None):
+            del self, resume_content, conversation_history
+            if "追问" in user_message:
+                return {"content": "你刚才提到做了优化，具体指标提升了多少？"}
+            if "下一轮" in user_message:
+                return {"content": "换一个问题，说说你在项目里做过最难的一次技术取舍。"}
+            return {"content": "先做一个和岗位最相关的自我介绍。"}
+
+        monkeypatch.setattr(InterviewerAgent, "chat", _fake_chat)
+
+    def test_interview_session_flow(self):
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "interview_type": "general",
+                "difficulty": "medium",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        start_resp = self.client.post(
+            f"/api/interviews/{session_id}/start",
+            headers=self.headers,
+        )
+        assert start_resp.status_code == 200, start_resp.text
+        started = start_resp.json()["session"]
+        assert started["status"] == "waiting_user_answer"
+        assert started["current_turn"]["question"] == "先做一个和岗位最相关的自我介绍。"
+
+        answer_resp = self.client.post(
+            f"/api/interviews/{session_id}/answer",
+            json={"answer": "我负责后端开发。"},
+            headers=self.headers,
+        )
+        assert answer_resp.status_code == 200, answer_resp.text
+        answered = answer_resp.json()
+        assert answered["next_action"] == "follow_up"
+        assert answered["evaluation"]["should_follow_up"] is True
+        assert "具体指标" in answered["message"]
+
+        end_resp = self.client.post(
+            f"/api/interviews/{session_id}/end",
+            headers=self.headers,
+        )
+        assert end_resp.status_code == 200, end_resp.text
+        ended = end_resp.json()["session"]
+        assert ended["status"] == "completed"
+        assert ended["report_data"] is not None
 
     def test_list_resumes_without_auth_returns_401(self):
         resp = self.client.get("/api/resumes/")

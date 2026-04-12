@@ -9,3 +9,7 @@ from .agent_session import (
     AgentSession as AgentSession,
     AgentEvent as AgentEvent,
 )
+from .interview import (
+    InterviewSession as InterviewSession,
+    InterviewTurn as InterviewTurn,
+)

@@ -13,6 +13,7 @@ from app.api.endpoints import (
     upload,
     export,
     resume_agent as chat,
+    interviews,
     tts,
     asr,
 )
@@ -24,5 +25,6 @@ api_router.include_router(resumes.router, prefix="/resumes", tags=["resumes"])
 api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(export.router, prefix="/resumes", tags=["export"])
 api_router.include_router(chat.router, prefix="/ai", tags=["chat"])
+api_router.include_router(interviews.router, prefix="/interviews", tags=["interviews"])
 api_router.include_router(tts.router, prefix="/tts", tags=["tts"])
 api_router.include_router(asr.router, prefix="/asr", tags=["asr"])
