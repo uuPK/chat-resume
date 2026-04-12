@@ -12,7 +12,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.core.database import Base  # noqa: E402
+from app.infra.database import Base  # noqa: E402
 from app.models import Resume, User  # noqa: E402
 from app.agents.runtime.agent_harness import AgentHarness  # noqa: E402
 from app.agents.state.agent_session_store import AgentSessionStore  # noqa: E402

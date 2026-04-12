@@ -14,9 +14,9 @@ from uuid import uuid4
 from app.agents.definitions import InterviewerAgent, ResumeAgent
 from app.agents.runtime import AgentHarness, confirmation_manager
 from app.agents.state import AgentSessionStore
-from app.services.core import ResumeService
+from app.services.domain import ResumeService
 from app.services.llm import ChatService
-from app.core.database import get_db
+from app.infra.database import get_db
 from app.api.deps import get_current_user
 import json
 import logging

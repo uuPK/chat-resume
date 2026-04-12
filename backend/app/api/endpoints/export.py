@@ -3,9 +3,9 @@ from typing import Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.infra.database import get_db
 from app.services.processing import ExportService
-from app.services.core import ResumeService
+from app.services.domain import ResumeService
 from app.schemas.export import ExportRequest, ExportResponse
 from app.api.deps import get_current_user
 

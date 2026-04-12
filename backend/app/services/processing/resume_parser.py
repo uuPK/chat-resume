@@ -12,7 +12,7 @@ from typing import Dict, Any
 import httpx
 import logging
 from dotenv import load_dotenv
-from ..core.file_service import FileService
+from ..domain.file_service import FileService
 
 logger = logging.getLogger(__name__)
 

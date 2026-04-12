@@ -10,8 +10,8 @@ from time import perf_counter
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.core.config import settings
-from app.core.db_observability import record_checkout, record_query
+from app.infra.config import settings
+from app.infra.db_observability import record_checkout, record_query
 
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):

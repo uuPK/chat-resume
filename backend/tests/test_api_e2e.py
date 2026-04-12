@@ -23,7 +23,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.database import Base, get_db
+from app.infra.database import Base, get_db
 from app.main import app
 from app.agents.state.agent_session_store import AgentSessionStore
 from app.agents.runtime.confirmation_manager import confirmation_manager

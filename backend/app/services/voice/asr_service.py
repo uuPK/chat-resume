@@ -14,7 +14,7 @@ import logging
 from typing import Dict, Any
 from enum import Enum
 import websockets
-from app.core.config import settings
+from app.infra.config import settings
 
 logger = logging.getLogger(__name__)
 

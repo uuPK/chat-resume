@@ -11,7 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.infra.database import get_db
 from app.schemas.resume import (
     ResumeCreate,
     ResumeListItem,
@@ -20,7 +20,7 @@ from app.schemas.resume import (
     ResumeUpdate,
     dump_resume_content_for_frontend,
 )
-from app.services.core import ResumeService
+from app.services.domain import ResumeService
 from app.api.deps import get_current_user, get_current_user_claims
 
 router = APIRouter()

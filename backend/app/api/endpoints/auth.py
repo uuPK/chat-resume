@@ -10,11 +10,11 @@ from time import perf_counter
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.core.security import create_access_token
-from app.core.config import settings
+from app.infra.database import get_db
+from app.infra.security import create_access_token
+from app.infra.config import settings
 from app.schemas.auth import UserCreate, UserUpdate, UserResponse, LoginResponse
-from app.services.core import UserService
+from app.services.domain import UserService
 from app.api.deps import get_current_user
 import logging
 

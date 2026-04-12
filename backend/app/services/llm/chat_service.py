@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Optional, AsyncGenerator, overload, Literal
 
 import httpx
 
-from app.core.config import settings
+from app.infra.config import settings
 
 
 logger = logging.getLogger(__name__)

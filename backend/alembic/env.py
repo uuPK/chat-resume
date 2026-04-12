@@ -22,7 +22,7 @@ try:
 
     # Import config
     config_spec = importlib.util.spec_from_file_location(
-        "app.core.config",
+        "app.infra.config",
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "app",
@@ -38,7 +38,7 @@ try:
 
     # Import database
     db_spec = importlib.util.spec_from_file_location(
-        "app.core.database",
+        "app.infra.database",
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "app",

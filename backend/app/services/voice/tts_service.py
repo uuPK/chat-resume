@@ -8,7 +8,7 @@
 import httpx
 from typing import Dict, Any, Optional
 from enum import Enum
-from app.core.config import settings
+from app.infra.config import settings
 
 
 class TTSProvider(str, Enum):

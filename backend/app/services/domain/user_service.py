@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from app.models.user import User
 from app.schemas.auth import UserCreate, UserUpdate
-from app.core.security import get_password_hash, verify_password
+from app.infra.security import get_password_hash, verify_password
 
 
 class UserService:

@@ -10,7 +10,7 @@ import uuid
 from fastapi import UploadFile, HTTPException
 import pdfplumber
 from docx import Document
-from app.core.config import settings
+from app.infra.config import settings
 
 
 class FileService:

@@ -6,7 +6,7 @@ TTS (Text-to-Speech) API端点
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional
-from app.core.database import get_db
+from app.infra.database import get_db
 from app.services.voice import TTSService
 from app.services.voice.tts_service import TTSProvider
 from app.api.deps import get_current_user

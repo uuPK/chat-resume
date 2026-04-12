@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Optional
 import json
 import logging
-from app.core.database import get_db
+from app.infra.database import get_db
 from app.services.voice import ASRService
 from app.api.deps import get_current_user
 from pydantic import BaseModel

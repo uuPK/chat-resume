@@ -7,8 +7,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.services.core import FileService, ResumeService
+from app.infra.database import get_db
+from app.services.domain import FileService, ResumeService
 from app.services.processing import ResumeParser
 from app.schemas.resume import ResumeResponse, ResumeCreate
 from app.api.deps import get_current_user

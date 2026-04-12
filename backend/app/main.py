@@ -9,14 +9,14 @@ from time import perf_counter
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.db_observability import (
+from app.infra.config import settings
+from app.infra.db_observability import (
     get_request_metrics,
     reset_request_metrics,
     start_request_metrics,
 )
 from app.api.api import api_router
-from app.core.database import engine, Base
+from app.infra.database import engine, Base
 import logging
 
 # 配置日志格式
