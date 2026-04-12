@@ -24,7 +24,7 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
-      <div className="flex justify-between items-start mb-1.5">
+      <div className="flex justify-between items-start" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
         <div className="flex-1 flex flex-wrap items-center gap-2">
           {work.company && (
             <h3 className="font-semibold text-gray-900 text-base">
@@ -46,10 +46,16 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
       </div>
 
       {highlights.length > 0 && (
-        <div className="text-sm text-gray-600 mt-2 leading-relaxed">
+        <div
+          className="text-sm text-gray-600"
+          style={{
+            marginTop: 'calc(var(--spacing-scale, 1) * 8px)',
+            lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
+          }}
+        >
           <ul className="list-disc list-inside">
             {highlights.map((line, itemIndex) => (
-              <li key={itemIndex} className="mb-0.5">{line}</li>
+              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{line}</li>
             ))}
           </ul>
         </div>

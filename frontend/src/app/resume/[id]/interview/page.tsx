@@ -218,14 +218,14 @@ export default function InterviewPage() {
                       <div
                         className={`max-w-[85%] px-4 py-3 rounded-2xl ${
                           message.type === 'user'
-                            ? 'bg-primary-600 text-white rounded-br-md text-sm shadow-sm'
+                            ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
                             : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
                         }`}
                       >
                         {message.type === 'ai' ? (
                           <MarkdownMessage content={message.content} />
                         ) : (
-                          <span className="text-sm">{message.content}</span>
+                          <span className="text-[14px]">{message.content}</span>
                         )}
                       </div>
                     </div>
@@ -243,7 +243,7 @@ export default function InterviewPage() {
                   {/* Thinking */}
                   {(isSending || isStreaming) && !currentStreamingMessage && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
                         <span className="inline-block animate-pulse">思考中...</span>
                       </div>
                     </div>

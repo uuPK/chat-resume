@@ -40,9 +40,11 @@ export function useSmartFit({
 
     setIsRunning(true)
     abortRef.current = false
+    let finalMeasureScale = currentScale
 
     // 通过 React state 切换测量容器到指定 scale，等待渲染完成后测量
     const measureTotalHeight = async (scale: number): Promise<number> => {
+      finalMeasureScale = scale
       setMeasureScale(scale)
       await waitForMeasureScale(scale)
       const lines = measureLines()
@@ -99,10 +101,11 @@ export function useSmartFit({
       }
 
       onComplete(bestScale)
+      finalMeasureScale = bestScale
       return { status: 'success', oldScale: currentScale, newScale: bestScale }
     } finally {
-      // 恢复测量容器到当前实际 scale（会在 onComplete 触发 prop 变化后自动同步）
-      setMeasureScale(currentScale)
+      // 保持试算容器停在最后一次已渲染的 scale，避免 finally 再触发一次过期 scale 测量。
+      setMeasureScale(finalMeasureScale)
       setIsRunning(false)
     }
   }, [currentScale, isRunning, onComplete, setMeasureScale, waitForMeasureScale, measureLines])

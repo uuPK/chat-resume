@@ -270,9 +270,6 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    💡 建议包含具体数据和指标，突出个人贡献和技术难点
-                  </p>
                 </div>
               </div>
             </div>

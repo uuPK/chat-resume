@@ -979,8 +979,8 @@ export default function ResumeEditPage() {
                   title="自动调整间距使简历恰好一页"
                   className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border transition-colors
                     ${isSmartFitting
-                      ? 'border-blue-300 bg-blue-50 text-blue-500 cursor-wait'
-                      : 'border-blue-500 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                      ? 'border-gray-300 bg-white text-gray-500 cursor-wait'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                 >
                   {isSmartFitting ? (
@@ -1235,7 +1235,7 @@ export default function ResumeEditPage() {
                     >
                       <div
                         className={`max-w-[85%] px-4 py-3 rounded-2xl ${message.type === 'user'
-                          ? 'bg-primary-600 text-white rounded-br-md text-sm shadow-sm'
+                          ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
                           : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
                           }`}
                       >
@@ -1285,7 +1285,7 @@ export default function ResumeEditPage() {
                             {renderProposalCard(message)}
                           </>
                         ) : (
-                          <span className="text-sm">{message.content}</span>
+                          <span className="text-[14px]">{message.content}</span>
                         )}
                       </div>
                     </div>
@@ -1386,7 +1386,7 @@ export default function ResumeEditPage() {
                           )
                         })}
                         {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
-                          <div className="mt-2 rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                          <div className="mt-2 rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
                             <span className="inline-block animate-pulse">Planning next moves</span>
                           </div>
                         )}
@@ -1397,7 +1397,7 @@ export default function ResumeEditPage() {
                   {/* 等待响应动画 */}
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
                         <span className="inline-block animate-pulse">Planning next moves</span>
                       </div>
                     </div>

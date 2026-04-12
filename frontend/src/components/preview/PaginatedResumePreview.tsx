@@ -1,7 +1,7 @@
 'use client'
 
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLineBasedPagination, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
+import { useLineBasedPagination, measureRenderableLines, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
@@ -119,6 +119,7 @@ export default function PaginatedResumePreview({
 }: PaginatedResumePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const smartFitContentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
 
   // 独立的测量容器 scale state，仅供 SmartFit 二分搜索时切换，不影响实际渲染
@@ -154,7 +155,7 @@ export default function PaginatedResumePreview({
       .sort((a, b) => a.order - b.order)
   }, [moduleOrderKey])
 
-  const { pages, totalPages, isCalculating, measureLines } = useLineBasedPagination({
+  const { pages, totalPages, isCalculating } = useLineBasedPagination({
     containerRef,
     contentRef,
     spacingScale
@@ -164,12 +165,16 @@ export default function PaginatedResumePreview({
     onSpacingScaleChange?.(newScale)
   }, [onSpacingScaleChange])
 
+  const measureSmartFitLines = useCallback(() => {
+    return measureRenderableLines(smartFitContentRef.current)
+  }, [])
+
   const { runSmartFit } = useSmartFit({
     currentScale: spacingScale,
     onComplete: handleSmartFitComplete,
     setMeasureScale,
     waitForMeasureScale,
-    measureLines,
+    measureLines: measureSmartFitLines,
   })
 
   // 将 runSmartFit 暴露给父组件
@@ -256,10 +261,36 @@ export default function PaginatedResumePreview({
     }
   }
 
-  // 渲染所有内容用于测量
-  const measurementContent = useMemo(() => (
+  // 渲染所有内容用于正式分页测量
+  const paginationMeasurementContent = useMemo(() => (
     <div
       ref={contentRef}
+      className="invisible absolute -top-[9999px] left-0 pointer-events-none"
+      style={{
+        width: `${A4_WIDTH}px`,
+        paddingTop: `${PAGE_PADDING * spacingScale}px`,
+        paddingBottom: `${PAGE_PADDING * spacingScale}px`,
+        paddingLeft: `${PAGE_PADDING}px`,
+        paddingRight: `${PAGE_PADDING}px`,
+        boxSizing: 'border-box',
+        ['--spacing-scale' as string]: String(spacingScale)
+      }}
+    >
+      {visibleModules.map((module) => {
+        const sectionElement = renderModule(module.type)
+        if (!sectionElement) {
+          return null
+        }
+        return React.cloneElement(sectionElement, { key: module.type })
+      })}
+    </div>
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [content, visibleModules, moduleOrderKey, spacingScale])
+
+  // 智能一页试算专用测量容器；二分搜索时会频繁切换 scale，不参与正式分页。
+  const smartFitMeasurementContent = useMemo(() => (
+    <div
+      ref={smartFitContentRef}
       className="invisible absolute -top-[9999px] left-0 pointer-events-none"
       style={{
         width: `${A4_WIDTH}px`,
@@ -350,7 +381,8 @@ export default function PaginatedResumePreview({
   return (
     <div id="resume-preview-content" ref={containerRef} className="w-full h-full flex flex-col items-center">
       {/* 用于测量的隐藏内容 */}
-      {measurementContent}
+      {paginationMeasurementContent}
+      {smartFitMeasurementContent}
 
       {/* 加载状态 */}
       {isCalculating && (
