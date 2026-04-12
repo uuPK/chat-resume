@@ -60,6 +60,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const isStreamingLockRef = useRef(false)
   // 用 ref 跟踪当前 sessionId，以便在异步回调中读取最新值
   const sessionIdRef = useRef<string | null>(null)
+  // tool_pending 超时计时器：key=callId, value=timerId
+  const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const {
     onMessage,
@@ -200,20 +202,37 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 // tool_pending: agent 暂停，等待用户确认
                 if (data.tool_pending && data.call_id) {
+                  const callId = data.call_id as string
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_pending',
-                    callId: data.call_id,
+                    callId,
                     toolName: data.tool_name || '',
                     diffSummary: data.diff_summary || '',
                   }]
                   setStreamEvents([...eventsBuffer])
+
+                  // 5 分钟无操作自动标记为 rejected，避免永久卡在确认按钮
+                  pendingToolTimersRef.current[callId] = setTimeout(() => {
+                    eventsBuffer = eventsBuffer.map(e =>
+                      e.type === 'tool_pending' && e.callId === callId
+                        ? { type: 'tool_rejected' as const, callId: e.callId, toolName: e.toolName, diffSummary: e.diffSummary }
+                        : e
+                    )
+                    setStreamEvents([...eventsBuffer])
+                    delete pendingToolTimersRef.current[callId]
+                  }, 5 * 60 * 1000)
                 }
 
-                // tool_confirmed / tool_rejected: 更新对应的 pending 事件状态（保留 diffSummary）
+                // tool_confirmed / tool_rejected: 清除超时计时器，更新对应的 pending 事件状态
                 if ((data.tool_confirmed || data.tool_rejected) && data.call_id) {
+                  const callId = data.call_id as string
+                  if (pendingToolTimersRef.current[callId]) {
+                    clearTimeout(pendingToolTimersRef.current[callId])
+                    delete pendingToolTimersRef.current[callId]
+                  }
                   const newType = data.tool_confirmed ? 'tool_confirmed' : 'tool_rejected'
                   eventsBuffer = eventsBuffer.map(e => {
-                    if (e.type === 'tool_pending' && e.callId === data.call_id) {
+                    if (e.type === 'tool_pending' && e.callId === callId) {
                       return { type: newType, callId: e.callId, toolName: e.toolName, diffSummary: e.diffSummary }
                     }
                     return e
@@ -271,6 +290,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         onError?.(errorMessage)
       }
     } finally {
+      // 清理所有 tool_pending 超时计时器
+      Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
+      pendingToolTimersRef.current = {}
       // 释放锁
       isStreamingLockRef.current = false
       setIsStreaming(false)

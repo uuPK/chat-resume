@@ -117,31 +117,30 @@ export default function DashboardPage() {
       toast.loading('正在上传和解析简历...', { id: 'upload' })
       
       const result = await resumeApi.uploadResume(file)
-      
+
       // 检查解析质量并提供相应反馈
       const parsingQuality = result.content?.parsing_quality || 0
       const parsingMethod = result.content?.parsing_method || 'unknown'
-      
-      console.log('Upload result:', result)
-      console.log('Parsing quality:', parsingQuality)
-      console.log('Parsing method:', parsingMethod)
-      
+
       if (parsingMethod === 'fallback' || parsingQuality === 0) {
-        toast.success('简历上传成功，但AI解析失败，请手动编辑简历信息', { 
+        toast.success('简历上传成功，AI解析失败，已提取基本信息，请检查并补充', {
           id: 'upload',
-          duration: 5000
+          duration: 4000,
         })
+        // 直接跳转编辑页，让用户立即看到并修正内容
+        router.push(`/resume/${result.id}/edit`)
+        return
       } else if (parsingQuality < 0.3) {
-        toast.success(`简历上传成功，但解析质量较低(${Math.round(parsingQuality * 100)}%)，建议检查并完善信息`, { 
+        toast.success(`简历上传成功，解析质量较低(${Math.round(parsingQuality * 100)}%)，建议检查并完善信息`, {
           id: 'upload',
-          duration: 5000 
+          duration: 5000,
         })
       } else {
-        toast.success(`简历上传并解析成功！解析质量: ${Math.round(parsingQuality * 100)}%`, { 
-          id: 'upload' 
+        toast.success(`简历上传并解析成功！解析质量: ${Math.round(parsingQuality * 100)}%`, {
+          id: 'upload',
         })
       }
-      
+
       // 刷新简历列表
       await fetchResumes()
       

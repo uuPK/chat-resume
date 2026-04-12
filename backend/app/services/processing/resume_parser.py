@@ -6,6 +6,7 @@
 """
 
 import os
+import re
 import json
 import asyncio
 from typing import Dict, Any
@@ -471,12 +472,61 @@ class AIResumeParser:
 
         return round(score, 2)
 
+    def _extract_basic_info(self, text: str) -> Dict[str, Any]:
+        """用正则从原始文本中提取基本个人信息，作为 fallback 的最低保障。"""
+        info: Dict[str, Any] = {}
+
+        # 手机号（支持 +86 前缀、空格/连字符分隔）
+        phone_match = re.search(r'(?:\+86[-\s]?)?1[3-9]\d{9}', text)
+        if phone_match:
+            info["phone"] = re.sub(r'[-\s]', '', phone_match.group())
+
+        # 邮箱
+        email_match = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', text)
+        if email_match:
+            info["email"] = email_match.group()
+
+        # GitHub URL
+        github_match = re.search(r'github\.com/[\w\-]+(?:/[\w\-]+)?', text, re.IGNORECASE)
+        if github_match:
+            info["github"] = 'https://' + github_match.group()
+
+        # LinkedIn URL
+        linkedin_match = re.search(r'linkedin\.com/in/[\w\-]+', text, re.IGNORECASE)
+        if linkedin_match:
+            info["linkedin"] = 'https://' + linkedin_match.group()
+
+        # 姓名：优先匹配"姓名：xxx"格式，其次取第一行非空非纯英文短文本
+        name_labeled = re.search(r'(?:姓\s*名|name)\s*[：:]\s*(\S+)', text, re.IGNORECASE)
+        if name_labeled:
+            info["name"] = name_labeled.group(1)
+        else:
+            for line in text.splitlines():
+                stripped = line.strip()
+                # 取2-6个汉字，或2-20个字母的纯名字行
+                if re.fullmatch(r'[\u4e00-\u9fff]{2,6}', stripped) or re.fullmatch(r'[A-Za-z][a-zA-Z\s]{1,19}', stripped):
+                    # 排除明显的标题/关键词行
+                    if stripped not in ('个人简历', '简历', 'Resume', 'CV', 'Curriculum Vitae'):
+                        info["name"] = stripped
+                        break
+
+        # 求职意向
+        position_match = re.search(
+            r'(?:求职意向|应聘岗位|应聘职位|目标岗位|position)\s*[：:]\s*(.+)',
+            text, re.IGNORECASE
+        )
+        if position_match:
+            info["position"] = position_match.group(1).strip()[:50]
+
+        return info
+
     def _create_fallback_result(self, text: str) -> Dict[str, Any]:
-        """创建备用结果（当AI解析失败时）"""
-        logger.debug("创建备用结果")
+        """创建备用结果（当AI解析失败时）：用正则提取尽可能多的基本信息。"""
+        logger.debug("创建备用结果（含正则提取）")
+        personal_info = self._extract_basic_info(text)
 
         return {
-            "personal_info": {},
+            "personal_info": personal_info,
             "education": [],
             "work_experience": [],
             "skills": [],
