@@ -5,3 +5,7 @@ from .resume import (
     ResumeProposal as ResumeProposal,
     ResumeChatMessage as ResumeChatMessage,
 )
+from .agent_session import (
+    AgentSession as AgentSession,
+    AgentEvent as AgentEvent,
+)

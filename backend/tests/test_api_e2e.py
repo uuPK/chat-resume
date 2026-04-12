@@ -25,6 +25,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.services.ai.agent_session_store import AgentSessionStore
+from app.services.ai.session_manager import confirmation_manager
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
 
@@ -431,7 +433,204 @@ class TestChatMessages:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 5. 健康检查 & 根路由
+# 5. Agent 确认会话
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestAgentConfirmation:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        _register(client, "agent_confirm@example.com")
+        self.token = _login(client, "agent_confirm@example.com")
+        self.headers = _auth_headers(self.token)
+        self.client = client
+
+        me_resp = client.get("/api/auth/me", headers=self.headers)
+        assert me_resp.status_code == 200
+        self.user_id = me_resp.json()["id"]
+
+        resume_resp = client.post(
+            "/api/resumes/",
+            json={"title": "确认简历", "content": _empty_resume_content()},
+            headers=self.headers,
+        )
+        assert resume_resp.status_code == 200
+        self.resume_id = resume_resp.json()["id"]
+
+    def _create_waiting_session(self, session_id: str, call_id: str = "call_1") -> None:
+        db = _TestingSession()
+        try:
+            store = AgentSessionStore(db)
+            store.create_session(
+                session_id=session_id,
+                user_id=self.user_id,
+                resume_id=self.resume_id,
+                task_type="resume_optimization",
+            )
+            store.update_status(session_id, "waiting_confirmation", current_step=call_id)
+            store.append_event(
+                session_id=session_id,
+                event_type="tool_call_previewed",
+                source="resume_agent",
+                payload={
+                    "call_id": call_id,
+                    "tool_name": "优化简介",
+                    "diff_summary": "改前 A 改后 B",
+                },
+            )
+        finally:
+            db.close()
+
+    def test_confirm_tool_records_resumable_result_when_stream_queue_missing(self):
+        self._create_waiting_session("persisted_session")
+
+        resp = self.client.post(
+            "/api/ai/chat/confirm-tool",
+            json={
+                "session_id": "persisted_session",
+                "call_id": "call_1",
+                "confirmed": True,
+            },
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is False
+        assert body["resumable"] is True
+
+        db = _TestingSession()
+        try:
+            store = AgentSessionStore(db)
+            session = store.get_session("persisted_session")
+            assert session.status == "paused"
+            latest = store.get_latest_event("persisted_session")
+            assert latest.event_type == "tool_call_confirmed"
+            assert latest.payload["active_stream"] is False
+        finally:
+            db.close()
+
+    def test_confirm_tool_uses_active_queue_when_present(self):
+        session_id = "active_session"
+        self._create_waiting_session(session_id)
+        queue = confirmation_manager.create(session_id)
+        try:
+            resp = self.client.post(
+                "/api/ai/chat/confirm-tool",
+                json={
+                    "session_id": session_id,
+                    "call_id": "call_1",
+                    "confirmed": False,
+                },
+                headers=self.headers,
+            )
+
+            assert resp.status_code == 200
+            assert resp.json() == {"ok": True}
+            assert queue.get_nowait() is False
+        finally:
+            confirmation_manager.remove(session_id)
+
+    def test_confirm_tool_rejects_mismatched_call_id(self):
+        self._create_waiting_session("mismatched_session", call_id="call_real")
+
+        resp = self.client.post(
+            "/api/ai/chat/confirm-tool",
+            json={
+                "session_id": "mismatched_session",
+                "call_id": "call_wrong",
+                "confirmed": True,
+            },
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 409
+
+    def test_resume_session_applies_recorded_confirmation(self):
+        session_id = "resume_http_session"
+        db = _TestingSession()
+        try:
+            store = AgentSessionStore(db)
+            store.create_session(
+                session_id=session_id,
+                user_id=self.user_id,
+                resume_id=self.resume_id,
+                task_type="resume_optimization",
+                metadata={"visible_modules": ["projects"]},
+            )
+            store.update_status(session_id, "waiting_confirmation", current_step="call_1")
+            store.append_event(
+                session_id=session_id,
+                event_type="user_message",
+                source="user",
+                payload={"content": "优化项目简介"},
+            )
+            store.append_event(
+                session_id=session_id,
+                event_type="tool_call_previewed",
+                source="resume_agent",
+                payload={
+                    "call_id": "call_1",
+                    "tool_name": "优化简介",
+                    "tool_call": {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "update_overview",
+                            "arguments": {
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "恢复接口写入的新简介",
+                            },
+                        },
+                    },
+                },
+            )
+            store.append_confirmation_event(
+                session_id=session_id,
+                call_id="call_1",
+                confirmed=True,
+                tool_name="优化简介",
+                active_stream=False,
+            )
+            store.update_status(session_id, "paused", current_step="call_1")
+        finally:
+            db.close()
+
+        update_resp = self.client.put(
+            f"/api/resumes/{self.resume_id}",
+            json={
+                "content": {
+                    **_empty_resume_content(),
+                    "projects": [
+                        {
+                            "id": "proj_1",
+                            "name": "Chat Resume",
+                            "role": "开发者",
+                            "duration": "2026",
+                            "overview": "旧简介",
+                        }
+                    ],
+                }
+            },
+            headers=self.headers,
+        )
+        assert update_resp.status_code == 200
+
+        resp = self.client.post(
+            "/api/ai/chat/resume-session",
+            json={"session_id": session_id},
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is True
+        assert body["applied"] is True
+        assert body["resume_content"]["projects"][0]["overview"] == "恢复接口写入的新简介"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. 健康检查 & 根路由
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestHealthEndpoints:

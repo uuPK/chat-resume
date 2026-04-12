@@ -12,6 +12,8 @@ from typing import Dict, Any, cast
 from copy import deepcopy
 from uuid import uuid4
 from app.services.ai import ChatService, InterviewerAgent, ResumeAgent
+from app.services.ai.agent_harness import AgentHarness
+from app.services.ai.agent_session_store import AgentSessionStore
 from app.services.ai.session_manager import confirmation_manager
 from app.services.core import ResumeService
 from app.core.database import get_db
@@ -52,16 +54,8 @@ class ConfirmToolRequest(BaseModel):
     confirmed: bool
 
 
-class ChatResponse(BaseModel):
-    """聊天响应模型"""
-
-    response: str
-    service: str = "openrouter"
-    is_configured: bool = True
-    tool_calls: list = []  # 工具调用列表
-    proposal_id: int | None = None
-    proposal_status: str | None = None
-    proposal_patch: dict | None = None
+class ResumeSessionRequest(BaseModel):
+    session_id: str
 
 
 def _resolve_agent_type(chat_request: ChatRequest) -> str:
@@ -243,126 +237,6 @@ def _build_proposal_patch(before: Dict[str, Any], after: Dict[str, Any]) -> dict
     return {"changes": changes}
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat_with_resume(
-    chat_request: ChatRequest,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """与AI助手聊天，基于用户真实简历内容"""
-
-    try:
-        # 获取用户真实简历数据
-        resume_service = ResumeService(db)
-        resume = resume_service.get_by_id(chat_request.resume_id)
-
-        # 验证简历存在性和用户权限
-        if not resume:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="简历不存在"
-            )
-
-        # 调试信息
-        logger.debug(f"Resume ID: {chat_request.resume_id}")
-        logger.debug(f"Resume owner_id: {resume.owner_id}")
-        logger.debug(f"Current user ID: {current_user['id']}")
-        logger.debug(f"Current user: {current_user}")
-
-        if resume.owner_id != current_user["id"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"没有权限访问此简历 (简历所有者: {resume.owner_id}, 当前用户: {current_user['id']})",
-            )
-
-        # 使用真实简历数据
-        resume_content = resume.content
-        # 显式类型转换
-        resume_dict: Dict[str, Any] = cast(
-            Dict[str, Any], resume_content if isinstance(resume_content, dict) else {}
-        )
-        resume_dict = _filter_resume_by_visible_modules(
-            resume_dict,
-            chat_request.visible_modules,
-        )
-        original_resume = deepcopy(resume_dict)
-        conversation_history = (
-            []
-            if _should_ignore_history_for_request(chat_request.message)
-            else chat_request.chat_history
-        )
-
-        agent_type = _resolve_agent_type(chat_request)
-        if agent_type == "interview":
-            agent = InterviewerAgent()
-            ai_result = await agent.chat(
-                user_message=chat_request.message,
-                resume_content=resume_dict,
-                conversation_history=conversation_history,
-            )
-        else:
-            agent = ResumeAgent()
-            ai_result = await agent.optimize(
-                user_message=chat_request.message,
-                resume_content=resume_dict,
-                conversation_history=conversation_history,
-                allowed_sections=set(resume_dict.keys()),
-            )
-
-        content = (
-            ai_result.get("content") if isinstance(ai_result, dict) else str(ai_result)
-        )
-        tool_calls = (
-            ai_result.get("tool_calls", []) if isinstance(ai_result, dict) else []
-        )
-        proposal_id = None
-        proposal_status = None
-        proposal_patch = None
-
-        if (
-            agent_type == "resume"
-            and isinstance(ai_result, dict)
-            and ai_result.get("resume_content") != original_resume
-        ):
-            updated_content = ai_result["resume_content"]
-            proposal_patch = _build_proposal_patch(original_resume, updated_content)
-            section = (
-                proposal_patch["changes"][0]["section"]
-                if proposal_patch.get("changes")
-                else None
-            )
-            proposal = resume_service.create_proposal(
-                resume_id=chat_request.resume_id,
-                user_message=chat_request.message,
-                proposed_content=updated_content,
-                summary=content,
-                section=section,
-                proposed_patch=proposal_patch,
-                tool_calls=tool_calls,
-            )
-            proposal_id = proposal.id
-            proposal_status = proposal.status
-
-        return ChatResponse.model_construct(
-            response=content,
-            service="openrouter",
-            is_configured=True,
-            tool_calls=tool_calls,
-            proposal_id=proposal_id,
-            proposal_status=proposal_status,
-            proposal_patch=proposal_patch,
-        )
-
-    except HTTPException:
-        # 重新抛出HTTP异常
-        raise
-    except Exception as e:
-        # 处理其他异常
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI服务暂时不可用: {str(e)}",
-        )
-
-
 @router.post("/chat/stream")
 async def chat_with_resume_stream(
     chat_request: ChatRequest,
@@ -423,9 +297,23 @@ async def chat_with_resume_stream(
                 if _should_ignore_history_for_request(chat_request.message)
                 else chat_request.chat_history
             )
+            harness = AgentHarness(db) if session_id else None
+
+            if harness and session_id:
+                harness.create_resume_session(
+                    session_id=session_id,
+                    user_id=current_user["id"],
+                    resume_id=chat_request.resume_id,
+                    user_message=chat_request.message,
+                    visible_modules=chat_request.visible_modules,
+                )
 
             if agent_type == "resume":
-                event_stream = agent.optimize_stream(
+                assert isinstance(agent, ResumeAgent)
+                assert harness is not None
+                event_stream = harness.run_resume_stream(
+                    session_id=session_id,
+                    agent=agent,
                     user_message=chat_request.message,
                     resume_content=resume_dict,
                     conversation_history=conversation_history,
@@ -504,15 +392,161 @@ async def chat_with_resume_stream(
 async def confirm_tool(
     request: ConfirmToolRequest,
     current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """接收前端对某个工具调用的确认或拒绝信号。"""
-    ok = await confirmation_manager.put(request.session_id, request.confirmed)
-    if not ok:
+    store = AgentSessionStore(db)
+    session = store.get_session(request.session_id)
+    if not session or session.user_id != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session {request.session_id} 不存在或已过期",
+            detail=f"Session {request.session_id} 不存在",
         )
+
+    latest_pending = store.get_latest_event(
+        request.session_id,
+        event_type="tool_call_previewed",
+    )
+    pending_call_id = (
+        latest_pending.payload.get("call_id")
+        if latest_pending and isinstance(latest_pending.payload, dict)
+        else None
+    )
+    if session.status != "waiting_confirmation" or pending_call_id != request.call_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="当前 session 没有匹配的待确认工具调用",
+        )
+
+    queue = confirmation_manager.get(request.session_id)
+    if queue is None:
+        store.append_confirmation_event(
+            session_id=request.session_id,
+            call_id=request.call_id,
+            confirmed=request.confirmed,
+            tool_name=(
+                latest_pending.payload.get("tool_name")
+                if latest_pending and isinstance(latest_pending.payload, dict)
+                else None
+            ),
+            active_stream=False,
+        )
+        store.update_status(
+            request.session_id,
+            "paused",
+            current_step=request.call_id,
+        )
+        return {
+            "ok": False,
+            "resumable": True,
+            "message": "确认结果已记录，但当前流式连接已结束，需要恢复 session 后继续执行",
+        }
+
+    await queue.put(request.confirmed)
     return {"ok": True}
+
+
+@router.post("/chat/resume-session")
+async def resume_agent_session(
+    request: ResumeSessionRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """恢复已暂停的 resume agent session。"""
+    store = AgentSessionStore(db)
+    session = store.get_session(request.session_id)
+    if not session or session.user_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {request.session_id} 不存在",
+        )
+    if session.task_type != "resume_optimization":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="当前 session 不是简历优化任务",
+        )
+    if session.resume_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="当前 session 未关联简历",
+        )
+
+    resume_service = ResumeService(db)
+    resume = resume_service.get_by_id(session.resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="简历不存在",
+        )
+    if resume.owner_id != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="没有权限访问此简历",
+        )
+
+    resume_dict: Dict[str, Any] = cast(
+        Dict[str, Any],
+        resume.content if isinstance(resume.content, dict) else {},
+    )
+    metadata = session.metadata_json if isinstance(session.metadata_json, dict) else {}
+    visible_modules = metadata.get("visible_modules")
+    filtered_resume = _filter_resume_by_visible_modules(
+        resume_dict,
+        visible_modules if isinstance(visible_modules, list) else [],
+    )
+    original_resume = deepcopy(filtered_resume)
+
+    harness = AgentHarness(db, session_store=store)
+    result = harness.resume_session(
+        session_id=request.session_id,
+        resume_content=filtered_resume,
+        allowed_sections=set(filtered_resume.keys()),
+    )
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=result["message"],
+        )
+
+    latest_resume_content = result["resume_content"]
+    proposal_patch = None
+    if result.get("applied") and latest_resume_content != original_resume:
+        resume_service.update(
+            session.resume_id,
+            {"content": latest_resume_content},
+        )
+        proposal_patch = _build_proposal_patch(original_resume, latest_resume_content)
+        user_message_event = store.get_latest_event(
+            request.session_id,
+            event_type="user_message",
+        )
+        user_message = (
+            user_message_event.payload.get("content")
+            if user_message_event and isinstance(user_message_event.payload, dict)
+            else "恢复执行已确认的简历修改"
+        )
+        resume_service.create_proposal(
+            resume_id=session.resume_id,
+            user_message=user_message,
+            proposed_content=latest_resume_content,
+            summary=result["message"],
+            section=(
+                proposal_patch["changes"][0]["section"]
+                if proposal_patch.get("changes")
+                else None
+            ),
+            proposed_patch=proposal_patch,
+            tool_calls=[],
+        )
+
+    return {
+        "ok": True,
+        "session_id": request.session_id,
+        "applied": bool(result.get("applied")),
+        "message": result["message"],
+        "resume_content": latest_resume_content,
+        "proposal_patch": proposal_patch,
+    }
 
 
 @router.get("/status")

@@ -44,6 +44,7 @@ class AgentRuntime:
 
     def __init__(self, chat_service: Optional[ChatService] = None):
         self.chat_service = chat_service or ChatService()
+        self.max_recoverable_tool_errors = 2
 
     async def run(
         self,
@@ -56,6 +57,7 @@ class AgentRuntime:
         messages = self._build_messages(user_message, conversation_history)
         executed_tools: List[Dict[str, Any]] = []
         final_text = ""
+        recoverable_error_counts: Dict[str, int] = {}
 
         for _ in range(agent.max_iterations):
             message = await self._next_message(agent, messages, context)
@@ -66,9 +68,17 @@ class AgentRuntime:
                 final_text = message.get("content") or ""
                 break
 
-            tool_events = self._execute_tool_calls(agent, message["tool_calls"], context)
+            tool_events = self._execute_tool_calls(
+                agent,
+                message["tool_calls"],
+                context,
+                recoverable_error_counts=recoverable_error_counts,
+            )
             executed_tools.extend(tool_events["executed_tools"])
             messages.extend(tool_events["tool_messages"])
+            if tool_events.get("retry_exhausted_message"):
+                final_text = tool_events["retry_exhausted_message"]
+                break
 
         return {
             "content": final_text,
@@ -91,6 +101,7 @@ class AgentRuntime:
         """
         messages = self._build_messages(user_message, conversation_history)
         executed_tools: List[Dict[str, Any]] = []
+        recoverable_error_counts: Dict[str, int] = {}
 
         for _ in range(agent.max_iterations):
             prompt_context = agent.prompt_context_builder(context)
@@ -160,6 +171,7 @@ class AgentRuntime:
                             "content": "",
                             "tool_pending": True,
                             "call_id": tc["id"],
+                            "tool_call": tc,
                             "tool_name": preview_result["tool_name"],
                             "diff_summary": diff_summary,
                             "tool_calls": executed_tools,
@@ -199,6 +211,11 @@ class AgentRuntime:
                                 "name": tool_result["tool_name"],
                                 "result": diff_summary,
                             })
+                            retry_exhausted_message = self._record_recoverable_tool_error(
+                                tc,
+                                tool_result,
+                                recoverable_error_counts,
+                            )
                             tool_messages.append({
                                 "role": "tool",
                                 "tool_call_id": tc["id"],
@@ -206,6 +223,26 @@ class AgentRuntime:
                                     tool_result["result"], ensure_ascii=False
                                 ),
                             })
+                            if self._is_tool_failure(tool_result):
+                                yield {
+                                    "content": "",
+                                    "tool_call_failed": True,
+                                    "call_id": tc["id"],
+                                    "tool_name": tool_result["tool_name"],
+                                    "tool_calls": executed_tools,
+                                    "result": tool_result["result"],
+                                    "display_message": tool_result.get("display_message"),
+                                    "done": False,
+                                }
+                                if retry_exhausted_message:
+                                    yield {
+                                        "content": retry_exhausted_message,
+                                        "tool_calls": executed_tools,
+                                        "context": None,
+                                        "done": False,
+                                    }
+                                    return
+                                continue
                             qr_images = (
                                 [tool_result["qr_image"]]
                                 if tool_result.get("qr_image")
@@ -223,7 +260,12 @@ class AgentRuntime:
                             }
                     else:
                         # ---- 无需确认：原有逻辑直接执行 ----
-                        tool_events = self._execute_tool_calls(agent, [tc], context)
+                        tool_events = self._execute_tool_calls(
+                            agent,
+                            [tc],
+                            context,
+                            recoverable_error_counts=recoverable_error_counts,
+                        )
                         executed_tools.extend(tool_events["executed_tools"])
                         tool_messages.extend(tool_events["tool_messages"])
                         for stream_event in tool_events["stream_events"]:
@@ -234,6 +276,14 @@ class AgentRuntime:
                                 "done": False,
                                 **stream_event,
                             }
+                        if tool_events.get("retry_exhausted_message"):
+                            yield {
+                                "content": tool_events["retry_exhausted_message"],
+                                "tool_calls": executed_tools,
+                                "context": None,
+                                "done": False,
+                            }
+                            return
 
                 messages.extend(tool_messages)
                 continue
@@ -333,13 +383,21 @@ class AgentRuntime:
         agent: AgentDefinition,
         tool_calls: List[Dict[str, Any]],
         context: Dict[str, Any],
+        recoverable_error_counts: Optional[Dict[str, int]] = None,
     ) -> Dict[str, Any]:
         executed_tools: List[Dict[str, Any]] = []
         tool_messages: List[Dict[str, Any]] = []
         stream_events: List[Dict[str, Any]] = []
+        retry_exhausted_message: Optional[str] = None
+        error_counts = recoverable_error_counts if recoverable_error_counts is not None else {}
 
         for tool_call in tool_calls:
             tool_result = agent.tool_executor(tool_call, context)
+            retry_exhausted_message = self._record_recoverable_tool_error(
+                tool_call,
+                tool_result,
+                error_counts,
+            )
             executed_tools.append(
                 {
                     "name": tool_result["tool_name"],
@@ -353,14 +411,61 @@ class AgentRuntime:
                     "content": json.dumps(tool_result["result"], ensure_ascii=False),
                 }
             )
+            stream_event = {
+                "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
+            }
+            if self._is_tool_failure(tool_result):
+                stream_event.update(
+                    {
+                        "tool_call_failed": True,
+                        "call_id": tool_call["id"],
+                        "tool_name": tool_result["tool_name"],
+                        "result": tool_result["result"],
+                        "display_message": tool_result.get("display_message"),
+                    }
+                )
             stream_events.append(
-                {
-                    "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
-                }
+                stream_event
             )
+            if retry_exhausted_message:
+                break
 
         return {
             "executed_tools": executed_tools,
             "tool_messages": tool_messages,
             "stream_events": stream_events,
+            "retry_exhausted_message": retry_exhausted_message,
         }
+
+    @staticmethod
+    def _is_tool_failure(tool_result: Dict[str, Any]) -> bool:
+        result = tool_result.get("result")
+        return isinstance(result, dict) and result.get("success") is False
+
+    @staticmethod
+    def _tool_error(tool_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        result = tool_result.get("result")
+        if not isinstance(result, dict):
+            return None
+        error = result.get("error")
+        return error if isinstance(error, dict) else None
+
+    def _record_recoverable_tool_error(
+        self,
+        tool_call: Dict[str, Any],
+        tool_result: Dict[str, Any],
+        recoverable_error_counts: Dict[str, int],
+    ) -> Optional[str]:
+        error = self._tool_error(tool_result)
+        if not error or not error.get("recoverable"):
+            return None
+
+        tool_name = tool_call.get("function", {}).get("name") or tool_result.get("tool_name")
+        error_type = error.get("type") or "unknown"
+        key = f"{tool_name}:{error_type}"
+        recoverable_error_counts[key] = recoverable_error_counts.get(key, 0) + 1
+        if recoverable_error_counts[key] <= self.max_recoverable_tool_errors:
+            return None
+
+        message = error.get("message") or tool_result.get("display_message") or "工具调用参数持续失败"
+        return f"工具调用连续失败，已停止自动重试。失败原因：{message}"

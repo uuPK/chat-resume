@@ -374,109 +374,6 @@ class ResumeAPI {
   }
 }
 
-// 聊天API类
-class ChatAPI {
-  /**
-   * 发送聊天消息（非流式）
-   */
-  static async sendMessage(resumeId: number, message: string, chatHistory: any[] = []): Promise<string> {
-    const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({
-        message,
-        resume_id: resumeId,
-        chat_history: chatHistory,
-      }),
-    })
-
-    const data = await handleApiResponse<{ response: string }>(response)
-    return data.response
-  }
-
-  /**
-   * 发送流式聊天消息
-   */
-  static async sendStreamingMessage(
-    resumeId: number,
-    message: string,
-    chatHistory: any[] = [],
-    onChunk: (chunk: string) => void,
-    onError: (error: string) => void
-  ): Promise<void> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/ai/chat/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          message,
-          resume_id: resumeId,
-          chat_history: chatHistory,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `流式聊天失败: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('无法获取响应流')
-      }
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        
-        // 处理SSE格式的数据
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              return
-            }
-            
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.content) {
-                onChunk(parsed.content)
-              }
-              if (parsed.error) {
-                onError(parsed.error)
-                return
-              }
-              if (parsed.done) {
-                return
-              }
-            } catch (e) {
-              console.warn('解析SSE数据失败:', e)
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('流式聊天错误:', error)
-      onError(error instanceof Error ? error.message : '流式聊天失败')
-    }
-  }
-}
-
 // 面试API类
 class InterviewAPI {
   /**
@@ -766,7 +663,6 @@ export class ChatHistoryAPI {
 
 // 导出API实例
 export const resumeApi = ResumeAPI
-export const chatApi = ChatAPI
 export const interviewApi = InterviewAPI
 export const chatHistoryApi = ChatHistoryAPI
 

@@ -153,6 +153,75 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "支持结构化简历编辑、Agent 改写和模拟面试。",
         )
 
+    def test_update_overview_defaults_missing_section_to_projects(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_overview",
+                    "arguments": {
+                        "item_id": "proj_1",
+                        "overview": "默认补全 projects 后完成更新。",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume["projects"][0]["overview"],
+            "默认补全 projects 后完成更新。",
+        )
+
+    def test_update_overview_missing_item_id_returns_recoverable_error(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_overview",
+                    "arguments": {
+                        "section": "projects",
+                        "overview": "缺少 item_id 时不应抛出 TypeError。",
+                    },
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertFalse(result["result"]["success"])
+        self.assertEqual(
+            result["result"]["error"]["type"],
+            "missing_required_argument",
+        )
+        self.assertTrue(result["result"]["error"]["recoverable"])
+        self.assertIn("item_id", result["display_message"])
+
+    def test_invalid_tool_arguments_json_returns_recoverable_error(self):
+        agent = ResumeAgent()
+        resume = self._sample_resume()
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_highlight",
+                    "arguments": '{"section":"projects",',
+                }
+            },
+            {"resume_content": resume},
+        )
+
+        self.assertFalse(result["result"]["success"])
+        self.assertEqual(
+            result["result"]["error"]["type"],
+            "invalid_arguments_json",
+        )
+        self.assertTrue(result["result"]["error"]["recoverable"])
+
     def test_update_highlight_tool_updates_single_highlight(self):
         agent = ResumeAgent()
         resume = self._sample_resume()
@@ -356,6 +425,108 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resume["projects"][0]["overview"], "新的项目简介")
         self.assertEqual(len(resume["projects"][0]["highlights"]), 1)
 
+    async def test_optimize_retries_recoverable_tool_error(self):
+        chat_service = FakeChatService(
+            responses=[
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_bad",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "update_overview",
+                                            "arguments": (
+                                                '{"section":"projects",'
+                                                '"overview":"缺少 item_id"}'
+                                            ),
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_fixed",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "update_overview",
+                                            "arguments": (
+                                                '{"section":"projects",'
+                                                '"item_id":"proj_1",'
+                                                '"overview":"重试后写入的简介"}'
+                                            ),
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "已根据工具错误修正参数并完成修改。",
+                            }
+                        }
+                    ]
+                },
+            ]
+        )
+        agent = self._build_agent(chat_service)
+        resume = self._sample_resume()
+
+        result = await agent.optimize("优化项目简介", resume)
+
+        self.assertEqual(chat_service.chat_calls, 3)
+        self.assertEqual(resume["projects"][0]["overview"], "重试后写入的简介")
+        self.assertIn("修正参数", result["content"])
+
+    async def test_optimize_stops_after_recoverable_tool_error_limit(self):
+        responses = []
+        for idx in range(3):
+            responses.append(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": f"call_bad_{idx}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "update_overview",
+                                            "arguments": '{"section":"projects","overview":"仍然缺少 item_id"}',
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                }
+            )
+        chat_service = FakeChatService(responses=responses)
+        agent = self._build_agent(chat_service)
+        resume = self._sample_resume()
+
+        result = await agent.optimize("优化项目简介", resume)
+
+        self.assertEqual(chat_service.chat_calls, 3)
+        self.assertIn("已停止自动重试", result["content"])
+        self.assertEqual(resume["projects"][0]["overview"], "AI 求职辅导平台")
+
     async def test_optimize_stream_applies_change_after_confirmation(self):
         chat_service = FakeChatService(
             stream_rounds=[
@@ -454,6 +625,65 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务",
+        )
+
+    async def test_optimize_stream_emits_tool_call_failed_then_recovers(self):
+        chat_service = FakeChatService(
+            stream_rounds=[
+                [
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_stream_bad",
+                                "function": {
+                                    "name": "update_overview",
+                                    "arguments": '{"section":"projects","overview":"缺少 item_id"}',
+                                },
+                            }
+                        ]
+                    }
+                ],
+                [
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_stream_fixed",
+                                "function": {
+                                    "name": "update_overview",
+                                    "arguments": (
+                                        '{"section":"projects",'
+                                        '"item_id":"proj_1",'
+                                        '"overview":"流式重试后的简介"}'
+                                    ),
+                                },
+                            }
+                        ]
+                    }
+                ],
+                [
+                    {"content": "已完成流式重试。"},
+                ],
+            ]
+        )
+        agent = self._build_agent(chat_service)
+        resume = self._sample_resume()
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化项目简介",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=None,
+        ):
+            events.append(event)
+
+        self.assertTrue(any(event.get("tool_call_failed") for event in events))
+        self.assertEqual(resume["projects"][0]["overview"], "流式重试后的简介")
+        self.assertEqual(
+            "".join(event.get("content", "") for event in events),
+            "已完成流式重试。",
         )
 
 

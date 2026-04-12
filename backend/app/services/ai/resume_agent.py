@@ -10,6 +10,7 @@ import json
 import logging
 from .agent_runtime import AgentDefinition, AgentRuntime
 from .resume_tools import ResumeTools
+from .resume_tool_executor import ResumeToolExecutor, TOOL_REQUIRED_ARGS
 from app.prompts import load_prompt
 from app.schemas.resume import dump_resume_content_for_frontend
 
@@ -43,6 +44,7 @@ class ResumeAgent:
 
     def __init__(self):
         self.tools = ResumeTools()
+        self.tool_executor = ResumeToolExecutor(self.tools)
         self.prompt_spec = load_prompt("resume_agent")
         self.runtime = AgentRuntime()
         self.definition = AgentDefinition(
@@ -107,9 +109,13 @@ class ResumeAgent:
                 "tool_pending": event.get("tool_pending"),
                 "tool_confirmed": event.get("tool_confirmed"),
                 "tool_rejected": event.get("tool_rejected"),
+                "tool_call_failed": event.get("tool_call_failed"),
                 "call_id": event.get("call_id"),
+                "tool_call": event.get("tool_call"),
                 "tool_name": event.get("tool_name"),
                 "diff_summary": event.get("diff_summary"),
+                "result": event.get("result"),
+                "display_message": event.get("display_message"),
                 "done": event.get("done", False),
             }
 
@@ -138,74 +144,72 @@ class ResumeAgent:
                     item.pop("achievements", None)
         return content
 
-    # 工具名 -> 用户可见的中文名称
-    _TOOL_DISPLAY_NAMES = {
-        "update_overview": "优化简介",
-        "update_highlight": "优化成果",
-        "add_highlight": "新增成果",
-        "remove_highlight": "删除成果",
-        "read_resume": "读取简历",
-    }
+    def _prepare_tool_args(
+        self, tool_name: str, raw_args: Any
+    ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        try:
+            tool_args = _parse_tool_arguments(raw_args)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            return None, self.tool_executor.error_result(
+                tool_name,
+                "invalid_arguments_json",
+                f"工具参数不是合法 JSON，无法执行 {tool_name}: {exc}",
+                recoverable=True,
+                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
+            )
+
+        if not isinstance(tool_args, dict):
+            return None, self.tool_executor.error_result(
+                tool_name,
+                "invalid_arguments_type",
+                f"工具参数必须是对象，实际收到 {type(tool_args).__name__}",
+                recoverable=True,
+                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
+            )
+
+        if tool_name == "update_overview" and not tool_args.get("section"):
+            tool_args["section"] = "projects"
+
+        required = TOOL_REQUIRED_ARGS.get(tool_name)
+        if required is None and tool_name != "read_resume":
+            return None, self.tool_executor.error_result(
+                tool_name,
+                "unknown_tool",
+                f"Unknown tool: {tool_name}",
+                recoverable=False,
+            )
+
+        if required:
+            missing = sorted(key for key in required if not tool_args.get(key))
+            if missing:
+                return None, self.tool_executor.error_result(
+                    tool_name,
+                    "missing_required_argument",
+                    f"{tool_name} 缺少必填参数: {', '.join(missing)}",
+                    recoverable=True,
+                    expected_arguments=sorted(required),
+                    updated_section=tool_args.get("section"),
+                )
+
+        return tool_args, None
 
     def _run_tool(
         self, tool_call: Dict[str, Any], context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """执行单个工具调用并返回结构化结果"""
-        resume_content = context["resume_content"]
         tool_name = tool_call["function"]["name"]
         raw_args = tool_call["function"]["arguments"]
         logger.debug(f"[tool_call] {tool_name} raw_args={raw_args!r}")
-        tool_args = _parse_tool_arguments(raw_args)
-        allowed_sections = context.get("allowed_sections")
-        target_section = tool_args.get("section")
-        if (
-            allowed_sections is not None
-            and target_section
-            and target_section not in allowed_sections
-        ):
-            return {
-                "tool_name": self._TOOL_DISPLAY_NAMES.get(tool_name, tool_name),
-                "result": {
-                    "success": False,
-                    "message": f"板块 {target_section} 当前已隐藏，禁止修改",
-                    "updated_section": target_section,
-                },
-                "display_message": f"板块 {target_section} 当前已隐藏，禁止修改",
-                "qr_image": None,
-                "updated_section_name": self._get_section_name(target_section),
-            }
-        result = self.tools.execute_tool(
-            tool_name=tool_name, resume_content=resume_content, **tool_args
+        tool_args, error_result = self._prepare_tool_args(tool_name, raw_args)
+        if error_result is not None:
+            return error_result
+        assert tool_args is not None
+        return self.tool_executor.execute(
+            tool_name=tool_name,
+            tool_input=tool_args,
+            context=context,
         )
-        return {
-            "tool_name": self._TOOL_DISPLAY_NAMES.get(tool_name, tool_name),
-            "result": result,
-            "display_message": (
-                result.get("diff_summary") or result.get("message")
-                if isinstance(result, dict)
-                else None
-            ),
-            "qr_image": result.get("image_base64") if isinstance(result, dict) else None,
-            "updated_section_name": self._get_section_name(
-                result.get("updated_section") if isinstance(result, dict) else None
-            ),
-        }
 
     def _collect_qr_images(self, tool_calls: List[Dict[str, Any]]) -> List[str]:
         """兼容旧返回结构，目前简历工具没有稳定产出二维码。"""
         return []
-
-    def _get_section_name(self, section_key: Optional[str]) -> Optional[str]:
-        """将板块键转成中文名称。"""
-        section_names = {
-            "personal_info": "个人信息",
-            "education": "教育经历",
-            "work_experience": "工作经历",
-            "skills": "技能专长",
-            "projects": "项目经历",
-            "summary": "个人总结",
-            "languages": "语言能力",
-        }
-        if not section_key:
-            return None
-        return section_names.get(section_key, section_key)

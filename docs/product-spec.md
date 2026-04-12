@@ -121,12 +121,7 @@
 
 ### 6.4 AI 简历优化流程
 
-当前系统存在两种行为模式：
-
-- 非流式：`POST /api/ai/chat`
-- 流式：`POST /api/ai/chat/stream`
-
-推荐以流式链路作为主规格，因为编辑页主要围绕该能力构建。
+当前系统以流式链路作为主规格：`POST /api/ai/chat/stream`。
 
 流式交互流程：
 
@@ -473,7 +468,6 @@
 
 ### 9.4 Resume AI
 
-- `POST /api/ai/chat`
 - `POST /api/ai/chat/stream`
 - `POST /api/ai/chat/confirm-tool`
 - `GET /api/ai/status`
