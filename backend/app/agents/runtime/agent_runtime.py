@@ -37,6 +37,7 @@ class AgentDefinition:
     tool_executor: ToolExecutor
     prompt_context_builder: PromptContextBuilder
     max_iterations: int = 6
+    max_history_messages: int = 20
 
 
 class AgentRuntime:
@@ -54,7 +55,7 @@ class AgentRuntime:
         conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """执行一次完整 Agent 循环并返回最终结果。"""
-        messages = self._build_messages(user_message, conversation_history)
+        messages = self._build_messages(user_message, conversation_history, agent.max_history_messages)
         executed_tools: List[Dict[str, Any]] = []
         final_text = ""
         recoverable_error_counts: Dict[str, int] = {}
@@ -99,7 +100,7 @@ class AgentRuntime:
         - 文本轮次：直接将上游 SSE delta token 转发给客户端
         - confirmation_queue 不为 None 时，每个工具调用前暂停等待用户确认
         """
-        messages = self._build_messages(user_message, conversation_history)
+        messages = self._build_messages(user_message, conversation_history, agent.max_history_messages)
         executed_tools: List[Dict[str, Any]] = []
         recoverable_error_counts: Dict[str, int] = {}
 
@@ -318,10 +319,11 @@ class AgentRuntime:
         self,
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]],
+        max_history_messages: int = 20,
     ) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []
         if conversation_history:
-            messages.extend(conversation_history[-6:])
+            messages.extend(conversation_history[-max_history_messages:])
         messages.append({"role": "user", "content": user_message})
         return messages
 

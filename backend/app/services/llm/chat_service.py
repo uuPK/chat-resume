@@ -416,15 +416,7 @@ class ChatService:
         # 添加当前消息
         messages.append({"role": "user", "content": message})
 
-        # 调试日志：打印完整的消息列表
-        logger.info("=== chat_with_context 完整消息列表 ===")
-        logger.info(f"总共 {len(messages)} 条消息:")
-        for i, msg in enumerate(messages):
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            # 截取内容前100个字符用于日志
-            content_preview = content[:100] + "..." if len(content) > 100 else content
-            logger.info(f"  [{i}] {role}: {content_preview}")
+        logger.debug("chat_with_context: sending %d messages to LLM", len(messages))
 
         # 调用AI服务
         response = await self._chat_completion_non_stream(messages)

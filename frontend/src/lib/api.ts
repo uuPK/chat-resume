@@ -169,6 +169,61 @@ interface ResumeProposal {
   applied_at?: string
 }
 
+interface InterviewTurn {
+  id: number
+  turn_index: number
+  round_index: number
+  question: string
+  question_type: string
+  intent?: string
+  expected_points?: string[]
+  answer?: string
+  evaluation?: {
+    summary?: string
+    dimension_scores?: Record<string, number>
+    evidence?: string[]
+    gaps?: string[]
+    should_follow_up?: boolean
+  }
+  score?: number
+  follow_up_count: number
+  status: string
+}
+
+interface InterviewSession {
+  id: number
+  resume_id: number
+  target_title?: string
+  target_company?: string
+  jd_text?: string
+  interview_type: string
+  difficulty: string
+  language: string
+  mode: string
+  status: string
+  current_round_index: number
+  current_turn_index: number
+  plan?: {
+    rounds?: Array<{ type: string; goal: string }>
+  }
+  overall_score?: number
+  report_data?: {
+    summary?: string
+    strengths?: string[]
+    weaknesses?: string[]
+    next_training_plan?: string[]
+  }
+  turns: InterviewTurn[]
+  current_turn?: InterviewTurn | null
+}
+
+interface InterviewActionResponse {
+  session: InterviewSession
+  message?: string
+  evaluation?: InterviewTurn['evaluation']
+  next_action?: string
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -334,6 +389,102 @@ class ResumeAPI {
     })
     return handleApiResponse<ResumeProposal>(response)
   }
+
+  static async createInterviewSession(data: {
+    resume_id: number
+    target_title?: string
+    target_company?: string
+    jd_text?: string
+    interview_type?: string
+    difficulty?: string
+    language?: string
+    mode?: string
+  }): Promise<InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(data),
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
+  static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
+  static async startInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/start`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
+  static async answerInterviewSession(sessionId: number, answer: string): Promise<InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ answer }),
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
+  static async *answerInterviewSessionStream(
+    sessionId: number,
+    answer: string,
+  ): AsyncGenerator<{ type: 'token'; content: string } | { type: 'done' } & InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ answer }),
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `请求失败 (${response.status})`)
+    }
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          yield JSON.parse(line.slice(6))
+        } catch {}
+      }
+    }
+  }
+
+  static async endInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/end`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
 }
 
 // ── 聊天记录 API ──────────────────────────────────────────────────────────────
@@ -385,6 +536,9 @@ export const chatHistoryApi = ChatHistoryAPI
 export type {
   Resume,
   ResumeContent,
+  InterviewActionResponse,
+  InterviewSession,
+  InterviewTurn,
   PersonalInfo,
   Education,
   WorkExperience,

@@ -25,6 +25,7 @@ class InterviewerAgent:
             tool_executor=self._run_tool,
             prompt_context_builder=self._build_prompt_context,
             max_iterations=1,
+            max_history_messages=40,
         )
 
     async def chat(
