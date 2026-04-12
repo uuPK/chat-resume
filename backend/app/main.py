@@ -7,7 +7,8 @@ FastAPI应用的初始化和配置入口点。
 
 from time import perf_counter
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 from app.infra.config import settings
 from app.infra.db_observability import (
@@ -115,8 +116,18 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+async def health_check(response: Response):
+    from app.infra.database import SessionLocal
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        response.status_code = 503
+        return {"status": "unhealthy", "detail": "database unavailable"}
+    finally:
+        db.close()
 
 
 @app.get("/api/test")

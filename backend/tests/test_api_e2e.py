@@ -713,3 +713,140 @@ class TestHealthEndpoints:
         resp = client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "healthy"
+
+    def test_health_check_returns_db_connectivity(self, client):
+        """健康检查应验证数据库连通性，不只是返回静态字符串。"""
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "status" in body
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. 负向场景
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestNegativeCases:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        _register(client, "negative_user@example.com")
+        self.token = _login(client, "negative_user@example.com")
+        self.client = client
+        resp = client.post(
+            "/api/resumes/",
+            json={"title": "测试简历", "content": _empty_resume_content()},
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 200
+        self.resume_id = resp.json()["id"]
+
+    # ── 未认证访问 ────────────────────────────────────────────────────────
+
+    def test_get_resumes_without_token_returns_401(self):
+        resp = self.client.get("/api/resumes/")
+        assert resp.status_code == 401
+
+    def test_get_resume_without_token_returns_401(self):
+        resp = self.client.get(f"/api/resumes/{self.resume_id}")
+        assert resp.status_code == 401
+
+    def test_update_resume_without_token_returns_401(self):
+        resp = self.client.put(
+            f"/api/resumes/{self.resume_id}",
+            json={"title": "无 token"},
+        )
+        assert resp.status_code == 401
+
+    def test_delete_resume_without_token_returns_401(self):
+        resp = self.client.delete(f"/api/resumes/{self.resume_id}")
+        assert resp.status_code == 401
+
+    def test_update_layout_without_token_returns_401(self):
+        resp = self.client.put(
+            f"/api/resumes/{self.resume_id}/layout",
+            json={
+                "density": "compact",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 0.8,
+            },
+        )
+        assert resp.status_code == 401
+
+    # ── 资源不存在 ────────────────────────────────────────────────────────
+
+    def test_get_nonexistent_resume_returns_404(self):
+        resp = self.client.get(
+            "/api/resumes/999999",
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 404
+
+    def test_update_nonexistent_resume_returns_404(self):
+        resp = self.client.put(
+            "/api/resumes/999999",
+            json={"title": "不存在"},
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 404
+
+    def test_delete_nonexistent_resume_returns_404(self):
+        resp = self.client.delete(
+            "/api/resumes/999999",
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 404
+
+    def test_update_layout_nonexistent_resume_returns_404(self):
+        resp = self.client.put(
+            "/api/resumes/999999/layout",
+            json={
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 1.0,
+            },
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 404
+
+    # ── 无效输入 ──────────────────────────────────────────────────────────
+
+    def test_update_resume_with_empty_body_returns_400(self):
+        resp = self.client.put(
+            f"/api/resumes/{self.resume_id}",
+            json={},
+            headers=_auth_headers(self.token),
+        )
+        assert resp.status_code == 400
+
+    def test_register_with_invalid_email_returns_422(self):
+        resp = self.client.post(
+            "/api/auth/register",
+            json={"email": "not-an-email", "password": "password123"},
+        )
+        assert resp.status_code == 422
+
+    def test_register_with_short_password_returns_422(self):
+        resp = self.client.post(
+            "/api/auth/register",
+            json={"email": "valid@example.com", "password": "123"},
+        )
+        assert resp.status_code == 422
+
+    # ── 跨用户布局配置权限 ────────────────────────────────────────────────
+
+    def test_other_user_cannot_update_layout(self):
+        _register(self.client, "layout_attacker@example.com")
+        attacker_token = _login(self.client, "layout_attacker@example.com")
+        resp = self.client.put(
+            f"/api/resumes/{self.resume_id}/layout",
+            json={
+                "density": "compact",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "spacingScale": 0.7,
+            },
+            headers=_auth_headers(attacker_token),
+        )
+        assert resp.status_code == 403

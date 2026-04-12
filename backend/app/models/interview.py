@@ -41,6 +41,7 @@ class InterviewSession(Base):
         back_populates="session",
         order_by="InterviewTurn.turn_index",
         cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
 
