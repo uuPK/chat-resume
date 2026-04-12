@@ -1,7 +1,8 @@
 'use client'
 
-import React, { ReactNode, useMemo, useRef } from 'react'
+import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLineBasedPagination, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
+import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
 import EducationPreview from './sections/EducationPreview'
@@ -102,12 +103,48 @@ interface ResumeContent {
 interface PaginatedResumePreviewProps {
   content: ResumeContent
   moduleOrder?: ModuleConfig[]
+  spacingScale?: number
+  onSpacingScaleChange?: (scale: number) => void
+  onTotalPagesChange?: (n: number) => void
+  smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
 }
 
-export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_MODULE_ORDER }: PaginatedResumePreviewProps) {
+export default function PaginatedResumePreview({
+  content,
+  moduleOrder = DEFAULT_MODULE_ORDER,
+  spacingScale = 1,
+  onSpacingScaleChange,
+  onTotalPagesChange,
+  smartFitTriggerRef
+}: PaginatedResumePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
+
+  // 独立的测量容器 scale state，仅供 SmartFit 二分搜索时切换，不影响实际渲染
+  // spacingScale prop 变化时（包括 SmartFit 完成后 onComplete 触发的更新）同步重置
+  const [measureScale, setMeasureScale] = useState(spacingScale)
+  const measureScaleRef = useRef(spacingScale)
+  useEffect(() => {
+    setMeasureScale(spacingScale)
+  }, [spacingScale])
+  // 每次 measureScale 变化后 resolve 所有等待中的 Promise
+  const measureScaleResolversRef = useRef<Array<() => void>>([])
+  useEffect(() => {
+    measureScaleRef.current = measureScale
+    const resolvers = measureScaleResolversRef.current.splice(0)
+    resolvers.forEach(r => r())
+  }, [measureScale])
+  // SmartFit 调用：切换 measureScale 并等待 React 渲染完成
+  // 若目标 scale 与当前相同（无 state 变化），用 rAF 等 DOM 稳定后直接 resolve
+  const waitForMeasureScale = useCallback((targetScale: number): Promise<void> => {
+    if (measureScaleRef.current === targetScale) {
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    }
+    return new Promise(resolve => {
+      measureScaleResolversRef.current.push(resolve)
+    })
+  }, [])
 
   // 按order排序并过滤可见模块
   const moduleOrderKey = JSON.stringify(moduleOrder.map(m => ({ type: m.type, visible: m.visible, order: m.order })))
@@ -117,10 +154,35 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       .sort((a, b) => a.order - b.order)
   }, [moduleOrderKey])
 
-  const { pages, totalPages, isCalculating } = useLineBasedPagination({
+  const { pages, totalPages, isCalculating, measureLines } = useLineBasedPagination({
     containerRef,
-    contentRef
+    contentRef,
+    spacingScale
   })
+
+  const handleSmartFitComplete = useCallback((newScale: number) => {
+    onSpacingScaleChange?.(newScale)
+  }, [onSpacingScaleChange])
+
+  const { runSmartFit } = useSmartFit({
+    currentScale: spacingScale,
+    onComplete: handleSmartFitComplete,
+    setMeasureScale,
+    waitForMeasureScale,
+    measureLines,
+  })
+
+  // 将 runSmartFit 暴露给父组件
+  React.useEffect(() => {
+    if (smartFitTriggerRef) {
+      smartFitTriggerRef.current = runSmartFit
+    }
+  }, [smartFitTriggerRef, runSmartFit])
+
+  // 将 totalPages 回调给父组件
+  React.useEffect(() => {
+    onTotalPagesChange?.(totalPages)
+  }, [totalPages, onTotalPagesChange])
 
   // 计算合适的缩放比例
   React.useEffect(() => {
@@ -157,7 +219,10 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
   // 根据模块类型渲染组件
   const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (
-    <section data-section-id={sectionId} className="mb-6 last:mb-0">
+    <section
+      data-section-id={sectionId}
+      style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 24px)' }}
+    >
       {children}
     </section>
   )
@@ -198,8 +263,12 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
       className="invisible absolute -top-[9999px] left-0 pointer-events-none"
       style={{
         width: `${A4_WIDTH}px`,
-        padding: `${PAGE_PADDING}px`,
-        boxSizing: 'border-box'
+        paddingTop: `${PAGE_PADDING * measureScale}px`,
+        paddingBottom: `${PAGE_PADDING * measureScale}px`,
+        paddingLeft: `${PAGE_PADDING}px`,
+        paddingRight: `${PAGE_PADDING}px`,
+        boxSizing: 'border-box',
+        ['--spacing-scale' as string]: String(measureScale)
       }}
     >
       {visibleModules.map((module) => {
@@ -210,7 +279,8 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
         return React.cloneElement(sectionElement, { key: module.type })
       })}
     </div>
-  ), [content, visibleModules, moduleOrderKey])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [content, visibleModules, moduleOrderKey, measureScale])
 
   // 根据分页信息渲染页面内容
   const renderPageContent = (pageIndex: number) => {
@@ -292,14 +362,15 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
 
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
-        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar">
+        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar relative">
           <div className="w-full flex justify-center">
             <div
               id="resume-export-content"
               className="flex flex-col items-center print:transform-none"
               style={{
                 transform: `scale(${scale})`,
-                transformOrigin: 'top center'
+                transformOrigin: 'top center',
+                ['--spacing-scale' as string]: String(spacingScale)
               }}
             >
               {pages.map((_, pageIndex) => (
@@ -325,7 +396,8 @@ export default function PaginatedResumePreview({ content, moduleOrder = DEFAULT_
               className="flex flex-col items-center"
               style={{
                 transform: `scale(${scale})`,
-                transformOrigin: 'top center'
+                transformOrigin: 'top center',
+                ['--spacing-scale' as string]: String(spacingScale)
               }}
             >
               <ResumePage pageNumber={1} totalPages={1}>

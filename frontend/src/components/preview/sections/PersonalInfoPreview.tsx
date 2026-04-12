@@ -91,10 +91,10 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
   const itemClassName = 'inline-flex items-center'
 
   return (
-    <div className="mb-5">
+    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 姓名和职位 */}
       {shouldRenderLine(0) && (
-        <div data-line-index={0} className="text-center mb-4">
+        <div data-line-index={0} className="text-center" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
             {data.name || '姓名'}
           </h1>

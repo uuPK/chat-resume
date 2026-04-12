@@ -7,11 +7,12 @@ import {
   EyeIcon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline'
-import { 
-  LayoutDensity, 
+import {
+  LayoutDensity,
   ResumeModule,
   MODULE_LABELS,
-  ResumeLayoutConfig
+  ResumeLayoutConfig,
+  DENSITY_SPACING_SCALE
 } from '@/lib/resumeLayoutConfig'
 
 interface ResumeLayoutControlsProps {
@@ -29,11 +30,30 @@ export default function ResumeLayoutControls({
   const [activeTab, setActiveTab] = useState<'density' | 'modules' | 'order'>('density')
 
   const handleDensityChange = (density: LayoutDensity) => {
-    // 创建全新的配置对象以确保React检测到变化
+    const spacingScale = DENSITY_SPACING_SCALE[density as Exclude<LayoutDensity, 'custom'>] ?? config.spacingScale
     onConfigChange({
       density,
       moduleOrder: [...config.moduleOrder],
-      visibleModules: new Set(config.visibleModules)
+      visibleModules: new Set(config.visibleModules),
+      spacingScale
+    })
+  }
+
+  const handleSpacingScaleChange = (value: number) => {
+    onConfigChange({
+      density: 'custom',
+      moduleOrder: [...config.moduleOrder],
+      visibleModules: new Set(config.visibleModules),
+      spacingScale: value
+    })
+  }
+
+  const handleSpacingScaleReset = () => {
+    onConfigChange({
+      density: 'normal',
+      moduleOrder: [...config.moduleOrder],
+      visibleModules: new Set(config.visibleModules),
+      spacingScale: 1.0
     })
   }
 
@@ -44,11 +64,11 @@ export default function ResumeLayoutControls({
     } else {
       newVisible.add(module)
     }
-    // 创建全新的配置对象以确保React检测到变化
     onConfigChange({
       density: config.density,
       moduleOrder: [...config.moduleOrder],
-      visibleModules: newVisible
+      visibleModules: newVisible,
+      spacingScale: config.spacingScale
     })
   }
 
@@ -61,15 +81,14 @@ export default function ResumeLayoutControls({
 
     if (targetIndex < 0 || targetIndex >= newOrder.length) return
 
-    // 交换位置
     ;[newOrder[currentIndex], newOrder[targetIndex]] =
     [newOrder[targetIndex], newOrder[currentIndex]]
 
-    // 创建全新的配置对象以确保React检测到变化
     onConfigChange({
       density: config.density,
       moduleOrder: newOrder,
-      visibleModules: new Set(config.visibleModules)
+      visibleModules: new Set(config.visibleModules),
+      spacingScale: config.spacingScale
     })
   }
 
@@ -133,36 +152,72 @@ export default function ResumeLayoutControls({
             <div className="p-4 max-h-96 overflow-y-auto">
               {/* 密度选项 */}
               {activeTab === 'density' && (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500 mb-4">
-                    调整简历的信息密度，紧凑模式可在一页纸放入更多内容
-                  </p>
-                  {(['comfortable', 'normal', 'compact'] as LayoutDensity[]).map((density) => (
-                    <label
-                      key={density}
-                      className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                    >
-                      <input
-                        type="radio"
-                        name="density"
-                        checked={config.density === density}
-                        onChange={() => handleDensityChange(density)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {density === 'comfortable' && '舒适'}
-                          {density === 'normal' && '标准'}
-                          {density === 'compact' && '紧凑'}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {density === 'comfortable' && '大字号，宽松间距，适合内容较少的简历'}
-                          {density === 'normal' && '平衡的字号和间距，推荐使用'}
-                          {density === 'compact' && '小字号，紧凑间距，适合内容丰富的简历'}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
+                <div className="space-y-4">
+                  {/* 第一层：快速预设 */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-3">
+                      调整简历的信息密度，紧凑模式可在一页纸放入更多内容
+                    </p>
+                    <div className="space-y-2">
+                      {(['comfortable', 'normal', 'compact'] as Exclude<LayoutDensity, 'custom'>[]).map((density) => (
+                        <label
+                          key={density}
+                          className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                            config.density === density ? 'border-blue-500 bg-blue-50' : ''
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="density"
+                            checked={config.density === density}
+                            onChange={() => handleDensityChange(density)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">
+                              {density === 'comfortable' && '舒适'}
+                              {density === 'normal' && '标准'}
+                              {density === 'compact' && '紧凑'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {density === 'comfortable' && '宽松间距，适合内容较少的简历'}
+                              {density === 'normal' && '平衡的间距，推荐使用'}
+                              {density === 'compact' && '紧凑间距，适合内容丰富的简历'}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 第二层：精细调节 */}
+                  <div className="border-t border-gray-100 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-700">精细调节</span>
+                      <button
+                        onClick={handleSpacingScaleReset}
+                        className="text-xs text-gray-500 hover:text-gray-700 underline"
+                      >
+                        重置
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="1.5"
+                      step="0.05"
+                      value={config.spacingScale ?? 1}
+                      onChange={(e) => handleSpacingScaleChange(parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between items-center mt-1.5">
+                      <span className="text-xs text-gray-400">紧</span>
+                      <span className="text-xs text-gray-600 font-medium">
+                        间距: {(config.spacingScale ?? 1).toFixed(2)}×
+                      </span>
+                      <span className="text-xs text-gray-400">松</span>
+                    </div>
+                  </div>
                 </div>
               )}
 

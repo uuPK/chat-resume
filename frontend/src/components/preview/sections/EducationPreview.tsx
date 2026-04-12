@@ -25,7 +25,7 @@ export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: n
     : []
 
   return (
-    <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-3">
+    <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
       <div className="flex justify-between items-start mb-1">
         <div className="flex-1 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-gray-900">
@@ -67,10 +67,10 @@ export default function EducationPreview({
   }
 
   return (
-    <div className="mb-5">
+    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
-        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
+        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           教育背景
         </h2>
       )}

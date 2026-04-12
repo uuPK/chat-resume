@@ -4,8 +4,17 @@
  * 管理简历的视觉密度、间距、模块顺序等配置
  */
 
-export type LayoutDensity = 'comfortable' | 'normal' | 'compact'
+export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
 export type ResumeModule = 'personal' | 'education' | 'work' | 'skills' | 'projects'
+
+/**
+ * 三档预设对应的 spacingScale 值
+ */
+export const DENSITY_SPACING_SCALE: Record<Exclude<LayoutDensity, 'custom'>, number> = {
+  comfortable: 1.3,
+  normal: 1.0,
+  compact: 0.7
+}
 
 /**
  * 布局密度配置
@@ -90,6 +99,7 @@ export interface ResumeLayoutConfig {
   density: LayoutDensity
   moduleOrder: ResumeModule[]
   visibleModules: Set<ResumeModule>
+  spacingScale: number  // 连续间距缩放，范围 0.5–1.5，默认 1.0
 }
 
 /**
@@ -98,13 +108,15 @@ export interface ResumeLayoutConfig {
 export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   density: 'normal',
   moduleOrder: DEFAULT_MODULE_ORDER,
-  visibleModules: new Set(DEFAULT_MODULE_ORDER)
+  visibleModules: new Set(DEFAULT_MODULE_ORDER),
+  spacingScale: 1.0
 }
 
 /**
- * 获取密度配置
+ * 获取密度配置（'custom' 密度回退到 'normal'）
  */
 export function getDensityConfig(density: LayoutDensity) {
+  if (density === 'custom') return DENSITY_CONFIG['normal']
   return DENSITY_CONFIG[density]
 }
 
@@ -126,15 +138,16 @@ export function saveLayoutConfig(resumeId: number, config: ResumeLayoutConfig): 
 export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
   const key = `resume_layout_${resumeId}`
   const stored = localStorage.getItem(key)
-  
+
   if (!stored) {
     return DEFAULT_LAYOUT_CONFIG
   }
-  
+
   try {
     const parsed = JSON.parse(stored)
     return {
       ...parsed,
+      spacingScale: typeof parsed.spacingScale === 'number' ? parsed.spacingScale : 1.0,
       visibleModules: new Set(parsed.visibleModules || DEFAULT_MODULE_ORDER)
     }
   } catch {

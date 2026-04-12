@@ -23,7 +23,7 @@ export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; 
     : []
 
   return (
-    <div data-line-index={lineIndex} className="relative print:break-inside-avoid mb-4">
+    <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
       <div className="flex justify-between items-start mb-1.5">
         <div className="flex-1 flex flex-wrap items-center gap-2">
           {work.company && (
@@ -71,10 +71,10 @@ export default function WorkExperiencePreview({
   }
 
   return (
-    <div className="mb-5">
+    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
-        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 mb-3 pb-1.5 border-b border-gray-300">
+        <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           工作经验
         </h2>
       )}

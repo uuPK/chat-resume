@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import React from 'react'
 import PaginatedResumePreview, { ModuleConfig } from './PaginatedResumePreview'
 
 interface PersonalInfo {
@@ -59,10 +60,14 @@ interface ResumeContent {
 
 interface ResumePreviewProps {
   content: ResumeContent
-  moduleOrder?: ModuleConfig[]  // 可选的自定义模块顺序
+  moduleOrder?: ModuleConfig[]
+  spacingScale?: number
+  onSpacingScaleChange?: (scale: number) => void
+  onTotalPagesChange?: (n: number) => void
+  smartFitTriggerRef?: React.MutableRefObject<any>
 }
 
-export default function ResumePreview({ content, moduleOrder }: ResumePreviewProps) {
+export default function ResumePreview({ content, moduleOrder, spacingScale, onSpacingScaleChange, onTotalPagesChange, smartFitTriggerRef }: ResumePreviewProps) {
   // 加载打印样式
   useEffect(() => {
     // 动态加载打印样式
@@ -84,7 +89,14 @@ export default function ResumePreview({ content, moduleOrder }: ResumePreviewPro
 
   return (
     <div className="h-full overflow-hidden bg-gray-50 p-1 print:h-auto print:p-0 print:bg-white">
-      <PaginatedResumePreview content={content} moduleOrder={moduleOrder} />
+      <PaginatedResumePreview
+        content={content}
+        moduleOrder={moduleOrder}
+        spacingScale={spacingScale}
+        onSpacingScaleChange={onSpacingScaleChange}
+        onTotalPagesChange={onTotalPagesChange}
+        smartFitTriggerRef={smartFitTriggerRef}
+      />
     </div>
   )
 }

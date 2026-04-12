@@ -21,7 +21,10 @@ const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
           width: `${A4_WIDTH}px`, // 基础宽度，会被transform scale缩放
           aspectRatio: `${A4_RATIO}`, // 保持A4比例
           margin: '0 auto 24px auto',
-          padding: `${PAGE_PADDING}px`,
+          paddingTop: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
+          paddingBottom: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
+          paddingLeft: `${PAGE_PADDING}px`,
+          paddingRight: `${PAGE_PADDING}px`,
           boxSizing: 'border-box'
         }}
       >

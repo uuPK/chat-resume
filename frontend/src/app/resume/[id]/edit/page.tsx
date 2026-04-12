@@ -237,6 +237,11 @@ export default function ResumeEditPage() {
   // 布局配置状态
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
 
+  // 智能一页状态
+  const [previewTotalPages, setPreviewTotalPages] = useState(0)
+  const [isSmartFitting, setIsSmartFitting] = useState(false)
+  const smartFitTriggerRef = useRef<(() => Promise<any>) | null>(null)
+
   const resumeId = params?.id as string
   const previewFlex = 100 - editorFlex - agentFlex
   const collapsedAgentFlex = 100 - previewFlex
@@ -415,6 +420,25 @@ export default function ResumeEditPage() {
     setLayoutConfig(newConfig)
     if (resumeId) {
       saveLayoutConfig(parseInt(resumeId), newConfig)
+    }
+  }
+
+  // 智能一页按钮点击
+  const handleSmartFitHeaderClick = async () => {
+    if (!smartFitTriggerRef.current || isSmartFitting) return
+    setIsSmartFitting(true)
+    try {
+      const result = await smartFitTriggerRef.current()
+      if (!result) return
+      if (result.status === 'already_fits') {
+        toast('当前简历已是一页，无需调整', { icon: '✅' })
+      } else if (result.status === 'too_much_content') {
+        toast.error(`内容过多（约 ${result.pages} 页），建议删减内容`)
+      } else if (result.status === 'success') {
+        toast.success(`已将间距从 ${result.oldScale.toFixed(2)}× 调整为 ${result.newScale.toFixed(2)}×，简历适配一页`)
+      }
+    } finally {
+      setIsSmartFitting(false)
     }
   }
 
@@ -950,6 +974,33 @@ export default function ResumeEditPage() {
                   onConfigChange={handleLayoutConfigChange}
                 />
                 <button
+                  onClick={handleSmartFitHeaderClick}
+                  disabled={isSmartFitting}
+                  title="自动调整间距使简历恰好一页"
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border transition-colors
+                    ${isSmartFitting
+                      ? 'border-blue-300 bg-blue-50 text-blue-500 cursor-wait'
+                      : 'border-blue-500 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    }`}
+                >
+                  {isSmartFitting ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      计算中...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                      智能一页
+                    </>
+                  )}
+                </button>
+                <button
                   onClick={handleExportPDF}
                   disabled={exporting}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -1102,6 +1153,12 @@ export default function ResumeEditPage() {
                 key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
                 content={resume.content}
                 moduleOrder={moduleOrder}
+                spacingScale={layoutConfig.spacingScale}
+                onSpacingScaleChange={(scale) =>
+                  handleLayoutConfigChange({ ...layoutConfig, spacingScale: scale, density: 'custom' })
+                }
+                onTotalPagesChange={setPreviewTotalPages}
+                smartFitTriggerRef={smartFitTriggerRef}
               />
             </div>
           </motion.div>

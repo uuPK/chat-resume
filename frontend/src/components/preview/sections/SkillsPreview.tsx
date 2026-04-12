@@ -21,12 +21,13 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
   }
 
   return (
-    <div className="mb-5">
+    <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2
           data-line-index={0}
-          className="text-lg font-bold text-gray-900 mb-2 pb-1 border-b border-gray-200"
+          className="text-lg font-bold text-gray-900 pb-1 border-b border-gray-200"
+          style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}
         >
           技能专长
         </h2>
@@ -39,7 +40,8 @@ export default function SkillsPreview({ data, renderLines }: SkillsPreviewProps)
           <div
             key={group.id || `${group.category}-${categoryIndex}`}
             data-line-index={lineIndex}
-            className="flex flex-wrap items-center gap-2 text-sm text-gray-700 mb-1.5"
+            className="flex flex-wrap items-center gap-2 text-sm text-gray-700"
+            style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}
           >
             <span className="font-semibold text-gray-800 flex-shrink-0">
               {group.category}
