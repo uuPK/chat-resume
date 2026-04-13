@@ -476,8 +476,8 @@ class AIResumeParser:
         """用正则从原始文本中提取基本个人信息，作为 fallback 的最低保障。"""
         info: Dict[str, Any] = {}
 
-        # 手机号（支持 +86 前缀、空格/连字符分隔）
-        phone_match = re.search(r'(?:\+86[-\s]?)?1[3-9]\d{9}', text)
+        # 手机号（支持 +86 前缀、空格/连字符分隔的11位号码）
+        phone_match = re.search(r'(?:\+86[-\s]?)?(1[3-9]\d[-\s]?\d{4}[-\s]?\d{4})', text)
         if phone_match:
             info["phone"] = re.sub(r'[-\s]', '', phone_match.group())
 
@@ -496,10 +496,10 @@ class AIResumeParser:
         if linkedin_match:
             info["linkedin"] = 'https://' + linkedin_match.group()
 
-        # 姓名：优先匹配"姓名：xxx"格式，其次取第一行非空非纯英文短文本
-        name_labeled = re.search(r'(?:姓\s*名|name)\s*[：:]\s*(\S+)', text, re.IGNORECASE)
+        # 姓名：优先匹配"姓名：xxx"格式，捕获到行尾（去除结尾空白）
+        name_labeled = re.search(r'(?:姓\s*名|name)\s*[：:]\s*(.+)', text, re.IGNORECASE)
         if name_labeled:
-            info["name"] = name_labeled.group(1)
+            info["name"] = name_labeled.group(1).strip()
         else:
             for line in text.splitlines():
                 stripped = line.strip()
