@@ -1110,29 +1110,23 @@ export default function ResumeEditPage() {
                   <button
                     type="button"
                     onClick={() => setAgentType('resume')}
-                    className={`relative rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
                       agentType === 'resume'
                         ? 'bg-white text-blue-600 shadow-sm'
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {agentType === 'resume' && (
-                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500" />
-                    )}
                     简历 AGENT
                   </button>
                   <button
                     type="button"
                     onClick={() => { resetInterview(); setAgentType('interview') }}
-                    className={`relative rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
                       agentType === 'interview'
                         ? 'bg-white text-violet-600 shadow-sm'
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {agentType === 'interview' && (
-                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-violet-500" />
-                    )}
                     面试 AGENT
                   </button>
                 </div>
