@@ -319,9 +319,8 @@ class TestInterviewSessions:
         )
         assert answer_resp.status_code == 200, answer_resp.text
         answered = answer_resp.json()
-        assert answered["next_action"] == "follow_up"
-        assert answered["evaluation"]["should_follow_up"] is True
-        assert "具体指标" in answered["message"]
+        assert answered["next_action"] in ("next_question", "completed")
+        assert answered["session"]["status"] in ("waiting_user_answer", "completed")
 
         end_resp = self.client.post(
             f"/api/interviews/{session_id}/end",

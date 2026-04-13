@@ -44,27 +44,69 @@ def _get_resume_for_user(db: Session, resume_id: int, user_id: int):
     return resume
 
 
+_ROUND_INSTRUCTIONS: dict[str, str] = {
+    "warmup": (
+        "【当前阶段：热身】"
+        "目标是建立基本画像、确认岗位匹配度。"
+        "只问自我介绍、求职动机、近期状态等开放性问题。"
+        "不要追技术细节，不要追项目数字，不要出行为题。"
+        "语气可以稍微轻松，帮候选人热身。"
+    ),
+    "resume_deep_dive": (
+        "【当前阶段：项目深挖】"
+        "目标是验证简历真实性，挖出候选人的真实贡献和量化结果。"
+        "紧盯简历里的具体项目或工作经历，逐一追问：你具体做了什么、遇到了什么困难、最终结果是什么数字。"
+        "如果候选人回答空泛，必须追问：个人贡献是什么、结果怎么量化、是怎么解决问题的。"
+        "不要转移到和简历无关的话题。"
+    ),
+    "behavioral": (
+        "【当前阶段：行为面试】"
+        "目标是考察软技能，要求候选人用 STAR 结构（情境、任务、行动、结果）回答。"
+        "典型问题：团队冲突经历、失败项目的处理、跨部门协作、在压力下的决策。"
+        "如果回答缺少结果或个人行动，必须追问最终结果和复盘结论。"
+        "不要出纯技术题。"
+    ),
+    "technical": (
+        "【当前阶段：技术考察】"
+        "目标是考察技术深度、工程判断和系统思维。"
+        "可以问架构设计、技术选型理由、性能优化、线上排障经历、代码质量等。"
+        "如果候选人给出结论，必须追问：为什么这样选、有什么取舍、遇到了什么坑。"
+        "不要问纯行为或软技能问题。"
+    ),
+    "closing": (
+        "【当前阶段：收尾】"
+        "目标是给候选人反问机会，并做简短的面试收尾。"
+        "可以问：你对这个岗位或团队有什么想了解的？你觉得自己最大的短板是什么？"
+        "不要出新的技术题或行为题。语气回归轻松，给候选人一个好的结束体验。"
+    ),
+}
+
+
+def _round_instructions(question_type: str) -> str:
+    return _ROUND_INSTRUCTIONS.get(question_type, "")
+
+
 def _rounds_for_type(interview_type: str) -> list[dict[str, Any]]:
     if interview_type == "behavioral":
         return [
-            {"type": "warmup", "goal": "自我介绍与背景确认"},
-            {"type": "behavioral", "goal": "行为事件与协作能力"},
-            {"type": "behavioral", "goal": "冲突处理与复盘能力"},
-            {"type": "closing", "goal": "总结与反问"},
+            {"type": "warmup", "goal": "自我介绍与背景确认", "max_questions": 2},
+            {"type": "behavioral", "goal": "行为事件与协作能力", "max_questions": 4},
+            {"type": "behavioral", "goal": "冲突处理与复盘能力", "max_questions": 3},
+            {"type": "closing", "goal": "总结与反问", "max_questions": 2},
         ]
     if interview_type == "technical":
         return [
-            {"type": "warmup", "goal": "自我介绍与岗位匹配"},
-            {"type": "resume_deep_dive", "goal": "项目真实性与个人贡献"},
-            {"type": "technical", "goal": "技术深度与工程判断"},
-            {"type": "technical", "goal": "系统设计与排障能力"},
-            {"type": "closing", "goal": "总结与反问"},
+            {"type": "warmup", "goal": "自我介绍与岗位匹配", "max_questions": 2},
+            {"type": "resume_deep_dive", "goal": "项目真实性与个人贡献", "max_questions": 4},
+            {"type": "technical", "goal": "技术深度与工程判断", "max_questions": 4},
+            {"type": "technical", "goal": "系统设计与排障能力", "max_questions": 3},
+            {"type": "closing", "goal": "总结与反问", "max_questions": 2},
         ]
     return [
-        {"type": "warmup", "goal": "自我介绍与背景确认"},
-        {"type": "resume_deep_dive", "goal": "项目深挖与个人贡献"},
-        {"type": "behavioral", "goal": "行为能力与沟通协作"},
-        {"type": "closing", "goal": "总结与反问"},
+        {"type": "warmup", "goal": "自我介绍与背景确认", "max_questions": 2},
+        {"type": "resume_deep_dive", "goal": "项目深挖与个人贡献", "max_questions": 15},
+        {"type": "behavioral", "goal": "行为能力与沟通协作", "max_questions": 3},
+        {"type": "closing", "goal": "总结与反问", "max_questions": 2},
     ]
 
 
@@ -313,11 +355,13 @@ async def start_interview(
     resume = _get_resume_for_user(db, session.resume_id, current_user["id"])
     resume_content = resume.content if isinstance(resume.content, dict) else {}
     rounds = ((session.plan_json or {}).get("rounds") or [])
-    round_goal = rounds[0]["goal"] if rounds else "自我介绍与岗位匹配"
+    first_round = rounds[0] if rounds else {}
+    round_goal = first_round.get("goal", "自我介绍与岗位匹配")
+    instructions = _round_instructions(first_round.get("type", "warmup"))
     question = await _generate_question(
         resume_content=resume_content,
         history=[],
-        prompt=f"开始一场模拟面试。当前轮目标：{round_goal}。请直接提出第一题。",
+        prompt=f"{instructions}\n开始一场模拟面试。当前阶段目标：{round_goal}。请直接提出第一题。",
     )
     if not question:
         question = "先用两分钟做一个和目标岗位最相关的自我介绍。"
@@ -372,68 +416,28 @@ async def answer_interview(
         if item.answer and item is not turn:
             history.append({"role": "user", "content": item.answer})
 
-    evaluation = await _evaluate_answer_with_llm(
-        question=turn.question,
-        answer=answer_text,
-        resume_content=resume_content,
-        history=history,
-    )
-    should_follow_up = evaluation["should_follow_up"] and turn.follow_up_count < 2
-
     turn.answer = answer_text
     turn.answered_at = _now()
-    turn.evaluation = evaluation
-    turn.score = evaluation["score"]
-    turn.status = "evaluated"
-
-    if should_follow_up:
-        prompt = (
-            f"用户刚回答了这个问题：{turn.question}\n"
-            f"回答内容：{answer_text}\n"
-            f"当前缺口：{'；'.join(evaluation['gaps']) or '继续深挖细节'}\n"
-            "请像真实面试官一样只追问一个最关键的问题。"
-        )
-        question = await _generate_question(resume_content=resume_content, history=history, prompt=prompt)
-        if not question:
-            question = "你刚才讲得还不够具体。请补充你的个人贡献、关键动作和最终结果。"
-        next_turn = InterviewTurn(
-            session_id=session.id,
-            turn_index=session.current_turn_index + 1,
-            round_index=turn.round_index,
-            question=question,
-            question_type=turn.question_type,
-            intent=turn.intent,
-            expected_points=turn.expected_points,
-            follow_up_count=turn.follow_up_count + 1,
-            status="asked",
-            asked_at=_now(),
-        )
-        turn.status = "done"
-        session.current_turn_index += 1
-        session.status = "waiting_user_answer"
-        db.add(next_turn)
-        db.commit()
-        db.refresh(session)
-        return InterviewActionResponse(
-            session=_serialize_session(session),
-            evaluation=evaluation,
-            message=question,
-            next_action="follow_up",
-        )
+    turn.status = "done"
 
     rounds = ((session.plan_json or {}).get("rounds") or [])
-    next_round_index = turn.round_index + 1
-    if next_round_index >= len(rounds):
-        turn.status = "done"
-        turns = list(session.turns or [])
-        scores = [item.score for item in turns if item.score is not None]
-        session.overall_score = int(round(sum(scores) / len(scores))) if scores else None
+    current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
+    max_q = int(current_round.get("max_questions") or 2)
+    questions_in_round = sum(1 for t in session.turns if t.round_index == turn.round_index)
+    force_next_round = questions_in_round >= max_q
+
+    if force_next_round:
+        next_round_index = turn.round_index + 1
+    else:
+        next_round_index = turn.round_index
+
+    if force_next_round and next_round_index >= len(rounds):
         session.status = "completed"
         session.ended_at = _now()
         session.report_data = {
             "summary": "本场模拟面试已结束。",
             "strengths": ["能持续回答问题并完成整场面试。"],
-            "weaknesses": list(dict.fromkeys(g for item in turns for g in ((item.evaluation or {}).get("gaps") or [])))[:5],
+            "weaknesses": [],
             "next_training_plan": [
                 "每个回答都补足背景、动作、结果。",
                 "突出个人贡献，避免只讲团队。",
@@ -444,35 +448,45 @@ async def answer_interview(
         db.refresh(session)
         return InterviewActionResponse(
             session=_serialize_session(session),
-            evaluation=evaluation,
             next_action="completed",
         )
 
-    next_round = rounds[next_round_index]
-    prompt = f"进入下一轮模拟面试。当前轮目标：{next_round['goal']}。请直接提出下一题。"
+    if force_next_round:
+        next_round = rounds[next_round_index]
+        instructions = _round_instructions(next_round["type"])
+        prompt = f"{instructions}\n进入下一阶段：{next_round['goal']}。请直接提出该阶段的第一个问题。"
+        new_round_index = next_round_index
+        new_round_type = next_round["type"]
+        new_round_goal = next_round["goal"]
+    else:
+        remaining = max_q - questions_in_round
+        instructions = _round_instructions(current_round["type"])
+        prompt = f"{instructions}\n当前面试阶段：{current_round['goal']}（本阶段还可再问 {remaining} 题）。根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
+        new_round_index = turn.round_index
+        new_round_type = current_round["type"]
+        new_round_goal = current_round["goal"]
+
     question = await _generate_question(resume_content=resume_content, history=history, prompt=prompt)
     if not question:
         question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
     next_turn = InterviewTurn(
         session_id=session.id,
         turn_index=session.current_turn_index + 1,
-        round_index=next_round_index,
+        round_index=new_round_index,
         question=question,
-        question_type=next_round["type"],
-        intent=next_round["goal"],
+        question_type=new_round_type,
+        intent=new_round_goal,
         status="asked",
         asked_at=_now(),
     )
-    turn.status = "done"
     session.current_turn_index += 1
-    session.current_round_index = next_round_index
+    session.current_round_index = new_round_index
     session.status = "waiting_user_answer"
     db.add(next_turn)
     db.commit()
     db.refresh(session)
     return InterviewActionResponse(
         session=_serialize_session(session),
-        evaluation=evaluation,
         message=question,
         next_action="next_question",
     )
@@ -485,7 +499,7 @@ async def answer_interview_stream(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """流式版本：先评估，再流式生成面试官回复，最后发 done 事件。"""
+    """流式版本：流式生成面试官回复，最后发 done 事件。"""
     session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     if not session or session.user_id != current_user["id"]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
@@ -506,43 +520,39 @@ async def answer_interview_stream(
         if item.answer and item is not turn:
             history.append({"role": "user", "content": item.answer})
 
-    # 1. 非流式评估（必须先完成才能决定后续行为）
-    evaluation = await _evaluate_answer_with_llm(
-        question=turn.question,
-        answer=answer_text,
-        resume_content=resume_content,
-        history=history,
-    )
-    should_follow_up = evaluation["should_follow_up"] and turn.follow_up_count < 2
-
     turn.answer = answer_text
     turn.answered_at = _now()
-    turn.evaluation = evaluation
-    turn.score = evaluation["score"]
-    turn.status = "evaluated"
+    turn.status = "done"
 
     async def generate():
         nonlocal session
 
-        # 2. 决定 prompt
-        if should_follow_up:
-            prompt = (
-                f"用户刚回答了这个问题：{turn.question}\n"
-                f"回答内容：{answer_text}\n"
-                f"当前缺口：{'；'.join(evaluation['gaps']) or '继续深挖细节'}\n"
-                "请像真实面试官一样只追问一个最关键的问题。"
-            )
-        else:
-            rounds = ((session.plan_json or {}).get("rounds") or [])
-            next_round_index = turn.round_index + 1
-            is_last_round = next_round_index >= len(rounds)
-            if is_last_round:
-                prompt = None  # 面试结束，无需生成问题
-            else:
-                next_round = rounds[next_round_index]
-                prompt = f"进入下一轮模拟面试。当前轮目标：{next_round['goal']}。请直接提出下一题。"
+        rounds = ((session.plan_json or {}).get("rounds") or [])
+        current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
+        max_q = int(current_round.get("max_questions") or 2)
+        questions_in_round = sum(1 for t in session.turns if t.round_index == turn.round_index)
+        force_next_round = questions_in_round >= max_q
 
-        # 3. 流式生成问题（结束场景跳过）
+        if force_next_round:
+            next_round_index = turn.round_index + 1
+        else:
+            next_round_index = turn.round_index
+
+        is_completed = force_next_round and next_round_index >= len(rounds)
+
+        # 1. 决定 prompt
+        if is_completed:
+            prompt = None
+        elif force_next_round:
+            next_round = rounds[next_round_index]
+            instructions = _round_instructions(next_round["type"])
+            prompt = f"{instructions}\n进入下一阶段：{next_round['goal']}。请直接提出该阶段的第一个问题。"
+        else:
+            remaining = max_q - questions_in_round
+            instructions = _round_instructions(current_round["type"])
+            prompt = f"{instructions}\n当前面试阶段：{current_round['goal']}（本阶段还可再问 {remaining} 题）。根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
+
+        # 2. 流式生成问题（结束场景跳过）
         accumulated = ""
         if prompt is not None:
             try:
@@ -561,93 +571,59 @@ async def answer_interview_stream(
 
         question = accumulated.strip() or None
 
-        # 4. 持久化新状态
-        if should_follow_up:
+        # 3. 持久化新状态
+        if is_completed:
+            session.status = "completed"
+            session.ended_at = _now()
+            session.report_data = {
+                "summary": "本场模拟面试已结束。",
+                "strengths": ["能持续回答问题并完成整场面试。"],
+                "weaknesses": [],
+                "next_training_plan": [
+                    "每个回答都补足背景、动作、结果。",
+                    "突出个人贡献，避免只讲团队。",
+                    "尽量加入量化指标和复盘结论。",
+                ],
+            }
+            db.commit()
+            db.refresh(session)
+            done_payload = {
+                "type": "done",
+                "next_action": "completed",
+                "session": _serialize_session(session),
+            }
+        else:
+            if force_next_round:
+                next_round = rounds[next_round_index]
+                new_round_type = next_round["type"]
+                new_round_goal = next_round["goal"]
+            else:
+                new_round_type = current_round["type"]
+                new_round_goal = current_round["goal"]
             if not question:
-                question = "你刚才讲得还不够具体。请补充你的个人贡献、关键动作和最终结果。"
+                question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
             next_turn = InterviewTurn(
                 session_id=session.id,
                 turn_index=session.current_turn_index + 1,
-                round_index=turn.round_index,
+                round_index=next_round_index,
                 question=question,
-                question_type=turn.question_type,
-                intent=turn.intent,
-                expected_points=turn.expected_points,
-                follow_up_count=turn.follow_up_count + 1,
+                question_type=new_round_type,
+                intent=new_round_goal,
                 status="asked",
                 asked_at=_now(),
             )
-            turn.status = "done"
             session.current_turn_index += 1
+            session.current_round_index = next_round_index
             session.status = "waiting_user_answer"
             db.add(next_turn)
             db.commit()
             db.refresh(session)
             done_payload = {
                 "type": "done",
-                "next_action": "follow_up",
-                "evaluation": evaluation,
+                "next_action": "next_question",
                 "message": question,
                 "session": _serialize_session(session),
             }
-        else:
-            rounds = ((session.plan_json or {}).get("rounds") or [])
-            next_round_index = turn.round_index + 1
-            if next_round_index >= len(rounds):
-                turn.status = "done"
-                turns = list(session.turns or [])
-                scores = [item.score for item in turns if item.score is not None]
-                session.overall_score = int(round(sum(scores) / len(scores))) if scores else None
-                session.status = "completed"
-                session.ended_at = _now()
-                session.report_data = {
-                    "summary": "本场模拟面试已结束。",
-                    "strengths": ["能持续回答问题并完成整场面试。"],
-                    "weaknesses": list(dict.fromkeys(
-                        g for item in turns for g in ((item.evaluation or {}).get("gaps") or [])
-                    ))[:5],
-                    "next_training_plan": [
-                        "每个回答都补足背景、动作、结果。",
-                        "突出个人贡献，避免只讲团队。",
-                        "尽量加入量化指标和复盘结论。",
-                    ],
-                }
-                db.commit()
-                db.refresh(session)
-                done_payload = {
-                    "type": "done",
-                    "next_action": "completed",
-                    "evaluation": evaluation,
-                    "session": _serialize_session(session),
-                }
-            else:
-                next_round = rounds[next_round_index]
-                if not question:
-                    question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
-                next_turn = InterviewTurn(
-                    session_id=session.id,
-                    turn_index=session.current_turn_index + 1,
-                    round_index=next_round_index,
-                    question=question,
-                    question_type=next_round["type"],
-                    intent=next_round["goal"],
-                    status="asked",
-                    asked_at=_now(),
-                )
-                turn.status = "done"
-                session.current_turn_index += 1
-                session.current_round_index = next_round_index
-                session.status = "waiting_user_answer"
-                db.add(next_turn)
-                db.commit()
-                db.refresh(session)
-                done_payload = {
-                    "type": "done",
-                    "next_action": "next_question",
-                    "evaluation": evaluation,
-                    "message": question,
-                    "session": _serialize_session(session),
-                }
 
         yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 

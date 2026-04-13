@@ -51,22 +51,6 @@ function buildIVMessages(session: InterviewSession): IVMessage[] {
   for (const turn of session.turns || []) {
     msgs.push({ id: `q-${turn.id}`, type: 'ai', content: turn.question })
     if (turn.answer) msgs.push({ id: `a-${turn.id}`, type: 'user', content: turn.answer })
-    if (turn.evaluation) {
-      const gaps = turn.evaluation.gaps || []
-      const evidence = turn.evaluation.evidence || []
-      const scores = turn.evaluation.dimension_scores || {}
-      const scoreLine = Object.keys(scores).length > 0
-        ? `评分：${Object.entries(scores).map(([k, v]) => `${k} ${v}`).join(' / ')}`
-        : ''
-      const detailLine = gaps.length > 0
-        ? `问题：${gaps.join('；')}`
-        : evidence.length > 0 ? `亮点：${evidence.join('；')}` : ''
-      msgs.push({
-        id: `e-${turn.id}`,
-        type: 'system',
-        content: [turn.evaluation.summary, scoreLine, detailLine].filter(Boolean).join('\n'),
-      })
-    }
   }
   return msgs
 }
