@@ -1,6 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
@@ -1112,7 +1112,7 @@ export default function ResumeEditPage() {
                     onClick={() => setAgentType('resume')}
                     className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
                       agentType === 'resume'
-                        ? 'bg-white text-blue-600 shadow-sm'
+                        ? 'bg-green-700 text-white shadow-sm'
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
@@ -1120,10 +1120,10 @@ export default function ResumeEditPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { resetInterview(); setAgentType('interview') }}
+                    onClick={() => setAgentType('interview')}
                     className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
                       agentType === 'interview'
-                        ? 'bg-white text-violet-600 shadow-sm'
+                        ? 'bg-green-700 text-white shadow-sm'
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
@@ -1195,13 +1195,16 @@ export default function ResumeEditPage() {
           ref={mainPanelsRef}
           className="flex gap-0 h-[calc(100vh-120px)]"
         >
-          {/* Left Panel - Editor */}
+          {/* Left Panel - Editor（面试模式下完全隐藏） */}
+          <AnimatePresence initial={false}>
+          {agentType !== 'interview' && (
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="flex flex-col min-h-0 print:hidden"
-            style={editorOpen ? { flex: `0 0 calc(${editorFlex}% - 8px)` } : undefined}
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: editorOpen ? `calc(${editorFlex}% - 8px)` : '48px' }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.35, ease: 'easeInOut' }}
+            className="flex flex-col min-h-0 print:hidden overflow-hidden"
+            style={{ flexShrink: 0, flexGrow: 0 }}
           >
             {!editorOpen ? (
               /* 折叠状态：现代化细条 */
@@ -1291,8 +1294,10 @@ export default function ResumeEditPage() {
             </div>
             )}
           </motion.div>
+          )}
+          </AnimatePresence>
 
-          {editorOpen && (
+          {agentType !== 'interview' && editorOpen && (
             <div
               className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
               onPointerDown={handleEditorDividerPointerDown}
@@ -1303,9 +1308,10 @@ export default function ResumeEditPage() {
 
           {/* Middle Panel - Preview */}
           <motion.div
+            layout
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.2 }, x: { duration: 0.8, delay: 0.2 } }}
             className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
@@ -1334,9 +1340,10 @@ export default function ResumeEditPage() {
 
           {/* Right Panel - AI Chat */}
           <motion.div
+            layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
+            transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.4 }, y: { duration: 0.8, delay: 0.4 } }}
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
@@ -1361,13 +1368,21 @@ export default function ResumeEditPage() {
                   </button>
                 )}
               </div>
+              <AnimatePresence mode="wait">
               {agentType === 'interview' ? (
               /* ── 面试模式 ── */
-              <div className="flex-1 flex flex-col min-h-0">
+              <motion.div
+                key="interview"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 flex flex-col min-h-0"
+              >
                 <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
                   {ivMessages.map((m) => (
                     <div key={m.id} className={`flex w-full ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[88%] px-4 py-3 rounded-2xl ${
+                      <div className={`max-w-[85%] px-4 py-3 rounded-2xl ${
                         m.type === 'user'
                           ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
                           : m.type === 'system'
@@ -1429,10 +1444,17 @@ export default function ResumeEditPage() {
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
               ) : (
               /* ── 简历 AGENT 模式 ── */
-              <>
+              <motion.div
+                key="resume"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 flex flex-col min-h-0"
+              >
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">
@@ -1649,8 +1671,9 @@ export default function ResumeEditPage() {
                   </div>
                 </div>
               </div>
-              </>
+              </motion.div>
               )}
+              </AnimatePresence>
             </div>
           </motion.div>
         </div>
