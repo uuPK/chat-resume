@@ -1,0 +1,60 @@
+{
+  "personal_info": {
+    "name": "Kevin Wang",
+    "email": "kevinwang@gmail.com",
+    "phone": "13700003333",
+    "position": "Full-Stack Engineer"
+  },
+  "education": [
+    {
+      "school": "Fudan University",
+      "degree": "Bachelor",
+      "major": "Information Systems",
+      "start_date": "2016-09",
+      "end_date": "2020-06"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "FinTech Startup",
+      "position": "Software Engineer",
+      "start_date": "2022-01",
+      "end_date": "2024-11",
+      "highlights": [
+        "Worked on the payment system",
+        "Did some frontend and backend work",
+        "Helped improve performance a bit"
+      ]
+    },
+    {
+      "company": "Mid-size Tech Company",
+      "position": "Junior Developer",
+      "start_date": "2020-07",
+      "end_date": "2021-12",
+      "highlights": [
+        "Built some APIs",
+        "Fixed bugs",
+        "Wrote unit tests"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Payment Gateway Integration",
+      "description": "Integrated third-party payment providers into the platform",
+      "highlights": [
+        "Connected Stripe and Alipay APIs",
+        "Made the checkout faster",
+        "Handled errors better"
+      ],
+      "tech_stack": ["Node.js", "TypeScript", "React", "PostgreSQL"]
+    }
+  ],
+  "skills": [
+    { "category": "Languages", "items": ["TypeScript", "JavaScript", "Python", "Go"] },
+    { "category": "Frontend", "items": ["React", "Next.js", "Vue.js"] },
+    { "category": "Backend", "items": ["Node.js", "FastAPI", "Express"] },
+    { "category": "Databases", "items": ["PostgreSQL", "MongoDB", "Redis"] },
+    { "category": "DevOps", "items": ["Docker", "Kubernetes", "AWS"] }
+  ]
+}

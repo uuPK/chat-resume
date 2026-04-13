@@ -1,0 +1,48 @@
+{
+  "personal_info": {
+    "name": "陈小明",
+    "email": "chenxm@gmail.com",
+    "phone": "13900001111",
+    "position": "后端开发工程师"
+  },
+  "education": [
+    {
+      "school": "西安电子科技大学",
+      "degree": "本科",
+      "major": "计算机科学与技术",
+      "start_date": "2020-09",
+      "end_date": "2024-06",
+      "gpa": "3.5/4.0"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "某互联网公司",
+      "position": "后端开发实习生",
+      "start_date": "2023-07",
+      "end_date": "2023-12",
+      "highlights": [
+        "参与开发用户模块",
+        "修复了一些 bug",
+        "学习了 Java 和 Spring Boot"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "校园二手交易平台",
+      "description": "毕业设计项目，实现了基本的商品发布和搜索功能",
+      "highlights": [
+        "用 Spring Boot 写了后端接口",
+        "用 MySQL 存数据",
+        "实现了用户注册登录"
+      ],
+      "tech_stack": ["Spring Boot", "MySQL", "Vue.js"]
+    }
+  ],
+  "skills": [
+    { "category": "编程语言", "items": ["Java", "Python"] },
+    { "category": "框架", "items": ["Spring Boot"] },
+    { "category": "数据库", "items": ["MySQL"] }
+  ]
+}

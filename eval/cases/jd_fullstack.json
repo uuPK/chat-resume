@@ -1,0 +1,15 @@
+{
+  "title": "Full-Stack Engineer",
+  "company": "Global Tech Company",
+  "keywords": [
+    "React", "Next.js", "TypeScript", "Node.js",
+    "REST API", "GraphQL", "microservices",
+    "PostgreSQL", "Redis", "MongoDB",
+    "Docker", "Kubernetes", "AWS", "CI/CD",
+    "unit testing", "integration testing", "TDD",
+    "performance optimization", "scalability",
+    "system design", "code review",
+    "agile", "scrum", "cross-functional"
+  ],
+  "description": "Build and maintain full-stack web applications. Work across the entire stack including React/Next.js frontend, Node.js backend, and cloud infrastructure. Experience with TypeScript, PostgreSQL, and containerized deployments required."
+}

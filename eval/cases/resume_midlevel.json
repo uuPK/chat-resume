@@ -1,0 +1,68 @@
+{
+  "personal_info": {
+    "name": "李雪梅",
+    "email": "lixuemei@outlook.com",
+    "phone": "13811112222",
+    "position": "高级后端工程师"
+  },
+  "education": [
+    {
+      "school": "北京邮电大学",
+      "degree": "本科",
+      "major": "软件工程",
+      "start_date": "2015-09",
+      "end_date": "2019-06"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "某电商平台",
+      "position": "后端开发工程师",
+      "start_date": "2021-03",
+      "end_date": "2024-12",
+      "highlights": [
+        "负责订单系统的开发和维护",
+        "系统做了一些优化，性能变好了",
+        "带了两个新人"
+      ]
+    },
+    {
+      "company": "某 SaaS 公司",
+      "position": "初级后端工程师",
+      "start_date": "2019-07",
+      "end_date": "2021-02",
+      "highlights": [
+        "开发了报表功能",
+        "做了接口对接",
+        "参与了数据库设计"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "订单中台重构",
+      "description": "将单体订单系统拆分为微服务架构",
+      "highlights": [
+        "参与了系统拆分",
+        "写了一些 RPC 接口",
+        "系统稳定性提升了"
+      ],
+      "tech_stack": ["Java", "Spring Cloud", "Kafka", "Redis"]
+    },
+    {
+      "name": "数据报表平台",
+      "description": "为运营提供数据分析能力",
+      "highlights": [
+        "开发了数据导出功能",
+        "做了图表展示"
+      ],
+      "tech_stack": ["Python", "FastAPI", "ClickHouse"]
+    }
+  ],
+  "skills": [
+    { "category": "编程语言", "items": ["Java", "Python", "Go"] },
+    { "category": "框架", "items": ["Spring Boot", "Spring Cloud", "FastAPI"] },
+    { "category": "中间件", "items": ["Kafka", "Redis", "RabbitMQ"] },
+    { "category": "数据库", "items": ["MySQL", "PostgreSQL", "ClickHouse"] }
+  ]
+}
