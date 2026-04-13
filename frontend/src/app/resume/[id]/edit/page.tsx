@@ -1127,7 +1127,7 @@ export default function ResumeEditPage() {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    模拟面试
+                    面试 AGENT
                   </button>
                 </div>
                 <ResumeLayoutControls
