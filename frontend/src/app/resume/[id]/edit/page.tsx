@@ -974,7 +974,7 @@ export default function ResumeEditPage() {
       <header className="bg-white border-b border-gray-100 print:hidden">
         <div className="w-full px-6">
           <div className="flex justify-between items-center py-3">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <Link
                 href="/dashboard"
                 className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
@@ -982,6 +982,25 @@ export default function ResumeEditPage() {
               >
                 <ArrowLeftIcon className="w-5 h-5" />
               </Link>
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setAgentType('resume')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    agentType === 'resume'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  简历 AGENT
+                </button>
+                <Link
+                  href={`/resume/${resumeId}/interview`}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
+                >
+                  模拟面试
+                </Link>
+              </div>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -1197,26 +1216,7 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setAgentType('resume')}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      agentType === 'resume'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    简历 AGENT
-                  </button>
-                  <Link
-                    href={`/resume/${resumeId}/interview`}
-                    className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
-                  >
-                    模拟面试
-                  </Link>
-                </div>
+              <div className="mb-3 flex items-center justify-end gap-3 flex-shrink-0">
                 <button
                   onClick={handleClearMessages}
                   disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
