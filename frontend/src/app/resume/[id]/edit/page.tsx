@@ -1091,30 +1091,6 @@ export default function ResumeEditPage() {
 
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setAgentType('resume')}
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
-                      agentType === 'resume'
-                        ? 'bg-green-700 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                    简历 AGENT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAgentType('interview')}
-                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
-                      agentType === 'interview'
-                        ? 'bg-green-700 text-white shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600'
-                    }`}
-                  >
-                    面试 AGENT
-                  </button>
-                </div>
                 <ResumeLayoutControls
                   config={layoutConfig}
                   onConfigChange={handleLayoutConfigChange}

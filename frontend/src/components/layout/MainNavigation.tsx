@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { UserIcon, ChevronDownIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline'
 import { DocumentIcon } from '@heroicons/react/24/solid'
 import { useAuth } from '@/lib/auth'
@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from 'react'
 
 export default function MainNavigation() {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, logout } = useAuth()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -32,13 +33,35 @@ export default function MainNavigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           {/* Logo和品牌 */}
-          <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center space-x-2">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
                 <DocumentIcon className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">Chat Resume</span>
             </Link>
+            <nav className="hidden sm:flex items-center gap-1">
+              <Link
+                href="/resumes"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  pathname === '/' || pathname === '/dashboard' || pathname?.startsWith('/resumes') || pathname?.startsWith('/resume/')
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                简历中心
+              </Link>
+              <Link
+                href="/interviews"
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  pathname?.startsWith('/interviews')
+                    ? 'bg-green-50 text-green-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                面试中心
+              </Link>
+            </nav>
           </div>
 
           {/* 用户信息和操作 */}

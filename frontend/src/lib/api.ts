@@ -106,6 +106,8 @@ interface InterviewSession {
     rounds?: Array<{ type: string; goal: string }>
   }
   overall_score?: number
+  started_at?: string
+  ended_at?: string
   report_data?: {
     summary?: string
     strengths?: string[]
@@ -287,6 +289,13 @@ class ResumeAPI {
       },
     })
     return handleApiResponse<ResumeProposal>(response)
+  }
+
+  static async listInterviewSessions(): Promise<InterviewSession[]> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/`, {
+      headers: { ...getAuthHeaders() },
+    })
+    return handleApiResponse<InterviewSession[]>(response)
   }
 
   static async createInterviewSession(data: {

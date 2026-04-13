@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowLeftIcon, ArrowUpIcon, StopIcon } from '@heroicons/react/24/outline'
@@ -56,7 +56,9 @@ function buildMessagesFromSession(session: InterviewSession): UIMessage[] {
 export default function InterviewPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const resumeId = Number(params?.id as string)
+  const requestedSessionId = Number(searchParams?.get('session') || 0)
 
   const { isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
@@ -93,24 +95,36 @@ export default function InterviewPage() {
     if (!resume || session || isSending) return
     const jobApplication = resume.content?.job_application || {}
     setIsSending(true)
-    resumeApi.createInterviewSession({
-      resume_id: resume.id,
-      target_title: jobApplication.target_title,
-      target_company: jobApplication.target_company,
-      jd_text: jobApplication.jd_text,
-      interview_type: 'general',
-      difficulty: 'medium',
-      language: 'zh-CN',
-      mode: 'text',
-    })
-      .then((created) => resumeApi.startInterviewSession(created.session.id))
+
+    const loadSession = requestedSessionId
+      ? resumeApi.getInterviewSession(requestedSessionId).then((result) => {
+          if (result.session.resume_id !== resume.id) {
+            throw new Error('面试记录与当前简历不匹配')
+          }
+          if ((result.session.turns?.length ?? 0) === 0 && result.session.status !== 'completed') {
+            return resumeApi.startInterviewSession(result.session.id)
+          }
+          return result
+        })
+      : resumeApi.createInterviewSession({
+          resume_id: resume.id,
+          target_title: jobApplication.target_title,
+          target_company: jobApplication.target_company,
+          jd_text: jobApplication.jd_text,
+          interview_type: 'general',
+          difficulty: 'medium',
+          language: 'zh-CN',
+          mode: 'text',
+        }).then((created) => resumeApi.startInterviewSession(created.session.id))
+
+    loadSession
       .then((started) => {
         setSession(started.session)
         setMessages(buildMessagesFromSession(started.session))
       })
       .catch((err) => setError(err instanceof Error ? err.message : '启动面试失败'))
       .finally(() => setIsSending(false))
-  }, [resume, session, isSending])
+  }, [resume, session, isSending, requestedSessionId])
 
   const sendAnswer = async () => {
     const text = inputMessage.trim()
@@ -256,12 +270,7 @@ export default function InterviewPage() {
             style={{ flex: '0 0 calc(63% - 8px)' }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                  <span className="rounded-md px-3 py-1.5 text-xs font-medium bg-white text-gray-900 shadow-sm">
-                    面试 Session
-                  </span>
-                </div>
+              <div className="mb-3 flex items-center justify-end gap-3 flex-shrink-0">
                 {session?.overall_score != null && (
                   <span className="text-xs text-gray-500">总分 {session.overall_score}</span>
                 )}
