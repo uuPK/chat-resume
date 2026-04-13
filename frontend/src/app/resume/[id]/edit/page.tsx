@@ -286,6 +286,7 @@ export default function ResumeEditPage() {
   const resumeId = params?.id as string
   const previewFlex = 100 - editorFlex - agentFlex
   const collapsedAgentFlex = 100 - previewFlex
+  const editorAnimateWidth = editorOpen ? `calc(${editorFlex}% - 8px)` : '48px'
   const messages = messageBuckets['resume']
 
   const appendMessageForAgent = useCallback(
@@ -1200,7 +1201,7 @@ export default function ResumeEditPage() {
           {agentType !== 'interview' && (
           <motion.div
             initial={{ opacity: 0, width: 0 }}
-            animate={{ opacity: 1, width: editorOpen ? `calc(${editorFlex}% - 8px)` : '48px' }}
+            animate={{ opacity: 1, width: editorAnimateWidth }}
             exit={{ opacity: 0, width: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
             className="flex flex-col min-h-0 print:hidden overflow-hidden"
