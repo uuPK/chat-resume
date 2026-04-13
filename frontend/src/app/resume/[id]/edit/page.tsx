@@ -38,7 +38,38 @@ import {
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useStreamingChat, ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
-import { chatHistoryApi } from '@/lib/api'
+import { chatHistoryApi, type InterviewSession } from '@/lib/api'
+
+type IVMessage = {
+  id: string
+  type: 'user' | 'ai' | 'system'
+  content: string
+}
+
+function buildIVMessages(session: InterviewSession): IVMessage[] {
+  const msgs: IVMessage[] = []
+  for (const turn of session.turns || []) {
+    msgs.push({ id: `q-${turn.id}`, type: 'ai', content: turn.question })
+    if (turn.answer) msgs.push({ id: `a-${turn.id}`, type: 'user', content: turn.answer })
+    if (turn.evaluation) {
+      const gaps = turn.evaluation.gaps || []
+      const evidence = turn.evaluation.evidence || []
+      const scores = turn.evaluation.dimension_scores || {}
+      const scoreLine = Object.keys(scores).length > 0
+        ? `评分：${Object.entries(scores).map(([k, v]) => `${k} ${v}`).join(' / ')}`
+        : ''
+      const detailLine = gaps.length > 0
+        ? `问题：${gaps.join('；')}`
+        : evidence.length > 0 ? `亮点：${evidence.join('；')}` : ''
+      msgs.push({
+        id: `e-${turn.id}`,
+        type: 'system',
+        content: [turn.evaluation.summary, scoreLine, detailLine].filter(Boolean).join('\n'),
+      })
+    }
+  }
+  return msgs
+}
 
 interface Resume {
   id: number
@@ -230,7 +261,15 @@ export default function ResumeEditPage() {
   const [isClearingMessages, setIsClearingMessages] = useState(false)
   const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [agentType, setAgentType] = useState<'resume'>('resume')
+  const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
+
+  // 面试相关状态
+  const [ivSession, setIvSession] = useState<InterviewSession | null>(null)
+  const [ivMessages, setIvMessages] = useState<IVMessage[]>([])
+  const [ivInput, setIvInput] = useState('')
+  const [ivSending, setIvSending] = useState(false)
+  const [ivError, setIvError] = useState<string | null>(null)
+  const ivMessagesEndRef = useRef<HTMLDivElement>(null)
   const [qrImages, setQrImages] = useState<string[]>([])
   const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -247,7 +286,7 @@ export default function ResumeEditPage() {
   const resumeId = params?.id as string
   const previewFlex = 100 - editorFlex - agentFlex
   const collapsedAgentFlex = 100 - previewFlex
-  const messages = messageBuckets[agentType]
+  const messages = messageBuckets['resume']
 
   const appendMessageForAgent = useCallback(
     (targetAgent: 'resume', message: ChatMessage) => {
@@ -281,10 +320,10 @@ export default function ResumeEditPage() {
     confirmTool,
   } = useStreamingChat(parseInt(resumeId), {
     visibleModules: Array.from(layoutConfig.visibleModules),
-    agentType,
-    onMessage: (message) => {
-      appendMessageForAgent(agentType, message)
-      if (agentType === 'resume' && resumeId) {
+    agentType: 'resume',
+    onMessage: (message: ChatMessage) => {
+      appendMessageForAgent('resume', message)
+      if (resumeId) {
         chatHistoryApi.appendMessages(parseInt(resumeId), [
           {
             role: 'assistant',
@@ -302,7 +341,7 @@ export default function ResumeEditPage() {
         content: `抱歉，发生了错误：${error}`,
         timestamp: new Date()
       }
-      appendMessageForAgent(agentType, errorMessage)
+      appendMessageForAgent('resume', errorMessage)
     },
     onQrImages: (images) => {
       if (images && images.length > 0) {
@@ -329,19 +368,100 @@ export default function ResumeEditPage() {
   useEffect(() => {
     const requestedAgent = searchParams?.get('agent')
     if (requestedAgent === 'interview' || requestedAgent === 'interviewer') {
-      if (resumeId) {
-        router.replace(`/resume/${resumeId}/interview`)
-      }
-      return
-    }
-    if (requestedAgent === 'resume') {
+      setAgentType('interview')
+    } else if (requestedAgent === 'resume') {
       setAgentType('resume')
     }
-  }, [searchParams, resumeId, router])
+  }, [searchParams])
 
   useEffect(() => {
     setApiError(null)
+    setIvError(null)
+    if (agentType === 'interview') {
+      setEditorOpen(false)
+    } else {
+      setEditorOpen(true)
+    }
   }, [agentType])
+
+  // 切换到面试模式时自动创建并启动 session
+  useEffect(() => {
+    if (agentType !== 'interview' || !resume || ivSession || ivSending) return
+    const jobApp = resume.content?.job_application || {}
+    setIvSending(true)
+    resumeApi.createInterviewSession({
+      resume_id: resume.id,
+      target_title: jobApp.target_title,
+      target_company: jobApp.target_company,
+      jd_text: jobApp.jd_text,
+      interview_type: 'general',
+      difficulty: 'medium',
+      language: 'zh-CN',
+      mode: 'text',
+    })
+      .then((created) => resumeApi.startInterviewSession(created.session.id))
+      .then((started) => {
+        setIvSession(started.session)
+        setIvMessages(buildIVMessages(started.session))
+      })
+      .catch((err) => setIvError(err instanceof Error ? err.message : '启动面试失败'))
+      .finally(() => setIvSending(false))
+  }, [agentType, resume])
+
+  // 面试消息自动滚动
+  useEffect(() => {
+    ivMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [ivMessages])
+
+  const sendInterviewAnswer = async () => {
+    const text = ivInput.trim()
+    if (!text || !ivSession || ivSending || ivSession.status === 'completed') return
+    setIvSending(true)
+    setIvError(null)
+    setIvInput('')
+    const userMsgId = `user-${Date.now()}`
+    const aiMsgId = `ai-stream-${Date.now()}`
+    setIvMessages((prev) => [...prev, { id: userMsgId, type: 'user', content: text }])
+    setIvMessages((prev) => [...prev, { id: aiMsgId, type: 'ai', content: '' }])
+    try {
+      for await (const event of resumeApi.answerInterviewSessionStream(ivSession.id, text)) {
+        if (event.type === 'token') {
+          setIvMessages((prev) =>
+            prev.map((m) => m.id === aiMsgId ? { ...m, content: m.content + event.content } : m)
+          )
+        } else if (event.type === 'done') {
+          setIvSession(event.session)
+          setIvMessages(buildIVMessages(event.session))
+        }
+      }
+    } catch (err) {
+      setIvMessages((prev) => prev.filter((m) => m.id !== aiMsgId))
+      setIvError(err instanceof Error ? err.message : '提交回答失败')
+    } finally {
+      setIvSending(false)
+    }
+  }
+
+  const endInterview = async () => {
+    if (!ivSession || ivSending || ivSession.status === 'completed') return
+    setIvSending(true)
+    try {
+      const result = await resumeApi.endInterviewSession(ivSession.id)
+      setIvSession(result.session)
+      setIvMessages(buildIVMessages(result.session))
+    } catch (err) {
+      setIvError(err instanceof Error ? err.message : '结束面试失败')
+    } finally {
+      setIvSending(false)
+    }
+  }
+
+  const resetInterview = () => {
+    setIvSession(null)
+    setIvMessages([])
+    setIvInput('')
+    setIvError(null)
+  }
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
@@ -660,7 +780,7 @@ export default function ResumeEditPage() {
       timestamp: new Date()
     }
 
-    appendMessageForAgent(agentType, userMessage)
+    appendMessageForAgent('resume', userMessage)
     if (agentType === 'resume' && resumeId) {
       chatHistoryApi.appendMessages(parseInt(resumeId), [
         { role: 'user', content: userMessage.content },
@@ -696,7 +816,7 @@ export default function ResumeEditPage() {
       if (agentType === 'resume') {
         await chatHistoryApi.clearMessages(resume.id)
       }
-      replaceMessagesForAgent(agentType, [])
+      replaceMessagesForAgent('resume', [])
       setApiError(null)
       toast.success('已清空消息记录')
     } catch (error) {
@@ -713,7 +833,7 @@ export default function ResumeEditPage() {
   ) => {
     setMessageBuckets(prev => ({
       ...prev,
-      [agentType]: prev[agentType].map(message =>
+      resume: prev['resume'].map((message: ChatMessage) =>
         message.id === messageId && message.proposal
           ? { ...message, proposal: { ...message.proposal, proposalStatus: status } }
           : message
@@ -998,12 +1118,17 @@ export default function ResumeEditPage() {
                   >
                     简历 AGENT
                   </button>
-                  <Link
-                    href={`/resume/${resumeId}/interview`}
-                    className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
+                  <button
+                    type="button"
+                    onClick={() => { resetInterview(); setAgentType('interview') }}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      agentType === 'interview'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
                     模拟面试
-                  </Link>
+                  </button>
                 </div>
                 <ResumeLayoutControls
                   config={layoutConfig}
@@ -1217,15 +1342,97 @@ export default function ResumeEditPage() {
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
               <div className="mb-3 flex items-center justify-end gap-3 flex-shrink-0">
-                <button
-                  onClick={handleClearMessages}
-                  disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
-                  aria-label={isClearingMessages ? '清空中' : '清空消息'}
-                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <TrashIcon className="w-3.5 h-3.5" />
-                </button>
+                {agentType === 'resume' ? (
+                  <button
+                    onClick={handleClearMessages}
+                    disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
+                    aria-label={isClearingMessages ? '清空中' : '清空消息'}
+                    className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={endInterview}
+                    disabled={!ivSession || ivSending || ivSession?.status === 'completed'}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    结束面试
+                  </button>
+                )}
               </div>
+              {agentType === 'interview' ? (
+              /* ── 面试模式 ── */
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
+                  {ivMessages.map((m) => (
+                    <div key={m.id} className={`flex w-full ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[88%] px-4 py-3 rounded-2xl ${
+                        m.type === 'user'
+                          ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
+                          : m.type === 'system'
+                          ? 'bg-amber-50 text-amber-900 rounded-bl-md border border-amber-100 shadow-xs'
+                          : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
+                      }`}>
+                        {m.type === 'user'
+                          ? <span className="text-[14px] whitespace-pre-wrap">{m.content}</span>
+                          : <MarkdownMessage content={m.content} />
+                        }
+                      </div>
+                    </div>
+                  ))}
+                  {ivSending && ivMessages.every((m) => !m.id.startsWith('ai-stream-') || m.content) && (
+                    <div className="flex w-full justify-start">
+                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                        <span className="inline-block animate-pulse">评估中...</span>
+                      </div>
+                    </div>
+                  )}
+                  {ivSession?.report_data && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
+                      <p className="font-medium">面试报告</p>
+                      {ivSession.report_data.summary && <p className="mt-2">{ivSession.report_data.summary}</p>}
+                      {(ivSession.report_data.weaknesses ?? []).length > 0 && (
+                        <p className="mt-2">主要问题：{(ivSession.report_data.weaknesses ?? []).join('；')}</p>
+                      )}
+                      {(ivSession.report_data.next_training_plan ?? []).length > 0 && (
+                        <p className="mt-2">下一步：{(ivSession.report_data.next_training_plan ?? []).join('；')}</p>
+                      )}
+                    </div>
+                  )}
+                  {ivError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{ivError}</div>
+                  )}
+                  <div ref={ivMessagesEndRef} />
+                </div>
+                <div className="pt-3 flex-shrink-0">
+                  <div className="relative">
+                    <textarea
+                      value={ivInput}
+                      onChange={(e) => setIvInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendInterviewAnswer() } }}
+                      placeholder={ivSession?.status === 'completed' ? '本场面试已结束' : '输入你的回答...'}
+                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
+                      rows={2}
+                      disabled={ivSending || ivSession?.status === 'completed'}
+                    />
+                    <button
+                      onClick={sendInterviewAnswer}
+                      disabled={!ivInput.trim() || ivSending || ivSession?.status === 'completed'}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${
+                        ivInput.trim() && !ivSending && ivSession?.status !== 'completed'
+                          ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <ArrowUpIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              ) : (
+              /* ── 简历 AGENT 模式 ── */
+              <>
               {/* API错误提示 */}
               {apiError && (
                 <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">
@@ -1240,7 +1447,7 @@ export default function ResumeEditPage() {
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Messages Display Area */}
                 <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
-                  {messages.map((message) => (
+                  {messages.map((message: ChatMessage) => (
                     <div
                       key={message.id}
                       className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -1255,7 +1462,7 @@ export default function ResumeEditPage() {
                           <>
                             {/* 有 streamEvents 时按事件顺序交错渲染；否则直接渲染完整文本 */}
                             {message.streamEvents && message.streamEvents.length > 0 ? (
-                              message.streamEvents.map((event, idx) => {
+                              message.streamEvents!.map((event: StreamEvent, idx: number) => {
                                 if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
                                   const isConfirmed = event.type === 'tool_confirmed'
                                   const diffLines = parseDiffSummary(event.diffSummary)
@@ -1442,6 +1649,8 @@ export default function ResumeEditPage() {
                   </div>
                 </div>
               </div>
+              </>
+              )}
             </div>
           </motion.div>
         </div>
