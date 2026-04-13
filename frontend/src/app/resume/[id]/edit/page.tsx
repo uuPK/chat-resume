@@ -982,29 +982,29 @@ export default function ResumeEditPage() {
               >
                 <ArrowLeftIcon className="w-5 h-5" />
               </Link>
-              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-                <button
-                  type="button"
-                  onClick={() => setAgentType('resume')}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    agentType === 'resume'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  简历 AGENT
-                </button>
-                <Link
-                  href={`/resume/${resumeId}/interview`}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
-                >
-                  模拟面试
-                </Link>
-              </div>
             </div>
 
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setAgentType('resume')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      agentType === 'resume'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    简历 AGENT
+                  </button>
+                  <Link
+                    href={`/resume/${resumeId}/interview`}
+                    className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-900"
+                  >
+                    模拟面试
+                  </Link>
+                </div>
                 <ResumeLayoutControls
                   config={layoutConfig}
                   onConfigChange={handleLayoutConfigChange}
