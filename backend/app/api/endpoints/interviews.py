@@ -95,8 +95,8 @@ def _serialize_turn(turn: InterviewTurn) -> dict[str, Any]:
         "score": turn.score,
         "follow_up_count": turn.follow_up_count,
         "status": turn.status,
-        "asked_at": turn.asked_at,
-        "answered_at": turn.answered_at,
+        "asked_at": turn.asked_at.isoformat() if turn.asked_at else None,
+        "answered_at": turn.answered_at.isoformat() if turn.answered_at else None,
     }
 
 
@@ -118,8 +118,8 @@ def _serialize_session(session: InterviewSession) -> dict[str, Any]:
         "plan": session.plan_json,
         "overall_score": session.overall_score,
         "report_data": session.report_data,
-        "started_at": session.started_at,
-        "ended_at": session.ended_at,
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "ended_at": session.ended_at.isoformat() if session.ended_at else None,
         "turns": [_serialize_turn(turn) for turn in turns],
         "current_turn": _serialize_turn(turns[-1]) if turns else None,
     }
