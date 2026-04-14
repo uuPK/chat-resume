@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowLeftIcon, ArrowUpIcon, StopIcon, DocumentTextIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, ArrowUpIcon, StopIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon, ChevronLeftIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { resumeApi, type InterviewSession } from '@/lib/api'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
@@ -182,126 +182,100 @@ export default function InterviewPage() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <DocumentTextIcon className="w-4 h-4" />
-                查看资料
-              </button>
-              <button
-                onClick={endInterview}
-                disabled={!session || isSending || isComplete}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 disabled:opacity-50"
-              >
-                <StopIcon className="w-4 h-4" />
-                结束面试
-              </button>
-            </div>
+            <button
+              onClick={endInterview}
+              disabled={!session || isSending || isComplete}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 disabled:opacity-50"
+            >
+              <StopIcon className="w-4 h-4" />
+              结束面试
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Drawer overlay */}
-      {drawerOpen && (
-        <div className="fixed inset-0 z-40 flex justify-end">
-          {/* backdrop */}
-          <div
-            className="absolute inset-0 bg-black/20 backdrop-blur-[1px]"
-            onClick={() => setDrawerOpen(false)}
-          />
-          {/* panel */}
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="relative z-50 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden"
-          >
-            {/* drawer header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <span className="text-sm font-semibold text-gray-800">JD & 简历</span>
-              <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                <XMarkIcon className="w-4 h-4 text-gray-500" />
-              </button>
+      {/* Left panel + toggle tab */}
+      <div className="fixed left-0 top-14 bottom-0 z-30 flex">
+        {/* panel */}
+        <motion.div
+          animate={{ width: drawerOpen ? 300 : 0 }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          className="bg-white border-r border-gray-100 shadow-lg overflow-hidden flex-shrink-0 flex flex-col"
+        >
+          <div className="w-[300px] flex flex-col h-full">
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">JD & 简历</p>
             </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {/* JD section */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {/* JD */}
               {session?.jd_text && (
                 <div className="rounded-xl border border-gray-200 overflow-hidden">
                   <button
                     onClick={() => setJdExpanded(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
                   >
-                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">职位描述 JD</span>
-                    {jdExpanded ? <ChevronUpIcon className="w-4 h-4 text-gray-400" /> : <ChevronDownIcon className="w-4 h-4 text-gray-400" />}
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">职位描述 JD</span>
+                    {jdExpanded ? <ChevronUpIcon className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />}
                   </button>
                   {jdExpanded && (
-                    <div className="px-4 py-3">
-                      <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap">{session.jd_text}</p>
+                    <div className="px-3 py-2.5">
+                      <p className="text-[12px] text-gray-600 leading-relaxed whitespace-pre-wrap">{session.jd_text}</p>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Resume section */}
+              {/* Resume */}
               {resume?.content && (
                 <div className="rounded-xl border border-gray-200 overflow-hidden">
                   <button
                     onClick={() => setResumeExpanded(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
                   >
-                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">简历内容</span>
-                    {resumeExpanded ? <ChevronUpIcon className="w-4 h-4 text-gray-400" /> : <ChevronDownIcon className="w-4 h-4 text-gray-400" />}
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">简历内容</span>
+                    {resumeExpanded ? <ChevronUpIcon className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />}
                   </button>
                   {resumeExpanded && (
-                    <div className="px-4 py-3 space-y-4">
-                      {/* basic info */}
+                    <div className="px-3 py-3 space-y-3">
                       {resume.content.personal_info && (
                         <div>
-                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">基本信息</p>
-                          <p className="text-sm font-medium text-gray-800">{resume.content.personal_info.name}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{resume.content.personal_info.email} · {resume.content.personal_info.phone}</p>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">基本信息</p>
+                          <p className="text-xs font-medium text-gray-800">{resume.content.personal_info.name}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{resume.content.personal_info.email}</p>
                         </div>
                       )}
-                      {/* work experience */}
                       {(resume.content.work_experience?.length ?? 0) > 0 && (
                         <div>
-                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">工作经历</p>
-                          <div className="space-y-2.5">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">工作经历</p>
+                          <div className="space-y-2">
                             {resume.content.work_experience!.map((w: any, i: number) => (
                               <div key={i}>
-                                <p className="text-xs font-semibold text-gray-700">{w.company} · {w.position}</p>
-                                <p className="text-[11px] text-gray-400 mt-0.5">{w.start_date} — {w.end_date || '至今'}</p>
-                                {w.description && <p className="text-[12px] text-gray-600 mt-1 leading-relaxed">{w.description}</p>}
+                                <p className="text-[11px] font-semibold text-gray-700">{w.company} · {w.position}</p>
+                                <p className="text-[10px] text-gray-400">{w.start_date} — {w.end_date || '至今'}</p>
+                                {w.description && <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{w.description}</p>}
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
-                      {/* projects */}
                       {(resume.content.projects?.length ?? 0) > 0 && (
                         <div>
-                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">项目经历</p>
-                          <div className="space-y-2.5">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">项目经历</p>
+                          <div className="space-y-2">
                             {resume.content.projects!.map((p: any, i: number) => (
                               <div key={i}>
-                                <p className="text-xs font-semibold text-gray-700">{p.name}</p>
-                                {p.description && <p className="text-[12px] text-gray-600 mt-1 leading-relaxed">{p.description}</p>}
+                                <p className="text-[11px] font-semibold text-gray-700">{p.name}</p>
+                                {p.description && <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{p.description}</p>}
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
-                      {/* skills */}
                       {(resume.content.skills?.length ?? 0) > 0 && (
                         <div>
-                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">技能</p>
-                          <div className="flex flex-wrap gap-1.5">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">技能</p>
+                          <div className="flex flex-wrap gap-1">
                             {resume.content.skills!.map((s: any, i: number) => (
-                              <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
                                 {typeof s === 'string' ? s : s.name}
                               </span>
                             ))}
@@ -312,14 +286,20 @@ export default function InterviewPage() {
                   )}
                 </div>
               )}
-
-              {!session?.jd_text && !resume?.content && (
-                <p className="text-sm text-gray-400 text-center py-8">暂无内容</p>
-              )}
             </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        </motion.div>
+
+        {/* toggle tab */}
+        <button
+          onClick={() => setDrawerOpen(v => !v)}
+          className="self-center -mr-px bg-white border border-gray-200 rounded-r-lg px-1 py-3 shadow-sm hover:bg-gray-50 transition-colors"
+        >
+          {drawerOpen
+            ? <ChevronLeftIcon className="w-3.5 h-3.5 text-gray-400" />
+            : <ChevronRightIcon className="w-3.5 h-3.5 text-gray-400" />}
+        </button>
+      </div>
 
       <main className="w-full py-6">
         <div className="max-w-2xl mx-auto space-y-5 px-4">
