@@ -203,7 +203,7 @@ export default function InterviewPage() {
                 {rounds.length > 1 && (
                   <div className="absolute left-[6px] top-3 bottom-3 w-px bg-gray-200" />
                 )}
-                <div className="space-y-10">
+                <div className="space-y-20">
                   {rounds.map((round, idx) => {
                     const isCurrent = !isComplete && idx === currentRoundIndex
                     const isDone = isComplete || idx < currentRoundIndex
