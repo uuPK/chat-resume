@@ -196,14 +196,14 @@ export default function InterviewPage() {
       <main className="w-full py-6">
         <div className="flex items-start min-h-0">
 
-          {/* Left column: phase sidebar centered within left space */}
-          <div className="hidden md:flex flex-1 justify-center sticky top-20 pt-0 self-start">
+          {/* Left column: phase sidebar — horizontally + vertically centered in viewport */}
+          <div className="hidden md:flex flex-1 items-center justify-center sticky top-0 h-screen self-start">
             <aside>
               <div className="relative">
                 {rounds.length > 1 && (
                   <div className="absolute left-[6px] top-3 bottom-3 w-px bg-gray-200" />
                 )}
-                <div className="space-y-4">
+                <div className="space-y-7">
                   {rounds.map((round, idx) => {
                     const isCurrent = !isComplete && idx === currentRoundIndex
                     const isDone = isComplete || idx < currentRoundIndex
