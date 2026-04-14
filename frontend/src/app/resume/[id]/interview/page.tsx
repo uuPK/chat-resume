@@ -194,14 +194,13 @@ export default function InterviewPage() {
         </div>
       </header>
 
-      {/* Left panel + toggle tab */}
-      <div className="fixed left-0 top-14 bottom-0 z-30 flex">
-        {/* panel */}
-        <motion.div
-          animate={{ width: drawerOpen ? 300 : 0 }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="bg-white border-r border-gray-100 shadow-lg overflow-hidden flex-shrink-0 flex flex-col"
-        >
+      {/* Left panel */}
+      <motion.div
+        animate={{ x: drawerOpen ? 0 : -300 }}
+        initial={{ x: -300 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        className="fixed left-0 top-[57px] bottom-0 z-30 w-[300px] bg-white border-r border-gray-100 shadow-lg flex flex-col"
+      >
           <div className="w-[300px] flex flex-col h-full">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">JD & 简历</p>
@@ -288,18 +287,29 @@ export default function InterviewPage() {
               )}
             </div>
           </div>
-        </motion.div>
+      </motion.div>
 
-        {/* toggle tab */}
-        <button
-          onClick={() => setDrawerOpen(v => !v)}
-          className="self-center -mr-px bg-white border border-gray-200 rounded-r-lg px-1 py-3 shadow-sm hover:bg-gray-50 transition-colors"
-        >
+      {/* Toggle button — fixed on left edge, vertically centered */}
+      <motion.button
+        animate={{ left: drawerOpen ? 300 : 0 }}
+        initial={{ left: 0 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        onClick={() => setDrawerOpen(v => !v)}
+        className="fixed top-1/2 -translate-y-1/2 z-40 bg-white border border-gray-200 border-l-0 rounded-r-xl shadow-md px-2 py-4 hover:bg-gray-50 active:scale-95 transition-all"
+        style={{ left: drawerOpen ? 300 : 0 }}
+      >
+        <div className="flex flex-col items-center gap-1">
           {drawerOpen
-            ? <ChevronLeftIcon className="w-3.5 h-3.5 text-gray-400" />
-            : <ChevronRightIcon className="w-3.5 h-3.5 text-gray-400" />}
-        </button>
-      </div>
+            ? <ChevronLeftIcon className="w-4 h-4 text-gray-500" />
+            : <ChevronRightIcon className="w-4 h-4 text-gray-500" />}
+          {!drawerOpen && (
+            <span className="text-[10px] text-gray-400 writing-mode-vertical"
+              style={{ writingMode: 'vertical-rl', letterSpacing: '0.05em' }}>
+              资料
+            </span>
+          )}
+        </div>
+      </motion.button>
 
       <main className="w-full py-6">
         <div className="max-w-2xl mx-auto space-y-5 px-4">
