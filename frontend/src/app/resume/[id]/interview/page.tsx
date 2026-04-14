@@ -146,6 +146,16 @@ export default function InterviewPage() {
   const turns = session?.turns || []
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
+  const rounds: Array<{ type: string; goal: string }> = session?.plan?.rounds || []
+  const currentRoundIndex: number = session?.current_round_index ?? -1
+
+  const ROUND_LABEL: Record<string, string> = {
+    warmup: '热身',
+    resume_deep_dive: '项目深挖',
+    behavioral: '行为面试',
+    technical: '技术考察',
+    closing: '收尾',
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -184,7 +194,56 @@ export default function InterviewPage() {
       </header>
 
       <main className="w-full mx-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-5">
+        <div className="max-w-5xl mx-auto flex gap-6 items-start">
+
+          {/* Left sidebar: interview phases */}
+          <aside className="hidden md:flex flex-col gap-1 w-44 flex-shrink-0 sticky top-20">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">面试阶段</p>
+            {rounds.length === 0 && (
+              <div className="text-xs text-gray-300 px-1">加载中...</div>
+            )}
+            {rounds.map((round, idx) => {
+              const isCurrent = !isComplete && idx === currentRoundIndex
+              const isDone = isComplete || idx < currentRoundIndex
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl transition-colors ${
+                    isCurrent
+                      ? 'bg-indigo-50 border border-indigo-200'
+                      : isDone
+                      ? 'opacity-50'
+                      : 'opacity-40'
+                  }`}
+                >
+                  {/* dot / check */}
+                  <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    isCurrent
+                      ? 'bg-indigo-500 text-white'
+                      : isDone
+                      ? 'bg-emerald-400 text-white'
+                      : 'bg-gray-200 text-gray-400'
+                  }`}>
+                    {isDone && !isCurrent ? '✓' : idx + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-medium leading-tight ${isCurrent ? 'text-indigo-700' : 'text-gray-600'}`}>
+                      {ROUND_LABEL[round.type] || round.type}
+                    </p>
+                    <p className="text-[11px] text-gray-400 leading-tight mt-0.5 line-clamp-2">{round.goal}</p>
+                  </div>
+                </div>
+              )
+            })}
+            {isComplete && (
+              <div className="mt-3 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200">
+                <p className="text-xs font-medium text-emerald-700">面试已结束</p>
+              </div>
+            )}
+          </aside>
+
+          {/* Right: question cards */}
+          <div className="flex-1 min-w-0 space-y-5">
           {turns.map((turn) => {
             const hasAnswer = !!turn.answer
             const isActive = !hasAnswer && !pendingAnswer
@@ -372,7 +431,8 @@ export default function InterviewPage() {
           )}
 
           <div ref={bottomRef} />
-        </div>
+          </div>{/* end right column */}
+        </div>{/* end max-w-5xl flex */}
       </main>
     </div>
   )
