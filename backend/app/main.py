@@ -30,7 +30,18 @@ logging.basicConfig(
 # 第三方 HTTP 库的低级调试日志只在 WARNING 以上才输出
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("multipart").setLevel(logging.WARNING)
+logging.getLogger("passlib").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+def _truncate_log_value(value: str | None, limit: int = 240) -> str:
+    if not value:
+        return "-"
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[:limit]}..."
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -69,7 +80,7 @@ async def log_requests(request: Request, call_next):
                 metrics.query_count,
                 metrics.query_ms_total,
                 metrics.longest_query_ms,
-                metrics.longest_query_statement or "-",
+                _truncate_log_value(metrics.longest_query_statement),
             )
         reset_request_metrics(metrics_token)
 

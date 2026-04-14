@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { resumeApi } from '@/lib/api'
@@ -28,6 +28,55 @@ interface Resume {
   target_title?: string
 }
 
+function ResumePreviewLoader({
+  resumeId,
+  content,
+  onVisible,
+}: {
+  resumeId: number
+  content?: any
+  onVisible: (resumeId: number) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element || content) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onVisible(resumeId)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [content, onVisible, resumeId])
+
+  return (
+    <div ref={containerRef} className="pointer-events-none select-none w-full h-full">
+      {content ? (
+        <PaginatedResumePreview content={content as any} />
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-pulse flex flex-col items-center space-y-2 w-full px-6">
+            <div className="h-4 bg-gray-200 rounded w-1/2" />
+            <div className="h-3 bg-gray-200 rounded w-3/4" />
+            <div className="h-3 bg-gray-200 rounded w-2/3" />
+            <div className="h-3 bg-gray-200 rounded w-3/4 mt-4" />
+            <div className="h-3 bg-gray-200 rounded w-full" />
+            <div className="h-3 bg-gray-200 rounded w-full" />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ResumesPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
@@ -39,6 +88,7 @@ export default function ResumesPage() {
   const [newResumeTitle, setNewResumeTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [resumeContents, setResumeContents] = useState<Record<number, any>>({})
+  const loadingResumeContentIdsRef = useRef<Set<number>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setMounted(true) }, [])
@@ -55,19 +105,8 @@ export default function ResumesPage() {
       setResumesLoading(true)
       const data = await resumeApi.getResumes()
       setResumes(data)
-      const contentEntries = await Promise.all(
-        data.map(async (resume) => {
-          try {
-            const full = await resumeApi.getResume(resume.id)
-            return [resume.id, full.content] as const
-          } catch { return null }
-        })
-      )
-      const contents: Record<number, any> = {}
-      for (const entry of contentEntries) {
-        if (entry) contents[entry[0]] = entry[1]
-      }
-      setResumeContents(contents)
+      setResumeContents({})
+      loadingResumeContentIdsRef.current.clear()
     } catch {
       toast.error('获取简历列表失败')
     } finally {
@@ -78,6 +117,21 @@ export default function ResumesPage() {
   useEffect(() => {
     if (mounted && isAuthenticated) fetchResumes()
   }, [mounted, isAuthenticated])
+
+  const loadResumePreview = useCallback(async (resumeId: number) => {
+    if (!isAuthenticated) return
+    if (resumeContents[resumeId] || loadingResumeContentIdsRef.current.has(resumeId)) return
+
+    loadingResumeContentIdsRef.current.add(resumeId)
+    try {
+      const full = await resumeApi.getResume(resumeId)
+      setResumeContents(prev => ({ ...prev, [resumeId]: full.content }))
+    } catch {
+      // 预览失败不阻塞列表主流程，打开编辑页仍会重新加载完整简历。
+    } finally {
+      loadingResumeContentIdsRef.current.delete(resumeId)
+    }
+  }, [isAuthenticated, resumeContents])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -199,22 +253,11 @@ export default function ResumesPage() {
                   <div className="relative">
                     <Link href={`/resume/${resume.id}/edit`} className="block">
                       <div className="overflow-hidden bg-gray-50 border-b border-gray-100" style={{ height: '220px' }}>
-                        {resumeContents[resume.id] ? (
-                          <div className="pointer-events-none select-none w-full h-full">
-                            <PaginatedResumePreview content={resumeContents[resume.id] as any} />
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <div className="animate-pulse flex flex-col items-center space-y-2 w-full px-6">
-                              <div className="h-4 bg-gray-200 rounded w-1/2" />
-                              <div className="h-3 bg-gray-200 rounded w-3/4" />
-                              <div className="h-3 bg-gray-200 rounded w-2/3" />
-                              <div className="h-3 bg-gray-200 rounded w-3/4 mt-4" />
-                              <div className="h-3 bg-gray-200 rounded w-full" />
-                              <div className="h-3 bg-gray-200 rounded w-full" />
-                            </div>
-                          </div>
-                        )}
+                        <ResumePreviewLoader
+                          resumeId={resume.id}
+                          content={resumeContents[resume.id]}
+                          onVisible={loadResumePreview}
+                        />
                       </div>
                     </Link>
                     <button onClick={() => handleDeleteResume(resume.id, resume.title)} className="absolute top-2 right-2 p-1.5 bg-white bg-opacity-90 text-gray-400 hover:text-red-500 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" title="删除简历">
