@@ -193,8 +193,8 @@ export default function InterviewPage() {
         </div>
       </header>
 
-      <main className="w-full mx-auto px-4 py-6">
-        <div className="max-w-5xl mx-auto flex gap-6 items-start">
+      <main className="w-full px-4 py-6">
+        <div className="flex justify-center gap-8 items-start">
 
           {/* Left sidebar: interview phases */}
           <aside className="hidden md:block w-32 flex-shrink-0 sticky top-20">
@@ -233,7 +233,7 @@ export default function InterviewPage() {
           </aside>
 
           {/* Right: question cards */}
-          <div className="flex-1 min-w-0 space-y-5">
+          <div className="w-full max-w-2xl space-y-5">
           {turns.map((turn) => {
             const hasAnswer = !!turn.answer
             const isActive = !hasAnswer && !pendingAnswer
