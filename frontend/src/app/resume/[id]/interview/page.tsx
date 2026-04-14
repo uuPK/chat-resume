@@ -193,47 +193,44 @@ export default function InterviewPage() {
         </div>
       </header>
 
-      <main className="w-full px-4 py-6">
-        <div className="flex justify-center gap-8 items-start">
+      <main className="w-full py-6">
+        <div className="flex items-start min-h-0">
 
-          {/* Left sidebar: interview phases */}
-          <aside className="hidden md:block w-32 flex-shrink-0 sticky top-20">
-            <div className="relative">
-              {/* vertical line */}
-              {rounds.length > 1 && (
-                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-200" />
-              )}
-              <div className="space-y-5">
-                {rounds.map((round, idx) => {
-                  const isCurrent = !isComplete && idx === currentRoundIndex
-                  const isDone = isComplete || idx < currentRoundIndex
-                  return (
-                    <div key={idx} className="flex items-center gap-3 relative">
-                      <span className={`flex-shrink-0 w-3.5 h-3.5 rounded-full border-2 transition-colors ${
-                        isCurrent
-                          ? 'bg-indigo-500 border-indigo-500'
-                          : isDone
-                          ? 'bg-emerald-400 border-emerald-400'
-                          : 'bg-white border-gray-300'
-                      }`} />
-                      <span className={`text-xs leading-tight transition-colors ${
-                        isCurrent
-                          ? 'text-indigo-600 font-semibold'
-                          : isDone
-                          ? 'text-gray-400'
-                          : 'text-gray-400'
-                      }`}>
-                        {ROUND_LABEL[round.type] || round.type}
-                      </span>
-                    </div>
-                  )
-                })}
+          {/* Left column: phase sidebar centered within left space */}
+          <div className="hidden md:flex flex-1 justify-center sticky top-20 pt-0 self-start">
+            <aside>
+              <div className="relative">
+                {rounds.length > 1 && (
+                  <div className="absolute left-[6px] top-3 bottom-3 w-px bg-gray-200" />
+                )}
+                <div className="space-y-4">
+                  {rounds.map((round, idx) => {
+                    const isCurrent = !isComplete && idx === currentRoundIndex
+                    const isDone = isComplete || idx < currentRoundIndex
+                    return (
+                      <div key={idx} className="flex items-center gap-3">
+                        <span className={`flex-shrink-0 w-3 h-3 rounded-full border-2 transition-colors ${
+                          isCurrent
+                            ? 'bg-indigo-500 border-indigo-500'
+                            : isDone
+                            ? 'bg-emerald-400 border-emerald-400'
+                            : 'bg-white border-gray-300'
+                        }`} />
+                        <span className={`text-xs transition-colors ${
+                          isCurrent ? 'text-indigo-600 font-semibold' : 'text-gray-400'
+                        }`}>
+                          {ROUND_LABEL[round.type] || round.type}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          </aside>
+            </aside>
+          </div>
 
-          {/* Right: question cards */}
-          <div className="w-full max-w-2xl space-y-5">
+          {/* Center: question cards */}
+          <div className="w-full max-w-2xl flex-shrink-0 space-y-5 px-4">
           {turns.map((turn) => {
             const hasAnswer = !!turn.answer
             const isActive = !hasAnswer && !pendingAnswer
@@ -421,8 +418,11 @@ export default function InterviewPage() {
           )}
 
           <div ref={bottomRef} />
-          </div>{/* end right column */}
-        </div>{/* end max-w-5xl flex */}
+          </div>{/* end center column */}
+
+          {/* Right balance column */}
+          <div className="hidden md:block flex-1" />
+        </div>
       </main>
     </div>
   )
