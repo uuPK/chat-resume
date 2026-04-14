@@ -146,17 +146,6 @@ export default function InterviewPage() {
   const turns = session?.turns || []
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
-  const rounds: Array<{ type: string; goal: string }> = session?.plan?.rounds || []
-  const currentRoundIndex: number = session?.current_round_index ?? -1
-
-  const ROUND_LABEL: Record<string, string> = {
-    warmup: '热身',
-    resume_deep_dive: '项目深挖',
-    behavioral: '行为面试',
-    technical: '技术考察',
-    closing: '收尾',
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:hidden">
@@ -194,52 +183,7 @@ export default function InterviewPage() {
       </header>
 
       <main className="w-full py-6">
-        <div className="flex items-start min-h-0">
-
-          {/* Left column: phase sidebar — centered in viewport */}
-          <div className="hidden md:flex flex-1 items-center justify-center sticky top-0 h-screen self-start">
-            <aside>
-              <div>
-                {rounds.map((round, idx) => {
-                  const isCurrent = !isComplete && idx === currentRoundIndex
-                  const isDone = isComplete || idx < currentRoundIndex
-                  const isLast = idx === rounds.length - 1
-                  return (
-                    <div key={idx}>
-                      {/* dot */}
-                      <div className="w-6 flex items-center justify-center">
-                        <div className={`rounded-full flex items-center justify-center transition-all duration-300 ${
-                          isCurrent
-                            ? 'w-[18px] h-[18px] bg-indigo-500 ring-[5px] ring-indigo-100 shadow-sm shadow-indigo-300'
-                            : isDone
-                            ? 'w-[14px] h-[14px] bg-emerald-400'
-                            : 'w-[14px] h-[14px] bg-white border-2 border-gray-200'
-                        }`}>
-                          {isDone && (
-                            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 10 10">
-                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                      {/* connector line under dot, same w-6 column */}
-                      {!isLast && (
-                        <div className="w-6 flex justify-center">
-                          <div
-                            className={`w-px ${isDone ? 'bg-gradient-to-b from-emerald-300 to-gray-200' : 'bg-gray-200'}`}
-                            style={{ minHeight: '6rem' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </aside>
-          </div>
-
-          {/* Center: question cards */}
-          <div className="w-full max-w-2xl flex-shrink-0 space-y-5 px-4">
+        <div className="max-w-2xl mx-auto space-y-5 px-4">
           {turns.map((turn) => {
             const hasAnswer = !!turn.answer
             const isActive = !hasAnswer && !pendingAnswer
@@ -427,10 +371,6 @@ export default function InterviewPage() {
           )}
 
           <div ref={bottomRef} />
-          </div>{/* end center column */}
-
-          {/* Right balance column */}
-          <div className="hidden md:block flex-1" />
         </div>
       </main>
     </div>
