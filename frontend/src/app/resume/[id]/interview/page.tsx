@@ -206,32 +206,21 @@ export default function InterviewPage() {
                   const isLast = idx === rounds.length - 1
                   return (
                     <div key={idx}>
-                      {/* dot + label — always items-center */}
-                      <div className="flex items-center gap-4">
-                        <div className="w-6 flex items-center justify-center flex-shrink-0">
-                          <div className={`rounded-full flex items-center justify-center transition-all duration-300 ${
-                            isCurrent
-                              ? 'w-[18px] h-[18px] bg-indigo-500 ring-[5px] ring-indigo-100 shadow-sm shadow-indigo-300'
-                              : isDone
-                              ? 'w-[14px] h-[14px] bg-emerald-400'
-                              : 'w-[14px] h-[14px] bg-white border-2 border-gray-200'
-                          }`}>
-                            {isDone && (
-                              <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 10 10">
-                                <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            )}
-                          </div>
-                        </div>
-                        <span className={`text-[13px] leading-none transition-all duration-300 ${
+                      {/* dot */}
+                      <div className="w-6 flex items-center justify-center">
+                        <div className={`rounded-full flex items-center justify-center transition-all duration-300 ${
                           isCurrent
-                            ? 'font-semibold text-indigo-600'
+                            ? 'w-[18px] h-[18px] bg-indigo-500 ring-[5px] ring-indigo-100 shadow-sm shadow-indigo-300'
                             : isDone
-                            ? 'text-gray-400'
-                            : 'text-gray-300'
+                            ? 'w-[14px] h-[14px] bg-emerald-400'
+                            : 'w-[14px] h-[14px] bg-white border-2 border-gray-200'
                         }`}>
-                          {ROUND_LABEL[round.type] || round.type}
-                        </span>
+                          {isDone && (
+                            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 10 10">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
                       </div>
                       {/* connector line under dot, same w-6 column */}
                       {!isLast && (
