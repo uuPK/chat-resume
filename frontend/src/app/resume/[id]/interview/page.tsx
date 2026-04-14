@@ -196,14 +196,29 @@ export default function InterviewPage() {
 
       {/* Left panel */}
       <motion.div
-        animate={{ x: drawerOpen ? 0 : -300 }}
-        initial={{ x: -300 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed left-0 top-[57px] bottom-0 z-30 w-[300px] bg-white border-r border-gray-100 shadow-lg flex flex-col"
+        animate={{ width: drawerOpen ? 300 : 48 }}
+        initial={{ width: 48 }}
+        transition={{ duration: 0.35, ease: 'easeInOut' }}
+        className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-100 shadow-sm flex flex-col overflow-hidden"
       >
+        {!drawerOpen ? (
+          /* collapsed strip — same as edit page */
+          <div
+            className="flex flex-col items-center justify-center h-full w-12 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors group"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
+          </div>
+        ) : (
           <div className="w-[300px] flex flex-col h-full">
-            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">JD & 简历</p>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
               {/* JD */}
@@ -287,29 +302,8 @@ export default function InterviewPage() {
               )}
             </div>
           </div>
+        )}
       </motion.div>
-
-      {/* Toggle button — fixed on left edge, vertically centered */}
-      <motion.button
-        animate={{ left: drawerOpen ? 300 : 0 }}
-        initial={{ left: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        onClick={() => setDrawerOpen(v => !v)}
-        className="fixed top-1/2 -translate-y-1/2 z-40 bg-white border border-gray-200 border-l-0 rounded-r-xl shadow-md px-2 py-4 hover:bg-gray-50 active:scale-95 transition-all"
-        style={{ left: drawerOpen ? 300 : 0 }}
-      >
-        <div className="flex flex-col items-center gap-1">
-          {drawerOpen
-            ? <ChevronLeftIcon className="w-4 h-4 text-gray-500" />
-            : <ChevronRightIcon className="w-4 h-4 text-gray-500" />}
-          {!drawerOpen && (
-            <span className="text-[10px] text-gray-400 writing-mode-vertical"
-              style={{ writingMode: 'vertical-rl', letterSpacing: '0.05em' }}>
-              资料
-            </span>
-          )}
-        </div>
-      </motion.button>
 
       <main className="w-full py-6">
         <div className="max-w-2xl mx-auto space-y-5 px-4">
