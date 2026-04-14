@@ -146,6 +146,15 @@ export default function InterviewPage() {
   const turns = session?.turns || []
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
+
+  const ROUND_LABEL: Record<string, string> = {
+    warmup: '热身',
+    resume_deep_dive: '项目深挖',
+    behavioral: '行为面试',
+    technical: '技术考察',
+    closing: '收尾',
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:hidden">
@@ -209,6 +218,11 @@ export default function InterviewPage() {
                       </svg>
                     </div>
                     <span className="text-xs font-medium text-gray-500">面试官</span>
+                    {turn.question_type && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-500 font-medium">
+                        {ROUND_LABEL[turn.question_type] || turn.question_type}
+                      </span>
+                    )}
                     <span className={`ml-auto flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
                       hasAnswer || isPendingEval
                         ? 'bg-emerald-100 text-emerald-700'
