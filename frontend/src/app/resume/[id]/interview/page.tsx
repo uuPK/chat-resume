@@ -7,51 +7,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeftIcon, ArrowUpIcon, StopIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { resumeApi, type InterviewSession } from '@/lib/api'
-import ResumePreview from '@/components/preview/ResumePreview'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
-
-type UIMessage = {
-  id: string
-  type: 'user' | 'ai' | 'system'
-  content: string
-}
-
-function buildMessagesFromSession(session: InterviewSession): UIMessage[] {
-  const messages: UIMessage[] = []
-  for (const turn of session.turns || []) {
-    messages.push({
-      id: `q-${turn.id}`,
-      type: 'ai',
-      content: turn.question,
-    })
-    if (turn.answer) {
-      messages.push({
-        id: `a-${turn.id}`,
-        type: 'user',
-        content: turn.answer,
-      })
-    }
-    if (turn.evaluation) {
-      const gaps = turn.evaluation.gaps || []
-      const evidence = turn.evaluation.evidence || []
-      const scores = turn.evaluation.dimension_scores || {}
-      const scoreLine = Object.keys(scores).length > 0
-        ? `评分：${Object.entries(scores).map(([key, value]) => `${key} ${value}`).join(' / ')}`
-        : ''
-      const detailLine = gaps.length > 0
-        ? `问题：${gaps.join('；')}`
-        : evidence.length > 0
-        ? `亮点：${evidence.join('；')}`
-        : ''
-      messages.push({
-        id: `e-${turn.id}`,
-        type: 'system',
-        content: [turn.evaluation.summary, scoreLine, detailLine].filter(Boolean).join('\n'),
-      })
-    }
-  }
-  return messages
-}
 
 export default function InterviewPage() {
   const params = useParams()
@@ -65,15 +21,13 @@ export default function InterviewPage() {
   const [resume, setResume] = useState<Awaited<ReturnType<typeof resumeApi.getResume>> | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [session, setSession] = useState<InterviewSession | null>(null)
-  const [messages, setMessages] = useState<UIMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [pendingAnswer, setPendingAnswer] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) router.push('/login')
@@ -86,10 +40,6 @@ export default function InterviewPage() {
       .catch((err) => setError(err instanceof Error ? err.message : '加载简历失败'))
       .finally(() => setResumeLoading(false))
   }, [resumeId, isAuthenticated])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, session])
 
   useEffect(() => {
     if (!resume || session || isSending) return
@@ -118,13 +68,14 @@ export default function InterviewPage() {
         }).then((created) => resumeApi.startInterviewSession(created.session.id))
 
     loadSession
-      .then((started) => {
-        setSession(started.session)
-        setMessages(buildMessagesFromSession(started.session))
-      })
+      .then((started) => setSession(started.session))
       .catch((err) => setError(err instanceof Error ? err.message : '启动面试失败'))
       .finally(() => setIsSending(false))
   }, [resume, session, isSending, requestedSessionId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [session, pendingAnswer])
 
   const sendAnswer = async () => {
     const text = inputMessage.trim()
@@ -132,30 +83,17 @@ export default function InterviewPage() {
     setIsSending(true)
     setError(null)
     setInputMessage('')
-
-    // 立即把用户回答追加到 UI
-    const userMsgId = `user-${Date.now()}`
-    setMessages((prev) => [...prev, { id: userMsgId, type: 'user', content: text }])
-
-    // 占位 AI 气泡，流式 token 追加进来
-    const aiMsgId = `ai-stream-${Date.now()}`
-    setMessages((prev) => [...prev, { id: aiMsgId, type: 'ai', content: '' }])
+    setPendingAnswer(text)
 
     try {
-      for await (const event of resumeApi.answerInterviewSessionStream(session.id, text)) {
-        if (event.type === 'token') {
-          setMessages((prev) =>
-            prev.map((m) => m.id === aiMsgId ? { ...m, content: m.content + event.content } : m)
-          )
-        } else if (event.type === 'done') {
-          // 流结束：用完整 session 状态重建消息列表（含评估气泡）
-          setSession(event.session)
-          setMessages(buildMessagesFromSession(event.session))
+      for await (const _event of resumeApi.answerInterviewSessionStream(session.id, text)) {
+        if (_event.type === 'done') {
+          setSession(_event.session)
+          setPendingAnswer(null)
         }
       }
     } catch (err) {
-      // 移除占位气泡，显示错误
-      setMessages((prev) => prev.filter((m) => m.id !== aiMsgId))
+      setPendingAnswer(null)
       setError(err instanceof Error ? err.message : '提交回答失败')
     } finally {
       setIsSending(false)
@@ -169,7 +107,6 @@ export default function InterviewPage() {
     try {
       const result = await resumeApi.endInterviewSession(session.id)
       setSession(result.session)
-      setMessages(buildMessagesFromSession(result.session))
     } catch (err) {
       setError(err instanceof Error ? err.message : '结束面试失败')
     } finally {
@@ -177,7 +114,7 @@ export default function InterviewPage() {
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendAnswer()
@@ -206,11 +143,13 @@ export default function InterviewPage() {
     )
   }
 
+  const turns = session?.turns || []
   const report = session?.report_data
+  const isComplete = session?.status === 'completed'
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-100 print:hidden">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:hidden">
         <div className="w-full px-6">
           <div className="flex justify-between items-center py-3">
             <div className="flex items-center gap-3">
@@ -228,13 +167,13 @@ export default function InterviewPage() {
               </span>
               {session && (
                 <span className="text-xs text-gray-400">
-                  第 {session.current_turn_index} 题 · {session.status === 'completed' ? '已结束' : '进行中'}
+                  第 {session.current_turn_index} 题 · {isComplete ? '已结束' : '进行中'}
                 </span>
               )}
             </div>
             <button
               onClick={endInterview}
-              disabled={!session || isSending || session.status === 'completed'}
+              disabled={!session || isSending || isComplete}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 disabled:opacity-50"
             >
               <StopIcon className="w-4 h-4" />
@@ -244,118 +183,195 @@ export default function InterviewPage() {
         </div>
       </header>
 
-      <main className="max-w-full mx-auto px-6 py-3">
-        <div className="flex gap-0 h-[calc(100vh-120px)]">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="flex flex-col min-h-0 min-w-0 overflow-hidden"
-            style={{ flex: '0 0 calc(37% - 8px)' }}
-          >
-            <div className="flex-1 overflow-y-auto min-h-0 min-w-0 hide-scrollbar">
-              <ResumePreview content={resume.content} />
-            </div>
-          </motion.div>
+      <main className="w-full mx-auto px-4 py-6">
+        <div className="max-w-2xl mx-auto space-y-5">
+          {turns.map((turn) => {
+            const hasAnswer = !!turn.answer
+            const isActive = !hasAnswer && !pendingAnswer
+            const isPendingEval = !hasAnswer && !!pendingAnswer
+            const displayAnswer = turn.answer || (isPendingEval ? pendingAnswer : null)
 
-          <div className="w-2 flex-shrink-0 flex items-center justify-center group select-none">
-            <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
-          </div>
+            return (
+              <motion.div
+                key={turn.id}
+                initial={{ opacity: 0, y: 24, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className={`bg-white rounded-2xl shadow-sm overflow-hidden ${
+                  isActive ? 'border-2 border-primary-200' : 'border border-gray-200'
+                }`}
+              >
+                {/* Question */}
+                <div className="px-6 pt-5 pb-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
+                        <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="text-xs font-medium text-gray-500">面试官</span>
+                    <span className={`ml-auto flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                      hasAnswer || isPendingEval
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-primary-100 text-primary-700'
+                    }`}>
+                      {turn.turn_index}
+                    </span>
+                  </div>
+                  <div className="text-[15px] text-gray-900 leading-relaxed pl-10">
+                    <MarkdownMessage content={turn.question} />
+                  </div>
+                </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex flex-col min-h-0 min-w-0"
-            style={{ flex: '0 0 calc(63% - 8px)' }}
-          >
-            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-3 flex items-center justify-end gap-3 flex-shrink-0">
-                {session?.overall_score != null && (
-                  <span className="text-xs text-gray-500">总分 {session.overall_score}</span>
+                {/* User answer */}
+                {displayAnswer && (
+                  <div className="px-6 pb-3">
+                    <div className="bg-gray-50 rounded-xl px-4 py-3 text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap border border-gray-100">
+                      {displayAnswer}
+                    </div>
+                  </div>
                 )}
-              </div>
 
-              <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[88%] px-4 py-3 rounded-2xl ${
-                        message.type === 'user'
-                          ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
-                          : message.type === 'system'
-                          ? 'bg-amber-50 text-amber-900 rounded-bl-md border border-amber-100 shadow-xs'
-                          : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
-                      }`}
-                    >
-                      {message.type === 'user' ? (
-                        <span className="text-[14px] whitespace-pre-wrap">{message.content}</span>
-                      ) : (
-                        <MarkdownMessage content={message.content} />
+                {/* Evaluation */}
+                {turn.evaluation && (
+                  <div className="px-6 pb-4">
+                    <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100 text-sm">
+                      {turn.evaluation.summary && (
+                        <p className="text-amber-900">{turn.evaluation.summary}</p>
+                      )}
+                      {Object.keys(turn.evaluation.dimension_scores || {}).length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {Object.entries(turn.evaluation.dimension_scores!).map(([key, value]) => (
+                            <span key={key} className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs">
+                              {key} {value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {(turn.evaluation.gaps?.length ?? 0) > 0 && (
+                        <p className="mt-2 text-amber-700 text-xs">问题：{turn.evaluation.gaps!.join('；')}</p>
+                      )}
+                      {(turn.evaluation.evidence?.length ?? 0) > 0 && (
+                        <p className="mt-1 text-amber-700 text-xs">亮点：{turn.evaluation.evidence!.join('；')}</p>
                       )}
                     </div>
                   </div>
-                ))}
+                )}
 
-                {isSending && messages.every((m) => !m.id.startsWith('ai-stream-') || m.content) && (
-                  <div className="flex w-full justify-start">
-                    <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
-                      <span className="inline-block animate-pulse">评估中...</span>
+                {/* Pending evaluation indicator */}
+                {isPendingEval && (
+                  <div className="px-6 pb-4 flex items-center gap-2 text-sm text-gray-400">
+                    <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-primary-600 rounded-full" />
+                    评估中...
+                  </div>
+                )}
+
+                {/* Active input */}
+                {isActive && !isComplete && (
+                  <div className="px-6 pb-5 pt-1">
+                    <div className="relative">
+                      <textarea
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="输入你的回答..."
+                        className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        rows={3}
+                        disabled={isSending}
+                      />
+                      <button
+                        onClick={sendAnswer}
+                        disabled={!inputMessage.trim() || isSending}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                          inputMessage.trim() && !isSending
+                            ? 'bg-primary-600 text-white hover:bg-primary-700'
+                            : 'bg-gray-200 text-gray-400'
+                        }`}
+                      >
+                        <ArrowUpIcon className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 )}
+              </motion.div>
+            )
+          })}
 
-                {report && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
-                    <p className="font-medium">面试报告</p>
-                    {report.summary && <p className="mt-2">{report.summary}</p>}
-                    {report.weaknesses && report.weaknesses.length > 0 && (
-                      <p className="mt-2">主要问题：{report.weaknesses.join('；')}</p>
-                    )}
-                    {report.next_training_plan && report.next_training_plan.length > 0 && (
-                      <p className="mt-2">下一步：{report.next_training_plan.join('；')}</p>
-                    )}
-                  </div>
-                )}
-
-                {error && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-
-              <div className="pt-3 flex-shrink-0">
-                <div className="relative">
-                  <textarea
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder={session?.status === 'completed' ? '本场面试已结束' : '输入你的回答...'}
-                    className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
-                    rows={3}
-                    disabled={isSending || session?.status === 'completed'}
-                  />
-                  <button
-                    onClick={sendAnswer}
-                    disabled={!inputMessage.trim() || isSending || session?.status === 'completed'}
-                    className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${
-                      inputMessage.trim() && !isSending && session?.status !== 'completed'
-                        ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <ArrowUpIcon className="w-4 h-4" />
-                  </button>
+          {/* Waiting for next question */}
+          {isSending && pendingAnswer && (
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="px-6 py-5 flex items-center gap-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm animate-pulse">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
+                    <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+                  </svg>
                 </div>
+                <span className="text-xs font-medium text-gray-500">面试官</span>
+                <span className="text-sm text-gray-400 ml-1">正在准备下一题...</span>
               </div>
+            </motion.div>
+          )}
+
+          {/* Report */}
+          {report && (
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="bg-white rounded-2xl border border-emerald-200 shadow-sm overflow-hidden"
+            >
+              <div className="px-6 py-5">
+                <h3 className="font-semibold text-emerald-900 mb-3">面试报告</h3>
+                {report.summary && <p className="text-sm text-emerald-800 leading-relaxed">{report.summary}</p>}
+                {report.weaknesses && report.weaknesses.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-emerald-700 mb-1">待改进</p>
+                    <ul className="space-y-1">
+                      {report.weaknesses.map((w, i) => (
+                        <li key={i} className="text-sm text-emerald-700 flex items-start gap-2">
+                          <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" />
+                          {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {report.next_training_plan && report.next_training_plan.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-emerald-700 mb-1">下一步建议</p>
+                    <ul className="space-y-1">
+                      {report.next_training_plan.map((p, i) => (
+                        <li key={i} className="text-sm text-emerald-700 flex items-start gap-2">
+                          <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" />
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {session?.overall_score != null && (
+                  <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center gap-2">
+                    <span className="text-sm text-emerald-600">综合评分</span>
+                    <span className="text-lg font-semibold text-emerald-800">{session.overall_score}</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
             </div>
-          </motion.div>
+          )}
+
+          <div ref={bottomRef} />
         </div>
       </main>
     </div>

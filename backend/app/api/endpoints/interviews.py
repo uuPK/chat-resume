@@ -415,6 +415,8 @@ async def answer_interview(
         history.append({"role": "assistant", "content": item.question})
         if item.answer and item is not turn:
             history.append({"role": "user", "content": item.answer})
+    # 将当前回答加入历史，让 LLM 基于最新回答生成下一题
+    history.append({"role": "user", "content": answer_text})
 
     turn.answer = answer_text
     turn.answered_at = _now()
@@ -519,6 +521,8 @@ async def answer_interview_stream(
         history.append({"role": "assistant", "content": item.question})
         if item.answer and item is not turn:
             history.append({"role": "user", "content": item.answer})
+    # 将当前回答加入历史，让 LLM 基于最新回答生成下一题
+    history.append({"role": "user", "content": answer_text})
 
     turn.answer = answer_text
     turn.answered_at = _now()
