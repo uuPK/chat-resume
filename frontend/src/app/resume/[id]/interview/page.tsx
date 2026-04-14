@@ -196,35 +196,52 @@ export default function InterviewPage() {
       <main className="w-full py-6">
         <div className="flex items-start min-h-0">
 
-          {/* Left column: phase sidebar — horizontally + vertically centered in viewport */}
+          {/* Left column: phase sidebar — centered in viewport */}
           <div className="hidden md:flex flex-1 items-center justify-center sticky top-0 h-screen self-start">
             <aside>
-              <div className="relative">
-                {rounds.length > 1 && (
-                  <div className="absolute left-[6px] top-3 bottom-3 w-px bg-gray-200" />
-                )}
-                <div className="space-y-[7.5rem]">
-                  {rounds.map((round, idx) => {
-                    const isCurrent = !isComplete && idx === currentRoundIndex
-                    const isDone = isComplete || idx < currentRoundIndex
-                    return (
-                      <div key={idx} className="flex items-center gap-3">
-                        <span className={`flex-shrink-0 w-3 h-3 rounded-full border-2 transition-colors ${
+              <div className="flex flex-col">
+                {rounds.map((round, idx) => {
+                  const isCurrent = !isComplete && idx === currentRoundIndex
+                  const isDone = isComplete || idx < currentRoundIndex
+                  const isLast = idx === rounds.length - 1
+                  return (
+                    <div key={idx} className="flex gap-4">
+                      {/* dot + connector */}
+                      <div className="flex flex-col items-center">
+                        <div className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 ${
                           isCurrent
-                            ? 'bg-indigo-500 border-indigo-500'
+                            ? 'w-[18px] h-[18px] bg-indigo-500 ring-[5px] ring-indigo-100 shadow-sm shadow-indigo-300'
                             : isDone
-                            ? 'bg-emerald-400 border-emerald-400'
-                            : 'bg-white border-gray-300'
-                        }`} />
-                        <span className={`text-xs transition-colors ${
-                          isCurrent ? 'text-indigo-600 font-semibold' : 'text-gray-400'
+                            ? 'w-[14px] h-[14px] bg-emerald-400'
+                            : 'w-[14px] h-[14px] bg-white border-2 border-gray-200'
+                        }`}>
+                          {isDone && (
+                            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 10 10">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+                        {!isLast && (
+                          <div className={`w-px flex-1 mt-1.5 ${
+                            isDone ? 'bg-gradient-to-b from-emerald-300 to-gray-200' : 'bg-gray-150 bg-gray-200'
+                          }`} style={{ minHeight: '7rem' }} />
+                        )}
+                      </div>
+                      {/* label */}
+                      <div className={`pt-0 ${isLast ? '' : 'pb-[7rem]'}`}>
+                        <span className={`text-[13px] leading-[18px] transition-all duration-300 ${
+                          isCurrent
+                            ? 'font-semibold text-indigo-600'
+                            : isDone
+                            ? 'text-gray-400'
+                            : 'text-gray-300'
                         }`}>
                           {ROUND_LABEL[round.type] || round.type}
                         </span>
                       </div>
-                    )
-                  })}
-                </div>
+                    </div>
+                  )
+                })}
               </div>
             </aside>
           </div>
