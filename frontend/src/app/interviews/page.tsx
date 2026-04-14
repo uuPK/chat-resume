@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
-import { resumeApi, type InterviewSession } from '@/lib/api'
+import { resumeApi, type InterviewSessionSummary } from '@/lib/api'
 import { MicrophoneIcon, ClockIcon, CheckCircleIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
 
 function formatDate(dateString: string) {
@@ -28,7 +28,7 @@ export default function InterviewsPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
-  const [sessions, setSessions] = useState<InterviewSession[]>([])
+  const [sessions, setSessions] = useState<InterviewSessionSummary[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { setMounted(true) }, [])
@@ -81,8 +81,6 @@ export default function InterviewsPage() {
             <div className="space-y-4">
               {sessions.map((session, index) => {
                 const { text, color } = statusLabel(session.status)
-                const turns = session.turns || []
-                const answered = turns.filter(t => t.answer).length
                 const started = session.started_at ? formatDate(session.started_at) : null
                 return (
                   <motion.div
@@ -115,7 +113,7 @@ export default function InterviewsPage() {
                               <ClockIcon className="w-3.5 h-3.5" />{started}
                             </span>
                           )}
-                          <span>{answered} 题已回答</span>
+                          <span>{session.answered_turn_count} 题已回答</span>
                           {session.overall_score != null && (
                             <span className="text-green-600 font-medium">综合评分 {session.overall_score}/10</span>
                           )}

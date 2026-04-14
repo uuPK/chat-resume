@@ -8,8 +8,7 @@
 from time import perf_counter
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from app.infra.config import settings
 from app.infra.db_observability import record_checkout, record_query
 

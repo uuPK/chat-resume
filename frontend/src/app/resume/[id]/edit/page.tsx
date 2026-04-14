@@ -11,7 +11,6 @@ import {
   ArrowLeftIcon,
   ArrowUpIcon,
   ArrowDownTrayIcon,
-  XMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   TrashIcon
@@ -243,7 +242,6 @@ export default function ResumeEditPage() {
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isClearingMessages, setIsClearingMessages] = useState(false)
-  const [proposalActionLoadingId, setProposalActionLoadingId] = useState<number | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
 
@@ -254,8 +252,6 @@ export default function ResumeEditPage() {
   const [ivSending, setIvSending] = useState(false)
   const [ivError, setIvError] = useState<string | null>(null)
   const ivMessagesEndRef = useRef<HTMLDivElement>(null)
-  const [qrImages, setQrImages] = useState<string[]>([])
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 布局配置状态
@@ -297,8 +293,6 @@ export default function ResumeEditPage() {
   const {
     isStreaming,
     currentStreamingMessage,
-    currentToolCalls,
-    currentProposal,
     streamEvents,
     sendStreamingMessage,
     stopStreaming,
@@ -327,12 +321,6 @@ export default function ResumeEditPage() {
         timestamp: new Date()
       }
       appendMessageForAgent('resume', errorMessage)
-    },
-    onQrImages: (images) => {
-      if (images && images.length > 0) {
-        setQrImages(images)
-        setIsQrModalOpen(true)
-      }
     },
     onResumeUpdate: (content) => {
       hasUnsavedChangesRef.current = false
@@ -812,165 +800,6 @@ export default function ResumeEditPage() {
     }
   }
 
-  const updateMessageProposalStatus = (
-    messageId: string,
-    status: 'pending' | 'applied' | 'rejected'
-  ) => {
-    setMessageBuckets(prev => ({
-      ...prev,
-      resume: prev['resume'].map((message: ChatMessage) =>
-        message.id === messageId && message.proposal
-          ? { ...message, proposal: { ...message.proposal, proposalStatus: status } }
-          : message
-      )
-    }))
-  }
-
-  const handleApplyProposal = async (message: ChatMessage) => {
-    if (!resume || !message.proposal) return
-
-    try {
-      setProposalActionLoadingId(message.proposal.proposalId)
-      const result = await resumeApi.applyResumeProposal(
-        resume.id,
-        message.proposal.proposalId
-      )
-      setResume(prev => {
-        if (!prev) return prev
-        const updated = {
-          ...prev,
-          content: result.proposed_content as Resume['content']
-        }
-        resumeRef.current = updated
-        return updated
-      })
-      hasUnsavedChangesRef.current = false
-      setAutoSaveStatus('idle')
-      updateMessageProposalStatus(message.id, 'applied')
-      toast.success('已应用这次修改')
-    } catch (error) {
-      console.error('Apply proposal failed:', error)
-      toast.error(error instanceof Error ? error.message : '应用修改失败')
-    } finally {
-      setProposalActionLoadingId(null)
-    }
-  }
-
-  const handleRejectProposal = (message: ChatMessage) => {
-    if (!message.proposal || !resume) return
-    setProposalActionLoadingId(message.proposal.proposalId)
-    resumeApi.rejectResumeProposal(resume.id, message.proposal.proposalId)
-      .then(() => {
-        updateMessageProposalStatus(message.id, 'rejected')
-        toast.success('已拒绝这次修改')
-      })
-      .catch((error) => {
-        console.error('Reject proposal failed:', error)
-        toast.error(error instanceof Error ? error.message : '拒绝修改失败')
-      })
-      .finally(() => {
-        setProposalActionLoadingId(null)
-      })
-  }
-
-  const renderProposalCard = (message: ChatMessage) => {
-    if (!message.proposal) return null
-
-    const status = message.proposal.proposalStatus
-    const isPending = status === 'pending'
-    const isLoadingProposal = proposalActionLoadingId === message.proposal.proposalId
-
-    const statusColor = status === 'applied'
-      ? 'border-green-200 bg-green-50'
-      : status === 'rejected'
-        ? 'border-gray-200 bg-gray-50'
-        : 'border-primary-200 bg-primary-50'
-
-    return (
-      <div className={`mt-3 rounded-lg border overflow-hidden ${statusColor}`}>
-        {/* 工具调用行 */}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="bg-white border-b border-gray-100 px-3 py-2 space-y-1">
-            {message.toolCalls.map((tool, index) => (
-              <div key={index} className="flex items-start gap-2 text-xs text-gray-600">
-                <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
-                <div className="min-w-0">
-                  <span className="font-medium text-gray-700">{tool.name}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Proposal 头部 */}
-        <div className="px-3 py-2 flex items-center justify-between gap-3">
-          <div>
-            <div className={`text-sm font-medium ${
-              status === 'applied' ? 'text-green-900' : status === 'rejected' ? 'text-gray-500' : 'text-primary-900'
-            }`}>
-              {status === 'applied' ? '已接受修改' : status === 'rejected' ? '已拒绝修改' : '待确认修改'}
-            </div>
-            <div className="text-xs text-gray-400">Proposal #{message.proposal.proposalId}</div>
-          </div>
-
-          {isPending && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={() => handleApplyProposal(message)}
-                disabled={isLoadingProposal}
-                className="inline-flex items-center rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-              >
-                {isLoadingProposal ? '应用中...' : '接受'}
-              </button>
-              <button
-                onClick={() => handleRejectProposal(message)}
-                disabled={isLoadingProposal}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                拒绝
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Diff */}
-        {message.proposal.proposalPatch?.changes?.length ? (
-          <div className="px-3 pb-3 space-y-2">
-            {message.proposal.proposalPatch.changes.map((change, index) => (
-              <div key={`${change.section}-${index}`} className="rounded-md border border-primary-100 bg-white p-2">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-primary-700">
-                    {change.section}
-                    {change.item_label ? ` / ${change.item_label}` : ''}
-                  </div>
-                  <div className={`text-[10px] font-medium ${
-                    change.op === 'add' ? 'text-green-700' : change.op === 'remove' ? 'text-red-700' : 'text-primary-700'
-                  }`}>
-                    {change.op === 'add' ? '新增' : change.op === 'remove' ? '删除' : '修改'}
-                  </div>
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  <div>
-                    <div className="mb-0.5 font-medium text-gray-400">改前</div>
-                    <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-600 leading-relaxed">
-                      {change.before || '空'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-0.5 font-medium text-gray-400">改后</div>
-                    <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-gray-800 leading-relaxed">
-                      {change.after || '空'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -984,70 +813,6 @@ export default function ResumeEditPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, currentStreamingMessage])
-
-  // 用于追踪登录成功是否已处理，避免重复触发
-  const loginSuccessHandledRef = useRef(false)
-
-  // 轮询 Boss 直聘扫码登录状态
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null
-    let isCleanedUp = false  // 追踪清理状态
-
-    const checkLoginStatus = async () => {
-      // 如果已经清理或已经处理过登录成功，直接返回
-      if (isCleanedUp || loginSuccessHandledRef.current) return
-
-      try {
-        const token = localStorage.getItem('access_token')
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-        const response = await fetch(`${apiBaseUrl}/api/ai/boss/status`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-        if (!response.ok) return
-
-        const data = await response.json()
-
-        // 双重检查：避免竞态条件
-        if (data.is_logged_in && !loginSuccessHandledRef.current && !isCleanedUp) {
-          // 立即标记为已处理，防止重复触发
-          loginSuccessHandledRef.current = true
-
-          // 立即清除定时器
-          if (intervalId) {
-            clearInterval(intervalId)
-            intervalId = null
-          }
-
-          setIsQrModalOpen(false)
-          toast.success('Boss直聘登录成功')
-
-          // 登录成功后，自动让 Agent 继续（只触发一次）
-          sendStreamingMessage('登录成功，请继续。', messages).catch(console.error)
-        }
-      } catch (e) {
-        console.error('Check login status failed', e)
-      }
-    }
-
-    if (isQrModalOpen) {
-      // 当打开二维码弹窗时，重置登录成功处理标记
-      loginSuccessHandledRef.current = false
-      // 立即检查一次
-      checkLoginStatus()
-      // 然后定期轮询
-      intervalId = setInterval(checkLoginStatus, 2000)
-    }
-
-    return () => {
-      isCleanedUp = true  // 标记为已清理
-      if (intervalId) {
-        clearInterval(intervalId)
-        intervalId = null
-      }
-    }
-  }, [isQrModalOpen])
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -1484,7 +1249,6 @@ export default function ResumeEditPage() {
                             ) : (
                               <MarkdownMessage content={message.content} />
                             )}
-                            {renderProposalCard(message)}
                           </>
                         ) : (
                           <span className="text-[14px]">{message.content}</span>
@@ -1640,33 +1404,6 @@ export default function ResumeEditPage() {
         </div>
       </main>
 
-      {/* Boss直聘二维码弹窗 */}
-      {isQrModalOpen && qrImages.length > 0 && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md relative border border-gray-200">
-            <button
-              onClick={() => setIsQrModalOpen(false)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </button>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Boss直聘登录二维码</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              请使用 Boss 直聘 App 扫描二维码完成登录。二维码将在登录完成前保持有效。
-            </p>
-            <div className="flex flex-col items-center space-y-4">
-              {qrImages.map((img, index) => (
-                <img
-                  key={`${img}-${index}`}
-                  src={`data:image/png;base64,${img}`}
-                  alt="Boss直聘二维码"
-                  className="w-48 h-48 object-contain border border-gray-200 rounded-lg shadow"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

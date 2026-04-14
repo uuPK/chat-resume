@@ -372,49 +372,6 @@ class ResumeContent(ResumeBaseModel):
             ]
         return parsed
 
-
-_FRONTEND_RESUME_CONTENT_INCLUDE = {
-    "job_application": True,
-    "personal_info": True,
-    "education": True,
-    "work_experience": True,
-    "skills": True,
-    "projects": True,
-}
-
-
-def _prune_empty_frontend_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        pruned = {
-            key: _prune_empty_frontend_value(item)
-            for key, item in value.items()
-        }
-        pruned = {
-            key: item
-            for key, item in pruned.items()
-            if item not in (None, "", [], {})
-        }
-        return pruned
-
-    if isinstance(value, list):
-        pruned = [
-            _prune_empty_frontend_value(item)
-            for item in value
-        ]
-        return [item for item in pruned if item not in (None, "", [], {})]
-
-    return value
-
-
-def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
-    """输出和前端编辑器/预览一致的简历结构，作为统一标准。"""
-    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
-    frontend_content = normalized.model_dump(
-        mode="json",
-        include=_FRONTEND_RESUME_CONTENT_INCLUDE,
-    )
-    return _prune_empty_frontend_value(frontend_content) or {}
-
     @field_validator("work_experience", mode="before")
     @classmethod
     def normalize_work_experience(cls, value: Any) -> Any:
@@ -457,6 +414,67 @@ def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") 
                 }
             ]
         return parsed
+
+
+_FRONTEND_RESUME_CONTENT_INCLUDE = {
+    "job_application": True,
+    "personal_info": True,
+    "education": True,
+    "work_experience": True,
+    "skills": True,
+    "projects": True,
+}
+
+_RESUME_LIST_PREVIEW_INCLUDE = {
+    "personal_info": True,
+    "education": True,
+    "work_experience": True,
+    "skills": True,
+    "projects": True,
+}
+
+
+def _prune_empty_frontend_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        pruned = {
+            key: _prune_empty_frontend_value(item)
+            for key, item in value.items()
+        }
+        pruned = {
+            key: item
+            for key, item in pruned.items()
+            if item not in (None, "", [], {})
+        }
+        return pruned
+
+    if isinstance(value, list):
+        pruned = [
+            _prune_empty_frontend_value(item)
+            for item in value
+        ]
+        return [item for item in pruned if item not in (None, "", [], {})]
+
+    return value
+
+
+def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
+    """输出和前端编辑器/预览一致的简历结构，作为统一标准。"""
+    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
+    frontend_content = normalized.model_dump(
+        mode="json",
+        include=_FRONTEND_RESUME_CONTENT_INCLUDE,
+    )
+    return _prune_empty_frontend_value(frontend_content) or {}
+
+
+def dump_resume_preview_content_for_list(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
+    """输出列表页卡片预览所需的最小内容，避免逐条详情请求。"""
+    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
+    preview_content = normalized.model_dump(
+        mode="json",
+        include=_RESUME_LIST_PREVIEW_INCLUDE,
+    )
+    return _prune_empty_frontend_value(preview_content) or {}
 
 
 class ResumeCreate(BaseModel):
@@ -505,6 +523,7 @@ class ResumeListItem(BaseModel):
     updated_at: Optional[datetime] = None
     target_company: str = ""
     target_title: str = ""
+    preview_content: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -523,20 +542,3 @@ class OptimizationResponse(BaseModel):
     jd_content: str
     suggestions: dict[str, Any]
     created_at: datetime
-
-
-class ResumeProposalResponse(BaseModel):
-    id: int
-    resume_id: int
-    user_message: str
-    section: Optional[str] = None
-    status: str
-    summary: Optional[str] = None
-    proposed_content: ResumeContent
-    proposed_patch: Optional[dict[str, Any]] = None
-    tool_calls: Optional[list[dict[str, Any]]] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    applied_at: Optional[datetime] = None
-
-    model_config = ConfigDict(from_attributes=True)

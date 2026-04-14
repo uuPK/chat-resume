@@ -17,7 +17,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, noload
 
 from app.api.deps import get_current_user
 from app.agents.definitions import InterviewerAgent
@@ -164,6 +165,28 @@ def _serialize_session(session: InterviewSession) -> dict[str, Any]:
         "ended_at": session.ended_at.isoformat() if session.ended_at else None,
         "turns": [_serialize_turn(turn) for turn in turns],
         "current_turn": _serialize_turn(turns[-1]) if turns else None,
+    }
+
+
+def _serialize_session_summary(
+    session: InterviewSession,
+    *,
+    answered_turn_count: int = 0,
+) -> dict[str, Any]:
+    return {
+        "id": session.id,
+        "resume_id": session.resume_id,
+        "target_title": session.target_title,
+        "target_company": session.target_company,
+        "interview_type": session.interview_type,
+        "difficulty": session.difficulty,
+        "language": session.language,
+        "mode": session.mode,
+        "status": session.status,
+        "overall_score": session.overall_score,
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+        "answered_turn_count": answered_turn_count,
     }
 
 
@@ -319,13 +342,34 @@ async def list_interviews(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    answered_turn_counts = (
+        db.query(
+            InterviewTurn.session_id.label("session_id"),
+            func.sum(
+                case(
+                    (InterviewTurn.answer.isnot(None), 1),
+                    else_=0,
+                )
+            ).label("answered_turn_count"),
+        )
+        .group_by(InterviewTurn.session_id)
+        .subquery()
+    )
     sessions = (
-        db.query(InterviewSession)
+        db.query(
+            InterviewSession,
+            func.coalesce(answered_turn_counts.c.answered_turn_count, 0).label("answered_turn_count"),
+        )
+        .outerjoin(answered_turn_counts, answered_turn_counts.c.session_id == InterviewSession.id)
+        .options(noload(InterviewSession.turns))
         .filter(InterviewSession.user_id == current_user["id"])
         .order_by(InterviewSession.id.desc())
         .all()
     )
-    return [_serialize_session(session) for session in sessions]
+    return [
+        _serialize_session_summary(session, answered_turn_count=int(answered_turn_count or 0))
+        for session, answered_turn_count in sessions
+    ]
 
 
 @router.get("/{session_id}", response_model=InterviewActionResponse)

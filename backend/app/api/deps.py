@@ -21,21 +21,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
 logger = logging.getLogger(__name__)
 
 
-def _decode_token_claims(token: str) -> dict:
-    credentials_exception = HTTPException(
+def _credentials_exception() -> HTTPException:
+    return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+
+def _decode_token_claims(token: str) -> dict:
     try:
         payload = decode_access_token(token)
         user_id_str = payload.get("sub")
         if user_id_str is None:
-            raise credentials_exception
+            raise _credentials_exception()
         user_id = int(user_id_str)
     except (JWTError, ValueError, TypeError):
-        raise credentials_exception
+        raise _credentials_exception()
     return {"id": user_id, **payload}
 
 
@@ -68,7 +70,7 @@ async def get_current_user(
     user = user_service.get_by_id(user_id)
     query_elapsed_ms = (perf_counter() - query_started_at) * 1000
     if user is None:
-        raise credentials_exception
+        raise _credentials_exception()
 
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(

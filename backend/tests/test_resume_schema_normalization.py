@@ -79,6 +79,37 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         )
         self.assertEqual(education["description"], "")
 
+    def test_string_education_is_normalized_into_single_item(self):
+        content = ResumeContent.model_validate(
+            {
+                "education": "北京大学 计算机科学与技术",
+            }
+        ).model_dump(mode="json")
+
+        education = content["education"][0]
+        self.assertEqual(education["school"], "北京大学 计算机科学与技术")
+        self.assertEqual(
+            [item["text"] for item in education["highlights"]],
+            ["北京大学 计算机科学与技术"],
+        )
+        self.assertEqual(education["description"], "")
+
+    def test_string_work_experience_is_normalized_into_single_item(self):
+        content = ResumeContent.model_validate(
+            {
+                "work_experience": "负责核心后台开发\n优化异步任务调度",
+            }
+        ).model_dump(mode="json")
+
+        work = content["work_experience"][0]
+        self.assertEqual(work["company"], "")
+        self.assertEqual(work["position"], "")
+        self.assertEqual(
+            [item["text"] for item in work["highlights"]],
+            ["负责核心后台开发", "优化异步任务调度"],
+        )
+        self.assertEqual(work["description"], "")
+
     def test_dump_resume_content_for_frontend_drops_non_frontend_sections(self):
         content = dump_resume_content_for_frontend(
             {

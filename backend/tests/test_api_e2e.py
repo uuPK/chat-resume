@@ -28,6 +28,7 @@ from app.main import app
 from app.agents.state.agent_session_store import AgentSessionStore
 from app.agents.runtime.confirmation_manager import confirmation_manager
 from app.agents.definitions.interviewer_agent import InterviewerAgent
+from app.models.user import User
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
 
@@ -162,6 +163,24 @@ class TestAuth:
         resp = client.get("/api/auth/me")
         assert resp.status_code == 401
 
+    def test_get_me_with_token_for_deleted_user_returns_401(self, client):
+        email = "deleted_user@example.com"
+        _register(client, email, full_name="待删除用户")
+        token = _login(client, email)
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).first()
+            assert user is not None
+            db.delete(user)
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.get("/api/auth/me", headers=_auth_headers(token))
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Could not validate credentials"
+
     def test_update_me_changes_full_name(self, client):
         _register(client, "update_me@example.com", full_name="旧名字")
         token = _login(client, "update_me@example.com")
@@ -209,6 +228,14 @@ class TestResumeCRUD:
         titles = [r["title"] for r in resp.json()]
         assert "简历A" in titles
         assert "简历B" in titles
+
+    def test_list_resumes_includes_inline_preview_content(self):
+        self._create_resume("预览简历")
+        resp = self.client.get("/api/resumes/", headers=self.headers)
+        assert resp.status_code == 200
+        resume = next(item for item in resp.json() if item["title"] == "预览简历")
+        assert resume["preview_content"]["personal_info"]["name"] == "张三"
+        assert "job_application" not in resume["preview_content"]
 
     def test_get_resume_by_id(self):
         created = self._create_resume("可查简历")
@@ -330,6 +357,42 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
         assert ended["report_data"] is not None
+
+    def test_list_interviews_returns_lightweight_summary(self):
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "interview_type": "general",
+                "difficulty": "medium",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        start_resp = self.client.post(
+            f"/api/interviews/{session_id}/start",
+            headers=self.headers,
+        )
+        assert start_resp.status_code == 200, start_resp.text
+
+        answer_resp = self.client.post(
+            f"/api/interviews/{session_id}/answer",
+            json={"answer": "我负责后端开发，并把接口响应时间降低了 30%。"},
+            headers=self.headers,
+        )
+        assert answer_resp.status_code == 200, answer_resp.text
+
+        list_resp = self.client.get("/api/interviews/", headers=self.headers)
+        assert list_resp.status_code == 200, list_resp.text
+        sessions = list_resp.json()
+        assert len(sessions) >= 1
+        session = next(item for item in sessions if item["id"] == session_id)
+        assert session["id"] == session_id
+        assert session["answered_turn_count"] == 1
+        assert "turns" not in session
+        assert "current_turn" not in session
 
     def test_list_resumes_without_auth_returns_401(self):
         resp = self.client.get("/api/resumes/")

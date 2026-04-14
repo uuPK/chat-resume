@@ -67,6 +67,7 @@ Thumbs.db
 out/
 next-env.d.ts
 tsconfig.tsbuildinfo
+frontend/tsconfig.typecheck.tsbuildinfo
 
 # Uploads
 backend/uploads/**

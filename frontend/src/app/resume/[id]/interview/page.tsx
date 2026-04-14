@@ -166,9 +166,9 @@ export default function InterviewPage() {
           <div className="flex justify-between items-center py-3">
             <div className="flex items-center gap-3">
               <Link
-                href={`/resume/${resumeId}/edit`}
+                href="/interviews"
                 className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-                title="返回编辑"
+                title="返回面试中心"
               >
                 <ArrowLeftIcon className="w-5 h-5" />
               </Link>

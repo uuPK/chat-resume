@@ -16,10 +16,10 @@ from app.schemas.resume import (
     LayoutConfigUpdate,
     ResumeCreate,
     ResumeListItem,
-    ResumeProposalResponse,
     ResumeResponse,
     ResumeUpdate,
     dump_resume_content_for_frontend,
+    dump_resume_preview_content_for_list,
 )
 from app.services.domain import ResumeService
 from app.api.deps import get_current_user, get_current_user_claims
@@ -43,24 +43,22 @@ def _build_resume_response(resume) -> ResumeResponse:
     )
 
 
-def _build_proposal_response(proposal) -> ResumeProposalResponse:
-    return ResumeProposalResponse.model_validate(
+def _build_resume_list_item(resume) -> ResumeListItem:
+    content = resume.content if isinstance(resume.content, dict) else {}
+    job_application = content.get("job_application", {}) if isinstance(content, dict) else {}
+    return ResumeListItem.model_validate(
         {
-            "id": proposal.id,
-            "resume_id": proposal.resume_id,
-            "user_message": proposal.user_message,
-            "section": proposal.section,
-            "status": proposal.status,
-            "summary": proposal.summary,
-            "proposed_content": dump_resume_content_for_frontend(proposal.proposed_content or {}),
-            "proposed_patch": proposal.proposed_patch,
-            "tool_calls": proposal.tool_calls,
-            "created_at": proposal.created_at,
-            "updated_at": proposal.updated_at,
-            "applied_at": proposal.applied_at,
+            "id": resume.id,
+            "title": resume.title,
+            "original_filename": resume.original_filename,
+            "owner_id": resume.owner_id,
+            "created_at": resume.created_at,
+            "updated_at": resume.updated_at,
+            "target_company": str(job_application.get("target_company", "") or ""),
+            "target_title": str(job_application.get("target_title", "") or ""),
+            "preview_content": dump_resume_preview_content_for_list(content),
         }
     )
-
 
 @router.get("/", response_model=List[ResumeListItem])
 async def get_resumes(
@@ -68,25 +66,7 @@ async def get_resumes(
 ):
     resume_service = ResumeService(db)
     resumes = resume_service.get_by_owner(current_user["id"])
-    result: list[ResumeListItem] = []
-    for resume in resumes:
-        content = resume.content if isinstance(resume.content, dict) else {}
-        job_application = content.get("job_application", {}) if isinstance(content, dict) else {}
-        result.append(
-            ResumeListItem.model_validate(
-                {
-                    "id": resume.id,
-                    "title": resume.title,
-                    "original_filename": resume.original_filename,
-                    "owner_id": resume.owner_id,
-                    "created_at": resume.created_at,
-                    "updated_at": resume.updated_at,
-                    "target_company": str(job_application.get("target_company", "") or ""),
-                    "target_title": str(job_application.get("target_title", "") or ""),
-                }
-            )
-        )
-    return result
+    return [_build_resume_list_item(resume) for resume in resumes]
 
 
 @router.post("/", response_model=ResumeResponse)
@@ -228,89 +208,6 @@ async def delete_resume(
         )
 
     return {"message": "Resume deleted successfully"}
-
-
-@router.get("/{resume_id}/proposals", response_model=List[ResumeProposalResponse])
-async def get_resume_proposals(
-    resume_id: int,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    resume_service = ResumeService(db)
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
-    proposals = resume_service.get_proposals_by_resume(resume_id)
-    return [_build_proposal_response(item) for item in proposals]
-
-
-@router.post("/{resume_id}/proposals/{proposal_id}/apply", response_model=ResumeProposalResponse)
-async def apply_resume_proposal(
-    resume_id: int,
-    proposal_id: int,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    resume_service = ResumeService(db)
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
-    proposal = resume_service.get_proposal(proposal_id)
-    if not proposal or proposal.resume_id != resume_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found"
-        )
-    applied = resume_service.apply_proposal(proposal_id)
-    if not applied:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to apply proposal",
-    )
-    return _build_proposal_response(applied)
-
-
-@router.post("/{resume_id}/proposals/{proposal_id}/reject", response_model=ResumeProposalResponse)
-async def reject_resume_proposal(
-    resume_id: int,
-    proposal_id: int,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    resume_service = ResumeService(db)
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
-    proposal = resume_service.get_proposal(proposal_id)
-    if not proposal or proposal.resume_id != resume_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found"
-        )
-    rejected = resume_service.reject_proposal(proposal_id)
-    if not rejected:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reject proposal",
-        )
-    return _build_proposal_response(rejected)
-
 
 # ── 聊天记录 ──────────────────────────────────────────────────────────────────
 

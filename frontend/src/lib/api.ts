@@ -35,6 +35,7 @@ interface ResumeListItem {
   updated_at?: string
   target_company?: string
   target_title?: string
+  preview_content?: Partial<ResumeContent>
 }
 
 interface CreateResumeData {
@@ -51,21 +52,6 @@ interface ExportResponse {
   download_url: string
   filename: string
   format: string
-}
-
-interface ResumeProposal {
-  id: number
-  resume_id: number
-  user_message: string
-  section?: string
-  status: string
-  summary?: string
-  proposed_content: ResumeContent
-  proposed_patch?: Record<string, unknown>
-  tool_calls?: Array<{ name: string; result: string }>
-  created_at: string
-  updated_at?: string
-  applied_at?: string
 }
 
 interface InterviewTurn {
@@ -116,6 +102,22 @@ interface InterviewSession {
   }
   turns: InterviewTurn[]
   current_turn?: InterviewTurn | null
+}
+
+interface InterviewSessionSummary {
+  id: number
+  resume_id: number
+  target_title?: string
+  target_company?: string
+  interview_type: string
+  difficulty: string
+  language: string
+  mode: string
+  status: string
+  overall_score?: number
+  started_at?: string
+  ended_at?: string
+  answered_turn_count: number
 }
 
 interface InterviewActionResponse {
@@ -262,40 +264,11 @@ class ResumeAPI {
     return handleApiResponse<ExportResponse>(response)
   }
 
-  static async getResumeProposals(id: number): Promise<ResumeProposal[]> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
-    return handleApiResponse<ResumeProposal[]>(response)
-  }
-
-  static async applyResumeProposal(id: number, proposalId: number): Promise<ResumeProposal> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals/${proposalId}/apply`, {
-      method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
-    return handleApiResponse<ResumeProposal>(response)
-  }
-
-  static async rejectResumeProposal(id: number, proposalId: number): Promise<ResumeProposal> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/proposals/${proposalId}/reject`, {
-      method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
-    return handleApiResponse<ResumeProposal>(response)
-  }
-
-  static async listInterviewSessions(): Promise<InterviewSession[]> {
+  static async listInterviewSessions(): Promise<InterviewSessionSummary[]> {
     const response = await fetch(`${API_BASE_URL}/api/interviews/`, {
       headers: { ...getAuthHeaders() },
     })
-    return handleApiResponse<InterviewSession[]>(response)
+    return handleApiResponse<InterviewSessionSummary[]>(response)
   }
 
   static async createInterviewSession(data: {
@@ -446,6 +419,7 @@ export type {
   ResumeContent,
   InterviewActionResponse,
   InterviewSession,
+  InterviewSessionSummary,
   InterviewTurn,
   PersonalInfo,
   Education,

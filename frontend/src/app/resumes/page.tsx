@@ -1,10 +1,10 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
-import { resumeApi } from '@/lib/api'
+import { resumeApi, type ResumeContent } from '@/lib/api'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
@@ -26,39 +26,16 @@ interface Resume {
   updated_at?: string
   target_company?: string
   target_title?: string
+  preview_content?: Partial<ResumeContent>
 }
 
 function ResumePreviewLoader({
-  resumeId,
   content,
-  onVisible,
 }: {
-  resumeId: number
-  content?: any
-  onVisible: (resumeId: number) => void
+  content?: Partial<ResumeContent>
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element || content) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          onVisible(resumeId)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '200px' },
-    )
-
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [content, onVisible, resumeId])
-
   return (
-    <div ref={containerRef} className="pointer-events-none select-none w-full h-full">
+    <div className="pointer-events-none select-none w-full h-full">
       {content ? (
         <PaginatedResumePreview content={content as any} />
       ) : (
@@ -70,6 +47,7 @@ function ResumePreviewLoader({
             <div className="h-3 bg-gray-200 rounded w-3/4 mt-4" />
             <div className="h-3 bg-gray-200 rounded w-full" />
             <div className="h-3 bg-gray-200 rounded w-full" />
+            <p className="pt-4 text-xs text-gray-400">正在准备预览...</p>
           </div>
         </div>
       )}
@@ -87,8 +65,6 @@ export default function ResumesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newResumeTitle, setNewResumeTitle] = useState('')
   const [creating, setCreating] = useState(false)
-  const [resumeContents, setResumeContents] = useState<Record<number, any>>({})
-  const loadingResumeContentIdsRef = useRef<Set<number>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setMounted(true) }, [])
@@ -105,8 +81,6 @@ export default function ResumesPage() {
       setResumesLoading(true)
       const data = await resumeApi.getResumes()
       setResumes(data)
-      setResumeContents({})
-      loadingResumeContentIdsRef.current.clear()
     } catch {
       toast.error('获取简历列表失败')
     } finally {
@@ -117,21 +91,6 @@ export default function ResumesPage() {
   useEffect(() => {
     if (mounted && isAuthenticated) fetchResumes()
   }, [mounted, isAuthenticated])
-
-  const loadResumePreview = useCallback(async (resumeId: number) => {
-    if (!isAuthenticated) return
-    if (resumeContents[resumeId] || loadingResumeContentIdsRef.current.has(resumeId)) return
-
-    loadingResumeContentIdsRef.current.add(resumeId)
-    try {
-      const full = await resumeApi.getResume(resumeId)
-      setResumeContents(prev => ({ ...prev, [resumeId]: full.content }))
-    } catch {
-      // 预览失败不阻塞列表主流程，打开编辑页仍会重新加载完整简历。
-    } finally {
-      loadingResumeContentIdsRef.current.delete(resumeId)
-    }
-  }, [isAuthenticated, resumeContents])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -249,14 +208,18 @@ export default function ResumesPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {resumes.map((resume, index) => (
-                <motion.div key={resume.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: index * 0.1 }} className="card overflow-hidden hover:shadow-lg transition-shadow flex flex-col group">
+                <motion.div
+                  key={resume.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className="card overflow-hidden hover:shadow-lg transition-shadow flex flex-col group"
+                >
                   <div className="relative">
                     <Link href={`/resume/${resume.id}/edit`} className="block">
                       <div className="overflow-hidden bg-gray-50 border-b border-gray-100" style={{ height: '220px' }}>
                         <ResumePreviewLoader
-                          resumeId={resume.id}
-                          content={resumeContents[resume.id]}
-                          onVisible={loadResumePreview}
+                          content={resume.preview_content}
                         />
                       </div>
                     </Link>
