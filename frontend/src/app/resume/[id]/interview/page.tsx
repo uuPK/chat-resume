@@ -197,7 +197,7 @@ export default function InterviewPage() {
 
       {/* Left panel */}
       <motion.div
-        animate={{ width: drawerOpen ? 360 : 48 }}
+        animate={{ width: drawerOpen ? 460 : 48 }}
         initial={{ width: 48 }}
         transition={{ duration: 0.35, ease: 'easeInOut' }}
         className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-100 shadow-sm flex flex-col overflow-hidden"
@@ -211,7 +211,7 @@ export default function InterviewPage() {
             <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
           </div>
         ) : (
-          <div className="w-[360px] flex flex-col h-full">
+          <div className="w-[460px] flex flex-col h-full">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
               <div className="flex gap-3">
                 <button
@@ -258,7 +258,11 @@ export default function InterviewPage() {
         )}
       </motion.div>
 
-      <main className="w-full py-6">
+      <motion.main
+        className="w-full py-6"
+        animate={{ paddingLeft: drawerOpen ? 492 : 60 }}
+        transition={{ duration: 0.35, ease: 'easeInOut' }}
+      >
         <div className="max-w-2xl mx-auto space-y-5 px-4">
           {turns.map((turn) => {
             const hasAnswer = !!turn.answer
@@ -453,7 +457,7 @@ export default function InterviewPage() {
 
           <div ref={bottomRef} />
         </div>
-      </main>
+      </motion.main>
     </div>
   )
 }
