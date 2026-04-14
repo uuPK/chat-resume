@@ -8,6 +8,7 @@ import { ArrowLeftIcon, ArrowUpIcon, StopIcon, ChevronDownIcon, ChevronUpIcon, C
 import { useAuth } from '@/lib/auth'
 import { resumeApi, type InterviewSession } from '@/lib/api'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
+import ResumePreview from '@/components/preview/ResumePreview'
 
 export default function InterviewPage() {
   const params = useParams()
@@ -196,7 +197,7 @@ export default function InterviewPage() {
 
       {/* Left panel */}
       <motion.div
-        animate={{ width: drawerOpen ? 300 : 48 }}
+        animate={{ width: drawerOpen ? 360 : 48 }}
         initial={{ width: 48 }}
         transition={{ duration: 0.35, ease: 'easeInOut' }}
         className="fixed left-0 top-[57px] bottom-0 z-30 bg-white border-r border-gray-100 shadow-sm flex flex-col overflow-hidden"
@@ -210,9 +211,22 @@ export default function InterviewPage() {
             <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
           </div>
         ) : (
-          <div className="w-[300px] flex flex-col h-full">
+          <div className="w-[360px] flex flex-col h-full">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">JD & 简历</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setJdExpanded(true); setResumeExpanded(false) }}
+                  className={`text-xs font-medium pb-0.5 border-b-2 transition-colors ${!resumeExpanded ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  岗位 JD
+                </button>
+                <button
+                  onClick={() => { setResumeExpanded(true); setJdExpanded(false) }}
+                  className={`text-xs font-medium pb-0.5 border-b-2 transition-colors ${resumeExpanded ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                >
+                  简历预览
+                </button>
+              </div>
               <button
                 onClick={() => setDrawerOpen(false)}
                 className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
@@ -220,87 +234,26 @@ export default function InterviewPage() {
                 <ChevronLeftIcon className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-              {/* JD */}
-              {session?.jd_text && (
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <button
-                    onClick={() => setJdExpanded(v => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">职位描述 JD</span>
-                    {jdExpanded ? <ChevronUpIcon className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />}
-                  </button>
-                  {jdExpanded && (
-                    <div className="px-3 py-2.5">
-                      <p className="text-[12px] text-gray-600 leading-relaxed whitespace-pre-wrap">{session.jd_text}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* Resume */}
-              {resume?.content && (
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <button
-                    onClick={() => setResumeExpanded(v => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">简历内容</span>
-                    {resumeExpanded ? <ChevronUpIcon className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />}
-                  </button>
-                  {resumeExpanded && (
-                    <div className="px-3 py-3 space-y-3">
-                      {resume.content.personal_info && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">基本信息</p>
-                          <p className="text-xs font-medium text-gray-800">{resume.content.personal_info.name}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{resume.content.personal_info.email}</p>
-                        </div>
-                      )}
-                      {(resume.content.work_experience?.length ?? 0) > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">工作经历</p>
-                          <div className="space-y-2">
-                            {resume.content.work_experience!.map((w: any, i: number) => (
-                              <div key={i}>
-                                <p className="text-[11px] font-semibold text-gray-700">{w.company} · {w.position}</p>
-                                <p className="text-[10px] text-gray-400">{w.start_date} — {w.end_date || '至今'}</p>
-                                {w.description && <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{w.description}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(resume.content.projects?.length ?? 0) > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">项目经历</p>
-                          <div className="space-y-2">
-                            {resume.content.projects!.map((p: any, i: number) => (
-                              <div key={i}>
-                                <p className="text-[11px] font-semibold text-gray-700">{p.name}</p>
-                                {p.description && <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{p.description}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(resume.content.skills?.length ?? 0) > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">技能</p>
-                          <div className="flex flex-wrap gap-1">
-                            {resume.content.skills!.map((s: any, i: number) => (
-                              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                                {typeof s === 'string' ? s : s.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+
+            {/* JD tab */}
+            {!resumeExpanded && (
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {session?.jd_text
+                  ? <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-wrap">{session.jd_text}</p>
+                  : <p className="text-sm text-gray-300 text-center mt-10">暂无 JD 信息</p>
+                }
+              </div>
+            )}
+
+            {/* Resume preview tab */}
+            {resumeExpanded && (
+              <div className="flex-1 overflow-y-auto hide-scrollbar">
+                {resume?.content
+                  ? <ResumePreview content={resume.content} />
+                  : <p className="text-sm text-gray-300 text-center mt-10">暂无简历内容</p>
+                }
+              </div>
+            )}
           </div>
         )}
       </motion.div>
