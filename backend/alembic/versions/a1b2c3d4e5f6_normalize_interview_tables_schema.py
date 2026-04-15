@@ -20,8 +20,10 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = set(inspector.get_table_names())
+    migrate_sessions = "interview_sessions" in tables
+    migrate_turns = "interview_turns" in tables
 
-    if "interview_sessions" in tables:
+    if migrate_sessions:
         op.execute(
             """
             CREATE TABLE interview_sessions_new (
@@ -83,14 +85,8 @@ def upgrade() -> None:
             FROM interview_sessions
             """
         )
-        op.drop_table("interview_sessions")
-        op.rename_table("interview_sessions_new", "interview_sessions")
-        op.create_index("ix_interview_sessions_id", "interview_sessions", ["id"], unique=False)
-        op.create_index("idx_interview_sessions_resume_id", "interview_sessions", ["resume_id"], unique=False)
-        op.create_index("idx_interview_sessions_status", "interview_sessions", ["status"], unique=False)
-        op.create_index("idx_interview_sessions_resume_status", "interview_sessions", ["resume_id", "status"], unique=False)
 
-    if "interview_turns" in tables:
+    if migrate_turns:
         turn_indexes = {idx["name"] for idx in inspector.get_indexes("interview_turns")}
         if "idx_interview_turns_status" in turn_indexes:
             op.drop_index("idx_interview_turns_status", table_name="interview_turns")
@@ -100,7 +96,7 @@ def upgrade() -> None:
             op.drop_index("idx_interview_turns_session_id", table_name="interview_turns")
 
         op.execute(
-            """
+            f"""
             CREATE TABLE interview_turns_new (
                 id INTEGER NOT NULL PRIMARY KEY,
                 session_id INTEGER NOT NULL,
@@ -119,7 +115,7 @@ def upgrade() -> None:
                 answered_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP,
-                FOREIGN KEY(session_id) REFERENCES interview_sessions (id) ON DELETE CASCADE
+                FOREIGN KEY(session_id) REFERENCES {"interview_sessions_new" if migrate_sessions else "interview_sessions"} (id) ON DELETE CASCADE
             )
             """
         )
@@ -138,7 +134,18 @@ def upgrade() -> None:
             FROM interview_turns
             """
         )
+
         op.drop_table("interview_turns")
+
+    if migrate_sessions:
+        op.drop_table("interview_sessions")
+        op.rename_table("interview_sessions_new", "interview_sessions")
+        op.create_index("ix_interview_sessions_id", "interview_sessions", ["id"], unique=False)
+        op.create_index("idx_interview_sessions_resume_id", "interview_sessions", ["resume_id"], unique=False)
+        op.create_index("idx_interview_sessions_status", "interview_sessions", ["status"], unique=False)
+        op.create_index("idx_interview_sessions_resume_status", "interview_sessions", ["resume_id", "status"], unique=False)
+
+    if migrate_turns:
         op.rename_table("interview_turns_new", "interview_turns")
         op.create_index("idx_interview_turns_session_id", "interview_turns", ["session_id"], unique=False)
         op.create_index("idx_interview_turns_session_turn_index", "interview_turns", ["session_id", "turn_index"], unique=True)
