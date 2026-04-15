@@ -183,10 +183,31 @@ function groupDiffLines(lines: Array<{ type: 'remove' | 'add' | 'reason' | 'meta
   return groups
 }
 
+/** 将文本中的数字/百分比/量化表达高亮为绿色粗体，让用户一眼看到量化改写成果 */
+const NUMBER_SPLIT_RE = /(\d[\d,，]*(?:\.\d+)?(?:%|％|万|亿|千|百|倍|x|X|次|人|个|项|天|月|年|ms|GB|MB|TB|KB)?)/
+
+function HighlightNumbers({ text, active }: { text: string; active: boolean }) {
+  if (!active) return <>{text}</>
+  // split with a capturing group: even indices = plain text, odd indices = matched numbers
+  const parts = text.split(NUMBER_SPLIT_RE)
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="font-bold text-emerald-600 bg-emerald-100 rounded px-0.5">{part}</span>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
 /** 渲染一组 diff 改动（改前 → 改后 + 理由），用于 tool_pending/confirmed/rejected */
 function DiffGroupCards({ diffSummary, isConfirmed }: { diffSummary: string; isConfirmed?: boolean }) {
   const groups = groupDiffLines(parseDiffSummary(diffSummary))
   if (groups.length === 0) return null
+  const addActive = isConfirmed !== false
   return (
     <div className="divide-y divide-gray-100">
       {groups.map((g, i) => (
@@ -195,7 +216,9 @@ function DiffGroupCards({ diffSummary, isConfirmed }: { diffSummary: string; isC
             <div className="px-2 py-1 rounded bg-red-50 text-red-600 whitespace-pre-wrap">{g.remove}</div>
           )}
           {g.add && (
-            <div className={`px-2 py-1 rounded whitespace-pre-wrap ${isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-700'}`}>{g.add}</div>
+            <div className={`px-2 py-1 rounded whitespace-pre-wrap ${isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-700'}`}>
+              <HighlightNumbers text={g.add} active={addActive} />
+            </div>
           )}
           {g.reason && (
             <div className="px-2 py-1 rounded bg-amber-50 flex items-start gap-1 font-sans not-italic">

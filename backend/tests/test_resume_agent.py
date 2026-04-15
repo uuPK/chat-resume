@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from jinja2 import Template
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -68,6 +69,22 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("改动理由：补充量化结果", result["diff_summary"])
         self.assertEqual(result["diff_items"][0]["reason"], "补充量化结果")
         self.assertIn("35%", result["diff_items"][0]["after"])
+
+    def test_system_prompt_includes_quantified_rewrite_guidance(self):
+        prompt_path = (
+            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        )
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="前端工程师",
+            target_company="字节跳动",
+            jd_text="负责复杂前端交互与性能优化",
+            resume_json="{}",
+        )
+
+        self.assertIn("量化改写优先级", rendered)
+        self.assertIn("做成了什么、影响了什么、提升了多少", rendered)
+        self.assertIn("不允许编造不存在的数字", rendered)
 
 
 if __name__ == "__main__":
