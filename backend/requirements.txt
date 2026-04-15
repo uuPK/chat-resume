@@ -27,3 +27,5 @@ playwright>=1.57.0
 fastmcp==0.4.1
 rich>=14.2.0
 jinja2>=3.1.0
+sentry-sdk[fastapi]>=2.44.0
+langfuse>=4.2.0

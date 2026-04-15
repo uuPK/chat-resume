@@ -16,16 +16,19 @@ import json
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-logger = logging.getLogger(__name__)
-
+from app.infra.request_context import log_context
 from app.services.llm.chat_service import ChatService
 from app.prompts import AgentPromptSpec
+
+logger = logging.getLogger(__name__)
 
 
 ToolExecutor = Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
 PromptContextBuilder = Callable[[Dict[str, Any]], Dict[str, Any]]
+RuntimeEventCallback = Callable[[Dict[str, Any]], None]
 
 
 @dataclass(slots=True)
@@ -53,6 +56,7 @@ class AgentRuntime:
         user_message: str,
         context: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        event_callback: Optional[RuntimeEventCallback] = None,
     ) -> Dict[str, Any]:
         """执行一次完整 Agent 循环并返回最终结果。"""
         messages = self._build_messages(user_message, conversation_history, agent.max_history_messages)
@@ -61,7 +65,12 @@ class AgentRuntime:
         recoverable_error_counts: Dict[str, int] = {}
 
         for _ in range(agent.max_iterations):
-            message = await self._next_message(agent, messages, context)
+            message = await self._next_message(
+                agent,
+                messages,
+                context,
+                event_callback=event_callback,
+            )
             message = self._limit_tool_calls(message)
             messages.append(message)
 
@@ -74,6 +83,7 @@ class AgentRuntime:
                 message["tool_calls"],
                 context,
                 recoverable_error_counts=recoverable_error_counts,
+                event_callback=event_callback,
             )
             executed_tools.extend(tool_events["executed_tools"])
             messages.extend(tool_events["tool_messages"])
@@ -94,6 +104,7 @@ class AgentRuntime:
         context: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         confirmation_queue: Optional[asyncio.Queue] = None,
+        event_callback: Optional[RuntimeEventCallback] = None,
     ) -> Iterable[Dict[str, Any]]:
         """真正的上游流式转发：
         - tool_call 轮次：积累完整响应后执行工具，期间发送工具进度事件
@@ -108,10 +119,39 @@ class AgentRuntime:
             prompt_context = agent.prompt_context_builder(context)
             system_prompt = agent.prompt_spec.render(**prompt_context)
             defaults = agent.prompt_spec.model_defaults
+            user_message_preview = str(messages[-1].get("content", ""))[:1500] if messages else ""
+
+            prompt_rendered_event = {
+                "internal_only": True,
+                "prompt_rendered": True,
+                "agent_name": agent.prompt_spec.name,
+                "system_prompt": system_prompt,
+                "user_message_preview": user_message_preview,
+                "done": False,
+            }
+            self._emit_event(event_callback, prompt_rendered_event)
+            yield prompt_rendered_event
 
             accumulated_content = ""
             # index -> {id, type, function: {name, arguments}}
             accumulated_tool_calls: Dict[int, Dict[str, Any]] = {}
+            request_messages = [{"role": "system", "content": system_prompt}, *messages]
+            llm_request_event = {
+                "internal_only": True,
+                "llm_request": True,
+                "agent_name": agent.prompt_spec.name,
+                "model": self._chat_model_name(),
+                "messages": request_messages,
+                "params": {
+                    "temperature": defaults.get("temperature", 0.3),
+                    "max_tokens": defaults.get("max_tokens", 1500),
+                },
+                "tool_names": [tool.get("function", {}).get("name") for tool in agent.tools_schema],
+                "done": False,
+            }
+            self._emit_event(event_callback, llm_request_event)
+            yield llm_request_event
+            llm_started_at = perf_counter()
 
             async for delta in self.chat_service.chat_completion_stream_deltas(
                 messages=messages,
@@ -146,6 +186,19 @@ class AgentRuntime:
                     tc["function"]["name"] += func.get("name") or ""
                     tc["function"]["arguments"] += func.get("arguments") or ""
 
+            llm_response_event = {
+                "internal_only": True,
+                "llm_response": True,
+                "agent_name": agent.prompt_spec.name,
+                "model": self._chat_model_name(),
+                "response_content": accumulated_content,
+                "tool_call_count": len(accumulated_tool_calls),
+                "latency_ms": round((perf_counter() - llm_started_at) * 1000, 2),
+                "done": False,
+            }
+            self._emit_event(event_callback, llm_response_event)
+            yield llm_response_event
+
             # --- 本轮 delta 读完，按是否有 tool_calls 决定后续 ---
 
             if accumulated_tool_calls:
@@ -163,21 +216,31 @@ class AgentRuntime:
                 for tc in tool_calls_list:
                     if confirmation_queue is not None:
                         # ---- 需要用户确认：在副本上预执行拿 diff，不修改真实 context ----
-                        preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
-                        preview_result = agent.tool_executor(tc, preview_context)
+                        with log_context(tool_call_id=self._tool_call_id(tc)):
+                            logger.info(
+                                "AgentRuntime tool_preview_start agent=%s tool=%s",
+                                agent.prompt_spec.name,
+                                self._tool_name(tc),
+                            )
+                            preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
+                            preview_result = agent.tool_executor(tc, preview_context)
                         diff_summary = preview_result.get("display_message") or "执行完成"
+                        tool_input = self._tool_arguments(tc)
 
                         # 发送 pending 事件，前端展示 diff 并等待用户操作
-                        yield {
+                        tool_pending_event = {
                             "content": "",
                             "tool_pending": True,
                             "call_id": tc["id"],
                             "tool_call": tc,
                             "tool_name": preview_result["tool_name"],
+                            "tool_input": tool_input,
                             "diff_summary": diff_summary,
                             "tool_calls": executed_tools,
                             "done": False,
                         }
+                        self._emit_event(event_callback, tool_pending_event)
+                        yield tool_pending_event
 
                         # 挂起，等待确认信号（超时 5 分钟视为拒绝）
                         try:
@@ -188,6 +251,12 @@ class AgentRuntime:
                             confirmed = False
 
                         if not confirmed:
+                            with log_context(tool_call_id=self._tool_call_id(tc)):
+                                logger.info(
+                                    "AgentRuntime tool_rejected agent=%s tool=%s",
+                                    agent.prompt_spec.name,
+                                    preview_result["tool_name"],
+                                )
                             # 用户拒绝：context 未被修改，无需回滚
                             tool_messages.append({
                                 "role": "tool",
@@ -197,17 +266,33 @@ class AgentRuntime:
                                     ensure_ascii=False,
                                 ),
                             })
-                            yield {
+                            tool_rejected_event = {
                                 "content": "",
                                 "tool_rejected": True,
                                 "call_id": tc["id"],
                                 "tool_name": preview_result["tool_name"],
+                                "result": {"success": False, "error": "用户拒绝了此修改"},
                                 "tool_calls": executed_tools,
                                 "done": False,
                             }
+                            self._emit_event(event_callback, tool_rejected_event)
+                            yield tool_rejected_event
                         else:
                             # 用户确认：在真实 context 上执行
-                            tool_result = agent.tool_executor(tc, context)
+                            with log_context(tool_call_id=self._tool_call_id(tc)):
+                                logger.info(
+                                    "AgentRuntime tool_execute_start agent=%s tool=%s confirmed=%s",
+                                    agent.prompt_spec.name,
+                                    preview_result["tool_name"],
+                                    True,
+                                )
+                                tool_result = agent.tool_executor(tc, context)
+                                logger.info(
+                                    "AgentRuntime tool_execute_result agent=%s tool=%s success=%s",
+                                    agent.prompt_spec.name,
+                                    tool_result["tool_name"],
+                                    not self._is_tool_failure(tool_result),
+                                )
                             executed_tools.append({
                                 "name": tool_result["tool_name"],
                                 "result": diff_summary,
@@ -225,7 +310,7 @@ class AgentRuntime:
                                 ),
                             })
                             if self._is_tool_failure(tool_result):
-                                yield {
+                                failed_event = {
                                     "content": "",
                                     "tool_call_failed": True,
                                     "call_id": tc["id"],
@@ -235,6 +320,8 @@ class AgentRuntime:
                                     "display_message": tool_result.get("display_message"),
                                     "done": False,
                                 }
+                                self._emit_event(event_callback, failed_event)
+                                yield failed_event
                                 if retry_exhausted_message:
                                     yield {
                                         "content": retry_exhausted_message,
@@ -249,16 +336,20 @@ class AgentRuntime:
                                 if tool_result.get("qr_image")
                                 else []
                             )
-                            yield {
+                            confirmed_event = {
                                 "content": "",
                                 "tool_confirmed": True,
                                 "call_id": tc["id"],
                                 "tool_name": tool_result["tool_name"],
                                 "tool_calls": executed_tools,
                                 "qr_images": qr_images,
+                                "result": tool_result["result"],
+                                "display_message": tool_result.get("display_message"),
                                 "context": context,
                                 "done": False,
                             }
+                            self._emit_event(event_callback, confirmed_event)
+                            yield confirmed_event
                     else:
                         # ---- 无需确认：原有逻辑直接执行 ----
                         tool_events = self._execute_tool_calls(
@@ -266,6 +357,7 @@ class AgentRuntime:
                             [tc],
                             context,
                             recoverable_error_counts=recoverable_error_counts,
+                            event_callback=event_callback,
                         )
                         executed_tools.extend(tool_events["executed_tools"])
                         tool_messages.extend(tool_events["tool_messages"])
@@ -332,11 +424,36 @@ class AgentRuntime:
         agent: AgentDefinition,
         messages: List[Dict[str, Any]],
         context: Dict[str, Any],
+        event_callback: Optional[RuntimeEventCallback] = None,
     ) -> Dict[str, Any]:
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
         defaults = agent.prompt_spec.model_defaults
         user_message = messages[-1].get("content", "") if messages else ""
+        self._emit_event(
+            event_callback,
+            {
+                "event_type": "prompt_rendered",
+                "agent_name": agent.prompt_spec.name,
+                "system_prompt": system_prompt,
+                "user_message_preview": str(user_message)[:1500],
+            },
+        )
+        request_messages = [{"role": "system", "content": system_prompt}, *messages]
+        self._emit_event(
+            event_callback,
+            {
+                "event_type": "llm_request",
+                "agent_name": agent.prompt_spec.name,
+                "model": self._chat_model_name(),
+                "messages": request_messages,
+                "params": {
+                    "temperature": defaults.get("temperature", 0.3),
+                    "max_tokens": defaults.get("max_tokens", 1500),
+                },
+                "tool_names": [tool.get("function", {}).get("name") for tool in agent.tools_schema],
+            },
+        )
         logger.info(
             "AgentRuntime request agent=%s system_prompt_preview=%r user_message_preview=%r",
             agent.prompt_spec.name,
@@ -345,6 +462,7 @@ class AgentRuntime:
         )
         base_max_tokens = defaults.get("max_tokens", 1500)
         max_tokens = base_max_tokens
+        llm_started_at = perf_counter()
 
         for attempt in range(2):
             response = await self.chat_service.chat_completion(
@@ -378,6 +496,20 @@ class AgentRuntime:
             (message.get("content") or "")[:300],
             bool(message.get("tool_calls")),
         )
+        usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+        self._emit_event(
+            event_callback,
+            {
+                "event_type": "llm_response",
+                "agent_name": agent.prompt_spec.name,
+                "model": self._chat_model_name(),
+                "content": message.get("content") or "",
+                "tool_calls": message.get("tool_calls") or [],
+                "finish_reason": choice.get("finish_reason"),
+                "usage": usage,
+                "latency_ms": round((perf_counter() - llm_started_at) * 1000, 2),
+            },
+        )
         return message
 
     def _execute_tool_calls(
@@ -386,6 +518,7 @@ class AgentRuntime:
         tool_calls: List[Dict[str, Any]],
         context: Dict[str, Any],
         recoverable_error_counts: Optional[Dict[str, int]] = None,
+        event_callback: Optional[RuntimeEventCallback] = None,
     ) -> Dict[str, Any]:
         executed_tools: List[Dict[str, Any]] = []
         tool_messages: List[Dict[str, Any]] = []
@@ -394,7 +527,44 @@ class AgentRuntime:
         error_counts = recoverable_error_counts if recoverable_error_counts is not None else {}
 
         for tool_call in tool_calls:
-            tool_result = agent.tool_executor(tool_call, context)
+            with log_context(tool_call_id=self._tool_call_id(tool_call)):
+                self._emit_event(
+                    event_callback,
+                    {
+                        "event_type": "tool_call",
+                        "agent_name": agent.prompt_spec.name,
+                        "tool_name": self._tool_name(tool_call),
+                        "tool_input": self._tool_arguments(tool_call),
+                        "call_id": self._tool_call_id(tool_call),
+                    },
+                )
+                tool_started_at = perf_counter()
+                logger.info(
+                    "AgentRuntime tool_execute_start agent=%s tool=%s confirmed=%s",
+                    agent.prompt_spec.name,
+                    self._tool_name(tool_call),
+                    False,
+                )
+                tool_result = agent.tool_executor(tool_call, context)
+                logger.info(
+                    "AgentRuntime tool_execute_result agent=%s tool=%s success=%s",
+                    agent.prompt_spec.name,
+                    tool_result["tool_name"],
+                    not self._is_tool_failure(tool_result),
+                )
+                self._emit_event(
+                    event_callback,
+                    {
+                        "event_type": "tool_result",
+                        "agent_name": agent.prompt_spec.name,
+                        "tool_name": tool_result["tool_name"],
+                        "call_id": self._tool_call_id(tool_call),
+                        "result": tool_result["result"],
+                        "success": not self._is_tool_failure(tool_result),
+                        "display_message": tool_result.get("display_message"),
+                        "latency_ms": round((perf_counter() - tool_started_at) * 1000, 2),
+                    },
+                )
             retry_exhausted_message = self._record_recoverable_tool_error(
                 tool_call,
                 tool_result,
@@ -471,3 +641,37 @@ class AgentRuntime:
 
         message = error.get("message") or tool_result.get("display_message") or "工具调用参数持续失败"
         return f"工具调用连续失败，已停止自动重试。失败原因：{message}"
+
+    @staticmethod
+    def _tool_call_id(tool_call: Dict[str, Any]) -> str | None:
+        tool_call_id = tool_call.get("id")
+        return tool_call_id if isinstance(tool_call_id, str) and tool_call_id else None
+
+    @staticmethod
+    def _tool_name(tool_call: Dict[str, Any]) -> str:
+        function_payload = tool_call.get("function")
+        if isinstance(function_payload, dict):
+            tool_name = function_payload.get("name")
+            if isinstance(tool_name, str) and tool_name:
+                return tool_name
+        return "unknown_tool"
+
+    @staticmethod
+    def _tool_arguments(tool_call: Dict[str, Any]) -> Any:
+        function_payload = tool_call.get("function")
+        if not isinstance(function_payload, dict):
+            return None
+        return function_payload.get("arguments")
+
+    @staticmethod
+    def _emit_event(
+        event_callback: Optional[RuntimeEventCallback],
+        event: Dict[str, Any],
+    ) -> None:
+        if event_callback is None:
+            return
+        event_callback(event)
+
+    def _chat_model_name(self) -> str:
+        model = getattr(self.chat_service, "model", None)
+        return model if isinstance(model, str) and model else "unknown_model"

@@ -33,12 +33,14 @@ class InterviewerAgent:
         user_message: str,
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        event_callback=None,
     ) -> Dict[str, Any]:
         runtime_result = await self.runtime.run(
             agent=self.definition,
             user_message=user_message,
             context={"resume_content": resume_content},
             conversation_history=conversation_history,
+            event_callback=event_callback,
         )
         return {
             "content": runtime_result["content"],
@@ -51,12 +53,14 @@ class InterviewerAgent:
         user_message: str,
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        event_callback=None,
     ):
         async for event in self.runtime.run_stream(
             agent=self.definition,
             user_message=user_message,
             context={"resume_content": resume_content},
             conversation_history=conversation_history,
+            event_callback=event_callback,
         ):
             yield {
                 "content": event.get("content", ""),

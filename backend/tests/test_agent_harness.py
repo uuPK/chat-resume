@@ -26,8 +26,9 @@ class FakeResumeAgent:
         conversation_history: list[dict[str, str]],
         confirmation_queue: asyncio.Queue | None,
         allowed_sections: set[str],
+        event_callback=None,
     ):
-        del user_message, conversation_history, confirmation_queue, allowed_sections
+        del user_message, conversation_history, confirmation_queue, allowed_sections, event_callback
         yield {
             "content": "",
             "tool_pending": True,

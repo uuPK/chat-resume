@@ -6,33 +6,30 @@ FastAPI应用的初始化和配置入口点。
 """
 
 from time import perf_counter
+from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
-from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+from app.api.api import api_router
 from app.infra.config import settings
+from app.infra.database import engine, Base
 from app.infra.db_observability import (
     get_request_metrics,
     reset_request_metrics,
     start_request_metrics,
 )
-from app.api.api import api_router
-from app.infra.database import engine, Base
+from app.infra.logging_setup import configure_logging
+from app.infra.langfuse_setup import configure_langfuse, shutdown_langfuse
+from app.infra.request_context import bind_log_context, reset_log_context
+from app.infra.sentry_setup import configure_sentry
 import logging
 
-# 配置日志格式
-log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-logging.basicConfig(
-    level=log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-# 第三方 HTTP 库的低级调试日志只在 WARNING 以上才输出
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("multipart").setLevel(logging.WARNING)
-logging.getLogger("passlib").setLevel(logging.WARNING)
+configure_logging()
 logger = logging.getLogger(__name__)
+configure_sentry()
+configure_langfuse()
 
 
 def _truncate_log_value(value: str | None, limit: int = 240) -> str:
@@ -53,12 +50,16 @@ app = FastAPI(
 # 添加中间件来记录请求
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid4().hex
+    request.state.request_id = request_id
+    context_tokens = bind_log_context(request_id=request_id)
     logger.info(f"Request: {request.method} {request.url}")
     request_started_at = perf_counter()
     metrics_token = start_request_metrics()
     response = None
     try:
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         return response
     finally:
         request_elapsed_ms = (perf_counter() - request_started_at) * 1000
@@ -83,6 +84,7 @@ async def log_requests(request: Request, call_next):
                 _truncate_log_value(metrics.longest_query_statement),
             )
         reset_request_metrics(metrics_token)
+        reset_log_context(context_tokens)
 
 
 # 数据库迁移由 Railway 的 startCommand 处理
@@ -147,6 +149,11 @@ async def health_check(response: Response):
 @app.get("/api/test")
 async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
+
+
+@app.on_event("shutdown")
+async def shutdown_observability_clients():
+    shutdown_langfuse()
 
 
 # 移除手动OPTIONS处理，让CORS中间件自动处理

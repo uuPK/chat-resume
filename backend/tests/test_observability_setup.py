@@ -1,0 +1,74 @@
+import json
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import logging
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from app.infra.logging_setup import JsonFormatter  # noqa: E402
+from app.infra.langfuse_observer import LangfuseRunObserver  # noqa: E402
+from app.infra.langfuse_setup import configure_langfuse  # noqa: E402
+from app.infra.request_context import log_context  # noqa: E402
+from app.infra.sentry_setup import _before_send  # noqa: E402
+from app.infra.config import settings  # noqa: E402
+
+
+class ObservabilitySetupTests(unittest.TestCase):
+    def test_json_formatter_includes_correlation_fields(self):
+        record = logging.LogRecord(
+            name="test.logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=10,
+            msg="hello observability",
+            args=(),
+            exc_info=None,
+        )
+        record.request_id = "req_123"
+        record.session_id = "sess_123"
+        record.tool_call_id = "tool_123"
+
+        payload = json.loads(JsonFormatter().format(record))
+        self.assertEqual(payload["message"], "hello observability")
+        self.assertEqual(payload["request_id"], "req_123")
+        self.assertEqual(payload["session_id"], "sess_123")
+        self.assertEqual(payload["tool_call_id"], "tool_123")
+
+    def test_before_send_enriches_event_with_request_context(self):
+        with log_context(
+            request_id="req_ctx",
+            session_id="sess_ctx",
+            tool_call_id="tool_ctx",
+        ):
+            event = _before_send({"message": "boom"}, {})
+
+        assert event is not None
+        self.assertEqual(event["tags"]["request_id"], "req_ctx")
+        self.assertEqual(event["tags"]["session_id"], "sess_ctx")
+        self.assertEqual(event["tags"]["tool_call_id"], "tool_ctx")
+        self.assertEqual(event["extra"]["request_id"], "req_ctx")
+
+    def test_configure_langfuse_is_disabled_without_credentials(self):
+        with patch("app.infra.langfuse_setup._langfuse_client", None), \
+             patch.object(settings, "LANGFUSE_PUBLIC_KEY", ""), \
+             patch.object(settings, "LANGFUSE_SECRET_KEY", ""):
+            self.assertFalse(configure_langfuse())
+
+    def test_langfuse_observer_is_noop_when_client_missing(self):
+        with patch("app.infra.langfuse_observer.get_langfuse_client", return_value=None):
+            observer = LangfuseRunObserver(
+                run_id="run_test",
+                agent_type="resume",
+                run_kind="chat_stream",
+                user_id=1,
+                input_text="hello",
+            )
+            with observer:
+                observer.on_runtime_event({"prompt_rendered": True, "system_prompt": "test"})
+                observer.finish("done")

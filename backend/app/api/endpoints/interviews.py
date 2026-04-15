@@ -10,11 +10,12 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
@@ -23,6 +24,8 @@ from sqlalchemy.orm import Session, noload
 from app.api.deps import get_current_user
 from app.agents.definitions import InterviewerAgent
 from app.infra.database import get_db
+from app.infra.langfuse_observer import LangfuseRunObserver
+from app.infra.request_context import log_context
 from app.models import InterviewSession, InterviewTurn
 from app.schemas.resume import dump_resume_content_for_frontend
 from app.services.domain import ResumeService
@@ -85,6 +88,24 @@ _ROUND_INSTRUCTIONS: dict[str, str] = {
 
 def _round_instructions(question_type: str) -> str:
     return _ROUND_INSTRUCTIONS.get(question_type, "")
+
+
+def _build_first_round_prompt(question_type: str, round_goal: str) -> str:
+    instructions = _round_instructions(question_type)
+    return f"{instructions}\n开始一场模拟面试。当前阶段目标：{round_goal}。请直接提出第一题。"
+
+
+def _build_next_round_prompt(question_type: str, round_goal: str) -> str:
+    instructions = _round_instructions(question_type)
+    return f"{instructions}\n进入下一阶段：{round_goal}。请直接提出该阶段的第一个问题。"
+
+
+def _build_same_round_prompt(question_type: str, round_goal: str, remaining_questions: int) -> str:
+    instructions = _round_instructions(question_type)
+    return (
+        f"{instructions}\n当前面试阶段：{round_goal}（本阶段还可再问 {remaining_questions} 题）。"
+        "根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
+    )
 
 
 def _rounds_for_type(interview_type: str) -> list[dict[str, Any]]:
@@ -202,11 +223,13 @@ async def _generate_question(
     resume_content: dict[str, Any],
     history: list[dict[str, str]],
     prompt: str,
+    event_callback=None,
 ) -> str:
     result = await _interviewer_agent.chat(
         user_message=prompt,
         resume_content=resume_content,
         conversation_history=history,
+        event_callback=event_callback,
     )
     return (result.get("content") or "").strip()
 
@@ -246,6 +269,7 @@ async def _evaluate_answer_with_llm(
     answer: str,
     resume_content: dict[str, Any],
     history: list[dict[str, str]],
+    event_callback=None,
 ) -> dict[str, Any]:
     """用 LLM 评估候选人回答，解析失败时 fallback 到规则。"""
     prompt = (
@@ -258,6 +282,7 @@ async def _evaluate_answer_with_llm(
             user_message=prompt,
             resume_content=resume_content,
             conversation_history=history,
+            event_callback=event_callback,
         )
         raw = (result.get("content") or "").strip()
         # 兼容模型偶尔包裹 markdown 代码块的情况
@@ -387,6 +412,7 @@ async def get_interview(
 @router.post("/{session_id}/start", response_model=InterviewActionResponse)
 async def start_interview(
     session_id: int,
+    http_request: Request,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -398,15 +424,33 @@ async def start_interview(
 
     resume = _get_resume_for_user(db, session.resume_id, current_user["id"])
     resume_content = resume.content if isinstance(resume.content, dict) else {}
+    run_id = uuid4().hex
+    observer = LangfuseRunObserver(
+        run_id=run_id,
+        agent_type="interview",
+        run_kind="start_interview",
+        user_id=current_user["id"],
+        input_text="开始模拟面试并生成第一题",
+        metadata={
+            "interview_session_id": session.id,
+            "resume_id": session.resume_id,
+            "request_id": getattr(http_request.state, "request_id", None),
+        },
+    )
     rounds = ((session.plan_json or {}).get("rounds") or [])
     first_round = rounds[0] if rounds else {}
     round_goal = first_round.get("goal", "自我介绍与岗位匹配")
-    instructions = _round_instructions(first_round.get("type", "warmup"))
-    question = await _generate_question(
-        resume_content=resume_content,
-        history=[],
-        prompt=f"{instructions}\n开始一场模拟面试。当前阶段目标：{round_goal}。请直接提出第一题。",
-    )
+    try:
+        with observer:
+            question = await _generate_question(
+                resume_content=resume_content,
+                history=[],
+                prompt=_build_first_round_prompt(first_round.get("type", "warmup"), round_goal),
+                event_callback=observer.on_runtime_event,
+            )
+    except Exception as exc:
+        observer.fail(str(exc))
+        raise
     if not question:
         question = "先用两分钟做一个和目标岗位最相关的自我介绍。"
 
@@ -426,6 +470,7 @@ async def start_interview(
     db.add(turn)
     db.commit()
     db.refresh(session)
+    observer.finish(question)
     return InterviewActionResponse(
         session=_serialize_session(session),
         message=question,
@@ -437,6 +482,7 @@ async def start_interview(
 async def answer_interview(
     session_id: int,
     request: InterviewAnswerRequest,
+    http_request: Request,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -454,6 +500,19 @@ async def answer_interview(
 
     resume = _get_resume_for_user(db, session.resume_id, current_user["id"])
     resume_content = resume.content if isinstance(resume.content, dict) else {}
+    run_id = uuid4().hex
+    observer = LangfuseRunObserver(
+        run_id=run_id,
+        agent_type="interview",
+        run_kind="answer_interview",
+        user_id=current_user["id"],
+        input_text=answer_text,
+        metadata={
+            "interview_session_id": session.id,
+            "resume_id": session.resume_id,
+            "request_id": getattr(http_request.state, "request_id", None),
+        },
+    )
     history: list[dict[str, str]] = []
     for item in list(session.turns or []):
         history.append({"role": "assistant", "content": item.question})
@@ -492,6 +551,7 @@ async def answer_interview(
         }
         db.commit()
         db.refresh(session)
+        observer.finish("interview_completed")
         return InterviewActionResponse(
             session=_serialize_session(session),
             next_action="completed",
@@ -499,20 +559,28 @@ async def answer_interview(
 
     if force_next_round:
         next_round = rounds[next_round_index]
-        instructions = _round_instructions(next_round["type"])
-        prompt = f"{instructions}\n进入下一阶段：{next_round['goal']}。请直接提出该阶段的第一个问题。"
+        prompt = _build_next_round_prompt(next_round["type"], next_round["goal"])
         new_round_index = next_round_index
         new_round_type = next_round["type"]
         new_round_goal = next_round["goal"]
     else:
         remaining = max_q - questions_in_round
-        instructions = _round_instructions(current_round["type"])
-        prompt = f"{instructions}\n当前面试阶段：{current_round['goal']}（本阶段还可再问 {remaining} 题）。根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
+        prompt = _build_same_round_prompt(current_round["type"], current_round["goal"], remaining)
         new_round_index = turn.round_index
         new_round_type = current_round["type"]
         new_round_goal = current_round["goal"]
 
-    question = await _generate_question(resume_content=resume_content, history=history, prompt=prompt)
+    try:
+        with observer:
+            question = await _generate_question(
+                resume_content=resume_content,
+                history=history,
+                prompt=prompt,
+                event_callback=observer.on_runtime_event,
+            )
+    except Exception as exc:
+        observer.fail(str(exc))
+        raise
     if not question:
         question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
     next_turn = InterviewTurn(
@@ -531,6 +599,7 @@ async def answer_interview(
     db.add(next_turn)
     db.commit()
     db.refresh(session)
+    observer.finish(question)
     return InterviewActionResponse(
         session=_serialize_session(session),
         message=question,
@@ -541,6 +610,7 @@ async def answer_interview(
 @router.post("/{session_id}/answer/stream")
 async def answer_interview_stream(
     session_id: int,
+    http_request: Request,
     request: InterviewAnswerRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -559,6 +629,19 @@ async def answer_interview_stream(
     answer_text = request.answer.strip()
     resume = _get_resume_for_user(db, session.resume_id, current_user["id"])
     resume_content = resume.content if isinstance(resume.content, dict) else {}
+    run_id = uuid4().hex
+    observer = LangfuseRunObserver(
+        run_id=run_id,
+        agent_type="interview",
+        run_kind="answer_interview_stream",
+        user_id=current_user["id"],
+        input_text=answer_text,
+        metadata={
+            "interview_session_id": session.id,
+            "resume_id": session.resume_id,
+            "request_id": getattr(http_request.state, "request_id", None),
+        },
+    )
 
     history: list[dict[str, str]] = []
     for item in list(session.turns or []):
@@ -574,106 +657,113 @@ async def answer_interview_stream(
 
     async def generate():
         nonlocal session
+        with log_context(
+            request_id=getattr(http_request.state, "request_id", None),
+            session_id=str(session_id),
+        ):
+            logger.info("Interview stream started")
+            with observer:
+                rounds = ((session.plan_json or {}).get("rounds") or [])
+                current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
+                max_q = int(current_round.get("max_questions") or 2)
+                questions_in_round = sum(1 for t in session.turns if t.round_index == turn.round_index)
+                force_next_round = questions_in_round >= max_q
 
-        rounds = ((session.plan_json or {}).get("rounds") or [])
-        current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
-        max_q = int(current_round.get("max_questions") or 2)
-        questions_in_round = sum(1 for t in session.turns if t.round_index == turn.round_index)
-        force_next_round = questions_in_round >= max_q
+                if force_next_round:
+                    next_round_index = turn.round_index + 1
+                else:
+                    next_round_index = turn.round_index
 
-        if force_next_round:
-            next_round_index = turn.round_index + 1
-        else:
-            next_round_index = turn.round_index
+                is_completed = force_next_round and next_round_index >= len(rounds)
 
-        is_completed = force_next_round and next_round_index >= len(rounds)
+                # 1. 决定 prompt
+                if is_completed:
+                    prompt = None
+                elif force_next_round:
+                    next_round = rounds[next_round_index]
+                    prompt = _build_next_round_prompt(next_round["type"], next_round["goal"])
+                else:
+                    remaining = max_q - questions_in_round
+                    prompt = _build_same_round_prompt(current_round["type"], current_round["goal"], remaining)
 
-        # 1. 决定 prompt
-        if is_completed:
-            prompt = None
-        elif force_next_round:
-            next_round = rounds[next_round_index]
-            instructions = _round_instructions(next_round["type"])
-            prompt = f"{instructions}\n进入下一阶段：{next_round['goal']}。请直接提出该阶段的第一个问题。"
-        else:
-            remaining = max_q - questions_in_round
-            instructions = _round_instructions(current_round["type"])
-            prompt = f"{instructions}\n当前面试阶段：{current_round['goal']}（本阶段还可再问 {remaining} 题）。根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
-
-        # 2. 流式生成问题（结束场景跳过）
-        accumulated = ""
-        if prompt is not None:
-            try:
-                async for chunk in _interviewer_agent.chat_stream(
-                    user_message=prompt,
-                    resume_content=resume_content,
-                    conversation_history=history,
-                ):
-                    token = chunk.get("content") or ""
-                    if token:
-                        accumulated += token
-                        yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
-            except Exception as e:
-                logger.warning("Stream generation failed: %s", e)
+                # 2. 流式生成问题（结束场景跳过）
                 accumulated = ""
+                if prompt is not None:
+                    try:
+                        async for chunk in _interviewer_agent.chat_stream(
+                            user_message=prompt,
+                            resume_content=resume_content,
+                            conversation_history=history,
+                            event_callback=observer.on_runtime_event,
+                        ):
+                            token = chunk.get("content") or ""
+                            if token:
+                                accumulated += token
+                                yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
+                    except Exception as e:
+                        observer.fail(str(e))
+                        logger.warning("Stream generation failed: %s", e)
+                        accumulated = ""
 
-        question = accumulated.strip() or None
+                question = accumulated.strip() or None
 
-        # 3. 持久化新状态
-        if is_completed:
-            session.status = "completed"
-            session.ended_at = _now()
-            session.report_data = {
-                "summary": "本场模拟面试已结束。",
-                "strengths": ["能持续回答问题并完成整场面试。"],
-                "weaknesses": [],
-                "next_training_plan": [
-                    "每个回答都补足背景、动作、结果。",
-                    "突出个人贡献，避免只讲团队。",
-                    "尽量加入量化指标和复盘结论。",
-                ],
-            }
-            db.commit()
-            db.refresh(session)
-            done_payload = {
-                "type": "done",
-                "next_action": "completed",
-                "session": _serialize_session(session),
-            }
-        else:
-            if force_next_round:
-                next_round = rounds[next_round_index]
-                new_round_type = next_round["type"]
-                new_round_goal = next_round["goal"]
-            else:
-                new_round_type = current_round["type"]
-                new_round_goal = current_round["goal"]
-            if not question:
-                question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
-            next_turn = InterviewTurn(
-                session_id=session.id,
-                turn_index=session.current_turn_index + 1,
-                round_index=next_round_index,
-                question=question,
-                question_type=new_round_type,
-                intent=new_round_goal,
-                status="asked",
-                asked_at=_now(),
-            )
-            session.current_turn_index += 1
-            session.current_round_index = next_round_index
-            session.status = "waiting_user_answer"
-            db.add(next_turn)
-            db.commit()
-            db.refresh(session)
-            done_payload = {
-                "type": "done",
-                "next_action": "next_question",
-                "message": question,
-                "session": _serialize_session(session),
-            }
+                # 3. 持久化新状态
+                if is_completed:
+                    session.status = "completed"
+                    session.ended_at = _now()
+                    session.report_data = {
+                        "summary": "本场模拟面试已结束。",
+                        "strengths": ["能持续回答问题并完成整场面试。"],
+                        "weaknesses": [],
+                        "next_training_plan": [
+                            "每个回答都补足背景、动作、结果。",
+                            "突出个人贡献，避免只讲团队。",
+                            "尽量加入量化指标和复盘结论。",
+                        ],
+                    }
+                    db.commit()
+                    db.refresh(session)
+                    done_payload = {
+                        "type": "done",
+                        "next_action": "completed",
+                        "session": _serialize_session(session),
+                    }
+                else:
+                    if force_next_round:
+                        next_round = rounds[next_round_index]
+                        new_round_type = next_round["type"]
+                        new_round_goal = next_round["goal"]
+                    else:
+                        new_round_type = current_round["type"]
+                        new_round_goal = current_round["goal"]
+                    if not question:
+                        question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+                    next_turn = InterviewTurn(
+                        session_id=session.id,
+                        turn_index=session.current_turn_index + 1,
+                        round_index=next_round_index,
+                        question=question,
+                        question_type=new_round_type,
+                        intent=new_round_goal,
+                        status="asked",
+                        asked_at=_now(),
+                    )
+                    session.current_turn_index += 1
+                    session.current_round_index = next_round_index
+                    session.status = "waiting_user_answer"
+                    db.add(next_turn)
+                    db.commit()
+                    db.refresh(session)
+                    done_payload = {
+                        "type": "done",
+                        "next_action": "next_question",
+                        "message": question,
+                        "session": _serialize_session(session),
+                    }
 
-        yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+                logger.info("Interview stream completed next_action=%s", done_payload["next_action"])
+                observer.finish(done_payload.get("message") or done_payload["next_action"])
+                yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         generate(),

@@ -11,6 +11,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.infra.database import Base  # noqa: E402
+from app.infra.request_context import log_context  # noqa: E402
 from app.models import AgentEvent, AgentSession, Resume, User  # noqa: E402
 from app.agents.state.agent_session_store import AgentSessionStore  # noqa: E402
 
@@ -82,3 +83,34 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.assertEqual(updated.current_step, "tool_call")
         self.assertEqual(updated.failed_reason, "参数缺失")
         self.assertIsNotNone(updated.completed_at)
+
+    def test_session_and_events_capture_observability_context(self):
+        store = AgentSessionStore(self.db)
+
+        with log_context(
+            request_id="req_test_123",
+            session_id="session_ctx",
+            tool_call_id="tool_ctx",
+        ):
+            session = store.create_session(
+                session_id="session_ctx",
+                user_id=self.user.id,
+                resume_id=self.resume.id,
+                task_type="resume_optimization",
+                metadata={"visible_modules": ["projects"]},
+            )
+            event = store.append_event(
+                session_id=session.id,
+                event_type="tool_call_finished",
+                source="resume_agent",
+                payload={"result": {"success": True}},
+            )
+
+        session_observability = session.metadata_json["observability"]
+        self.assertEqual(session_observability["request_id"], "req_test_123")
+        self.assertEqual(session_observability["session_id"], "session_ctx")
+
+        event_observability = event.payload["observability"]
+        self.assertEqual(event_observability["request_id"], "req_test_123")
+        self.assertEqual(event_observability["session_id"], "session_ctx")
+        self.assertEqual(event_observability["tool_call_id"], "tool_ctx")

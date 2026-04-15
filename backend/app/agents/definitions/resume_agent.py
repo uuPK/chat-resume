@@ -89,6 +89,7 @@ class ResumeAgent:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         confirmation_queue: Optional[asyncio.Queue] = None,
         allowed_sections: Optional[set[str]] = None,
+        event_callback=None,
     ):
         """按阶段流式输出 Agent 执行过程。"""
         context = {
@@ -101,6 +102,7 @@ class ResumeAgent:
             context=context,
             conversation_history=conversation_history,
             confirmation_queue=confirmation_queue,
+            event_callback=event_callback,
         ):
             yield {
                 "content": event.get("content", ""),
@@ -116,9 +118,24 @@ class ResumeAgent:
                 "call_id": event.get("call_id"),
                 "tool_call": event.get("tool_call"),
                 "tool_name": event.get("tool_name"),
+                "tool_input": event.get("tool_input"),
                 "diff_summary": event.get("diff_summary"),
                 "result": event.get("result"),
                 "display_message": event.get("display_message"),
+                "internal_only": event.get("internal_only"),
+                "prompt_rendered": event.get("prompt_rendered"),
+                "llm_request": event.get("llm_request"),
+                "llm_response": event.get("llm_response"),
+                "agent_name": event.get("agent_name"),
+                "system_prompt": event.get("system_prompt"),
+                "user_message_preview": event.get("user_message_preview"),
+                "model": event.get("model"),
+                "messages": event.get("messages"),
+                "params": event.get("params"),
+                "tool_names": event.get("tool_names"),
+                "response_content": event.get("response_content"),
+                "latency_ms": event.get("latency_ms"),
+                "tool_call_count": event.get("tool_call_count"),
                 "done": event.get("done", False),
             }
 

@@ -159,6 +159,13 @@ class TestAuth:
         assert resp.status_code == 200
         assert resp.json()["email"] == "me_user@example.com"
 
+    def test_get_me_returns_request_id_header(self, client):
+        _register(client, "request_id_user@example.com", full_name="请求头测试")
+        token = _login(client, "request_id_user@example.com")
+        resp = client.get("/api/auth/me", headers=_auth_headers(token))
+        assert resp.status_code == 200
+        assert resp.headers.get("X-Request-ID")
+
     def test_get_me_without_token_returns_401(self, client):
         resp = client.get("/api/auth/me")
         assert resp.status_code == 401
@@ -307,8 +314,8 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         self.resume_id = create_resp.json()["id"]
 
-        async def _fake_chat(self, user_message, resume_content, conversation_history=None):
-            del self, resume_content, conversation_history
+        async def _fake_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):
+            del self, resume_content, conversation_history, event_callback
             if "追问" in user_message:
                 return {"content": "你刚才提到做了优化，具体指标提升了多少？"}
             if "下一轮" in user_message:
@@ -760,9 +767,8 @@ class TestAgentConfirmation:
         assert body["applied"] is True
         assert body["resume_content"]["projects"][0]["overview"] == "恢复接口写入的新简介"
 
-
 # ═══════════════════════════════════════════════════════════════════════════
-# 6. 健康检查 & 根路由
+# 7. 健康检查 & 根路由
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestHealthEndpoints:
@@ -785,7 +791,7 @@ class TestHealthEndpoints:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 7. 负向场景
+# 8. 负向场景
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestNegativeCases:

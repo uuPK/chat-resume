@@ -9,6 +9,7 @@ move more runtime policy into this layer without changing the API endpoint.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, AsyncIterator
 
 from sqlalchemy.orm import Session
@@ -16,9 +17,15 @@ from sqlalchemy.orm import Session
 from app.agents.definitions.resume_agent import ResumeAgent
 from app.agents.state.agent_session_store import AgentSessionStore
 
+logger = logging.getLogger(__name__)
+
 
 class AgentHarness:
-    def __init__(self, db: Session, session_store: AgentSessionStore | None = None):
+    def __init__(
+        self,
+        db: Session,
+        session_store: AgentSessionStore | None = None,
+    ):
         self.db = db
         self.session_store = session_store or AgentSessionStore(db)
 
@@ -31,6 +38,7 @@ class AgentHarness:
         user_message: str,
         visible_modules: list[str],
     ) -> None:
+        logger.info("AgentHarness create_resume_session resume_id=%s user_id=%s", resume_id, user_id)
         self.session_store.create_session(
             session_id=session_id,
             user_id=user_id,
@@ -59,9 +67,11 @@ class AgentHarness:
         conversation_history: list[dict[str, str]],
         confirmation_queue: asyncio.Queue | None,
         allowed_sections: set[str],
+        event_callback=None,
     ) -> AsyncIterator[dict[str, Any]]:
         final_content_parts: list[str] = []
         latest_resume_content: dict[str, Any] | None = None
+        logger.info("AgentHarness run_resume_stream started")
 
         try:
             async for event in agent.optimize_stream(
@@ -70,6 +80,7 @@ class AgentHarness:
                 conversation_history=conversation_history,
                 confirmation_queue=confirmation_queue,
                 allowed_sections=allowed_sections,
+                event_callback=event_callback,
             ):
                 latest_resume_content = self._record_resume_stream_event(
                     session_id=session_id,
@@ -79,6 +90,7 @@ class AgentHarness:
                 )
                 yield event
         except Exception as exc:
+            logger.exception("AgentHarness run_resume_stream failed")
             self.record_failure(session_id, exc)
             raise
 
@@ -87,10 +99,12 @@ class AgentHarness:
             final_content="".join(final_content_parts),
             latest_resume_content=latest_resume_content,
         )
+        logger.info("AgentHarness run_resume_stream completed")
 
     def record_failure(self, session_id: str, exc: Exception) -> None:
         if not self.session_store.get_session(session_id):
             return
+        logger.error("AgentHarness record_failure error=%s", exc)
         self.session_store.update_status(
             session_id,
             "failed",
@@ -110,6 +124,7 @@ class AgentHarness:
         final_content: str,
         latest_resume_content: dict[str, Any] | None,
     ) -> None:
+        logger.info("AgentHarness complete_resume_session has_checkpoint=%s", latest_resume_content is not None)
         if final_content:
             self.session_store.append_event(
                 session_id=session_id,
@@ -296,6 +311,17 @@ class AgentHarness:
                     "diff_summary": event.get("diff_summary"),
                 },
             )
+        elif event.get("prompt_rendered"):
+            self.session_store.append_event(
+                session_id=session_id,
+                event_type="prompt_rendered",
+                source="resume_agent",
+                payload={
+                    "agent_name": event.get("agent_name"),
+                    "system_prompt": event.get("system_prompt"),
+                    "user_message_preview": event.get("user_message_preview"),
+                },
+            )
         elif event.get("tool_confirmed"):
             self.session_store.update_status(
                 session_id,
@@ -332,5 +358,4 @@ class AgentHarness:
                     "display_message": event.get("display_message"),
                 },
             )
-
         return latest_resume_content

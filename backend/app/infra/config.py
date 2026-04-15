@@ -15,9 +15,14 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Chat Resume API"
     VERSION: str = "1.0.0"
     API_STR: str = "/api"
+    APP_ENV: str = os.getenv(
+        "APP_ENV",
+        os.getenv("NODE_ENV", os.getenv("RAILWAY_ENVIRONMENT_NAME", "development")),
+    )
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "text")
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")
@@ -90,6 +95,30 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+    # Observability
+    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+    SENTRY_ENVIRONMENT: str = os.getenv(
+        "SENTRY_ENVIRONMENT",
+        os.getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
+    )
+    SENTRY_RELEASE: str = os.getenv(
+        "SENTRY_RELEASE",
+        os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
+    )
+    SENTRY_TRACES_SAMPLE_RATE: float = float(
+        os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+    )
+    SENTRY_SEND_DEFAULT_PII: bool = (
+        os.getenv("SENTRY_SEND_DEFAULT_PII", "false").strip().lower() == "true"
+    )
+    LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+    LANGFUSE_SECRET_KEY: str = os.getenv("LANGFUSE_SECRET_KEY", "")
+    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    LANGFUSE_SAMPLE_RATE: float = float(os.getenv("LANGFUSE_SAMPLE_RATE", "1.0"))
+    LANGFUSE_DEBUG: bool = (
+        os.getenv("LANGFUSE_DEBUG", "false").strip().lower() == "true"
+    )
 
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 

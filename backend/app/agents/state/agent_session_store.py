@@ -11,6 +11,7 @@ from typing import Any, Iterable
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.infra.request_context import get_log_context
 from app.models.agent_session import AgentEvent, AgentSession
 
 
@@ -27,13 +28,17 @@ class AgentSessionStore:
         metadata: dict[str, Any] | None = None,
         session_id: str | None = None,
     ) -> AgentSession:
+        merged_metadata = self._merge_observability_metadata(
+            metadata,
+            session_id=session_id,
+        )
         session = AgentSession(
             id=session_id or uuid4().hex,
             user_id=user_id,
             resume_id=resume_id,
             task_type=task_type,
             status="created",
-            metadata_json=metadata or {},
+            metadata_json=merged_metadata,
         )
         self.db.add(session)
         self.db.commit()
@@ -81,12 +86,16 @@ class AgentSessionStore:
         payload: dict[str, Any] | None = None,
     ) -> AgentEvent:
         sequence = self._next_sequence(session_id)
+        enriched_payload = self._merge_observability_payload(
+            payload,
+            session_id=session_id,
+        )
         event = AgentEvent(
             session_id=session_id,
             sequence=sequence,
             event_type=event_type,
             source=source,
-            payload=payload or {},
+            payload=enriched_payload,
         )
         self.db.add(event)
         self.db.commit()
@@ -165,3 +174,49 @@ class AgentSessionStore:
             .scalar()
         )
         return int(current or 0) + 1
+
+    @staticmethod
+    def _merge_observability_metadata(
+        metadata: dict[str, Any] | None,
+        *,
+        session_id: str | None,
+    ) -> dict[str, Any]:
+        merged = dict(metadata or {})
+        observability = AgentSessionStore._current_observability(session_id=session_id)
+        if not observability:
+            return merged
+        existing = merged.get("observability")
+        base = dict(existing) if isinstance(existing, dict) else {}
+        base.update(observability)
+        merged["observability"] = base
+        return merged
+
+    @staticmethod
+    def _merge_observability_payload(
+        payload: dict[str, Any] | None,
+        *,
+        session_id: str,
+    ) -> dict[str, Any]:
+        merged = dict(payload or {})
+        observability = AgentSessionStore._current_observability(session_id=session_id)
+        if not observability:
+            return merged
+        existing = merged.get("observability")
+        base = dict(existing) if isinstance(existing, dict) else {}
+        base.update(observability)
+        merged["observability"] = base
+        return merged
+
+    @staticmethod
+    def _current_observability(*, session_id: str | None) -> dict[str, str]:
+        context = get_log_context()
+        observability = {
+            "request_id": context["request_id"],
+            "session_id": session_id or context["session_id"],
+            "tool_call_id": context["tool_call_id"],
+        }
+        return {
+            key: value
+            for key, value in observability.items()
+            if isinstance(value, str) and value
+        }
