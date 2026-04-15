@@ -24,9 +24,13 @@ class ResumeTools:
 
     @staticmethod
     def update_overview(
-        resume_content: Dict[str, Any], section: str, item_id: str, overview: str
+        resume_content: Dict[str, Any],
+        section: str,
+        item_id: str,
+        overview: str,
+        reason: str | None = None,
     ) -> Dict[str, Any]:
-        return update_overview(resume_content, section, item_id, overview)
+        return update_overview(resume_content, section, item_id, overview, reason)
 
     @staticmethod
     def update_highlight(
@@ -35,20 +39,36 @@ class ResumeTools:
         item_id: str,
         highlight_id: str,
         text: str,
+        reason: str | None = None,
     ) -> Dict[str, Any]:
-        return update_highlight(resume_content, section, item_id, highlight_id, text)
+        return update_highlight(
+            resume_content,
+            section,
+            item_id,
+            highlight_id,
+            text,
+            reason,
+        )
 
     @staticmethod
     def add_highlight(
-        resume_content: Dict[str, Any], section: str, item_id: str, text: str
+        resume_content: Dict[str, Any],
+        section: str,
+        item_id: str,
+        text: str,
+        reason: str | None = None,
     ) -> Dict[str, Any]:
-        return add_highlight(resume_content, section, item_id, text)
+        return add_highlight(resume_content, section, item_id, text, reason)
 
     @staticmethod
     def remove_highlight(
-        resume_content: Dict[str, Any], section: str, item_id: str, highlight_id: str
+        resume_content: Dict[str, Any],
+        section: str,
+        item_id: str,
+        highlight_id: str,
+        reason: str | None = None,
     ) -> Dict[str, Any]:
-        return remove_highlight(resume_content, section, item_id, highlight_id)
+        return remove_highlight(resume_content, section, item_id, highlight_id, reason)
 
     @classmethod
     def get_tools_schema(cls) -> List[Dict[str, Any]]:
@@ -72,6 +92,10 @@ class ResumeTools:
                             "overview": {
                                 "type": "string",
                                 "description": "新的项目简介文本",
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "本次修改的简短理由，供前端展示，如“突出量化结果”",
                             },
                         },
                         "required": ["section", "item_id", "overview"],
@@ -102,6 +126,10 @@ class ResumeTools:
                                 "type": "string",
                                 "description": "新的亮点文本",
                             },
+                            "reason": {
+                                "type": "string",
+                                "description": "本次修改的简短理由，供前端展示，如“补充岗位关键词”",
+                            },
                         },
                         "required": ["section", "item_id", "highlight_id", "text"],
                     },
@@ -127,6 +155,10 @@ class ResumeTools:
                                 "type": "string",
                                 "description": "新增的亮点文本",
                             },
+                            "reason": {
+                                "type": "string",
+                                "description": "本次新增的简短理由，供前端展示",
+                            },
                         },
                         "required": ["section", "item_id", "text"],
                     },
@@ -151,6 +183,10 @@ class ResumeTools:
                             "highlight_id": {
                                 "type": "string",
                                 "description": "要删除的亮点 id",
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "本次删除的简短理由，供前端展示",
                             },
                         },
                         "required": ["section", "item_id", "highlight_id"],

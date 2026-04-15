@@ -16,6 +16,40 @@ _SECTION_NAMES = {
 _HIGHLIGHT_SECTIONS = {"education", "work_experience", "projects"}
 
 
+def _normalize_reason(reason: Any) -> str:
+    """规范化 Agent 传入的改动理由。"""
+    return str(reason or "").strip()
+
+
+def _build_diff_payload(
+    *,
+    title: str,
+    before: Any,
+    after: Any,
+    reason: str = "",
+) -> Dict[str, Any]:
+    """构造兼容旧 UI 的 diff_summary，并附带结构化 diff_items。"""
+    before_text = _summarize_value(before)
+    after_text = _summarize_value(after)
+    lines = [
+        title,
+        f"  改前：{before_text}",
+        f"  改后：{after_text}",
+    ]
+    if reason:
+        lines.append(f"  改动理由：{reason}")
+    return {
+        "diff_summary": "\n".join(lines),
+        "diff_items": [
+            {
+                "before": before_text,
+                "after": after_text,
+                "reason": reason,
+            }
+        ],
+    }
+
+
 def _summarize_value(value: Any, max_length: int = 160) -> str:
     """将任意值压缩成适合展示的短文本。"""
     if value in (None, "", [], {}):
@@ -93,7 +127,11 @@ def _find_item(
 
 
 def update_overview(
-    resume_content: Dict[str, Any], section: str, item_id: str, overview: Any
+    resume_content: Dict[str, Any],
+    section: str,
+    item_id: str,
+    overview: Any,
+    reason: Any = None,
 ) -> Dict[str, Any]:
     """更新项目条目的 overview 字段。"""
     if section != "projects":
@@ -112,16 +150,17 @@ def update_overview(
 
     section_name = _SECTION_NAMES.get(section, section)
     item_label = _summarize_dict(items[idx])
-    diff = (
-        f"{section_name} / {item_label} 修改摘要\n"
-        f"  改前：{_summarize_value(before.get('overview'))}\n"
-        f"  改后：{_summarize_value(next_overview)}"
+    diff_payload = _build_diff_payload(
+        title=f"{section_name} / {item_label} 修改摘要",
+        before=before.get("overview"),
+        after=next_overview,
+        reason=_normalize_reason(reason),
     )
     return {
         "success": True,
         "message": f"已更新 {section_name} 的简介",
         "updated_section": section,
-        "diff_summary": diff,
+        **diff_payload,
     }
 
 
@@ -131,6 +170,7 @@ def update_highlight(
     item_id: str,
     highlight_id: str,
     text: Any,
+    reason: Any = None,
 ) -> Dict[str, Any]:
     """更新某条 highlight 的文本。"""
     if section not in _HIGHLIGHT_SECTIONS:
@@ -153,21 +193,27 @@ def update_highlight(
             highlight["text"] = next_text
             section_name = _SECTION_NAMES.get(section, section)
             item_label = _summarize_dict(items[idx])
+            diff_payload = _build_diff_payload(
+                title=f"{section_name} / {item_label} 修改摘要",
+                before=before,
+                after=highlight,
+                reason=_normalize_reason(reason),
+            )
             return {
                 "success": True,
                 "message": f"已更新 {section_name} 中的亮点",
                 "updated_section": section,
-                "diff_summary": (
-                    f"{section_name} / {item_label} 修改摘要\n"
-                    f"  改前：{_summarize_value(before)}\n"
-                    f"  改后：{_summarize_value(highlight)}"
-                ),
+                **diff_payload,
             }
     return {"success": False, "message": f"未找到 id={highlight_id} 的亮点"}
 
 
 def add_highlight(
-    resume_content: Dict[str, Any], section: str, item_id: str, text: Any
+    resume_content: Dict[str, Any],
+    section: str,
+    item_id: str,
+    text: Any,
+    reason: Any = None,
 ) -> Dict[str, Any]:
     """向某个条目新增一条 highlight。"""
     if section not in _HIGHLIGHT_SECTIONS:
@@ -196,20 +242,26 @@ def add_highlight(
 
     section_name = _SECTION_NAMES.get(section, section)
     item_label = _summarize_dict(items[idx])
+    diff_payload = _build_diff_payload(
+        title=f"{section_name} / {item_label} 新增亮点",
+        before="（新增）",
+        after=highlight,
+        reason=_normalize_reason(reason),
+    )
     return {
         "success": True,
         "message": f"已在 {section_name} 中新增亮点",
         "updated_section": section,
-        "diff_summary": (
-            f"{section_name} / {item_label} 新增亮点\n"
-            f"  改前：（新增）\n"
-            f"  改后：{_summarize_value(highlight)}"
-        ),
+        **diff_payload,
     }
 
 
 def remove_highlight(
-    resume_content: Dict[str, Any], section: str, item_id: str, highlight_id: str
+    resume_content: Dict[str, Any],
+    section: str,
+    item_id: str,
+    highlight_id: str,
+    reason: Any = None,
 ) -> Dict[str, Any]:
     """从某个条目删除一条 highlight。"""
     if section not in _HIGHLIGHT_SECTIONS:
@@ -239,13 +291,15 @@ def remove_highlight(
 
     section_name = _SECTION_NAMES.get(section, section)
     item_label = _summarize_dict(items[idx])
+    diff_payload = _build_diff_payload(
+        title=f"{section_name} / {item_label} 删除亮点",
+        before=removed,
+        after="（已删除）",
+        reason=_normalize_reason(reason),
+    )
     return {
         "success": True,
         "message": f"已从 {section_name} 中删除亮点",
         "updated_section": section,
-        "diff_summary": (
-            f"{section_name} / {item_label} 删除亮点\n"
-            f"  改前：{_summarize_value(removed)}\n"
-            f"  改后：（已删除）"
-        ),
+        **diff_payload,
     }

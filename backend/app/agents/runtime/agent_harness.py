@@ -309,6 +309,7 @@ class AgentHarness:
                     "tool_call": event.get("tool_call"),
                     "tool_name": event.get("tool_name"),
                     "diff_summary": event.get("diff_summary"),
+                    "diff_items": event.get("diff_items"),
                 },
             )
         elif event.get("prompt_rendered"):

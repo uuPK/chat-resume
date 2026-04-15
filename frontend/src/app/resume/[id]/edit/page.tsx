@@ -138,9 +138,9 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
 }
 
 /** 将 diffSummary 文本解析为带颜色的 diff 行 */
-function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'meta'; text: string }> {
+function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'reason' | 'meta'; text: string }> {
   const lines = raw.split('\n')
-  const result: Array<{ type: 'remove' | 'add' | 'meta'; text: string }> = []
+  const result: Array<{ type: 'remove' | 'add' | 'reason' | 'meta'; text: string }> = []
   for (const line of lines) {
     if (!line.trim()) continue
     // 跳过标题行（修改摘要/新增/删除）
@@ -153,9 +153,60 @@ function parseDiffSummary(raw: string): Array<{ type: 'remove' | 'add' | 'meta';
       const text = line.replace(/^\s*改后：/, '').trim()
       if (text === '（已删除）') continue
       result.push({ type: 'add', text: '+ ' + text })
+    } else if (line.startsWith('改动理由：') || line.startsWith('  改动理由：')) {
+      const text = line.replace(/^\s*改动理由：/, '').trim()
+      if (text) result.push({ type: 'reason', text })
     }
   }
   return result
+}
+
+interface DiffGroup { remove?: string; add?: string; reason?: string }
+
+/** 将 parseDiffSummary 返回的平铺行分组，每对"改前/改后/理由"为一组 */
+function groupDiffLines(lines: Array<{ type: 'remove' | 'add' | 'reason' | 'meta'; text: string }>): DiffGroup[] {
+  const groups: DiffGroup[] = []
+  let current: DiffGroup | null = null
+  for (const line of lines) {
+    if (line.type === 'remove') {
+      if (current) groups.push(current)
+      current = { remove: line.text }
+    } else if (line.type === 'add') {
+      if (!current) current = {}
+      current.add = line.text
+    } else if (line.type === 'reason') {
+      if (!current) current = {}
+      current.reason = line.text
+    }
+  }
+  if (current) groups.push(current)
+  return groups
+}
+
+/** 渲染一组 diff 改动（改前 → 改后 + 理由），用于 tool_pending/confirmed/rejected */
+function DiffGroupCards({ diffSummary, isConfirmed }: { diffSummary: string; isConfirmed?: boolean }) {
+  const groups = groupDiffLines(parseDiffSummary(diffSummary))
+  if (groups.length === 0) return null
+  return (
+    <div className="divide-y divide-gray-100">
+      {groups.map((g, i) => (
+        <div key={i} className="px-3 py-2 space-y-0.5 font-mono text-xs">
+          {g.remove && (
+            <div className="px-2 py-1 rounded bg-red-50 text-red-600 whitespace-pre-wrap">{g.remove}</div>
+          )}
+          {g.add && (
+            <div className={`px-2 py-1 rounded whitespace-pre-wrap ${isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-700'}`}>{g.add}</div>
+          )}
+          {g.reason && (
+            <div className="px-2 py-1 rounded bg-amber-50 flex items-start gap-1 font-sans not-italic">
+              <span className="flex-shrink-0">💡</span>
+              <span className="italic text-amber-700">{g.reason}</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function ResumeEditPage() {
@@ -1074,7 +1125,20 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
-              <div className="mb-3 flex items-center justify-end gap-3 flex-shrink-0">
+              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
+                {/* 目标岗位上下文 chip */}
+                {agentType === 'resume' && (resume.content.job_application?.target_company || resume.content.job_application?.target_title) ? (
+                  <button
+                    onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
+                    title="点击编辑目标岗位"
+                    className="flex items-center gap-1.5 text-xs text-primary-700 bg-primary-50 rounded-full px-2.5 py-1 border border-primary-100 hover:bg-primary-100 transition-colors truncate max-w-[60%]"
+                  >
+                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12zm1-9a1 1 0 10-2 0v3.586l-1.707 1.707a1 1 0 101.414 1.414l2-2A1 1 0 0011 11V7z" clipRule="evenodd"/></svg>
+                    <span className="truncate">
+                      {[resume.content.job_application?.target_company, resume.content.job_application?.target_title].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                ) : <div />}
                 {agentType === 'resume' ? (
                   <button
                     onClick={handleClearMessages}
@@ -1213,7 +1277,6 @@ export default function ResumeEditPage() {
                               message.streamEvents!.map((event: StreamEvent, idx: number) => {
                                 if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
                                   const isConfirmed = event.type === 'tool_confirmed'
-                                  const diffLines = parseDiffSummary(event.diffSummary)
                                   return (
                                     <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                       <div className="px-4 py-3 flex items-center gap-2 bg-white border-b border-gray-200">
@@ -1225,17 +1288,7 @@ export default function ResumeEditPage() {
                                           <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                         )}
                                       </div>
-                                      <div className="bg-white px-0 py-2 font-mono">
-                                        {diffLines.map((l, i) => {
-                                          if (l.type === 'remove') return (
-                                            <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
-                                          )
-                                          if (l.type === 'add') return (
-                                            <div key={i} className={`px-3 py-0.5 whitespace-pre-wrap ${isConfirmed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{l.text}</div>
-                                          )
-                                          return null
-                                        })}
-                                      </div>
+                                      <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={isConfirmed} />
                                     </div>
                                   )
                                 }
@@ -1262,7 +1315,6 @@ export default function ResumeEditPage() {
                       <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
-                            const diffLines = parseDiffSummary(event.diffSummary)
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
@@ -1272,19 +1324,7 @@ export default function ResumeEditPage() {
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                                 </div>
                                 {/* diff 内容区 */}
-                                <div className="bg-white px-0 py-2 font-mono">
-                                  {diffLines.map((l, i) => {
-                                    if (l.type === 'remove') return (
-                                      <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
-                                    )
-                                    if (l.type === 'add') return (
-                                      <div key={i} className="px-3 py-0.5 bg-green-50 text-green-700 whitespace-pre-wrap">{l.text}</div>
-                                    )
-                                    return (
-                                      <div key={i} className="px-3 py-0.5 text-primary-600 whitespace-pre-wrap">{l.text}</div>
-                                    )
-                                  })}
-                                </div>
+                                <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={true} />
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
@@ -1305,7 +1345,6 @@ export default function ResumeEditPage() {
                           }
                           if (event.type === 'tool_confirmed' || event.type === 'tool_rejected') {
                             const isConfirmed = event.type === 'tool_confirmed'
-                            const diffLines = parseDiffSummary(event.diffSummary)
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
@@ -1319,19 +1358,7 @@ export default function ResumeEditPage() {
                                   )}
                                 </div>
                                 {/* diff 内容 */}
-                                <div className="bg-white px-0 py-2 font-mono">
-                                  {diffLines.map((l, i) => {
-                                    if (l.type === 'remove') return (
-                                      <div key={i} className="px-3 py-0.5 bg-red-50 text-red-600 whitespace-pre-wrap">{l.text}</div>
-                                    )
-                                    if (l.type === 'add') return (
-                                      <div key={i} className={`px-3 py-0.5 whitespace-pre-wrap ${isConfirmed ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{l.text}</div>
-                                    )
-                                    return (
-                                      <div key={i} className="px-3 py-0.5 text-primary-600 whitespace-pre-wrap">{l.text}</div>
-                                    )
-                                  })}
-                                </div>
+                                <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={isConfirmed} />
                               </div>
                             )
                           }
@@ -1370,6 +1397,18 @@ export default function ResumeEditPage() {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
+
+                {/* 目标岗位空状态引导 */}
+                {!resume.content.job_application?.target_title && messages.length === 0 && !isStreaming && (
+                  <div className="mb-3 flex-shrink-0">
+                    <button
+                      onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
+                      className="w-full text-left text-xs text-primary-600 hover:text-primary-700 bg-primary-50 rounded-lg px-3 py-2 border border-primary-100 transition-colors"
+                    >
+                      💡 填写目标岗位后，Agent 可给出更精准的优化建议 →
+                    </button>
+                  </div>
+                )}
 
                 {/* Input Area */}
                 <div className="pt-3 flex-shrink-0">

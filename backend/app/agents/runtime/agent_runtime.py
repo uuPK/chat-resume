@@ -225,6 +225,7 @@ class AgentRuntime:
                             preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
                             preview_result = agent.tool_executor(tc, preview_context)
                         diff_summary = preview_result.get("display_message") or "执行完成"
+                        diff_items = preview_result.get("result", {}).get("diff_items", [])
                         tool_input = self._tool_arguments(tc)
 
                         # 发送 pending 事件，前端展示 diff 并等待用户操作
@@ -236,6 +237,7 @@ class AgentRuntime:
                             "tool_name": preview_result["tool_name"],
                             "tool_input": tool_input,
                             "diff_summary": diff_summary,
+                            "diff_items": diff_items,
                             "tool_calls": executed_tools,
                             "done": False,
                         }
@@ -271,6 +273,8 @@ class AgentRuntime:
                                 "tool_rejected": True,
                                 "call_id": tc["id"],
                                 "tool_name": preview_result["tool_name"],
+                                "diff_summary": diff_summary,
+                                "diff_items": diff_items,
                                 "result": {"success": False, "error": "用户拒绝了此修改"},
                                 "tool_calls": executed_tools,
                                 "done": False,
@@ -345,6 +349,8 @@ class AgentRuntime:
                                 "qr_images": qr_images,
                                 "result": tool_result["result"],
                                 "display_message": tool_result.get("display_message"),
+                                "diff_summary": tool_result["result"].get("diff_summary"),
+                                "diff_items": tool_result["result"].get("diff_items", []),
                                 "context": context,
                                 "done": False,
                             }

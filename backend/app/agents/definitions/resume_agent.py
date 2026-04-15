@@ -120,6 +120,7 @@ class ResumeAgent:
                 "tool_name": event.get("tool_name"),
                 "tool_input": event.get("tool_input"),
                 "diff_summary": event.get("diff_summary"),
+                "diff_items": event.get("diff_items"),
                 "result": event.get("result"),
                 "display_message": event.get("display_message"),
                 "internal_only": event.get("internal_only"),
@@ -141,7 +142,15 @@ class ResumeAgent:
 
     def _build_prompt_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         resume_content = context["resume_content"]
+        job_application = (
+            resume_content.get("job_application", {})
+            if isinstance(resume_content, dict)
+            else {}
+        )
         return {
+            "target_title": str(job_application.get("target_title", "") or ""),
+            "target_company": str(job_application.get("target_company", "") or ""),
+            "jd_text": str(job_application.get("jd_text", "") or ""),
             "resume_json": json.dumps(
                 self._strip_redundant_fields(resume_content),
                 ensure_ascii=False,
