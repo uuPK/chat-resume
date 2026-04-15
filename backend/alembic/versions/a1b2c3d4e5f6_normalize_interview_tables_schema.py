@@ -41,10 +41,10 @@ def upgrade() -> None:
                 plan_json JSON,
                 overall_score INTEGER,
                 report_data JSON,
-                started_at DATETIME,
-                ended_at DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME,
+                started_at TIMESTAMP,
+                ended_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP,
                 FOREIGN KEY(resume_id) REFERENCES resumes (id),
                 FOREIGN KEY(user_id) REFERENCES users (id)
             )
@@ -115,10 +115,10 @@ def upgrade() -> None:
                 score INTEGER,
                 follow_up_count INTEGER NOT NULL DEFAULT 0,
                 status VARCHAR NOT NULL DEFAULT 'planned',
-                asked_at DATETIME,
-                answered_at DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME,
+                asked_at TIMESTAMP,
+                answered_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP,
                 FOREIGN KEY(session_id) REFERENCES interview_sessions (id) ON DELETE CASCADE
             )
             """
