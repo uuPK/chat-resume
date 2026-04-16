@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback, useLayoutEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi } from '@/lib/api'
@@ -327,6 +327,9 @@ export default function ResumeEditPage() {
   const [ivError, setIvError] = useState<string | null>(null)
   const ivMessagesEndRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const previousMessageCountRef = useRef(0)
 
   // 布局配置状态
   const [layoutConfig, setLayoutConfig] = useState<ResumeLayoutConfig>(DEFAULT_LAYOUT_CONFIG)
@@ -806,9 +809,46 @@ export default function ResumeEditPage() {
   }
 
   // 聊天功能
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const updateStickToBottom = useCallback(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    shouldStickToBottomRef.current = distanceFromBottom <= 48
+  }, [])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = messagesContainerRef.current
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior })
+      return
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
+
+  const handleMessagesScroll = useCallback(() => {
+    updateStickToBottom()
+  }, [updateStickToBottom])
+
+  useEffect(() => {
+    updateStickToBottom()
+  }, [updateStickToBottom, editorOpen, agentType])
+
+  useLayoutEffect(() => {
+    const hasNewMessage = messages.length > previousMessageCountRef.current
+    previousMessageCountRef.current = messages.length
+
+    if (!shouldStickToBottomRef.current && !hasNewMessage) {
+      return
+    }
+
+    const behavior: ScrollBehavior = isStreaming ? 'auto' : (hasNewMessage ? 'smooth' : 'auto')
+    scrollToBottom(behavior)
+  }, [messages.length, currentStreamingMessage, isStreaming, scrollToBottom])
+
+  useEffect(() => {
+    previousMessageCountRef.current = messages.length
+  }, [messages.length])
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isSending || isStreaming) return
@@ -880,14 +920,6 @@ export default function ResumeEditPage() {
       sendMessage()
     }
   }
-
-
-
-  // 自动滚动到底部（新消息 + 流式 token 更新时均触发）
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, currentStreamingMessage])
-
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1281,7 +1313,11 @@ export default function ResumeEditPage() {
               )}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Messages Display Area */}
-                <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
+                <div
+                  ref={messagesContainerRef}
+                  onScroll={handleMessagesScroll}
+                  className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar"
+                >
                   {messages.map((message: ChatMessage) => (
                     <div
                       key={message.id}

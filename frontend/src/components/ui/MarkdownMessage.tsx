@@ -113,6 +113,23 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
               {children}
             </a>
           ),
+          table: ({ children }) => (
+            <div className="mb-3 w-full overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full border-collapse text-xs">
+                {children}
+              </table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border border-gray-200 bg-gray-50 px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border border-gray-200 px-3 py-2 align-top text-gray-700">
+              {children}
+            </td>
+          ),
           img: ({ src = '', alt = '' }) => (
             <img
               src={src}
