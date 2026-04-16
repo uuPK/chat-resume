@@ -86,6 +86,57 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("做成了什么、影响了什么、提升了多少", rendered)
         self.assertIn("不允许编造不存在的数字", rendered)
 
+    def test_system_prompt_enforces_optimize_first_default(self):
+        prompt_path = (
+            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        )
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="产品经理",
+            target_company="美团",
+            jd_text="负责策略优化与跨团队协同",
+            resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
+        )
+
+        self.assertIn("默认执行 `optimize-first`", rendered)
+        self.assertIn("必须直接调用工具产出改动", rendered)
+        self.assertIn("首轮目标是“先产出改动”", rendered)
+
+    def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
+        prompt_path = (
+            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        )
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="运营",
+            target_company="小红书",
+            jd_text="负责活动运营与增长分析",
+            resume_json='{"projects": [{"id": "proj_1", "highlights": []}]}',
+        )
+
+        self.assertIn("缺输入", rendered)
+        self.assertIn("高风险", rendered)
+        self.assertIn("指令冲突", rendered)
+        self.assertIn("追问必须短、具体、单轮可答", rendered)
+        self.assertIn("禁止泛泛地问“要不要我帮你优化”", rendered)
+
+    def test_system_prompt_explicitly_blocks_high_risk_fabrication_requests(self):
+        prompt_path = (
+            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        )
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="高级后端工程师",
+            target_company="字节跳动",
+            jd_text="负责高并发系统设计与稳定性建设",
+            resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
+        )
+
+        self.assertIn("补一些我没做过的项目", rendered)
+        self.assertIn("假装更多年限", rendered)
+        self.assertIn("我不能编造你没做过的项目或虚构年限", rendered)
+        self.assertIn("不能直接调用工具", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()
