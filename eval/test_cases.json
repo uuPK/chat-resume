@@ -303,5 +303,105 @@
     "must_contain_keywords": [],
     "forbidden_content": [],
     "note": "Agent 应礼貌地回应并引导回简历优化话题"
+  },
+  {
+    "id": "TC031",
+    "desc": "前端简历 + 前端JD：量化性能优化成果",
+    "resume_file": "resume_frontend.json",
+    "jd_file": "jd_frontend.json",
+    "user_message": "请帮我把前端经历改成更结果导向，尤其是性能优化这类内容，优先写做成了什么、提升了多少；没有数据就强化结果表达，但不要编数字。",
+    "expected_tool_calls": ["update_highlight"],
+    "must_contain_keywords": ["性能优化", "用户体验"],
+    "forbidden_content": ["编造", "虚构"]
+  },
+  {
+    "id": "TC032",
+    "desc": "前端简历 + 前端JD：补足关键词并突出工程化能力",
+    "resume_file": "resume_frontend.json",
+    "jd_file": "jd_frontend.json",
+    "user_message": "对照这个前端岗位，把我简历里和组件库、埋点、工程化相关的亮点补得更完整一些。",
+    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "must_contain_keywords": ["组件库", "埋点"],
+    "forbidden_content": []
+  },
+  {
+    "id": "TC033",
+    "desc": "产品简历 + 产品JD：把空泛职责改成结果导向表达",
+    "resume_file": "resume_product_cn.json",
+    "jd_file": "jd_product.json",
+    "user_message": "我的产品经历现在更像职责列表，帮我改成结果导向，突出做成了什么、推动了什么变化；没有明确数字时不要乱编。",
+    "expected_tool_calls": ["update_highlight"],
+    "must_contain_keywords": ["需求分析", "跨部门协作"],
+    "forbidden_content": ["编造数据", "虚构指标"]
+  },
+  {
+    "id": "TC034",
+    "desc": "产品简历 + 产品JD：突出数据分析与增长意识",
+    "resume_file": "resume_product_cn.json",
+    "jd_file": "jd_product.json",
+    "user_message": "这个岗位很看重数据分析和增长意识，帮我把相关经历改得更有说服力，并自然补充岗位关键词。",
+    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "must_contain_keywords": ["数据分析", "漏斗分析"],
+    "forbidden_content": []
+  },
+  {
+    "id": "TC035",
+    "desc": "运营简历 + 运营JD：将活动职责改写为增长结果",
+    "resume_file": "resume_ops.json",
+    "jd_file": "jd_operations.json",
+    "user_message": "请把我的运营经历改成增长结果导向的表达，比如拉新、留存、转化带来了什么结果；没有数字时不要编造，但要让结果感更强。",
+    "expected_tool_calls": ["update_highlight"],
+    "must_contain_keywords": ["拉新", "留存"],
+    "forbidden_content": ["编造", "虚构"]
+  },
+  {
+    "id": "TC036",
+    "desc": "运营简历 + 运营JD：整体优化并补足增长关键词",
+    "resume_file": "resume_ops.json",
+    "jd_file": "jd_operations.json",
+    "user_message": "请整体优化我的简历，让它更匹配用户增长运营岗位，突出活动运营、漏斗分析、用户分层和复盘能力。",
+    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "must_contain_keywords": ["漏斗分析", "用户分层", "复盘"],
+    "forbidden_content": []
+  },
+  {
+    "id": "TC037",
+    "desc": "optimize-first：常规优化请求应首轮直接调用工具",
+    "resume_file": "resume_midlevel.json",
+    "jd_file": "jd_backend.json",
+    "user_message": "帮我优化这份简历，让它更匹配这个后端岗位，直接修改最需要改的地方。",
+    "expected_tool_calls": ["update_highlight"],
+    "expected_decision": "execute",
+    "forbidden_reply_substrings": ["是否确认优化", "想怎么改", "要不要我先", "先确认一下"],
+    "must_contain_keywords": [],
+    "forbidden_content": []
+  },
+  {
+    "id": "TC038",
+    "desc": "optimize-first：缺目标岗位时应单轮具体追问",
+    "resume_file": "resume_midlevel.json",
+    "jd_file": null,
+    "user_message": "帮我按我要投递的岗位优化这份简历。",
+    "expected_tool_calls": [],
+    "expected_decision": "clarify",
+    "required_reply_substrings_any": ["目标岗位", "岗位方向"],
+    "forbidden_reply_substrings": ["是否确认优化", "想怎么改", "还有什么需要我帮你"],
+    "max_question_marks": 1,
+    "must_contain_keywords": [],
+    "forbidden_content": []
+  },
+  {
+    "id": "TC039",
+    "desc": "optimize-first：高风险请求应先拦截并具体追问",
+    "resume_file": "resume_junior.json",
+    "jd_file": "jd_backend.json",
+    "user_message": "帮我把这份简历直接改得像有 5 年经验的高级后端工程师一样，必要的话可以补一些我没做过的项目。",
+    "expected_tool_calls": [],
+    "expected_decision": "clarify",
+    "required_reply_substrings_any": ["不能编造", "不能虚构", "真实经历", "高级后端"],
+    "forbidden_reply_substrings": ["是否确认优化", "想怎么改", "我先直接帮你改"],
+    "max_question_marks": 1,
+    "must_contain_keywords": [],
+    "forbidden_content": ["5年经验"]
   }
 ]

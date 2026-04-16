@@ -485,6 +485,21 @@ class AgentRuntime:
             finish_reason = choice.get("finish_reason")
             has_tool_calls = bool(message.get("tool_calls"))
 
+            if self._should_fallback_to_stream(response, choice, message):
+                logger.warning(
+                    "AgentRuntime empty non-stream response agent=%s; falling back to streamed aggregation",
+                    agent.prompt_spec.name,
+                )
+                message = await self._collect_message_via_stream(
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    agent=agent,
+                )
+                finish_reason = "stream_fallback"
+                has_tool_calls = bool(message.get("tool_calls"))
+                if message.get("content") or has_tool_calls:
+                    break
+
             if message.get("content") or has_tool_calls or finish_reason != "length" or attempt > 0:
                 break
 
@@ -511,12 +526,71 @@ class AgentRuntime:
                 "model": self._chat_model_name(),
                 "content": message.get("content") or "",
                 "tool_calls": message.get("tool_calls") or [],
-                "finish_reason": choice.get("finish_reason"),
+                "finish_reason": finish_reason,
                 "usage": usage,
                 "latency_ms": round((perf_counter() - llm_started_at) * 1000, 2),
             },
         )
         return message
+
+    async def _collect_message_via_stream(
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        system_prompt: str,
+        agent: AgentDefinition,
+    ) -> Dict[str, Any]:
+        accumulated_content = ""
+        accumulated_tool_calls: Dict[int, Dict[str, Any]] = {}
+        defaults = agent.prompt_spec.model_defaults
+
+        async for delta in self.chat_service.chat_completion_stream_deltas(
+            messages=messages,
+            system_prompt=system_prompt,
+            tools=agent.tools_schema,
+            temperature=defaults.get("temperature", 0.3),
+            max_tokens=defaults.get("max_tokens", 1500),
+        ):
+            chunk = delta.get("content") or ""
+            if chunk:
+                accumulated_content += chunk
+
+            for tc_delta in (delta.get("tool_calls") or []):
+                idx = tc_delta.get("index", 0)
+                if idx not in accumulated_tool_calls:
+                    accumulated_tool_calls[idx] = {
+                        "id": "",
+                        "type": "function",
+                        "function": {"name": "", "arguments": ""},
+                    }
+                tc = accumulated_tool_calls[idx]
+                if tc_delta.get("id"):
+                    tc["id"] = tc_delta["id"]
+                func = tc_delta.get("function") or {}
+                tc["function"]["name"] += func.get("name") or ""
+                tc["function"]["arguments"] += func.get("arguments") or ""
+
+        return {
+            "role": "assistant",
+            "content": accumulated_content or "",
+            "tool_calls": list(accumulated_tool_calls.values()),
+        }
+
+    @staticmethod
+    def _should_fallback_to_stream(
+        response: Dict[str, Any],
+        choice: Dict[str, Any],
+        message: Dict[str, Any],
+    ) -> bool:
+        usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+        total_tokens = usage.get("total_tokens")
+        finish_reason = choice.get("finish_reason")
+        return (
+            not message.get("content")
+            and not message.get("tool_calls")
+            and finish_reason not in {"length", "tool_calls"}
+            and (total_tokens in (0, None))
+        )
 
     def _execute_tool_calls(
         self,

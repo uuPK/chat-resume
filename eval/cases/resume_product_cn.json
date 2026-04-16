@@ -1,0 +1,58 @@
+{
+  "personal_info": {
+    "name": "王晨",
+    "email": "wangchen@outlook.com",
+    "phone": "13711110000",
+    "position": "产品经理"
+  },
+  "education": [
+    {
+      "school": "上海财经大学",
+      "degree": "本科",
+      "major": "信息管理与信息系统",
+      "start_date": "2016-09",
+      "end_date": "2020-06"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "某 SaaS 公司",
+      "position": "产品经理",
+      "start_date": "2022-01",
+      "end_date": "2025-02",
+      "highlights": [
+        "负责销售管理模块的需求规划和迭代",
+        "推进多个流程优化项目上线",
+        "和研发、设计、销售一起推进项目"
+      ]
+    },
+    {
+      "company": "某企业服务公司",
+      "position": "产品专员",
+      "start_date": "2020-07",
+      "end_date": "2021-12",
+      "highlights": [
+        "撰写需求文档和原型",
+        "支持数据分析和用户调研",
+        "跟进版本上线和问题收集"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "线索分配流程改版",
+      "description": "优化销售线索流转效率",
+      "highlights": [
+        "梳理线索分配规则",
+        "推动销售和运营流程统一",
+        "上线后反馈较好"
+      ],
+      "tech_stack": ["PRD", "Figma", "SQL", "Tableau"]
+    }
+  ],
+  "skills": [
+    { "category": "产品", "items": ["需求分析", "PRD", "原型设计", "用户调研"] },
+    { "category": "数据", "items": ["SQL", "Excel", "Tableau", "漏斗分析"] },
+    { "category": "协作", "items": ["跨部门协作", "项目推进", "敏捷迭代"] }
+  ]
+}

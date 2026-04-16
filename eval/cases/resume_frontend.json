@@ -1,0 +1,58 @@
+{
+  "personal_info": {
+    "name": "周雨桐",
+    "email": "zhouyt@gmail.com",
+    "phone": "13688889999",
+    "position": "前端开发工程师"
+  },
+  "education": [
+    {
+      "school": "华南理工大学",
+      "degree": "本科",
+      "major": "软件工程",
+      "start_date": "2017-09",
+      "end_date": "2021-06"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "某消费互联网公司",
+      "position": "前端开发工程师",
+      "start_date": "2022-03",
+      "end_date": "2025-03",
+      "highlights": [
+        "负责活动页面和营销中台的前端开发",
+        "做了一些页面性能优化，体验更好了",
+        "参与组件封装和埋点接入"
+      ]
+    },
+    {
+      "company": "某教育科技公司",
+      "position": "前端开发工程师",
+      "start_date": "2021-07",
+      "end_date": "2022-02",
+      "highlights": [
+        "开发 B 端管理后台",
+        "配合产品快速迭代多个功能",
+        "处理线上 bug 和兼容性问题"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "营销活动搭建平台",
+      "description": "支持运营快速搭建大促活动页面",
+      "highlights": [
+        "基于 React 开发页面配置能力",
+        "支持多种活动模板复用",
+        "提升了页面开发效率"
+      ],
+      "tech_stack": ["React", "TypeScript", "Webpack", "Node.js"]
+    }
+  ],
+  "skills": [
+    { "category": "前端", "items": ["React", "Vue", "TypeScript", "JavaScript"] },
+    { "category": "工程化", "items": ["Webpack", "Vite", "ESLint"] },
+    { "category": "其他", "items": ["Node.js", "埋点分析", "性能优化"] }
+  ]
+}

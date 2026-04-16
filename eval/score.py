@@ -25,6 +25,68 @@ if str(BACKEND_DIR) not in sys.path:
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
 
+TOOL_NAME_ALIASES = {
+    "优化简介": "update_overview",
+    "优化成果": "update_highlight",
+    "新增成果": "add_highlight",
+    "删除成果": "remove_highlight",
+    "读取简历": "read_resume",
+}
+
+
+def _count_question_marks(text: str) -> int:
+    return text.count("?") + text.count("？")
+
+
+def score_decision_rule(result: dict) -> dict:
+    """对 optimize-first 决策规则做定向评分。"""
+    case = result["case"]
+    expected = case.get("expected_decision")
+    if not expected:
+        return {"skipped": True, "reason": "no decision expectation"}
+
+    reply = (result.get("agent_reply") or "").strip()
+    actual_tool_calls = result.get("tool_calls") or []
+    has_tool_call = len(actual_tool_calls) > 0
+    forbidden = case.get("forbidden_reply_substrings", [])
+    required_any = case.get("required_reply_substrings_any", [])
+    max_q = case.get("max_question_marks")
+
+    hit_forbidden = [s for s in forbidden if s and s in reply]
+    hit_required_any = [s for s in required_any if s and s in reply]
+    question_marks = _count_question_marks(reply)
+
+    if expected == "execute":
+        correct = has_tool_call and not hit_forbidden
+        return {
+            "expected": expected,
+            "actual": "execute" if has_tool_call else "clarify_or_reply",
+            "correct": correct,
+            "score": 1.0 if correct else 0.0,
+            "has_tool_call": has_tool_call,
+            "forbidden_hits": hit_forbidden,
+        }
+
+    if expected == "clarify":
+        clarify_shape_ok = not has_tool_call
+        specific_enough = True if not required_any else bool(hit_required_any)
+        concise_enough = True if max_q is None else question_marks <= max_q
+        correct = clarify_shape_ok and specific_enough and concise_enough and not hit_forbidden
+        return {
+            "expected": expected,
+            "actual": "execute" if has_tool_call else "clarify_or_reply",
+            "correct": correct,
+            "score": 1.0 if correct else 0.0,
+            "has_tool_call": has_tool_call,
+            "required_any_hits": hit_required_any,
+            "forbidden_hits": hit_forbidden,
+            "question_marks": question_marks,
+            "max_question_marks": max_q,
+        }
+
+    return {"skipped": True, "reason": f"unknown expected_decision={expected}"}
+
+
 # ─────────────────────────────────────────────────────────────
 # 1. JD 关键词匹配率
 # ─────────────────────────────────────────────────────────────
@@ -89,7 +151,10 @@ def score_tool_correctness(result: dict) -> dict:
     """检查 Agent 实际调用的工具是否符合预期。"""
     case = result["case"]
     expected = set(case.get("expected_tool_calls", []))
-    actual = set(result.get("tool_calls", []))
+    actual = {
+        TOOL_NAME_ALIASES.get(name, name)
+        for name in result.get("tool_calls", [])
+    }
 
     if not expected:
         # 用例期望无工具调用
@@ -161,17 +226,30 @@ JUDGE_USER_TEMPLATE = """请评估以下 Agent 的简历优化表现：
 
 def _summarize_resume(resume: dict, max_chars: int = 400) -> str:
     """生成简历摘要，用于 LLM-as-Judge 提示。"""
+    def normalize_highlights(highlights) -> list[str]:
+        values = []
+        for item in (highlights or [])[:2]:
+            if isinstance(item, str):
+                text = item.strip()
+            elif isinstance(item, dict):
+                text = str(item.get("text", "")).strip()
+            else:
+                text = str(item).strip()
+            if text:
+                values.append(text)
+        return values
+
     lines = []
     pi = resume.get("personal_info", {})
     if pi.get("name"):
         lines.append(f"姓名: {pi['name']}")
 
     for exp in (resume.get("work_experience") or [])[:2]:
-        highlights = exp.get("highlights", [])[:2]
+        highlights = normalize_highlights(exp.get("highlights", []))
         lines.append(f"工作: {exp.get('company', '')} - {'; '.join(highlights)}")
 
     for proj in (resume.get("projects") or [])[:2]:
-        highlights = proj.get("highlights", [])[:2]
+        highlights = normalize_highlights(proj.get("highlights", []))
         lines.append(f"项目: {proj.get('name', '')} - {'; '.join(highlights)}")
 
     text = "\n".join(lines)
@@ -199,8 +277,30 @@ async def llm_judge_single(chat_service: ChatService, result: dict) -> dict:
             max_tokens=512,
             system_prompt=JUDGE_SYSTEM_PROMPT,
         )
+
+        def extract_text(payload) -> str:
+            if isinstance(payload, str):
+                return payload
+            if isinstance(payload, dict):
+                choices = payload.get("choices")
+                if isinstance(choices, list) and choices:
+                    first = choices[0]
+                    if isinstance(first, dict):
+                        message = first.get("message")
+                        if isinstance(message, dict):
+                            content = message.get("content")
+                            if isinstance(content, str):
+                                return content
+                        text = first.get("text")
+                        if isinstance(text, str):
+                            return text
+                content = payload.get("content")
+                if isinstance(content, str):
+                    return content
+            return str(payload)
+
         # 提取 JSON
-        text = raw if isinstance(raw, str) else str(raw)
+        text = extract_text(raw)
         start = text.find("{")
         end = text.rfind("}") + 1
         if start == -1 or end == 0:
@@ -234,6 +334,7 @@ async def score_all(results: list[dict], enable_llm_judge: bool = True) -> list[
 
         kw_score = score_keyword_improvement(result)
         tool_score = score_tool_correctness(result)
+        decision_score = score_decision_rule(result)
 
         judge_score = {"skipped": True, "reason": "disabled"}
         if enable_llm_judge and chat_service:
@@ -246,6 +347,13 @@ async def score_all(results: list[dict], enable_llm_judge: bool = True) -> list[
             print(f"  关键词匹配率: {kw_score['before']:.1%} → {kw_score['after']:.1%} ({sign}{delta:.1%})")
 
         print(f"  工具调用: 期望={tool_score.get('expected')} 实际={tool_score.get('actual')} F1={tool_score.get('f1', tool_score.get('score', '?'))}")
+
+        if not decision_score.get("skipped"):
+            print(
+                f"  决策规则: 期望={decision_score.get('expected')} "
+                f"实际={decision_score.get('actual')} "
+                f"score={decision_score.get('score')}"
+            )
 
         if not judge_score.get("skipped") and "scores" in judge_score:
             s = judge_score["scores"]
@@ -260,6 +368,7 @@ async def score_all(results: list[dict], enable_llm_judge: bool = True) -> list[
             "scores": {
                 "keyword_improvement": kw_score,
                 "tool_correctness": tool_score,
+                "decision_rule": decision_score,
                 "llm_judge": judge_score,
             },
         })
@@ -294,6 +403,13 @@ def print_summary(scored: list[dict]):
         if not r["scores"]["llm_judge"].get("skipped") and "scores" in r["scores"]["llm_judge"]
     ]
 
+    # optimize-first 决策规则
+    decision_scores = [
+        r["scores"]["decision_rule"]["score"]
+        for r in ok_results
+        if not r["scores"]["decision_rule"].get("skipped")
+    ]
+
     print("\n" + "="*60)
     print("📊 评测汇总")
     print("="*60)
@@ -315,6 +431,13 @@ def print_summary(scored: list[dict]):
         avg_judge = sum(judge_overalls) / len(judge_overalls)
         print(f"\n[3] LLM-as-Judge 综合评分 (1-5)")
         print(f"    平均分: {avg_judge:.2f}")
+
+    if decision_scores:
+        avg_decision = sum(decision_scores) / len(decision_scores)
+        passed = sum(1 for s in decision_scores if s >= 1.0)
+        print(f"\n[4] optimize-first 决策规则")
+        print(f"    平均分: {avg_decision:.3f}")
+        print(f"    通过用例: {passed}/{len(decision_scores)}")
 
     print("="*60 + "\n")
 

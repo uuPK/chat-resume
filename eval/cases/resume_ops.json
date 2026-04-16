@@ -1,0 +1,58 @@
+{
+  "personal_info": {
+    "name": "刘思远",
+    "email": "liusy@gmail.com",
+    "phone": "13566667777",
+    "position": "用户运营"
+  },
+  "education": [
+    {
+      "school": "中山大学",
+      "degree": "本科",
+      "major": "市场营销",
+      "start_date": "2017-09",
+      "end_date": "2021-06"
+    }
+  ],
+  "work_experience": [
+    {
+      "company": "某内容平台",
+      "position": "用户运营",
+      "start_date": "2022-04",
+      "end_date": "2025-01",
+      "highlights": [
+        "负责拉新和留存相关活动运营",
+        "做了社群维护和活动策划",
+        "和产品、设计配合推进活动落地"
+      ]
+    },
+    {
+      "company": "某电商平台",
+      "position": "运营专员",
+      "start_date": "2021-07",
+      "end_date": "2022-03",
+      "highlights": [
+        "负责活动配置和数据整理",
+        "支持日常用户触达",
+        "跟进活动复盘"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "会员拉新活动",
+      "description": "针对新用户设计多轮激励活动",
+      "highlights": [
+        "设计站内外联合拉新方案",
+        "负责活动节奏和渠道协同",
+        "提升了活动转化效果"
+      ],
+      "tech_stack": ["活动策划", "用户分层", "A/B测试", "Excel"]
+    }
+  ],
+  "skills": [
+    { "category": "运营", "items": ["用户增长", "活动运营", "社群运营", "用户分层"] },
+    { "category": "数据", "items": ["Excel", "SQL", "漏斗分析", "留存分析"] },
+    { "category": "协作", "items": ["跨部门协作", "项目推进", "复盘"] }
+  ]
+}

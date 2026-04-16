@@ -807,6 +807,55 @@ class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
             '{"question":"请介绍你的系统设计思路","question_type":"technical","intent":"评估架构能力"}',
         )
 
+    async def test_next_message_falls_back_to_stream_when_non_stream_provider_returns_empty_packet(self):
+        chat_service = FakeChatService(
+            responses=[
+                {
+                    "choices": [
+                        {
+                            "finish_reason": None,
+                            "message": {
+                                "content": None,
+                            },
+                        }
+                    ],
+                    "usage": {"total_tokens": 0},
+                }
+            ],
+            stream_rounds=[
+                [
+                    {
+                        "content": "我来直接帮你改写这条亮点。",
+                    },
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "function": {
+                                    "name": "update_highlight",
+                                    "arguments": '{"section":"projects","item_id":"proj_1","highlight_id":"proj_hl_1","text":"突出结果导向表达","reason":"强化结果表达"}',
+                                },
+                            }
+                        ]
+                    },
+                ]
+            ],
+        )
+        runtime = AgentRuntime(chat_service=chat_service)
+        agent = ResumeAgent().definition
+
+        message = await runtime._next_message(
+            agent=agent,
+            messages=[{"role": "user", "content": "test"}],
+            context={"resume_content": {}},
+        )
+
+        self.assertEqual(chat_service.chat_calls, 1)
+        self.assertEqual(chat_service.stream_calls, 1)
+        self.assertEqual(message["content"], "我来直接帮你改写这条亮点。")
+        self.assertEqual(message["tool_calls"][0]["function"]["name"], "update_highlight")
+
 
 if __name__ == "__main__":
     unittest.main()
