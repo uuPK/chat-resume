@@ -24,7 +24,7 @@
 - 流程状态仍绑定在一次 HTTP/SSE 请求里，中断后不可恢复。
 - 工具调用失败缺少统一错误协议，容易冒泡成 500 或 Python TypeError。
 - 事件没有持久化，前端展示、调试、回放、恢复没有统一事实来源。
-- 非流式、流式、确认、proposal 创建等逻辑分布在 endpoint 和 runtime 中，后续扩展多 Agent 会变复杂。
+- 流式、确认、恢复等逻辑分布在 endpoint 和 runtime 中，后续扩展多 Agent 会变复杂。
 
 ## 目标架构
 
@@ -292,6 +292,5 @@ class AgentHarness:
 2. `AgentSession` / `AgentEvent`。
 3. `AgentHarness`。
 4. Checkpoint。
-
 
 

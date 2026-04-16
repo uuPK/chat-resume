@@ -132,29 +132,31 @@
 5. 工具执行前后可进入逐工具确认流程
 6. SSE 持续返回文本片段、工具状态、diff 摘要、最终简历内容
 7. 若最终内容已变化，后端直接更新 `Resume.content`
-8. 同时创建 `ResumeProposal` 留存本次修改记录
-9. 前端刷新预览，并把聊天记录存入 `ResumeChatMessage`
+8. 前端刷新预览，并把聊天记录与工具确认事件存入 `ResumeChatMessage`
 
-非流式流程与之不同：
+当前统一语义如下：
 
-- 不直接改动简历正文
-- 若结果与原简历有差异，则创建 `ResumeProposal`
-- 需用户后续显式 apply/reject
+- AI 输出默认被视为“准备执行的修改”，不是仅供参考的自由文本建议
+- 工具调用进入 `tool_pending` 时，前端展示 diff 摘要
+- 用户确认后，该工具修改立即应用到最新的 `Resume.content`
+- 用户拒绝后，该次工具调用不生效，事件写入会话历史
+- 系统不再维护 proposal-first 的 apply/reject 双阶段主链路
 
-这意味着当前产品有一个实现差异：
+对用户而言，唯一需要理解的规则是：
 
-- 流式模式：会直接落库，再补 proposal
-- 非流式模式：只生成 proposal，不直接落库
+- `确认 = 生效并保存`
+- `拒绝 = 不生效`
+- 聊天记录和工具事件承担历史留痕职责，而不是单独的 proposal 实体
 
-该差异需要在后续版本中统一，否则用户对“AI 是否已经修改简历”会产生混淆。
+该规则是当前产品的唯一真相，前后端和文档都应围绕它保持一致。
 
-### 6.5 Proposal 应用/拒绝流程
+### 6.5 工具确认与恢复流程
 
-1. 前端获取 `GET /api/resumes/{id}/proposals`
-2. 用户选择某条 proposal
-3. 点击应用时调用 `POST /api/resumes/{id}/proposals/{proposal_id}/apply`
-4. 后端将 `proposed_content` 覆盖到 `Resume.content`
-5. 点击拒绝时调用 `POST /api/resumes/{id}/proposals/{proposal_id}/reject`
+1. 前端收到 `tool_pending` 事件后展示 diff 与确认按钮
+2. 用户调用 `POST /api/ai/chat/confirm-tool` 表示确认或拒绝
+3. 若流式连接仍活跃，后端继续执行当前 session
+4. 若流式连接已结束，后端记录确认结果，并允许通过 `POST /api/ai/chat/resume-session` 恢复执行
+5. 若工具被确认且产生实际变更，最新简历内容会直接落库到 `Resume.content`
 
 ### 6.6 简历导出流程
 
@@ -229,7 +231,6 @@
 
 - `optimization_records`
 - `interview_sessions`
-- `proposals`
 - `chat_messages`
 
 ### 7.3 ResumeContent
@@ -256,28 +257,12 @@
 - 支持字符串 JSON 自动反序列化
 - 对技能、项目、经历做弱结构兼容
 
-### 7.4 ResumeProposal
-
-用途：
-
-- 表示 AI 对简历的一次修改建议或已执行改动的留痕
-
-关键字段：
-
-- `user_message`
-- `section`
-- `status`：`pending | applied | rejected`
-- `summary`
-- `proposed_content`
-- `proposed_patch`
-- `tool_calls`
-- `applied_at`
-
-### 7.5 ResumeChatMessage
+### 7.4 ResumeChatMessage
 
 用途：
 
 - 存储用户与 AI 在某份简历上的历史消息
+- 记录工具确认事件流，作为 AI 修改留痕的一部分
 
 关键字段：
 
@@ -386,8 +371,8 @@
 
 建议收敛规格：
 
-- 统一“AI 修改是否立即生效”的规则
-- 把 proposal 定义为唯一变更单元，避免流式/非流式两套语义
+- 统一为“工具级 diff 确认后立即落库”
+- 聊天记录和 agent session 负责历史留痕与恢复，而不是单独的 proposal 实体
 
 ### 8.6 面试系统
 
@@ -470,13 +455,11 @@
 
 - `POST /api/ai/chat/stream`
 - `POST /api/ai/chat/confirm-tool`
+- `POST /api/ai/chat/resume-session`
 - `GET /api/ai/status`
 
-### 9.5 Proposal / Chat History
+### 9.5 Chat History
 
-- `GET /api/resumes/{resume_id}/proposals`
-- `POST /api/resumes/{resume_id}/proposals/{proposal_id}/apply`
-- `POST /api/resumes/{resume_id}/proposals/{proposal_id}/reject`
 - `GET /api/resumes/{resume_id}/chat-messages`
 - `POST /api/resumes/{resume_id}/chat-messages`
 - `DELETE /api/resumes/{resume_id}/chat-messages`
@@ -507,7 +490,7 @@
 
 - 所有业务接口默认要求登录
 - 资源按 `owner_id` 做权限校验
-- 禁止访问他人简历、面试、proposal、聊天记录
+- 禁止访问他人简历、面试、聊天记录和 agent session
 - 生产环境必须收敛 CORS 白名单
 - `SECRET_KEY` 和第三方 API Key 必须由环境变量注入
 
@@ -526,21 +509,20 @@
 ### 10.4 数据一致性
 
 - `Resume.content` 必须经过 schema 正规化
-- 删除简历时要级联清理面试与 proposal
+- 删除简历时要级联清理面试、聊天记录和相关 agent 状态
 - 面试完成后需清理旧报告缓存
 
 ## 11. 当前实现中的主要规格偏差
 
-### 11.1 AI 修改语义不一致
+### 11.1 AI 修改链路需持续保持单语义
 
-- 非流式聊天：生成 proposal，不直接改正文
-- 流式聊天：直接改正文，同时再记录 proposal
+当前产品已经确定采用方案 A：
 
-建议：
+- 工具级 diff 确认
+- 用户确认后立即落库
+- 不再维护 proposal-first 主链路
 
-- 统一为“先 proposal，后 apply”
-或
-- 统一为“确认即落库，并明确 UI 提示”
+当前剩余工作不再是“选哪种方案”，而是继续清理旧文档、旧接口残留，并保证 UI 提示与该规则一致。
 
 ### 11.2 面试模型并存
 
@@ -563,14 +545,14 @@
 - 后端统一补齐缺省字段
 - 前端按稳定 schema 消费
 
-### 11.4 前后端存在遗留接口/旧 Hook
+### 11.4 前后端需要持续清理旧残留
 
-如 `useResumeOptimizerAgent` 指向的接口与当前主链路不一致，说明系统存在旧方案残留。
+若仓库里仍存在指向废弃优化接口的代码或文档，说明系统仍有旧方案残留。
 
 建议：
 
-- 标记废弃路径
-- 清理未使用 Hook、接口和页面依赖
+- 删除未使用 Hook、接口和页面依赖
+- 保证所有 AI 优化入口都走 `chat/stream + confirm-tool + resume-session`
 
 ## 12. 推荐的下一版收敛方案
 
@@ -579,7 +561,7 @@
 建议将系统定义为：
 
 - 一个以“结构化简历”为单一数据真源的求职助手
-- 简历优化采用“AI 提案 + 用户确认”模式
+- 简历优化采用“工具级 diff 确认，确认即落库”模式
 - 面试采用“自由聊天式主链路 + 报告摘要”模式
 
 原因：
@@ -604,7 +586,7 @@
 1. 用户可以注册登录，并只看到自己的数据
 2. 上传简历后，能稳定进入编辑态
 3. 编辑页自动保存可用，预览正确更新
-4. AI 优化可以稳定返回结果，且变更语义一致
+4. AI 优化可以稳定返回结果，且用户清楚知道“确认即生效”
 5. 导出 PDF 成功率可接受
 6. 能从简历进入面试、完成一次面试、生成报告
 7. 面试记录中心能查看、继续、删除会话
@@ -613,12 +595,11 @@
 
 以下问题需要产品和工程共同拍板：
 
-1. AI 对简历的修改是否默认直接生效？
-2. Proposal 是审阅机制，还是历史留痕机制？
-3. 面试主链路到底是自由聊天还是结构化问答？
-4. 报告需要固定字段模板，还是允许 LLM 自由发挥？
-5. 语音能力是主功能还是增强功能？
-6. 简历布局配置是否需要跨设备同步？
+1. 是否需要在“确认即落库”之外增加版本历史或撤销能力？
+2. 面试主链路到底是自由聊天还是结构化问答？
+3. 报告需要固定字段模板，还是允许 LLM 自由发挥？
+4. 语音能力是主功能还是增强功能？
+5. 简历布局配置是否需要跨设备同步？
 
 ## 15. 建议的后续文档拆分
 
