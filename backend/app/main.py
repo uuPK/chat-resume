@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api.api import api_router
+from app.entrypoints.http.router import api_router
 from app.infra.config import settings
 from app.infra.database import engine, Base
 from app.infra.db_observability import (

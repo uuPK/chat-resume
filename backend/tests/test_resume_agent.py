@@ -8,8 +8,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.agents.definitions.resume_agent import ResumeAgent  # noqa: E402
-from app.agents.tools.resume_tools import ResumeTools  # noqa: E402
+from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
+from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 
 
 class ResumeAgentPromptContextTests(unittest.TestCase):
@@ -34,7 +35,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn('"job_application"', context["resume_json"])
 
     def test_resume_tools_schema_exposes_optional_reason_field(self):
-        schema = ResumeTools.get_tools_schema()
+        schema = RESUME_TOOLS_SCHEMA
         update_highlight = next(
             tool for tool in schema if tool["function"]["name"] == "update_highlight"
         )
@@ -56,7 +57,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             ]
         }
 
-        result = ResumeTools.update_highlight(
+        result = update_highlight(
             resume_content,
             section="projects",
             item_id="proj_1",

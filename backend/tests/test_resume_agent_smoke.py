@@ -8,8 +8,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.agents.definitions.resume_agent import ResumeAgent  # noqa: E402
-from app.agents.runtime.agent_runtime import AgentRuntime  # noqa: E402
+from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.runtime.loop import AgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
 

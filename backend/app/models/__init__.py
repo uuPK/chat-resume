@@ -4,7 +4,7 @@ from .resume import (
     OptimizationRecord as OptimizationRecord,
     ResumeChatMessage as ResumeChatMessage,
 )
-from .agent_session import (
+from app.state.models import (
     AgentSession as AgentSession,
     AgentEvent as AgentEvent,
 )

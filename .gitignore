@@ -102,3 +102,6 @@ cover/
 
 # Local development
 # Procfile.dev  # 注释掉，开发配置可能需要被跟踪
+
+# Local reference code
+example/
