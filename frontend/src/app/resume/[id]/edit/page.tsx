@@ -1082,8 +1082,6 @@ export default function ResumeEditPage() {
                     <JobApplicationEditor
                       data={resume.content.job_application || {}}
                       onChange={(data) => updateResumeContent('job_application', data)}
-                      resumeTitle={resume.title}
-                      onTitleChange={updateResumeTitle}
                     />
                   )}
 
@@ -1456,18 +1454,6 @@ export default function ResumeEditPage() {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
-
-                {/* 目标岗位空状态引导 */}
-                {!resume.content.job_application?.target_title && messages.length === 0 && !isStreaming && (
-                  <div className="mb-3 flex-shrink-0">
-                    <button
-                      onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
-                      className="w-full text-left text-xs text-primary-600 hover:text-primary-700 bg-primary-50 rounded-lg px-3 py-2 border border-primary-100 transition-colors"
-                    >
-                      💡 填写目标岗位后，Agent 可给出更精准的优化建议 →
-                    </button>
-                  </div>
-                )}
 
                 {/* Input Area */}
                 <div className="pt-3 flex-shrink-0">

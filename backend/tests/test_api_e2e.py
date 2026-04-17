@@ -201,6 +201,50 @@ class TestAuth:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 1.5 JD OCR 上传
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestJDOcrUpload:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        _register(client, "jd_ocr_user@example.com")
+        self.token = _login(client, "jd_ocr_user@example.com")
+        self.headers = _auth_headers(self.token)
+        self.client = client
+
+    def test_upload_jd_image_returns_ocr_text(self, monkeypatch):
+        async def _fake_extract_text_from_image(self, image_bytes: bytes, mime_type: str) -> str:
+            assert image_bytes == b"fake-image-bytes"
+            assert mime_type == "image/png"
+            return "岗位职责\\n1. 负责后端开发"
+
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.JDOcrService.extract_text_from_image",
+            _fake_extract_text_from_image,
+        )
+
+        resp = self.client.post(
+            "/api/upload/jd-ocr",
+            files={"file": ("jd.png", b"fake-image-bytes", "image/png")},
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["text"] == "岗位职责\\n1. 负责后端开发"
+
+    def test_upload_jd_image_rejects_non_image_files(self):
+        resp = self.client.post(
+            "/api/upload/jd-ocr",
+            files={"file": ("jd.txt", b"not-image", "text/plain")},
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 400
+        assert "Unsupported image format" in resp.json()["detail"]
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 2. 简历 CRUD
 # ═══════════════════════════════════════════════════════════════════════════
 

@@ -6,10 +6,12 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from app.infra.config import settings
 from app.infra.database import get_db
 from app.services.domain import FileService, ResumeService
-from app.services.processing import ResumeParser
+from app.services.processing import JDOcrService, ResumeParser
 from app.schemas.resume import ResumeResponse, ResumeCreate
 from app.entrypoints.http.deps import get_current_user
 import logging
@@ -17,6 +19,24 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_ALLOWED_JD_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+
+
+class JDOcrResponse(BaseModel):
+    """用于承载 JD 图片 OCR 的识别结果。"""
+
+    text: str
+
+
+def _validate_jd_image(file: UploadFile) -> None:
+    """用于校验 JD OCR 上传的图片格式是否受支持。"""
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_JD_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image format. Please upload PNG, JPG, JPEG, or WEBP images.",
+        )
 
 
 @router.post("/resume", response_model=ResumeResponse)
@@ -99,3 +119,40 @@ async def upload_resume(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail
         )
+
+
+@router.post("/jd-ocr", response_model=JDOcrResponse)
+async def upload_jd_image_for_ocr(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """用于接收 JD 图片并调用视觉模型识别文字。"""
+    del current_user
+    _validate_jd_image(file)
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded image is empty.",
+        )
+    if len(image_bytes) > settings.JD_OCR_MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="JD image is too large.",
+        )
+
+    try:
+        ocr_service = JDOcrService()
+        text = await ocr_service.extract_text_from_image(
+            image_bytes=image_bytes,
+            mime_type=(file.content_type or "image/png").lower(),
+        )
+    except Exception as exc:
+        logger.exception("JD OCR failed")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"JD 图片识别失败: {exc}",
+        )
+
+    return JDOcrResponse(text=text)

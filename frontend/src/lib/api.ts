@@ -54,6 +54,10 @@ interface ExportResponse {
   format: string
 }
 
+interface JDOcrResponse {
+  text: string
+}
+
 interface InterviewTurn {
   id: number
   turn_index: number
@@ -239,6 +243,24 @@ class ResumeAPI {
     })
 
     return handleApiResponse<Resume>(response)
+  }
+
+  /**
+   * 识别 JD 图片中的文字
+   */
+  static async ocrJobDescriptionImage(file: File): Promise<JDOcrResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE_URL}/api/upload/jd-ocr`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+      body: formData,
+    })
+
+    return handleApiResponse<JDOcrResponse>(response)
   }
 
   /**

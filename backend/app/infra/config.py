@@ -53,6 +53,10 @@ class Settings(BaseSettings):
         "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
     )
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+    OPENROUTER_VISION_MODEL: str = os.getenv(
+        "OPENROUTER_VISION_MODEL",
+        os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
+    )
     OPENROUTER_CONNECT_TIMEOUT_SECONDS: float = float(
         os.getenv("OPENROUTER_CONNECT_TIMEOUT_SECONDS", "15")
     )
@@ -94,6 +98,7 @@ class Settings(BaseSettings):
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
+    JD_OCR_MAX_FILE_SIZE: int = int(os.getenv("JD_OCR_MAX_FILE_SIZE", str(10 * 1024 * 1024)))
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # Observability

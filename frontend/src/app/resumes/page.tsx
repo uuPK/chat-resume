@@ -62,8 +62,6 @@ export default function ResumesPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [resumes, setResumes] = useState<Resume[]>([])
   const [resumesLoading, setResumesLoading] = useState(true)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [newResumeTitle, setNewResumeTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -141,7 +139,6 @@ export default function ResumesPage() {
   }
 
   const handleConfirmCreate = async () => {
-    if (!newResumeTitle.trim()) { toast.error('请输入简历标题'); return }
     setCreating(true)
     try {
       toast.loading('正在创建简历...', { id: 'create' })
@@ -150,10 +147,8 @@ export default function ResumesPage() {
         personal_info: { name: '', email: '', phone: '', position: '', github: '' },
         education: [], work_experience: [], skills: [], projects: []
       }
-      const newResume = await resumeApi.createResume({ title: newResumeTitle.trim(), content: emptyResumeContent })
+      const newResume = await resumeApi.createResume({ title: '未命名简历', content: emptyResumeContent })
       toast.success('简历创建成功！', { id: 'create' })
-      setShowCreateModal(false)
-      setNewResumeTitle('')
       router.push(`/resume/${newResume.id}/edit`)
     } catch (error: any) {
       toast.error(error.response?.data?.detail || '创建失败，请重试', { id: 'create' })
@@ -185,8 +180,8 @@ export default function ResumesPage() {
               <button onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 {uploadLoading ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /><span>上传中...</span></> : <><CloudArrowUpIcon className="w-5 h-5" /><span>上传简历</span></>}
               </button>
-              <button onClick={() => { setShowCreateModal(true); setNewResumeTitle('') }} className="btn-secondary flex items-center space-x-2">
-                <PlusIcon className="w-5 h-5" /><span>新建简历</span>
+              <button onClick={handleConfirmCreate} disabled={creating} className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                {creating ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700" /><span>创建中...</span></> : <><PlusIcon className="w-5 h-5" /><span>新建简历</span></>}
               </button>
             </div>
           </div>
@@ -229,9 +224,10 @@ export default function ResumesPage() {
                   </div>
                   <div className="px-4 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">{resume.title}</h3>
-                      {(resume.target_company || resume.target_title) && (
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}</p>
+                      {([resume.target_company, resume.target_title].filter(Boolean).length > 0) && (
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
+                        </h3>
                       )}
                     </div>
                     <Link href={`/resume/${resume.id}/edit`} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium transition-colors flex-shrink-0">
@@ -244,24 +240,6 @@ export default function ResumesPage() {
           )}
         </motion.div>
       </main>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">新建简历</h3>
-            <div className="mb-4">
-              <label htmlFor="resumeTitle" className="block text-sm font-medium text-gray-700 mb-2">简历标题</label>
-              <input id="resumeTitle" type="text" value={newResumeTitle} onChange={(e) => setNewResumeTitle(e.target.value)} placeholder="请输入简历标题，如：前端工程师简历" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" autoFocus onKeyPress={(e) => { if (e.key === 'Enter' && !creating) handleConfirmCreate() }} />
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => { setShowCreateModal(false); setNewResumeTitle('') }} disabled={creating} className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">取消</button>
-              <button onClick={handleConfirmCreate} disabled={creating || !newResumeTitle.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2">
-                {creating ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /><span>创建中...</span></> : <span>创建简历</span>}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   )
 }

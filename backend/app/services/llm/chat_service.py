@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """AI 聊天服务类，基于 OpenRouter"""
 
-    def __init__(self):
-        """初始化聊天服务"""
+    def __init__(self, model: str | None = None):
+        """用于初始化聊天服务并允许按场景覆盖模型。"""
         self.api_key = settings.OPENROUTER_API_KEY
         self.api_base = settings.OPENROUTER_API_BASE
-        self.model = settings.OPENROUTER_MODEL
+        self.model = model or settings.OPENROUTER_MODEL
         self.timeout = httpx.Timeout(
             connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
             read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
@@ -58,7 +58,7 @@ class ChatService:
     @overload
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         stream: Literal[False] = False,
@@ -69,7 +69,7 @@ class ChatService:
     @overload
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         stream: Literal[True] = True,
@@ -79,7 +79,7 @@ class ChatService:
 
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         stream: bool = False,
@@ -116,7 +116,7 @@ class ChatService:
 
     async def _chat_completion_non_stream(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
@@ -139,7 +139,7 @@ class ChatService:
 
     async def _chat_completion_stream(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> AsyncGenerator[str, None]:
@@ -278,7 +278,7 @@ class ChatService:
 
     def _build_payload(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: float,
         max_tokens: Optional[int],
         stream: bool,

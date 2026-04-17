@@ -71,9 +71,7 @@ export default function SettingsPage() {
       }))
       
       // 更新全局用户状态
-      updateUser({
-        full_name: updatedUser.full_name
-      })
+      updateUser(updatedUser)
       
       console.log('全局用户状态已更新')
       toast.success('设置已保存')
@@ -116,7 +114,6 @@ export default function SettingsPage() {
 
     </div>
   )
-
   // 如果认证正在加载或用户信息还未加载，显示加载状态
   if (authLoading || (!user && !authLoading)) {
     return (
