@@ -36,12 +36,12 @@ export default function MainNavigation() {
         <div className="flex justify-between items-center h-16">
           {/* Logo + nav */}
           <div className="flex items-center gap-8">
-            <Logo size="md" />
+            <Logo size="sm" />
 
             <nav className="hidden sm:flex items-center gap-1">
               <Link
                 href="/resumes"
-                className="px-5 py-2.5 text-base font-semibold transition-colors"
+                className="px-4 py-2 text-sm font-semibold transition-colors"
                 style={{
                   borderRadius: '56px',
                   backgroundColor: isResumesActive ? '#eef0f3' : 'transparent',
@@ -52,7 +52,7 @@ export default function MainNavigation() {
               </Link>
               <Link
                 href="/interviews"
-                className="px-5 py-2.5 text-base font-semibold transition-colors"
+                className="px-4 py-2 text-sm font-semibold transition-colors"
                 style={{
                   borderRadius: '56px',
                   backgroundColor: isInterviewsActive ? '#eef0f3' : 'transparent',
@@ -74,12 +74,12 @@ export default function MainNavigation() {
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-base font-semibold text-white flex-shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
                 style={{ backgroundColor: '#0052ff' }}
               >
                 {(user?.full_name || 'U')[0].toUpperCase()}
               </div>
-              <span className="hidden sm:block text-base font-semibold" style={{ color: '#0a0b0d' }}>
+              <span className="hidden sm:block text-sm font-semibold" style={{ color: '#0a0b0d' }}>
                 {user?.full_name || 'User'}
               </span>
               <ChevronDownIcon
