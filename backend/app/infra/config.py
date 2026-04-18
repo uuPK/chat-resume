@@ -97,6 +97,7 @@ class Settings(BaseSettings):
 
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
+    USER_MEMORY_DIR: str = os.getenv("USER_MEMORY_DIR", "data/memory/users")
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
     JD_OCR_MAX_FILE_SIZE: int = int(os.getenv("JD_OCR_MAX_FILE_SIZE", str(10 * 1024 * 1024)))
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")

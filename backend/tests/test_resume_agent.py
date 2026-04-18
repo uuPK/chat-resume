@@ -44,6 +44,12 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("reason", properties)
         self.assertEqual(properties["reason"]["type"], "string")
 
+    def test_resume_tools_schema_exposes_user_memory_tools(self):
+        tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+
+        self.assertIn("read_user_memory", tool_names)
+        self.assertIn("write_user_memory", tool_names)
+
     def test_resume_tool_result_includes_structured_diff_reason(self):
         resume_content = {
             "projects": [
@@ -86,6 +92,22 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("量化改写优先级", rendered)
         self.assertIn("做成了什么、影响了什么、提升了多少", rendered)
         self.assertIn("不允许编造不存在的数字", rendered)
+
+    def test_system_prompt_includes_memory_tool_guidance(self):
+        prompt_path = (
+            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        )
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="AI Agent 开发工程师",
+            target_company="腾讯",
+            jd_text="负责 Agent 产品能力建设",
+            resume_json="{}",
+        )
+
+        self.assertIn("read_user_memory", rendered)
+        self.assertIn("write_user_memory", rendered)
+        self.assertIn("长期记忆只记录稳定信息", rendered)
 
     def test_system_prompt_enforces_optimize_first_default(self):
         prompt_path = (

@@ -27,8 +27,9 @@ class FakeResumeAgent:
         confirmation_queue: asyncio.Queue | None,
         allowed_sections: set[str],
         event_callback=None,
+        user_id: int | None = None,
     ):
-        del user_message, conversation_history, confirmation_queue, allowed_sections, event_callback
+        del user_message, conversation_history, confirmation_queue, allowed_sections, event_callback, user_id
         yield {
             "content": "",
             "tool_pending": True,

@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -41,6 +41,7 @@ class AgentDefinition:
     prompt_context_builder: PromptContextBuilder
     max_iterations: int = 6
     max_history_messages: int = 20
+    auto_execute_tool_names: set[str] = field(default_factory=set)
 
 
 class AgentRuntime:
@@ -230,7 +231,10 @@ class AgentRuntime:
                 tool_messages: List[Dict[str, Any]] = []
 
                 for tc in tool_calls_list:
-                    if confirmation_queue is not None:
+                    if (
+                        confirmation_queue is not None
+                        and self._tool_name(tc) not in agent.auto_execute_tool_names
+                    ):
                         with log_context(tool_call_id=self._tool_call_id(tc)):
                             logger.info(
                                 "AgentRuntime tool_preview_start agent=%s tool=%s",

@@ -16,6 +16,9 @@ from .executor import ResumeToolExecutor, TOOL_REQUIRED_ARGS
 
 logger = logging.getLogger(__name__)
 
+_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume", "read_user_memory"}
+_AUTO_EXECUTE_TOOL_NAMES = {"read_user_memory", "write_user_memory"}
+
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
     """用于把模型返回的工具参数统一解析成字典。"""
@@ -52,6 +55,7 @@ class ResumeAgent:
             tool_executor=self._run_tool,
             prompt_context_builder=build_resume_prompt_context,
             max_iterations=6,
+            auto_execute_tool_names=_AUTO_EXECUTE_TOOL_NAMES,
         )
 
     async def optimize(
@@ -60,6 +64,7 @@ class ResumeAgent:
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         allowed_sections: Optional[set[str]] = None,
+        user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """用于执行一次非流式简历优化请求。"""
         runtime_result = await self.runtime.run(
@@ -68,6 +73,7 @@ class ResumeAgent:
             context={
                 "resume_content": resume_content,
                 "allowed_sections": allowed_sections,
+                "user_id": user_id,
             },
             conversation_history=conversation_history,
         )
@@ -86,11 +92,13 @@ class ResumeAgent:
         confirmation_queue: Optional[asyncio.Queue] = None,
         allowed_sections: Optional[set[str]] = None,
         event_callback=None,
+        user_id: Optional[int] = None,
     ):
         """用于执行一次带工具确认能力的流式简历优化请求。"""
         context = {
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,
+            "user_id": user_id,
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,
@@ -173,7 +181,7 @@ class ResumeAgent:
             tool_args["section"] = "projects"
 
         required = TOOL_REQUIRED_ARGS.get(tool_name)
-        if required is None and tool_name != "read_resume":
+        if required is None and tool_name not in _TOOLS_WITH_OPTIONAL_ARGS_ONLY:
             return None, self.tool_executor.error_result(
                 tool_name,
                 "unknown_tool",

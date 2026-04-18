@@ -72,6 +72,7 @@ frontend/tsconfig.typecheck.tsbuildinfo
 # Uploads
 backend/uploads/**
 !backend/uploads/.gitkeep
+backend/data/memory/
 
 # Build outputs
 build/

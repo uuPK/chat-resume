@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.infra.config import settings  # noqa: E402
 from app.runtime.loop import AgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
@@ -50,6 +52,15 @@ class FakeChatService:
 
 
 class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_user_memory_dir = settings.USER_MEMORY_DIR
+        settings.USER_MEMORY_DIR = self.temp_dir.name
+
+    def tearDown(self):
+        settings.USER_MEMORY_DIR = self.original_user_memory_dir
+        self.temp_dir.cleanup()
+
     def _build_agent(self, chat_service):
         agent = ResumeAgent()
         agent.runtime = AgentRuntime(chat_service=chat_service)
@@ -684,6 +695,49 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
             "已完成流式重试。",
+        )
+
+    async def test_optimize_stream_auto_executes_read_user_memory_without_confirmation(self):
+        chat_service = FakeChatService(
+            stream_rounds=[
+                [
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_read_memory_1",
+                                "function": {
+                                    "name": "read_user_memory",
+                                    "arguments": "{}",
+                                },
+                            }
+                        ]
+                    }
+                ],
+                [
+                    {"content": "我已读取你的长期记忆，并会按既有偏好继续优化。"},
+                ],
+            ]
+        )
+        agent = self._build_agent(chat_service)
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="读取我之前记住的偏好",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            user_id=55,
+        ):
+            events.append(event)
+
+        self.assertFalse(any(event.get("tool_pending") for event in events))
+        self.assertFalse(any(event.get("tool_confirmed") for event in events))
+        self.assertEqual(
+            "".join(event.get("content", "") for event in events),
+            "我已读取你的长期记忆，并会按既有偏好继续优化。",
         )
 
 

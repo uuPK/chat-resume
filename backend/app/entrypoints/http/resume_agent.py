@@ -219,6 +219,7 @@ async def chat_with_resume_stream(
                         confirmation_queue=confirmation_queue,
                         allowed_sections=set(resume_dict.keys()),
                         event_callback=observer.on_runtime_event,
+                        user_id=current_user["id"],
                     )
 
                     async for event in event_stream:

@@ -67,6 +67,7 @@ class AgentHarness:
         confirmation_queue: asyncio.Queue | None,
         allowed_sections: set[str],
         event_callback=None,
+        user_id: int | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
@@ -81,6 +82,7 @@ class AgentHarness:
                 confirmation_queue=confirmation_queue,
                 allowed_sections=allowed_sections,
                 event_callback=event_callback,
+                user_id=user_id,
             ):
                 latest_resume_content = self._record_resume_stream_event(
                     session_id=session_id,
