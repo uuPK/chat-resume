@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import Logo from '@/components/ui/Logo'
 import {
-  SparklesIcon,
   DocumentTextIcon,
   ChatBubbleLeftRightIcon,
   MicrophoneIcon,
@@ -48,19 +47,6 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-10 text-sm font-semibold"
-              style={{
-                borderRadius: '100000px',
-                backgroundColor: 'rgba(0,82,255,0.08)',
-                color: '#0052ff',
-                border: '1px solid rgba(0,82,255,0.2)',
-              }}
-            >
-              <SparklesIcon className="w-4 h-4" />
-              AI 驱动的简历优化平台
-            </div>
-
             {/* Display headline */}
             <h1
               className="mb-6 font-semibold"
