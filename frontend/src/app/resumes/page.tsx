@@ -10,11 +10,11 @@ import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import {
-  DocumentIcon,
   PlusIcon,
   TrashIcon,
   CloudArrowUpIcon,
   ChatBubbleLeftRightIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -29,11 +29,8 @@ interface Resume {
   preview_content?: Partial<ResumeContent>
 }
 
-function ResumePreviewLoader({
-  content,
-}: {
-  content?: Partial<ResumeContent>
-}) {
+// 简历预览加载器，展示简历内容缩略图
+function ResumePreviewLoader({ content }: { content?: Partial<ResumeContent> }) {
   return (
     <div className="pointer-events-none select-none w-full h-full">
       {content ? (
@@ -41,13 +38,12 @@ function ResumePreviewLoader({
       ) : (
         <div className="flex items-center justify-center h-full">
           <div className="animate-pulse flex flex-col items-center space-y-2 w-full px-6">
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
-            <div className="h-3 bg-gray-200 rounded w-3/4" />
-            <div className="h-3 bg-gray-200 rounded w-2/3" />
-            <div className="h-3 bg-gray-200 rounded w-3/4 mt-4" />
-            <div className="h-3 bg-gray-200 rounded w-full" />
-            <div className="h-3 bg-gray-200 rounded w-full" />
-            <p className="pt-4 text-xs text-gray-400">正在准备预览...</p>
+            <div className="h-4 rounded-lg w-1/2" style={{ backgroundColor: '#eef0f3' }} />
+            <div className="h-3 rounded-lg w-3/4" style={{ backgroundColor: '#eef0f3' }} />
+            <div className="h-3 rounded-lg w-2/3" style={{ backgroundColor: '#eef0f3' }} />
+            <div className="h-3 rounded-lg w-3/4 mt-4" style={{ backgroundColor: '#eef0f3' }} />
+            <div className="h-3 rounded-lg w-full" style={{ backgroundColor: '#eef0f3' }} />
+            <p className="pt-4 text-xs" style={{ color: '#9ca3af' }}>正在准备预览...</p>
           </div>
         </div>
       )}
@@ -55,6 +51,7 @@ function ResumePreviewLoader({
   )
 }
 
+// 简历中心主页，展示用户所有简历
 export default function ResumesPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
@@ -68,9 +65,7 @@ export default function ResumesPage() {
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    if (mounted && !isLoading && !isAuthenticated) {
-      router.push('/login')
-    }
+    if (mounted && !isLoading && !isAuthenticated) router.push('/login')
   }, [mounted, isLoading, isAuthenticated, router])
 
   const fetchResumes = async () => {
@@ -159,86 +154,195 @@ export default function ResumesPage() {
 
   if (!mounted || isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600" />
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
+        <div
+          className="w-12 h-12 rounded-full border-2 border-transparent animate-spin"
+          style={{ borderTopColor: '#0052ff', borderRightColor: '#0052ff' }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
       <MainNavigation />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-1">简历中心</h1>
-              <p className="text-gray-500">管理你的简历，使用 AI 进行优化</p>
-            </div>
-            <div className="flex space-x-3">
-              <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleFileUpload} className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                {uploadLoading ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /><span>上传中...</span></> : <><CloudArrowUpIcon className="w-5 h-5" /><span>上传简历</span></>}
-              </button>
-              <button onClick={handleConfirmCreate} disabled={creating} className="btn-secondary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                {creating ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700" /><span>创建中...</span></> : <><PlusIcon className="w-5 h-5" /><span>新建简历</span></>}
-              </button>
-            </div>
-          </div>
 
-          {resumesLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-              <span className="ml-3 text-gray-600">加载简历列表...</span>
+      {/* Header */}
+      <div className="py-10 px-6" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col sm:flex-row sm:items-end justify-between gap-6"
+          >
+            <div>
+              <h1
+                className="text-5xl font-semibold"
+                style={{ lineHeight: '1.00', color: '#0a0b0d' }}
+              >
+                简历中心
+              </h1>
             </div>
-          ) : resumes.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="text-center py-12">
-              <DocumentIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">还没有简历</h3>
-              <p className="text-gray-500 mb-6">上传你的第一份简历，开始使用 AI 优化功能</p>
-              <button onClick={() => fileInputRef.current?.click()} disabled={uploadLoading} className="btn-primary flex items-center space-x-2 mx-auto disabled:opacity-50">
-                <CloudArrowUpIcon className="w-5 h-5" /><span>上传简历文件</span>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadLoading}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '56px',
+                  backgroundColor: '#ffffff',
+                  color: '#0a0b0d',
+                  border: '1px solid rgba(91,97,110,0.3)',
+                }}
+                onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#eef0f3' } }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff' }}
+              >
+                {uploadLoading ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'currentColor' }} />
+                    <span>上传中...</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudArrowUpIcon className="w-4 h-4" />
+                    <span>上传简历</span>
+                  </>
+                )}
               </button>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {resumes.map((resume, index) => (
-                <motion.div
-                  key={resume.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="card overflow-hidden hover:shadow-lg transition-shadow flex flex-col group"
-                >
-                  <div className="relative">
-                    <Link href={`/resume/${resume.id}/edit`} className="block">
-                      <div className="overflow-hidden bg-gray-50 border-b border-gray-100" style={{ height: '220px' }}>
-                        <ResumePreviewLoader
-                          content={resume.preview_content}
-                        />
-                      </div>
-                    </Link>
-                    <button onClick={() => handleDeleteResume(resume.id, resume.title)} className="absolute top-2 right-2 p-1.5 bg-white bg-opacity-90 text-gray-400 hover:text-red-500 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" title="删除简历">
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="px-4 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
-                    <div className="flex-1 min-w-0">
-                      {([resume.target_company, resume.target_title].filter(Boolean).length > 0) && (
-                        <h3 className="text-sm font-semibold text-gray-900 truncate">
-                          {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
-                        </h3>
-                      )}
-                    </div>
-                    <Link href={`/resume/${resume.id}/edit`} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium transition-colors flex-shrink-0">
-                      <ChatBubbleLeftRightIcon className="w-3 h-3" /><span>Chat</span>
-                    </Link>
-                  </div>
-                </motion.div>
-              ))}
+              <button
+                onClick={handleConfirmCreate}
+                disabled={creating}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '56px',
+                  backgroundColor: '#0052ff',
+                  border: '1px solid #0052ff',
+                }}
+                onMouseEnter={e => { if (!creating) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
+              >
+                {creating ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#fff' }} />
+                    <span>创建中...</span>
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="w-4 h-4" />
+                    <span>新建简历</span>
+                  </>
+                )}
+              </button>
             </div>
-          )}
-        </motion.div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Content section — white */}
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        {resumesLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <div
+              className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
+              style={{ borderTopColor: '#0052ff', borderRightColor: '#0052ff' }}
+            />
+            <span className="ml-3 text-base" style={{ color: '#5b616e' }}>加载简历列表...</span>
+          </div>
+        ) : resumes.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center py-24"
+          >
+            <div
+              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6"
+              style={{ backgroundColor: '#eef0f3' }}
+            >
+              <DocumentTextIcon className="w-10 h-10" style={{ color: '#0052ff' }} />
+            </div>
+            <h3 className="text-2xl font-semibold mb-2" style={{ color: '#0a0b0d' }}>还没有简历</h3>
+            <p className="text-lg mb-8" style={{ color: '#5b616e' }}>
+              上传你的第一份简历，开始使用 AI 优化功能
+            </p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadLoading}
+              className="btn-primary btn-lg inline-flex items-center gap-2"
+            >
+              <CloudArrowUpIcon className="w-5 h-5" />
+              <span>上传简历文件</span>
+            </button>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {resumes.map((resume, index) => (
+              <motion.div
+                key={resume.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.08 }}
+                className="group overflow-hidden flex flex-col"
+                style={{
+                  border: '1px solid rgba(91,97,110,0.2)',
+                  borderRadius: '16px',
+                  backgroundColor: '#ffffff',
+                }}
+              >
+                {/* Preview area */}
+                <div className="relative">
+                  <Link href={`/resume/${resume.id}/edit`} className="block">
+                    <div
+                      className="overflow-hidden"
+                      style={{ height: '220px', backgroundColor: '#eef0f3', borderBottom: '1px solid rgba(91,97,110,0.1)' }}
+                    >
+                      <ResumePreviewLoader content={resume.preview_content} />
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => handleDeleteResume(resume.id, resume.title)}
+                    className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.12)', color: '#9ca3af' }}
+                    title="删除简历"
+                    onMouseEnter={e => (e.currentTarget.style.color = '#dc2626')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Footer */}
+                <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
+                  <div className="flex-1 min-w-0">
+                    {([resume.target_company, resume.target_title].filter(Boolean).length > 0) && (
+                      <p className="text-sm font-semibold truncate" style={{ color: '#0a0b0d' }}>
+                        {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <Link
+                    href={`/resume/${resume.id}/edit`}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white transition-colors flex-shrink-0"
+                    style={{ borderRadius: '56px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#578bfa'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#578bfa' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#0052ff'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#0052ff' }}
+                  >
+                    <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                    <span>Chat</span>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   )

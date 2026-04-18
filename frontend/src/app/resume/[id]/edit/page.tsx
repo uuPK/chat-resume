@@ -922,10 +922,13 @@ export default function ResumeEditPage() {
   }
   if (!mounted || isLoading || resumeLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">正在加载简历...</p>
+          <div
+            className="w-16 h-16 rounded-full border-2 border-transparent animate-spin mx-auto mb-4"
+            style={{ borderTopColor: '#0052ff', borderRightColor: '#0052ff' }}
+          />
+          <p style={{ color: '#5b616e' }}>正在加载简历...</p>
         </div>
       </div>
     )
@@ -933,9 +936,9 @@ export default function ResumeEditPage() {
 
   if (!resume) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
         <div className="text-center">
-          <p className="text-gray-600">简历不存在</p>
+          <p style={{ color: '#5b616e' }}>简历不存在</p>
           <Link href="/dashboard" className="btn-primary mt-4">
             返回简历中心
           </Link>
@@ -945,74 +948,88 @@ export default function ResumeEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - 现代化设计 */}
-      <header className="bg-white border-b border-gray-100 print:hidden">
+    <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
+      {/* Header — Coinbase 风格 */}
+      <header className="bg-white print:hidden" style={{ borderBottom: '1px solid rgba(91,97,110,0.15)' }}>
         <div className="w-full px-6">
           <div className="flex justify-between items-center py-3">
             <div className="flex items-center gap-3">
               <Link
                 href="/dashboard"
-                className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                className="flex items-center p-2 transition-colors"
+                style={{ borderRadius: '56px', color: '#0a0b0d' }}
                 title="返回仪表板"
               >
                 <ArrowLeftIcon className="w-5 h-5" />
               </Link>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <ResumeLayoutControls
-                  config={layoutConfig}
-                  onConfigChange={handleLayoutConfigChange}
-                />
-                <button
-                  onClick={handleSmartFitHeaderClick}
-                  disabled={isSmartFitting}
-                  title="自动调整间距使简历恰好一页"
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border transition-colors
-                    ${isSmartFitting
-                      ? 'border-gray-300 bg-white text-gray-500 cursor-wait'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                >
-                  {isSmartFitting ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                      计算中...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                      </svg>
-                      智能一页
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleExportPDF}
-                  disabled={exporting}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {exporting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                      <span>生成中...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-                      <span>导出 PDF</span>
-                    </>
-                  )}
-                </button>
-              </div>
+            <div className="flex items-center gap-3">
+              <ResumeLayoutControls
+                config={layoutConfig}
+                onConfigChange={handleLayoutConfigChange}
+              />
+              <button
+                onClick={handleSmartFitHeaderClick}
+                disabled={isSmartFitting}
+                title="自动调整间距使简历恰好一页"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '56px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid rgba(91,97,110,0.25)',
+                  color: '#0a0b0d',
+                  cursor: isSmartFitting ? 'wait' : 'pointer',
+                }}
+              >
+                {isSmartFitting ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    计算中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    智能一页
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '56px',
+                  backgroundColor: '#0052ff',
+                  border: '1px solid #0052ff',
+                }}
+              >
+                {exporting ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#fff' }} />
+                    <span>生成中...</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                    <span>导出 PDF</span>
+                  </>
+                )}
+              </button>
               {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text && (
-                <div className={`text-xs px-3 py-1 rounded-full ${autoSaveStatus === 'error' ? 'bg-error-50 text-error-600' : autoSaveStatus === 'success' ? 'bg-success-50 text-success-600' : 'bg-gray-50 text-gray-600'}`}>
+                <div
+                  className="text-xs px-3 py-1"
+                  style={{
+                    borderRadius: '100000px',
+                    backgroundColor: autoSaveStatus === 'error' ? '#fef2f2' : autoSaveStatus === 'success' ? '#ecfdf5' : '#eef0f3',
+                    color: autoSaveStatus === 'error' ? '#dc2626' : autoSaveStatus === 'success' ? '#059669' : '#5b616e',
+                  }}
+                >
                   {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text}
                 </div>
               )}
@@ -1021,13 +1038,13 @@ export default function ResumeEditPage() {
         </div>
       </header>
 
-      {/* Main Content - 现代化三栏布局 */}
+      {/* Main Content — 三栏布局 */}
       <main className="max-w-full mx-auto px-6 py-3">
         <div
           ref={mainPanelsRef}
           className="flex gap-0 h-[calc(100vh-120px)]"
         >
-          {/* Left Panel - Editor（面试模式下完全隐藏） */}
+          {/* Left Panel - Editor */}
           <AnimatePresence initial={false}>
           {agentType !== 'interview' && (
           <motion.div
@@ -1039,39 +1056,57 @@ export default function ResumeEditPage() {
             style={{ flexShrink: 0, flexGrow: 0 }}
           >
             {!editorOpen ? (
-              /* 折叠状态：现代化细条 */
               <div
-                className="flex flex-col items-center justify-center h-full w-12 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors group"
+                className="flex flex-col items-center justify-center h-full w-12 cursor-pointer transition-colors group"
+                style={{ backgroundColor: '#eef0f3' }}
                 onClick={() => setEditorOpen(true)}
                 title="展开编辑区域"
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#dde0e8')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
               >
-                <ChevronRightIcon className="w-5 h-5 text-gray-500 group-hover:text-gray-700" />
+                <ChevronRightIcon className="w-5 h-5" style={{ color: '#5b616e' }} />
               </div>
             ) : (
-            <div className="relative bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
+            <div
+              className="relative p-4 flex-1 overflow-hidden flex flex-col"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(91,97,110,0.2)',
+                borderRadius: '16px',
+              }}
+            >
               <div className="flex-1 flex flex-col min-h-0">
-                {/* Section Tabs - 现代化设计 */}
-                <div className="flex items-center gap-2 mb-5 border-b border-gray-200 flex-shrink-0">
+                {/* Section Tabs */}
+                <div
+                  className="flex items-center gap-1 mb-5 flex-shrink-0 pb-0"
+                  style={{ borderBottom: '1px solid rgba(91,97,110,0.15)' }}
+                >
                   {editorSections.map(section => (
                     <button
                       key={section.key}
                       onClick={() => setActiveSection(section.key)}
-                      className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${activeSection === section.key
-                        ? 'text-primary-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                        }`}
+                      className="px-4 py-2.5 text-sm font-semibold transition-colors relative"
+                      style={{
+                        color: activeSection === section.key ? '#0052ff' : '#5b616e',
+                      }}
                     >
                       <span>{section.label}</span>
                       {activeSection === section.key && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600 rounded-t-full"></div>
+                        <div
+                          className="absolute bottom-0 left-0 right-0 h-0.5"
+                          style={{ backgroundColor: '#0052ff', borderRadius: '2px 2px 0 0' }}
+                        />
                       )}
                     </button>
                   ))}
                 </div>
                 <button
                   onClick={() => setEditorOpen(false)}
-                  className="absolute right-4 top-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="absolute right-4 top-4 p-1.5 transition-colors"
+                  style={{ borderRadius: '8px', color: '#9ca3af' }}
                   title="折叠编辑器"
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.color = '#5b616e' }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9ca3af' }}
                 >
                   <ChevronLeftIcon className="w-5 h-5" />
                 </button>
@@ -1132,7 +1167,12 @@ export default function ResumeEditPage() {
               className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
               onPointerDown={handleEditorDividerPointerDown}
             >
-              <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
+              <div
+                className="w-0.5 h-full transition-colors rounded-full"
+                style={{ backgroundColor: 'transparent' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#578bfa')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              />
             </div>
           )}
 
@@ -1165,7 +1205,7 @@ export default function ResumeEditPage() {
             className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
             onPointerDown={handleAgentDividerPointerDown}
           >
-            <div className="w-0.5 h-full bg-transparent group-hover:bg-primary-400 transition-colors rounded-full" />
+            <div className="w-0.5 h-full transition-colors rounded-full" style={{ backgroundColor: 'transparent' }} />
           </div>
 
           {/* Right Panel - AI Chat */}
@@ -1177,14 +1217,26 @@ export default function ResumeEditPage() {
             className="agent-panel flex flex-col min-h-0 min-w-0 print:hidden"
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
-            <div className="bg-white rounded-xl border border-gray-200 shadow-soft p-4 flex-1 overflow-hidden flex flex-col">
+            <div
+              className="p-4 flex-1 overflow-hidden flex flex-col"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(91,97,110,0.2)',
+                borderRadius: '16px',
+              }}
+            >
               <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                {/* 目标岗位上下文 chip */}
                 {agentType === 'resume' && (resume.content.job_application?.target_company || resume.content.job_application?.target_title) ? (
                   <button
                     onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
                     title="点击编辑目标岗位"
-                    className="flex items-center gap-1.5 text-xs text-primary-700 bg-primary-50 rounded-full px-2.5 py-1 border border-primary-100 hover:bg-primary-100 transition-colors truncate max-w-[60%]"
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 transition-colors truncate max-w-[60%]"
+                    style={{
+                      borderRadius: '100000px',
+                      backgroundColor: '#eef0f3',
+                      color: '#0052ff',
+                      border: '1px solid rgba(0,82,255,0.15)',
+                    }}
                   >
                     <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12zm1-9a1 1 0 10-2 0v3.586l-1.707 1.707a1 1 0 101.414 1.414l2-2A1 1 0 0011 11V7z" clipRule="evenodd"/></svg>
                     <span className="truncate">
@@ -1197,7 +1249,13 @@ export default function ResumeEditPage() {
                     onClick={handleClearMessages}
                     disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
                     aria-label={isClearingMessages ? '清空中' : '清空消息'}
-                    className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
+                    style={{
+                      borderRadius: '8px',
+                      border: '1px solid rgba(91,97,110,0.2)',
+                      backgroundColor: '#ffffff',
+                      color: '#5b616e',
+                    }}
                   >
                     <TrashIcon className="w-3.5 h-3.5" />
                   </button>
@@ -1205,7 +1263,13 @@ export default function ResumeEditPage() {
                   <button
                     onClick={endInterview}
                     disabled={!ivSession || ivSending || ivSession?.status === 'completed'}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                    style={{
+                      borderRadius: '56px',
+                      border: '1px solid rgba(91,97,110,0.2)',
+                      backgroundColor: '#ffffff',
+                      color: '#5b616e',
+                    }}
                   >
                     结束面试
                   </button>
@@ -1225,13 +1289,15 @@ export default function ResumeEditPage() {
                 <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
                   {ivMessages.map((m) => (
                     <div key={m.id} className={`flex w-full ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] px-4 py-3 rounded-2xl ${
-                        m.type === 'user'
-                          ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
-                          : m.type === 'system'
-                          ? 'bg-amber-50 text-amber-900 rounded-bl-md border border-amber-100 shadow-xs'
-                          : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
-                      }`}>
+                      <div
+                        className="max-w-[85%] px-4 py-3"
+                        style={{
+                          borderRadius: m.type === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+                          backgroundColor: m.type === 'user' ? '#0052ff' : m.type === 'system' ? '#fffbeb' : '#eef0f3',
+                          color: m.type === 'user' ? '#ffffff' : m.type === 'system' ? '#92400e' : '#0a0b0d',
+                          border: m.type === 'user' ? 'none' : '1px solid rgba(91,97,110,0.15)',
+                        }}
+                      >
                         {m.type === 'user'
                           ? <span className="text-[14px] whitespace-pre-wrap">{m.content}</span>
                           : <MarkdownMessage content={m.content} />
@@ -1241,7 +1307,15 @@ export default function ResumeEditPage() {
                   ))}
                   {ivSending && ivMessages.every((m) => !m.id.startsWith('ai-stream-') || m.content) && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                      <div
+                        className="max-w-[85%] px-4 py-3 text-sm"
+                        style={{
+                          borderRadius: '20px 20px 20px 6px',
+                          backgroundColor: '#eef0f3',
+                          border: '1px solid rgba(91,97,110,0.15)',
+                          color: '#5b616e',
+                        }}
+                      >
                         <span className="inline-block animate-pulse">评估中...</span>
                       </div>
                     </div>
@@ -1270,18 +1344,23 @@ export default function ResumeEditPage() {
                       onChange={(e) => setIvInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendInterviewAnswer() } }}
                       placeholder={ivSession?.status === 'completed' ? '本场面试已结束' : '输入你的回答...'}
-                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
+                      className="w-full p-3 pr-12 text-sm resize-none focus:outline-none"
+                      style={{
+                        border: '1px solid rgba(91,97,110,0.25)',
+                        borderRadius: '12px',
+                        color: '#0a0b0d',
+                      }}
                       rows={2}
                       disabled={ivSending || ivSession?.status === 'completed'}
                     />
                     <button
                       onClick={sendInterviewAnswer}
                       disabled={!ivInput.trim() || ivSending || ivSession?.status === 'completed'}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${
-                        ivInput.trim() && !ivSending && ivSession?.status !== 'completed'
-                          ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
-                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      }`}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center"
+                      style={{
+                        backgroundColor: ivInput.trim() && !ivSending && ivSession?.status !== 'completed' ? '#0052ff' : '#eef0f3',
+                        color: ivInput.trim() && !ivSending && ivSession?.status !== 'completed' ? '#ffffff' : '#9ca3af',
+                      }}
                     >
                       <ArrowUpIcon className="w-4 h-4" />
                     </button>
@@ -1300,9 +1379,17 @@ export default function ResumeEditPage() {
               >
               {/* API错误提示 */}
               {apiError && (
-                <div className="mb-4 p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 flex-shrink-0">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <div
+                  className="mb-4 p-3 text-sm flex-shrink-0"
+                  style={{
+                    borderRadius: '12px',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid rgba(220,38,38,0.2)',
+                    color: '#dc2626',
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                     <span>{apiError}</span>
@@ -1322,10 +1409,13 @@ export default function ResumeEditPage() {
                       className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] px-4 py-3 rounded-2xl ${message.type === 'user'
-                          ? 'bg-primary-600 text-white rounded-br-md text-[14px] shadow-sm'
-                          : 'bg-gray-50 text-gray-800 rounded-bl-md border border-gray-100 shadow-xs'
-                          }`}
+                        className="max-w-[85%] px-4 py-3"
+                        style={{
+                          borderRadius: message.type === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+                          backgroundColor: message.type === 'user' ? '#0052ff' : '#eef0f3',
+                          color: message.type === 'user' ? '#ffffff' : '#0a0b0d',
+                          border: message.type === 'user' ? 'none' : '1px solid rgba(91,97,110,0.15)',
+                        }}
                       >
                         {message.type === 'ai' ? (
                           <>
@@ -1366,10 +1456,17 @@ export default function ResumeEditPage() {
                       </div>
                     </div>
                   ))}
-                  {/* 流式传输中的消息（按事件顺序渲染） */}
                   {isStreaming && streamEvents.length > 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] px-4 py-3 rounded-lg bg-gray-50 text-gray-800 rounded-bl-sm border border-gray-200">
+                      <div
+                        className="max-w-[85%] px-4 py-3"
+                        style={{
+                          borderRadius: '20px 20px 20px 6px',
+                          backgroundColor: '#eef0f3',
+                          border: '1px solid rgba(91,97,110,0.15)',
+                          color: '#0a0b0d',
+                        }}
+                      >
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
                             return (
@@ -1386,13 +1483,20 @@ export default function ResumeEditPage() {
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
                                     onClick={() => confirmTool(event.callId, true)}
-                                    className="flex-1 rounded-md bg-primary-600 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
+                                    className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors"
+                                    style={{ borderRadius: '56px', backgroundColor: '#0052ff' }}
                                   >
                                     确认修改
                                   </button>
                                   <button
                                     onClick={() => confirmTool(event.callId, false)}
-                                    className="flex-1 rounded-md border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors"
+                                    style={{
+                                      borderRadius: '56px',
+                                      border: '1px solid rgba(91,97,110,0.2)',
+                                      backgroundColor: '#ffffff',
+                                      color: '#0a0b0d',
+                                    }}
                                   >
                                     拒绝
                                   </button>
@@ -1436,7 +1540,7 @@ export default function ResumeEditPage() {
                           )
                         })}
                         {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
-                          <div className="mt-2 rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                          <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
                             <span className="inline-block animate-pulse">Planning next moves</span>
                           </div>
                         )}
@@ -1444,10 +1548,17 @@ export default function ResumeEditPage() {
                     </div>
                   )}
 
-                  {/* 等待响应动画 */}
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-gray-200 bg-white px-4 py-3 text-[14px] text-gray-500 shadow-sm">
+                      <div
+                        className="max-w-[85%] px-4 py-3 text-sm"
+                        style={{
+                          borderRadius: '20px 20px 20px 6px',
+                          backgroundColor: '#eef0f3',
+                          border: '1px solid rgba(91,97,110,0.15)',
+                          color: '#5b616e',
+                        }}
+                      >
                         <span className="inline-block animate-pulse">Planning next moves</span>
                       </div>
                     </div>
@@ -1463,17 +1574,23 @@ export default function ResumeEditPage() {
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="输入消息..."
-                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-inner"
+                      className="w-full p-3 pr-12 text-sm resize-none focus:outline-none"
+                      style={{
+                        border: '1px solid rgba(91,97,110,0.25)',
+                        borderRadius: '12px',
+                        color: '#0a0b0d',
+                      }}
                       rows={2}
                       disabled={isSending || isStreaming}
                     />
                     <button
                       onClick={sendMessage}
                       disabled={!inputMessage.trim() || isSending || isStreaming}
-                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center ${inputMessage.trim()
-                        ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-md'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        } disabled:cursor-not-allowed`}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
+                      style={{
+                        backgroundColor: inputMessage.trim() ? '#0052ff' : '#eef0f3',
+                        color: inputMessage.trim() ? '#ffffff' : '#9ca3af',
+                      }}
                     >
                       <ArrowUpIcon className="w-4 h-4" />
                     </button>

@@ -173,9 +173,7 @@ export default function InterviewPage() {
                 <ArrowLeftIcon className="w-5 h-5" />
               </Link>
               <span className="text-sm font-medium text-gray-900">
-                {resume.content?.personal_info?.name
-                  ? `${resume.content.personal_info.name} · 模拟面试`
-                  : resume.title}
+                模拟面试
               </span>
               {session && (
                 <span className="text-xs text-gray-400">

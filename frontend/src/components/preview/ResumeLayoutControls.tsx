@@ -91,10 +91,18 @@ export default function ResumeLayoutControls({
 
   return (
     <div className={`relative ${className}`}>
-      {/* 控制按钮 */}
+      {/* 触发按钮 — 56px pill，ghost 样式 */}
       <button
         onClick={() => setShowControls(!showControls)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold transition-colors"
+        style={{
+          borderRadius: '56px',
+          backgroundColor: '#ffffff',
+          border: '1px solid rgba(91,97,110,0.25)',
+          color: '#0a0b0d',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
       >
         <AdjustmentsHorizontalIcon className="w-4 h-4" />
         <span>布局设置</span>
@@ -103,79 +111,68 @@ export default function ResumeLayoutControls({
       {/* 控制面板 */}
       {showControls && (
         <>
-          {/* 遮罩 */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowControls(false)}
-          />
-          
-          {/* 面板 */}
-          <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+          <div className="fixed inset-0 z-40" onClick={() => setShowControls(false)} />
+
+          <div
+            className="absolute right-0 mt-2 w-80 bg-white z-50"
+            style={{
+              borderRadius: '16px',
+              border: '1px solid rgba(91,97,110,0.18)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            }}
+          >
             {/* 标签页 */}
-            <div className="flex border-b border-gray-200">
-              <button
-                onClick={() => setActiveTab('density')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'density'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                密度
-              </button>
-              <button
-                onClick={() => setActiveTab('modules')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'modules'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                显示
-              </button>
+            <div className="flex" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
+              {(['density', 'modules'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="flex-1 px-4 py-3 text-sm font-semibold transition-colors relative"
+                  style={{ color: activeTab === tab ? '#0052ff' : '#5b616e' }}
+                >
+                  {tab === 'density' ? '密度' : '显示'}
+                  {activeTab === tab && (
+                    <div className="absolute bottom-0 left-4 right-4 h-0.5" style={{ backgroundColor: '#0052ff', borderRadius: '2px 2px 0 0' }} />
+                  )}
+                </button>
+              ))}
             </div>
 
-            {/* 内容区域 */}
             <div className="p-4">
-              {/* 密度选项 */}
               {activeTab === 'density' && (
                 <div className="space-y-4">
-                  {/* 第一层：快速预设 */}
-                  <div>
-                    <div className="space-y-2">
-                      {(['comfortable', 'normal', 'compact'] as Exclude<LayoutDensity, 'custom'>[]).map((density) => (
-                        <label
-                          key={density}
-                          className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                            config.density === density ? 'border-blue-500 bg-blue-50' : ''
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="density"
-                            checked={config.density === density}
-                            onChange={() => handleDensityChange(density)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="font-medium text-sm">
-                              {density === 'comfortable' && '舒适'}
-                              {density === 'normal' && '标准'}
-                              {density === 'compact' && '紧凑'}
-                            </div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
+                  <div className="space-y-2">
+                    {(['comfortable', 'normal', 'compact'] as Exclude<LayoutDensity, 'custom'>[]).map((density) => (
+                      <label
+                        key={density}
+                        className="flex items-center gap-3 p-3 cursor-pointer transition-colors"
+                        style={{
+                          borderRadius: '12px',
+                          border: `1px solid ${config.density === density ? '#0052ff' : 'rgba(91,97,110,0.18)'}`,
+                          backgroundColor: config.density === density ? 'rgba(0,82,255,0.05)' : '#ffffff',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="density"
+                          checked={config.density === density}
+                          onChange={() => handleDensityChange(density)}
+                          style={{ accentColor: '#0052ff' }}
+                        />
+                        <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                          {density === 'comfortable' ? '舒适' : density === 'normal' ? '标准' : '紧凑'}
+                        </span>
+                      </label>
+                    ))}
                   </div>
 
-                  {/* 第二层：精细调节 */}
-                  <div className="border-t border-gray-100 pt-4">
+                  <div className="pt-3" style={{ borderTop: '1px solid rgba(91,97,110,0.1)' }}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-700">精细调节</span>
+                      <span className="text-xs font-semibold" style={{ color: '#0a0b0d' }}>精细调节</span>
                       <button
                         onClick={handleSpacingScaleReset}
-                        className="text-xs text-gray-500 hover:text-gray-700 underline"
+                        className="text-xs font-semibold"
+                        style={{ color: '#0052ff' }}
                       >
                         重置
                       </button>
@@ -187,42 +184,49 @@ export default function ResumeLayoutControls({
                       step="0.05"
                       value={config.spacingScale ?? 1}
                       onChange={(e) => handleSpacingScaleChange(parseFloat(e.target.value))}
-                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#0052ff', backgroundColor: '#eef0f3' }}
                     />
                     <div className="flex justify-between items-center mt-1.5">
-                      <span className="text-xs text-gray-400">紧</span>
-                      <span className="text-xs text-gray-600 font-medium">
+                      <span className="text-xs" style={{ color: '#9ca3af' }}>紧</span>
+                      <span className="text-xs font-semibold" style={{ color: '#0a0b0d' }}>
                         间距: {(config.spacingScale ?? 1).toFixed(2)}×
                       </span>
-                      <span className="text-xs text-gray-400">松</span>
+                      <span className="text-xs" style={{ color: '#9ca3af' }}>松</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 模块显示控制 */}
               {activeTab === 'modules' && (
                 <div className="space-y-2">
                   {config.moduleOrder.map((module, index) => (
                     <div
                       key={module}
-                      className="flex items-center gap-3 p-3 border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-3 p-3 transition-colors"
+                      style={{
+                        borderRadius: '12px',
+                        border: '1px solid rgba(91,97,110,0.15)',
+                        backgroundColor: '#ffffff',
+                      }}
                     >
                       <input
                         type="checkbox"
                         checked={config.visibleModules.has(module)}
                         onChange={() => toggleModuleVisibility(module)}
-                        className="rounded"
+                        style={{ accentColor: '#0052ff' }}
                       />
-                      <div className="flex-1 font-medium text-sm">
+                      <div className="flex-1 text-sm font-semibold" style={{ color: '#0a0b0d' }}>
                         {MODULE_LABELS[module]}
                       </div>
                       <div className="flex gap-1">
                         <button
                           onClick={() => moveModule(module, 'up')}
                           disabled={index === 0}
-                          className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="上移"
+                          className="p-1 transition-colors disabled:opacity-30"
+                          style={{ borderRadius: '8px', color: '#5b616e' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -231,8 +235,10 @@ export default function ResumeLayoutControls({
                         <button
                           onClick={() => moveModule(module, 'down')}
                           disabled={index === config.moduleOrder.length - 1}
-                          className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="下移"
+                          className="p-1 transition-colors disabled:opacity-30"
+                          style={{ borderRadius: '8px', color: '#5b616e' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
