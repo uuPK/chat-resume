@@ -1,13 +1,15 @@
 """
 PDF 导出服务测试模块
 
-用于验证在 Playwright 浏览器缺失时，PDF 导出仍然会回退到可用的服务端渲染方案。
+用于验证 PDF 导出会复用前端打印页，确保导出结果与编辑器预览保持一致。
 """
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -18,7 +20,7 @@ from app.services.processing.export_service import ExportService
 
 
 def _sample_resume_content() -> dict:
-    """用于构造一份足以覆盖导出字段的最小简历数据。"""
+    """用于构造一份足以覆盖打印页载荷的最小简历数据。"""
     return {
         "personal_info": {
             "name": "张三",
@@ -39,7 +41,6 @@ def _sample_resume_content() -> dict:
                 "position": "后端工程师",
                 "duration": "2022-至今",
                 "summary": "负责简历系统后端开发与性能优化。",
-                "highlights": [{"text": "接口响应时间降低 35%"}],
             }
         ],
         "skills": [{"category": "语言", "items": ["Python", "TypeScript"]}],
@@ -49,36 +50,42 @@ def _sample_resume_content() -> dict:
                 "role": "负责人",
                 "duration": "2024",
                 "summary": "实现多格式简历导出。",
-                "highlights": [{"text": "支持 PDF 导出兜底渲染"}],
             }
         ],
     }
 
 
-def test_export_to_pdf_falls_back_when_playwright_browser_is_missing(tmp_path, monkeypatch):
-    """用于验证浏览器二进制缺失时会自动回退到 ReportLab 生成 PDF。"""
+def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
+    """用于验证 PDF 导出会把前端打印页 URL 交给 Playwright。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
+    captured: dict[str, str] = {}
 
-    async def _raise_missing_browser(self, html_content: str, filepath: str) -> None:
-        del self, html_content, filepath
-        raise RuntimeError(
-            "BrowserType.launch: Executable doesn't exist at playwright/chromium_headless_shell-1208/test"
-        )
+    async def _capture_print_url(self, print_url: str, filepath: str) -> None:
+        """用于捕获传给 Playwright 的打印页 URL，避免真实启动浏览器。"""
+        del self
+        captured["print_url"] = print_url
+        captured["filepath"] = filepath
+        Path(filepath).write_bytes(b"%PDF-test")
 
     monkeypatch.setattr(
         ExportService,
         "_render_pdf_with_playwright",
-        _raise_missing_browser,
+        _capture_print_url,
     )
-
-    import asyncio
 
     filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
     exported = Path(filepath)
-    pdf_bytes = exported.read_bytes()
+    parsed = urlparse(captured["print_url"])
+    query = parse_qs(parsed.query)
 
     assert exported.exists()
     assert exported.suffix == ".pdf"
-    assert pdf_bytes.startswith(b"%PDF")
-    assert b"STSong-Light" in pdf_bytes
+    assert exported.read_bytes().startswith(b"%PDF")
+    assert captured["filepath"] == filepath
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "frontend.example.com"
+    assert parsed.path == "/resume/print"
+    assert "data" in query
+    assert query["data"][0]
