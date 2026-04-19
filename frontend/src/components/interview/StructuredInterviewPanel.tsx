@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 
 import { motion } from 'framer-motion'
-import { ArrowUpIcon, StopIcon } from '@heroicons/react/24/outline'
+import { ArrowUpIcon, LightBulbIcon, StopIcon } from '@heroicons/react/24/outline'
 
 import type { InterviewSession } from '@/lib/api'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
@@ -22,14 +22,22 @@ const ROUND_LABELS: Record<string, string> = {
   closing: '收尾',
 }
 
+const MODE_LABELS: Record<string, string> = {
+  practice: '练习模式',
+  simulation: '拟真模式',
+}
+
 interface StructuredInterviewPanelProps {
   session: InterviewSession | null
   inputMessage: string
   pendingAnswer: string | null
   isSending: boolean
+  isRequestingHint?: boolean
   error: string | null
+  hintItems?: string[]
   onInputChange: (value: string) => void
   onSendAnswer: () => void
+  onRequestHint?: () => void
   onEndInterview: () => void
   className?: string
 }
@@ -65,6 +73,33 @@ function handleInputKeyDown(
 }
 
 /**
+ * 兼容历史结构化评估和新文本评估，统一转成可展示的文字。
+ */
+function getEvaluationDisplayText(evaluation: InterviewSession['turns'][number]['evaluation']) {
+  if (!evaluation) return ''
+  if (typeof evaluation === 'string') return evaluation
+
+  const parts: string[] = []
+  if (evaluation.summary) {
+    parts.push(evaluation.summary)
+  }
+  if ((evaluation.gaps?.length ?? 0) > 0) {
+    parts.push(`问题：${evaluation.gaps!.join('；')}`)
+  }
+  if ((evaluation.evidence?.length ?? 0) > 0) {
+    parts.push(`亮点：${evaluation.evidence!.join('；')}`)
+  }
+  if (Object.keys(evaluation.dimension_scores || {}).length > 0) {
+    const scoreText = Object.entries(evaluation.dimension_scores || {})
+      .map(([key, value]) => `${key} ${value}`)
+      .join('，')
+    parts.push(`评分：${scoreText}`)
+  }
+
+  return parts.join('\n')
+}
+
+/**
  * 统一渲染结构化面试的核心时间线。
  */
 export default function StructuredInterviewPanel({
@@ -72,9 +107,12 @@ export default function StructuredInterviewPanel({
   inputMessage,
   pendingAnswer,
   isSending,
+  isRequestingHint = false,
   error,
+  hintItems = [],
   onInputChange,
   onSendAnswer,
+  onRequestHint,
   onEndInterview,
   className = '',
 }: StructuredInterviewPanelProps) {
@@ -82,6 +120,7 @@ export default function StructuredInterviewPanel({
   const turns = session?.turns || []
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
+  const isPracticeMode = session?.mode === 'practice'
   const currentRoundLabel = useMemo(() => getCurrentRoundLabel(session), [session])
   const answeredTurnCount = useMemo(
     () => turns.filter((turn) => !!turn.answer).length,
@@ -111,7 +150,12 @@ export default function StructuredInterviewPanel({
               <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
                 已回答 {answeredTurnCount} 题
               </span>
-              {session?.overall_score != null && (
+              {session?.mode && (
+                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+                  {MODE_LABELS[session.mode] || session.mode}
+                </span>
+              )}
+              {session?.overall_score != null && (isPracticeMode || isComplete) && (
                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                   综合评分 {session.overall_score}/10
                 </span>
@@ -135,6 +179,7 @@ export default function StructuredInterviewPanel({
           const isActive = !hasAnswer && !pendingAnswer
           const isPendingEval = !hasAnswer && !!pendingAnswer
           const displayAnswer = turn.answer || (isPendingEval ? pendingAnswer : null)
+          const evaluationDisplayText = getEvaluationDisplayText(turn.evaluation)
 
           return (
             <motion.div
@@ -180,27 +225,10 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
-              {turn.evaluation && (
+              {isPracticeMode && evaluationDisplayText && (
                 <div className="px-6 pb-4">
                   <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100 text-sm">
-                    {turn.evaluation.summary && (
-                      <p className="text-amber-900">{turn.evaluation.summary}</p>
-                    )}
-                    {Object.keys(turn.evaluation.dimension_scores || {}).length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {Object.entries(turn.evaluation.dimension_scores || {}).map(([key, value]) => (
-                          <span key={key} className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs">
-                            {key} {value}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {(turn.evaluation.gaps?.length ?? 0) > 0 && (
-                      <p className="mt-2 text-amber-700 text-xs">问题：{turn.evaluation.gaps!.join('；')}</p>
-                    )}
-                    {(turn.evaluation.evidence?.length ?? 0) > 0 && (
-                      <p className="mt-1 text-amber-700 text-xs">亮点：{turn.evaluation.evidence!.join('；')}</p>
-                    )}
+                    <p className="text-amber-900 whitespace-pre-wrap leading-relaxed">{evaluationDisplayText}</p>
                   </div>
                 </div>
               )}
@@ -214,6 +242,37 @@ export default function StructuredInterviewPanel({
 
               {isActive && !isComplete && (
                 <div className="px-6 pb-5 pt-1">
+                  {isPracticeMode && (
+                    <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-indigo-700">练习辅助</p>
+                          <p className="mt-1 text-xs text-indigo-600">
+                            可以先拿提示再组织答案，题后也会给你即时反馈。
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onRequestHint}
+                          disabled={isRequestingHint || !onRequestHint}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors disabled:opacity-60"
+                        >
+                          <LightBulbIcon className="w-4 h-4" />
+                          {isRequestingHint ? '提示生成中...' : '给我提示'}
+                        </button>
+                      </div>
+                      {hintItems.length > 0 && (
+                        <ul className="mt-3 space-y-1.5">
+                          {hintItems.map((hint, index) => (
+                            <li key={`${turn.id}-hint-${index}`} className="flex items-start gap-2 text-xs text-indigo-700">
+                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                              <span>{hint}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   <div className="relative">
                     <textarea
                       value={inputMessage}

@@ -114,6 +114,27 @@ def _build_same_round_prompt(question_type: str, round_goal: str, remaining_ques
     )
 
 
+def _build_hint_prompt(
+    *,
+    question_type: str,
+    question: str,
+    round_goal: str,
+    target_title: str,
+) -> str:
+    """用于生成练习模式下的答题提示词。"""
+    instructions = _round_instructions(question_type)
+    role_hint = f"目标岗位：{target_title}。" if target_title else ""
+    return (
+        f"{instructions}\n"
+        f"{role_hint}"
+        f"当前问题：{question}\n"
+        f"当前阶段目标：{round_goal}\n"
+        "请给候选人 3 条简短提示，帮助其组织答案。"
+        "每条提示都要可执行，聚焦回答结构、关键信息和量化结果。"
+        "不要直接替候选人写完整答案。"
+    )
+
+
 def _rounds_for_type(interview_type: str) -> list[dict[str, Any]]:
     """用于根据面试类型生成默认轮次规划。"""
     if interview_type == "behavioral":
@@ -228,6 +249,38 @@ def _latest_turn(session: InterviewSession) -> Optional[InterviewTurn]:
     return turns[-1] if turns else None
 
 
+def _collect_weaknesses(turns: list[InterviewTurn]) -> list[str]:
+    """用于在没有结构化评分后生成通用的改进建议。"""
+    if any((turn.evaluation or "").strip() for turn in turns):
+        return [
+            "逐题复盘面试评语，优先补足背景、动作和结果。",
+            "围绕个人贡献和量化结果重新打磨回答。",
+        ]
+    return []
+
+
+def _fallback_hint(turn: InterviewTurn) -> list[str]:
+    """用于在提示生成失败时返回可直接使用的练习建议。"""
+    tips = [
+        "先交代背景和目标，再说明你亲自做了什么。",
+        "一定讲出结果，最好补一到两个量化指标。",
+        "把重点放在个人贡献和关键决策，不要只讲团队工作。",
+    ]
+    if turn.question_type == "behavioral":
+        tips = [
+            "按 STAR 结构回答：情境、任务、行动、结果。",
+            "重点讲你本人采取了什么行动，不要只描述团队。",
+            "最后补一句复盘，说明你从这件事里学到了什么。",
+        ]
+    elif turn.question_type == "technical":
+        tips = [
+            "先给结论，再说明为什么这样设计或选择。",
+            "补充技术取舍、风险和你如何验证方案有效。",
+            "最好举一个线上问题、性能指标或工程细节来支撑答案。",
+        ]
+    return tips
+
+
 
 
 async def _generate_question(
@@ -247,33 +300,25 @@ async def _generate_question(
     return (result.get("content") or "").strip()
 
 
-def _fallback_evaluation(question: str, answer: str) -> dict[str, Any]:
-    """用于在 LLM 评估失败时提供规则兜底结果。"""
+def _fallback_evaluation(question: str, answer: str) -> str:
+    """用于在 LLM 评估失败时提供简短文本兜底结果。"""
     normalized = (answer or "").strip()
-    score = 8
     gaps: list[str] = []
+    missing_question_focus = False
+    question_keywords = re.findall(r"[\u4e00-\u9fffA-Za-z]{2,}", question or "")
+    if question_keywords and not any(keyword in normalized for keyword in question_keywords[:4]):
+        missing_question_focus = True
     if len(normalized) < 60:
-        score = 5
         gaps.append("回答偏短，缺少背景和结果")
     if "我" not in normalized:
-        score = min(score, 6)
         gaps.append("个人贡献不够明确")
     if not any(ch.isdigit() for ch in normalized):
-        score = min(score, 6)
         gaps.append("缺少量化结果或具体指标")
-    should_follow_up = len(normalized) < 60 or len(gaps) >= 2
-    return {
-        "summary": f'围绕"{question[:30]}"的回答已完成初步评估。',
-        "dimension_scores": {
-            "clarity": max(1, min(10, score)),
-            "depth": max(1, min(10, score - 1 if should_follow_up else score)),
-            "relevance": max(1, min(10, score)),
-        },
-        "evidence": [],
-        "gaps": gaps,
-        "should_follow_up": should_follow_up,
-        "score": score,
-    }
+    if missing_question_focus:
+        gaps.insert(0, "没有直接回应问题本身")
+    if gaps:
+        return "面试系统反馈：" + "；".join(gaps[:2]) + "。建议先直接回答问题，再补充个人贡献和结果。"
+    return "面试系统反馈：回答基本切题，但还可以补充更具体的个人动作和结果，让信息更完整。"
 
 
 async def _evaluate_answer_with_llm(
@@ -283,12 +328,15 @@ async def _evaluate_answer_with_llm(
     resume_content: dict[str, Any],
     history: list[dict[str, str]],
     event_callback=None,
-) -> dict[str, Any]:
-    """用于让 LLM 对候选人回答做结构化评估。"""
+) -> str:
+    """用于让 LLM 对候选人回答做文本评估。"""
     prompt = (
         f"[EVALUATE]\n"
         f"面试问题：{question}\n"
-        f"候选人回答：{answer}"
+        f"候选人回答：{answer}\n"
+        "请从面试系统的角度给出简短反馈，不要使用面试官训话口吻。"
+        "先指出是否答到问题本身，再指出最关键的缺口，并给一个最重要的补强建议。"
+        "长度控制在 1 到 2 句话。"
     )
     try:
         result = await _interviewer_agent.chat(
@@ -298,24 +346,9 @@ async def _evaluate_answer_with_llm(
             event_callback=event_callback,
         )
         raw = (result.get("content") or "").strip()
-        # 兼容模型偶尔包裹 markdown 代码块的情况
-        json_str = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.DOTALL).strip()
-        data = json.loads(json_str)
-        score_raw = data.get("score", 7)
-        score = max(1, min(10, int(round(float(score_raw)))))
-        dim = data.get("dimension_scores", {})
-        return {
-            "summary": str(data.get("summary", "")),
-            "dimension_scores": {
-                "clarity": max(1, min(10, int(dim.get("clarity", score)))),
-                "depth": max(1, min(10, int(dim.get("depth", score)))),
-                "relevance": max(1, min(10, int(dim.get("relevance", score)))),
-            },
-            "evidence": list(data.get("evidence", []))[:2],
-            "gaps": list(data.get("gaps", []))[:3],
-            "should_follow_up": bool(data.get("should_follow_up", False)),
-            "score": score,
-        }
+        if raw:
+            return raw
+        return _fallback_evaluation(question, answer)
     except Exception:
         logger.warning("LLM evaluation failed, falling back to rule-based evaluation")
         return _fallback_evaluation(question, answer)
@@ -331,13 +364,19 @@ class InterviewCreateRequest(BaseModel):
     interview_type: str = "general"
     difficulty: str = "medium"
     language: str = "zh-CN"
-    mode: str = "text"
+    mode: str = "practice"
 
 
 class InterviewAnswerRequest(BaseModel):
     """用于承载候选人的一次作答内容。"""
 
     answer: str = Field(min_length=1)
+
+
+class InterviewHintResponse(BaseModel):
+    """用于返回练习模式下当前题目的提示内容。"""
+
+    hints: List[str]
 
 
 class InterviewActionResponse(BaseModel):
@@ -380,6 +419,75 @@ async def create_interview(
     db.commit()
     db.refresh(session)
     return InterviewActionResponse(session=_serialize_session(session), next_action="start")
+
+
+@router.post("/{session_id}/hint", response_model=InterviewHintResponse)
+async def get_interview_hint(
+    session_id: int,
+    http_request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于在练习模式下为当前题目生成简短提示。"""
+    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    if not session or session.user_id != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
+    if session.mode != "practice":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Hints are only available in practice mode")
+
+    turn = _latest_turn(session)
+    if not turn or turn.status != "asked":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No active question to hint")
+
+    resume = _get_resume_for_user(db, session.resume_id, current_user["id"])
+    resume_content = resume.content if isinstance(resume.content, dict) else {}
+    history: list[dict[str, str]] = []
+    for item in list(session.turns or []):
+        history.append({"role": "assistant", "content": item.question})
+        if item.answer:
+            history.append({"role": "user", "content": item.answer})
+
+    run_id = uuid4().hex
+    observer = LangfuseRunObserver(
+        run_id=run_id,
+        agent_type="interview",
+        run_kind="hint_interview",
+        user_id=current_user["id"],
+        input_text=turn.question,
+        metadata={
+            "interview_session_id": session.id,
+            "resume_id": session.resume_id,
+            "request_id": getattr(http_request.state, "request_id", None),
+        },
+    )
+    prompt = _build_hint_prompt(
+        question_type=turn.question_type,
+        question=turn.question,
+        round_goal=turn.intent or "",
+        target_title=session.target_title or "",
+    )
+    hints = _fallback_hint(turn)
+    try:
+        with observer:
+            result = await _interviewer_agent.chat(
+                user_message=prompt,
+                resume_content=resume_content,
+                conversation_history=history,
+                event_callback=observer.on_runtime_event,
+            )
+        raw = (result.get("content") or "").strip()
+        parsed = [
+            re.sub(r"^\s*(?:[-*•]|\d+[.)、])\s*", "", line).strip()
+            for line in raw.splitlines()
+            if line.strip()
+        ]
+        if parsed:
+            hints = parsed[:3]
+        observer.finish("hint_generated")
+    except Exception as exc:
+        observer.fail(str(exc))
+        logger.warning("Hint generation failed, falling back to default hints")
+    return InterviewHintResponse(hints=hints)
 
 
 @router.get("/", response_model=List[Dict[str, Any]])
@@ -548,6 +656,15 @@ async def answer_interview(
     turn.answer = answer_text
     turn.answered_at = _now()
     turn.status = "done"
+    turn.evaluation = await _evaluate_answer_with_llm(
+        question=turn.question,
+        answer=answer_text,
+        resume_content=resume_content,
+        history=history,
+        event_callback=observer.on_runtime_event,
+    )
+    turn.score = None
+    session.overall_score = None
 
     rounds = ((session.plan_json or {}).get("rounds") or [])
     current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
@@ -566,13 +683,14 @@ async def answer_interview(
         session.report_data = {
             "summary": "本场模拟面试已结束。",
             "strengths": ["能持续回答问题并完成整场面试。"],
-            "weaknesses": [],
+            "weaknesses": _collect_weaknesses(list(session.turns or [])),
             "next_training_plan": [
                 "每个回答都补足背景、动作、结果。",
                 "突出个人贡献，避免只讲团队。",
                 "尽量加入量化指标和复盘结论。",
             ],
         }
+        session.overall_score = None
         db.commit()
         db.refresh(session)
         observer.finish("interview_completed")
@@ -678,6 +796,15 @@ async def answer_interview_stream(
     turn.answer = answer_text
     turn.answered_at = _now()
     turn.status = "done"
+    turn.evaluation = await _evaluate_answer_with_llm(
+        question=turn.question,
+        answer=answer_text,
+        resume_content=resume_content,
+        history=history,
+        event_callback=observer.on_runtime_event,
+    )
+    turn.score = None
+    session.overall_score = None
 
     async def generate():
         nonlocal session
@@ -738,13 +865,14 @@ async def answer_interview_stream(
                     session.report_data = {
                         "summary": "本场模拟面试已结束。",
                         "strengths": ["能持续回答问题并完成整场面试。"],
-                        "weaknesses": [],
+                        "weaknesses": _collect_weaknesses(list(session.turns or [])),
                         "next_training_plan": [
                             "每个回答都补足背景、动作、结果。",
                             "突出个人贡献，避免只讲团队。",
                             "尽量加入量化指标和复盘结论。",
                         ],
                     }
+                    session.overall_score = None
                     db.commit()
                     db.refresh(session)
                     done_payload = {
@@ -812,15 +940,14 @@ async def end_interview(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
 
     turns = list(session.turns or [])
-    scores = [turn.score for turn in turns if turn.score is not None]
-    session.overall_score = int(round(sum(scores) / len(scores))) if scores else None
+    session.overall_score = None
     session.status = "completed"
     session.ended_at = _now()
     if session.report_data is None:
         session.report_data = {
             "summary": "用户主动结束了本场模拟面试。",
             "strengths": ["已完成至少一轮结构化问答。"] if turns else [],
-            "weaknesses": list(dict.fromkeys(g for turn in turns for g in ((turn.evaluation or {}).get("gaps") or [])))[:5],
+            "weaknesses": _collect_weaknesses(turns),
             "next_training_plan": [
                 "继续训练项目深挖回答。",
                 "回答时优先讲个人贡献和结果。",

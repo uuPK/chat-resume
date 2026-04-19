@@ -25,6 +25,7 @@ interface UseInterviewSessionOptions {
   resume: InterviewResumeSource | null
   enabled: boolean
   requestedSessionId?: number
+  defaultMode?: 'practice' | 'simulation'
 }
 
 /**
@@ -44,6 +45,7 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
  */
 async function loadStructuredInterviewSession(
   resume: InterviewResumeSource,
+  defaultMode: 'practice' | 'simulation',
   requestedSessionId?: number,
 ) {
   if (requestedSessionId) {
@@ -64,7 +66,7 @@ async function loadStructuredInterviewSession(
     interview_type: 'general',
     difficulty: 'medium',
     language: 'zh-CN',
-    mode: 'text',
+    mode: defaultMode,
   })
   const started = await resumeApi.startInterviewSession(created.session.id)
   return started.session
@@ -77,12 +79,15 @@ export function useInterviewSession({
   resume,
   enabled,
   requestedSessionId,
+  defaultMode = 'practice',
 }: UseInterviewSessionOptions) {
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [isRequestingHint, setIsRequestingHint] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null)
+  const [hintItems, setHintItems] = useState<string[]>([])
 
   /**
    * 当简历或 session 参数变化时重置局部会话状态。
@@ -93,7 +98,9 @@ export function useInterviewSession({
     setError(null)
     setPendingAnswer(null)
     setIsSending(false)
-  }, [resume?.id, requestedSessionId])
+    setHintItems([])
+    setIsRequestingHint(false)
+  }, [defaultMode, resume?.id, requestedSessionId])
 
   /**
    * 在页面进入面试模式后自动准备好当前 session。
@@ -103,14 +110,14 @@ export function useInterviewSession({
     setIsSending(true)
     setError(null)
     try {
-      const nextSession = await loadStructuredInterviewSession(resume, requestedSessionId)
+      const nextSession = await loadStructuredInterviewSession(resume, defaultMode, requestedSessionId)
       setSession(nextSession)
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动面试失败')
     } finally {
       setIsSending(false)
     }
-  }, [resume, requestedSessionId])
+  }, [defaultMode, resume, requestedSessionId])
 
   /**
    * 在启用面试模式后按需自动初始化会话。
@@ -123,6 +130,14 @@ export function useInterviewSession({
   }, [enabled, ensureSessionReady, isSending, resume, session])
 
   /**
+   * 在题目切换或模式变化后清空上一题的提示内容。
+   */
+  useEffect(() => {
+    setHintItems([])
+    setIsRequestingHint(false)
+  }, [session?.current_turn?.id, session?.mode])
+
+  /**
    * 提交当前回答并等待结构化面试返回下一题。
    */
   const sendAnswer = useCallback(async () => {
@@ -133,6 +148,7 @@ export function useInterviewSession({
     setError(null)
     setInputMessage('')
     setPendingAnswer(text)
+    setHintItems([])
 
     try {
       for await (const event of resumeApi.answerInterviewSessionStream(session.id, text)) {
@@ -148,6 +164,24 @@ export function useInterviewSession({
       setIsSending(false)
     }
   }, [inputMessage, isSending, session])
+
+  /**
+   * 在练习模式下为当前题目请求答题提示。
+   */
+  const requestHint = useCallback(async () => {
+    if (!session || isRequestingHint || session.mode !== 'practice') return
+
+    setIsRequestingHint(true)
+    setError(null)
+    try {
+      const result = await resumeApi.getInterviewHint(session.id)
+      setHintItems(result.hints)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '获取提示失败')
+    } finally {
+      setIsRequestingHint(false)
+    }
+  }, [isRequestingHint, session])
 
   /**
    * 主动结束当前面试并返回最终报告。
@@ -173,9 +207,12 @@ export function useInterviewSession({
     inputMessage,
     setInputMessage,
     isSending,
+    isRequestingHint,
     error,
     pendingAnswer,
+    hintItems,
     sendAnswer,
+    requestHint,
     endInterview,
   }
 }

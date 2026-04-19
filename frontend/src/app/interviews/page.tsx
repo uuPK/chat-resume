@@ -58,6 +58,19 @@ function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resum
   }
 }
 
+const INTERVIEW_MODE_OPTIONS = [
+  {
+    value: 'practice',
+    label: '练习模式',
+    description: '题后即时反馈，可随时获取答题提示。',
+  },
+  {
+    value: 'simulation',
+    label: '拟真模式',
+    description: '不展示题后反馈和提示，更接近真实面试节奏。',
+  },
+] as const
+
 /**
  * 面试中心页组件
  *
@@ -74,6 +87,7 @@ export default function InterviewsPage() {
   const [sessions, setSessions] = useState<InterviewSessionSummary[]>([])
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
   const [showCreateInterviewPanel, setShowCreateInterviewPanel] = useState(false)
+  const [interviewMode, setInterviewMode] = useState<'practice' | 'simulation'>('practice')
   const [selectedResumeId, setSelectedResumeId] = useState('')
   const [selectedResumeLoading, setSelectedResumeLoading] = useState(false)
   const [creatingSession, setCreatingSession] = useState(false)
@@ -208,7 +222,7 @@ export default function InterviewsPage() {
         interview_type: 'general',
         difficulty: 'medium',
         language: 'zh-CN',
-        mode: 'text',
+        mode: interviewMode,
       })
       router.push(`/resume/${resumeId}/interview?session=${result.session.id}`)
     } catch (error) {
@@ -323,7 +337,7 @@ export default function InterviewsPage() {
                     新建模拟面试
                   </h2>
                   <p className="mt-2 text-sm" style={{ color: '#5b616e' }}>
-                    选择简历后会自动带出该简历已保存的岗位和 JD，你仍然可以在开始前手动调整。
+                    先选模式，再选择简历和岗位上下文。练习模式会提供提示和题后反馈，拟真模式不会。
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -376,6 +390,37 @@ export default function InterviewsPage() {
                 </div>
               ) : (
                 <div className="mt-6 grid gap-5">
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: '#0a0b0d' }}>
+                      面试模式
+                    </label>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {INTERVIEW_MODE_OPTIONS.map((option) => {
+                        const isSelected = interviewMode === option.value
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setInterviewMode(option.value)}
+                            className="rounded-3xl px-4 py-4 text-left transition-colors"
+                            style={{
+                              border: isSelected ? '1px solid #0052ff' : '1px solid rgba(91,97,110,0.16)',
+                              backgroundColor: isSelected ? '#eef0ff' : '#ffffff',
+                              boxShadow: isSelected ? '0 0 0 3px rgba(0,82,255,0.08)' : 'none',
+                            }}
+                          >
+                            <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                              {option.label}
+                            </p>
+                            <p className="mt-1 text-xs leading-5" style={{ color: '#5b616e' }}>
+                              {option.description}
+                            </p>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
                   <div className="grid gap-5 md:grid-cols-[1.2fr,0.8fr]">
                     <div>
                       <label className="block text-sm font-medium mb-2" style={{ color: '#0a0b0d' }}>
@@ -567,6 +612,12 @@ export default function InterviewsPage() {
                               @ {session.target_company}
                             </span>
                           )}
+                          <span
+                            className="text-xs font-semibold px-2.5 py-0.5"
+                            style={{ borderRadius: '100000px', backgroundColor: '#eef0ff', color: '#0052ff' }}
+                          >
+                            {session.mode === 'simulation' ? '拟真模式' : '练习模式'}
+                          </span>
                           <span
                             className="text-xs font-semibold px-2.5 py-0.5"
                             style={{ borderRadius: '100000px', backgroundColor: bg, color }}

@@ -378,6 +378,14 @@ class TestInterviewSessions:
 
         async def _fake_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):
             del self, resume_content, conversation_history, event_callback
+            if "[EVALUATE]" in user_message:
+                return {
+                    "content": "回答结构基本完整，但还可以补充更多量化结果。"
+                }
+            if "请给候选人 3 条简短提示" in user_message:
+                return {
+                    "content": "1. 先交代项目背景和目标\n2. 重点讲你亲自做了什么\n3. 最后补一个量化结果"
+                }
             if "追问" in user_message:
                 return {"content": "你刚才提到做了优化，具体指标提升了多少？"}
             if "下一轮" in user_message:
@@ -417,6 +425,7 @@ class TestInterviewSessions:
         answered = answer_resp.json()
         assert answered["next_action"] in ("next_question", "completed")
         assert answered["session"]["status"] in ("waiting_user_answer", "completed")
+        assert answered["session"]["turns"][0]["evaluation"] == "回答结构基本完整，但还可以补充更多量化结果。"
 
         end_resp = self.client.post(
             f"/api/interviews/{session_id}/end",
@@ -462,6 +471,64 @@ class TestInterviewSessions:
         assert session["answered_turn_count"] == 1
         assert "turns" not in session
         assert "current_turn" not in session
+
+    def test_practice_mode_can_request_hint(self):
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "interview_type": "general",
+                "difficulty": "medium",
+                "mode": "practice",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        start_resp = self.client.post(
+            f"/api/interviews/{session_id}/start",
+            headers=self.headers,
+        )
+        assert start_resp.status_code == 200, start_resp.text
+
+        hint_resp = self.client.post(
+            f"/api/interviews/{session_id}/hint",
+            headers=self.headers,
+        )
+        assert hint_resp.status_code == 200, hint_resp.text
+        assert hint_resp.json()["hints"] == [
+            "先交代项目背景和目标",
+            "重点讲你亲自做了什么",
+            "最后补一个量化结果",
+        ]
+
+    def test_simulation_mode_rejects_hint_request(self):
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "interview_type": "general",
+                "difficulty": "medium",
+                "mode": "simulation",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        start_resp = self.client.post(
+            f"/api/interviews/{session_id}/start",
+            headers=self.headers,
+        )
+        assert start_resp.status_code == 200, start_resp.text
+
+        hint_resp = self.client.post(
+            f"/api/interviews/{session_id}/hint",
+            headers=self.headers,
+        )
+        assert hint_resp.status_code == 409
+        assert hint_resp.json()["detail"] == "Hints are only available in practice mode"
 
     def test_list_resumes_without_auth_returns_401(self):
         resp = self.client.get("/api/resumes/")

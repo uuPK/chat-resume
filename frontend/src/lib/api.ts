@@ -67,12 +67,13 @@ interface InterviewTurn {
   intent?: string
   expected_points?: string[]
   answer?: string
-  evaluation?: {
+  evaluation?: string | {
     summary?: string
     dimension_scores?: Record<string, number>
     evidence?: string[]
     gaps?: string[]
     should_follow_up?: boolean
+    score?: number
   }
   score?: number
   follow_up_count: number
@@ -129,6 +130,10 @@ interface InterviewActionResponse {
   message?: string
   evaluation?: InterviewTurn['evaluation']
   next_action?: string
+}
+
+interface InterviewHintResponse {
+  hints: string[]
 }
 
 // API基础URL
@@ -314,6 +319,19 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  /**
+   * 获取练习模式下当前题目的答题提示
+   */
+  static async getInterviewHint(sessionId: number): Promise<InterviewHintResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/hint`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+    return handleApiResponse<InterviewHintResponse>(response)
+  }
+
   static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}`, {
       headers: {
@@ -441,6 +459,7 @@ export type {
   ResumeListItem,
   ResumeContent,
   InterviewActionResponse,
+  InterviewHintResponse,
   InterviewSession,
   InterviewSessionSummary,
   InterviewTurn,

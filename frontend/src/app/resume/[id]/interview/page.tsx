@@ -44,14 +44,18 @@ export default function InterviewPage() {
     inputMessage,
     setInputMessage,
     isSending,
+    isRequestingHint,
     pendingAnswer,
     error: sessionError,
+    hintItems,
     sendAnswer,
+    requestHint,
     endInterview,
   } = useInterviewSession({
     resume,
     enabled: mounted && isAuthenticated && !!resume,
     requestedSessionId: requestedSessionId || undefined,
+    defaultMode: 'practice',
   })
 
   if (!mounted || isLoading || resumeLoading) {
@@ -172,9 +176,12 @@ export default function InterviewPage() {
             inputMessage={inputMessage}
             pendingAnswer={pendingAnswer}
             isSending={isSending}
+            isRequestingHint={isRequestingHint}
             error={error || sessionError}
+            hintItems={hintItems}
             onInputChange={setInputMessage}
             onSendAnswer={sendAnswer}
+            onRequestHint={requestHint}
             onEndInterview={endInterview}
           />
         </div>

@@ -418,13 +418,17 @@ export default function ResumeEditPage() {
     inputMessage: ivInput,
     setInputMessage: setIvInput,
     isSending: ivSending,
+    isRequestingHint: ivRequestingHint,
     error: ivError,
     pendingAnswer: ivPendingAnswer,
+    hintItems: ivHintItems,
     sendAnswer: sendInterviewAnswer,
+    requestHint: requestInterviewHint,
     endInterview,
   } = useInterviewSession({
     resume,
     enabled: agentType === 'interview',
+    defaultMode: 'practice',
   })
 
   useEffect(() => {
@@ -1193,9 +1197,12 @@ export default function ResumeEditPage() {
                   inputMessage={ivInput}
                   pendingAnswer={ivPendingAnswer}
                   isSending={ivSending}
+                  isRequestingHint={ivRequestingHint}
                   error={ivError}
+                  hintItems={ivHintItems}
                   onInputChange={setIvInput}
                   onSendAnswer={sendInterviewAnswer}
+                  onRequestHint={requestInterviewHint}
                   onEndInterview={endInterview}
                 />
               </motion.div>
