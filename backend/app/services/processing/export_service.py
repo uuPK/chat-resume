@@ -20,12 +20,15 @@ from playwright.async_api import async_playwright
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
 from app.infra.security import create_download_token
 
 logger = logging.getLogger(__name__)
+_REPORTLAB_CJK_FONT_NAME = "STSong-Light"
 
 
 class ExportService:
@@ -203,13 +206,22 @@ class ExportService:
         story = self._build_pdf_story(resume_content)
         doc.build(story)
 
+    def _ensure_reportlab_cjk_font(self) -> str:
+        """用于给 ReportLab 兜底渲染注册可显示中文的内置 CID 字体。"""
+        registered_fonts = pdfmetrics.getRegisteredFontNames()
+        if _REPORTLAB_CJK_FONT_NAME not in registered_fonts:
+            pdfmetrics.registerFont(UnicodeCIDFont(_REPORTLAB_CJK_FONT_NAME))
+        return _REPORTLAB_CJK_FONT_NAME
+
     def _build_pdf_story(self, resume_content: Dict[str, Any]) -> list[Any]:
         """用于复用统一的 PDF 内容结构，保证主渲染和兜底渲染一致。"""
         story: list[Any] = []
+        cjk_font_name = self._ensure_reportlab_cjk_font()
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             "CustomTitle",
             parent=styles["Heading1"],
+            fontName=cjk_font_name,
             fontSize=18,
             textColor=colors.black,
             spaceAfter=12,
@@ -218,12 +230,17 @@ class ExportService:
         heading_style = ParagraphStyle(
             "CustomHeading",
             parent=styles["Heading2"],
+            fontName=cjk_font_name,
             fontSize=14,
             textColor=colors.HexColor("#1d4ed8"),
             spaceAfter=6,
             spaceBefore=12,
         )
-        normal_style = styles["Normal"]
+        normal_style = ParagraphStyle(
+            "CustomBody",
+            parent=styles["Normal"],
+            fontName=cjk_font_name,
+        )
 
         personal_info = resume_content.get("personal_info", {})
         if personal_info.get("name"):

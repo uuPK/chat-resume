@@ -76,7 +76,9 @@ def test_export_to_pdf_falls_back_when_playwright_browser_is_missing(tmp_path, m
 
     filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
     exported = Path(filepath)
+    pdf_bytes = exported.read_bytes()
 
     assert exported.exists()
     assert exported.suffix == ".pdf"
-    assert exported.read_bytes().startswith(b"%PDF")
+    assert pdf_bytes.startswith(b"%PDF")
+    assert b"STSong-Light" in pdf_bytes
