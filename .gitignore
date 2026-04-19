@@ -68,6 +68,7 @@ out/
 next-env.d.ts
 tsconfig.tsbuildinfo
 frontend/tsconfig.typecheck.tsbuildinfo
+frontend/test-results/
 
 # Uploads
 backend/uploads/**

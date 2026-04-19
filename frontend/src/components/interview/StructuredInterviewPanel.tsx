@@ -31,6 +31,7 @@ interface StructuredInterviewPanelProps {
   session: InterviewSession | null
   inputMessage: string
   pendingAnswer: string | null
+  pendingEvaluationTurnId?: number | null
   isSending: boolean
   isRequestingHint?: boolean
   error: string | null
@@ -79,6 +80,7 @@ export default function StructuredInterviewPanel({
   session,
   inputMessage,
   pendingAnswer,
+  pendingEvaluationTurnId = null,
   isSending,
   isRequestingHint = false,
   error,
@@ -147,6 +149,7 @@ export default function StructuredInterviewPanel({
           const isActive = !hasAnswer && !pendingAnswer
           const isPendingEval = !hasAnswer && !!pendingAnswer
           const displayAnswer = turn.answer || (isPendingEval ? pendingAnswer : null)
+          const isGeneratingEvaluation = turn.id === pendingEvaluationTurnId && !turn.evaluation
 
           return (
             <motion.div
@@ -200,6 +203,13 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
+              {isPracticeMode && isGeneratingEvaluation && (
+                <div className="px-6 pb-4 flex items-center gap-2 text-sm text-amber-600">
+                  <div className="animate-spin h-4 w-4 border-2 border-amber-300 border-t-amber-500 rounded-full" />
+                  评估生成中...
+                </div>
+              )}
+
               {isPendingEval && (
                 <div className="px-6 pb-4 flex items-center gap-2 text-sm text-gray-400">
                   <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-primary-600 rounded-full" />
@@ -210,34 +220,29 @@ export default function StructuredInterviewPanel({
               {isActive && !isComplete && (
                 <div className="px-6 pb-5 pt-1">
                   {isPracticeMode && (
+                    <div className="mb-3 flex justify-start">
+                      <button
+                        type="button"
+                        onClick={onRequestHint}
+                        disabled={isRequestingHint || !onRequestHint}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 transition-colors disabled:opacity-60"
+                      >
+                        <LightBulbIcon className="w-4 h-4" />
+                        {isRequestingHint ? '提示生成中...' : '给我提示'}
+                      </button>
+                    </div>
+                  )}
+
+                  {isPracticeMode && hintItems.length > 0 && (
                     <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold text-indigo-700">练习辅助</p>
-                          <p className="mt-1 text-xs text-indigo-600">
-                            可以先拿提示再组织答案，题后也会给你即时反馈。
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={onRequestHint}
-                          disabled={isRequestingHint || !onRequestHint}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition-colors disabled:opacity-60"
-                        >
-                          <LightBulbIcon className="w-4 h-4" />
-                          {isRequestingHint ? '提示生成中...' : '给我提示'}
-                        </button>
-                      </div>
-                      {hintItems.length > 0 && (
-                        <ul className="mt-3 space-y-1.5">
-                          {hintItems.map((hint, index) => (
-                            <li key={`${turn.id}-hint-${index}`} className="flex items-start gap-2 text-xs text-indigo-700">
-                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
-                              <span>{hint}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <ul className="space-y-1.5">
+                        {hintItems.map((hint, index) => (
+                          <li key={`${turn.id}-hint-${index}`} className="flex items-start gap-2 text-xs text-indigo-700">
+                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                            <span>{hint}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                   <div className="relative">

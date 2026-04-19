@@ -29,6 +29,13 @@ interface UseInterviewSessionOptions {
 }
 
 /**
+ * 等待指定毫秒数，供轮询评估结果时复用。
+ */
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+/**
  * 读取求职目标，用于创建结构化面试上下文。
  */
 function getJobApplicationPayload(resume: InterviewResumeSource) {
@@ -87,6 +94,7 @@ export function useInterviewSession({
   const [isRequestingHint, setIsRequestingHint] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null)
+  const [pendingEvaluationTurnId, setPendingEvaluationTurnId] = useState<number | null>(null)
   const [hintItems, setHintItems] = useState<string[]>([])
 
   /**
@@ -97,10 +105,41 @@ export function useInterviewSession({
     setInputMessage('')
     setError(null)
     setPendingAnswer(null)
+    setPendingEvaluationTurnId(null)
     setIsSending(false)
     setHintItems([])
     setIsRequestingHint(false)
   }, [defaultMode, resume?.id, requestedSessionId])
+
+  /**
+   * 在下一题已展示后补拉当前题评估，避免和下一题同时出现。
+   */
+  const waitForEvaluation = useCallback(async (sessionId: number, turnId: number) => {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await delay(300)
+      try {
+        const result = await resumeApi.getInterviewSession(sessionId)
+        const targetTurn = result.session.turns.find((turn) => turn.id === turnId)
+        if (!targetTurn?.evaluation) continue
+        setSession((currentSession) => {
+          if (!currentSession) return currentSession
+          return {
+            ...currentSession,
+            turns: currentSession.turns.map((turn) => (
+              turn.id === turnId
+                ? { ...turn, evaluation: targetTurn.evaluation }
+                : turn
+            )),
+          }
+        })
+        setPendingEvaluationTurnId((currentTurnId) => (currentTurnId === turnId ? null : currentTurnId))
+        return
+      } catch {
+        // 轮询失败时继续重试，避免短暂网络波动直接打断体验。
+      }
+    }
+    setPendingEvaluationTurnId((currentTurnId) => (currentTurnId === turnId ? null : currentTurnId))
+  }, [])
 
   /**
    * 在页面进入面试模式后自动准备好当前 session。
@@ -155,10 +194,18 @@ export function useInterviewSession({
         if (event.type === 'done') {
           setSession(event.session)
           setPendingAnswer(null)
+          const answeredTurn = [...event.session.turns].reverse().find((turn) => !!turn.answer)
+          if (event.session.mode === 'practice' && answeredTurn && !answeredTurn.evaluation) {
+            setPendingEvaluationTurnId(answeredTurn.id)
+            void waitForEvaluation(event.session.id, answeredTurn.id)
+          } else {
+            setPendingEvaluationTurnId(null)
+          }
         }
       }
     } catch (err) {
       setPendingAnswer(null)
+      setPendingEvaluationTurnId(null)
       setError(err instanceof Error ? err.message : '提交回答失败')
     } finally {
       setIsSending(false)
@@ -210,6 +257,7 @@ export function useInterviewSession({
     isRequestingHint,
     error,
     pendingAnswer,
+    pendingEvaluationTurnId,
     hintItems,
     sendAnswer,
     requestHint,

@@ -126,6 +126,15 @@ interface InterviewHintResponse {
   hints: string[]
 }
 
+interface InterviewStreamTokenEvent {
+  type: 'token'
+  content: string
+}
+
+interface InterviewStreamDoneEvent extends InterviewActionResponse {
+  type: 'done'
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -356,7 +365,7 @@ class ResumeAPI {
   static async *answerInterviewSessionStream(
     sessionId: number,
     answer: string,
-  ): AsyncGenerator<{ type: 'token'; content: string } | { type: 'done' } & InterviewActionResponse> {
+  ): AsyncGenerator<InterviewStreamTokenEvent | InterviewStreamDoneEvent> {
     const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer/stream`, {
       method: 'POST',
       headers: {

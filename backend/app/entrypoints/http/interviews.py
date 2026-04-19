@@ -5,7 +5,6 @@
 """
 
 from __future__ import annotations
-
 import json
 import logging
 import re
@@ -15,11 +14,11 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session, noload
+from sqlalchemy.orm import Session, noload, sessionmaker
 
 from app.entrypoints.http.deps import get_current_user
 from app.agents.interview import InterviewerAgent
@@ -320,6 +319,28 @@ async def _generate_question(
     return (result.get("content") or "").strip()
 
 
+def _build_turn_history(
+    session: InterviewSession,
+    *,
+    current_turn: Optional[InterviewTurn] = None,
+    pending_answer: str = "",
+) -> list[dict[str, str]]:
+    """用于整理问答历史，供下一题生成和题后评估共享上下文。"""
+    history: list[dict[str, str]] = []
+    for item in list(session.turns or []):
+        history.append({"role": "assistant", "content": item.question})
+        if item.answer and item is not current_turn:
+            history.append({"role": "user", "content": item.answer})
+    if pending_answer.strip():
+        history.append({"role": "user", "content": pending_answer.strip()})
+    return history
+
+
+def _build_session_factory(db: Session) -> sessionmaker:
+    """用于给后台评估任务创建独立数据库会话工厂。"""
+    return sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
+
+
 def _fallback_evaluation(question: str, answer: str) -> str:
     """用于在 LLM 评估失败时提供简短文本兜底结果。"""
     normalized = (answer or "").strip()
@@ -374,6 +395,45 @@ async def _evaluate_answer_with_llm(
         return _fallback_evaluation(question, answer)
 
 
+async def _persist_turn_evaluation(
+    *,
+    session_factory: sessionmaker,
+    user_id: int,
+    session_id: int,
+    turn_id: int,
+    question: str,
+    answer: str,
+    resume_content: dict[str, Any],
+    history: list[dict[str, str]],
+    event_callback=None,
+) -> str:
+    """用于异步生成并落库单题评估，避免阻塞下一题生成。"""
+    evaluation_text = await _evaluate_answer_with_llm(
+        question=question,
+        answer=answer,
+        resume_content=resume_content,
+        history=history,
+        event_callback=event_callback,
+    )
+
+    db = session_factory()
+    try:
+        session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+        turn = db.query(InterviewTurn).filter(InterviewTurn.id == turn_id).first()
+        if not session or session.user_id != user_id or not turn or turn.session_id != session_id:
+            return evaluation_text
+
+        turn.evaluation = evaluation_text
+        if session.status == "completed" and isinstance(session.report_data, dict):
+            report_data = dict(session.report_data)
+            report_data["weaknesses"] = _collect_weaknesses(list(session.turns or []))
+            session.report_data = report_data
+        db.commit()
+        return evaluation_text
+    finally:
+        db.close()
+
+
 class InterviewCreateRequest(BaseModel):
     """用于承载创建结构化面试的请求参数。"""
 
@@ -404,7 +464,7 @@ class InterviewActionResponse(BaseModel):
 
     session: Dict[str, Any]
     message: Optional[str] = None
-    evaluation: Optional[Dict[str, Any]] = None
+    evaluation: Optional[str] = None
     next_action: Optional[str] = None
 
 
@@ -634,6 +694,7 @@ async def answer_interview(
     session_id: int,
     request: InterviewAnswerRequest,
     http_request: Request,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -665,24 +726,12 @@ async def answer_interview(
             "request_id": getattr(http_request.state, "request_id", None),
         },
     )
-    history: list[dict[str, str]] = []
-    for item in list(session.turns or []):
-        history.append({"role": "assistant", "content": item.question})
-        if item.answer and item is not turn:
-            history.append({"role": "user", "content": item.answer})
-    # 将当前回答加入历史，让 LLM 基于最新回答生成下一题
-    history.append({"role": "user", "content": answer_text})
+    history = _build_turn_history(session, current_turn=turn, pending_answer=answer_text)
+    background_session_factory = _build_session_factory(db)
 
     turn.answer = answer_text
     turn.answered_at = _now()
     turn.status = "done"
-    turn.evaluation = await _evaluate_answer_with_llm(
-        question=turn.question,
-        answer=answer_text,
-        resume_content=resume_content,
-        history=history,
-        event_callback=observer.on_runtime_event,
-    )
 
     rounds = ((session.plan_json or {}).get("rounds") or [])
     current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
@@ -710,6 +759,18 @@ async def answer_interview(
         }
         db.commit()
         db.refresh(session)
+        background_tasks.add_task(
+            _persist_turn_evaluation,
+            session_factory=background_session_factory,
+            user_id=current_user["id"],
+            session_id=session.id,
+            turn_id=turn.id,
+            question=turn.question,
+            answer=answer_text,
+            resume_content=resume_content,
+            history=history,
+            event_callback=None,
+        )
         observer.finish("interview_completed")
         return InterviewActionResponse(
             session=_serialize_session(session),
@@ -742,6 +803,20 @@ async def answer_interview(
         raise
     if not question:
         question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+
+    background_tasks.add_task(
+        _persist_turn_evaluation,
+        session_factory=background_session_factory,
+        user_id=current_user["id"],
+        session_id=session.id,
+        turn_id=turn.id,
+        question=turn.question,
+        answer=answer_text,
+        resume_content=resume_content,
+        history=history,
+        event_callback=None,
+    )
+
     next_turn = InterviewTurn(
         session_id=session.id,
         turn_index=session.current_turn_index + 1,
@@ -771,6 +846,7 @@ async def answer_interview_stream(
     session_id: int,
     http_request: Request,
     request: InterviewAnswerRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -802,24 +878,29 @@ async def answer_interview_stream(
         },
     )
 
-    history: list[dict[str, str]] = []
-    for item in list(session.turns or []):
-        history.append({"role": "assistant", "content": item.question})
-        if item.answer and item is not turn:
-            history.append({"role": "user", "content": item.answer})
-    # 将当前回答加入历史，让 LLM 基于最新回答生成下一题
-    history.append({"role": "user", "content": answer_text})
+    history = _build_turn_history(session, current_turn=turn, pending_answer=answer_text)
+    background_session_factory = _build_session_factory(db)
 
     turn.answer = answer_text
     turn.answered_at = _now()
     turn.status = "done"
-    turn.evaluation = await _evaluate_answer_with_llm(
-        question=turn.question,
-        answer=answer_text,
-        resume_content=resume_content,
-        history=history,
-        event_callback=observer.on_runtime_event,
-    )
+    db.commit()
+    db.refresh(session)
+
+    if session.mode == "practice":
+        # 让题后评估在流式响应结束后执行，保证不会和下一题同帧出现。
+        background_tasks.add_task(
+            _persist_turn_evaluation,
+            session_factory=background_session_factory,
+            user_id=current_user["id"],
+            session_id=session.id,
+            turn_id=turn.id,
+            question=turn.question,
+            answer=answer_text,
+            resume_content=resume_content,
+            history=history,
+            event_callback=None,
+        )
 
     async def generate():
         nonlocal session
@@ -939,6 +1020,7 @@ async def answer_interview_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+        background=background_tasks,
     )
 
 

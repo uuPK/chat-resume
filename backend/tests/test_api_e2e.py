@@ -10,7 +10,10 @@ API 端到端集成测试
 
 from __future__ import annotations
 
+import asyncio
+import json
 import sys
+import time
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -425,7 +428,17 @@ class TestInterviewSessions:
         answered = answer_resp.json()
         assert answered["next_action"] in ("next_question", "completed")
         assert answered["session"]["status"] in ("waiting_user_answer", "completed")
-        assert answered["session"]["turns"][0]["evaluation"] == "回答结构基本完整，但还可以补充更多量化结果。"
+        assert answered["session"]["turns"][0]["evaluation"] in ("", "回答结构基本完整，但还可以补充更多量化结果。")
+
+        latest_evaluation = ""
+        for _ in range(10):
+            detail_resp = self.client.get(f"/api/interviews/{session_id}", headers=self.headers)
+            assert detail_resp.status_code == 200, detail_resp.text
+            latest_evaluation = detail_resp.json()["session"]["turns"][0]["evaluation"]
+            if latest_evaluation:
+                break
+            time.sleep(0.02)
+        assert latest_evaluation == "回答结构基本完整，但还可以补充更多量化结果。"
 
         end_resp = self.client.post(
             f"/api/interviews/{session_id}/end",
@@ -435,6 +448,69 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
         assert ended["report_data"] is not None
+
+    def test_stream_answer_returns_next_question_before_background_evaluation(self, monkeypatch):
+        async def _delayed_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):
+            del self, resume_content, conversation_history, event_callback
+            if "[EVALUATE]" in user_message:
+                await asyncio.sleep(0.05)
+                return {"content": "面试系统反馈：回答切题，但可以补充更具体的技术细节。"}
+            return {"content": "先做一个和岗位最相关的自我介绍。"}
+
+        async def _fake_chat_stream(self, user_message, resume_content, conversation_history=None, event_callback=None):
+            del self, user_message, resume_content, conversation_history, event_callback
+            for chunk in ["请具体讲讲", "你在项目里的", "技术取舍。"]:
+                yield {"content": chunk}
+
+        monkeypatch.setattr(InterviewerAgent, "chat", _delayed_chat)
+        monkeypatch.setattr(InterviewerAgent, "chat_stream", _fake_chat_stream)
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "interview_type": "general",
+                "difficulty": "medium",
+                "mode": "practice",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        start_resp = self.client.post(
+            f"/api/interviews/{session_id}/start",
+            headers=self.headers,
+        )
+        assert start_resp.status_code == 200, start_resp.text
+
+        events: list[dict[str, object]] = []
+        with self.client.stream(
+            "POST",
+            f"/api/interviews/{session_id}/answer/stream",
+            json={"answer": "我负责技术选型和多 Agent 协调。"},
+            headers=self.headers,
+        ) as response:
+            assert response.status_code == 200, response.text
+            for line in response.iter_lines():
+                if not line.startswith("data: "):
+                    continue
+                events.append(json.loads(line[6:]))
+
+        done_index = next(index for index, item in enumerate(events) if item["type"] == "done")
+        assert done_index >= 0
+        assert not any(item["type"] == "evaluation" for item in events)
+
+        latest_evaluation = ""
+        for _ in range(10):
+            session_resp = self.client.get(f"/api/interviews/{session_id}", headers=self.headers)
+            assert session_resp.status_code == 200, session_resp.text
+            turns = session_resp.json()["session"]["turns"]
+            latest_evaluation = turns[0]["evaluation"]
+            if latest_evaluation:
+                break
+            time.sleep(0.02)
+        assert latest_evaluation == "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
 
     def test_list_interviews_returns_lightweight_summary(self):
         create_resp = self.client.post(
