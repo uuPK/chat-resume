@@ -10,7 +10,6 @@ import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import {
-  PlusIcon,
   TrashIcon,
   CloudArrowUpIcon,
   ChatBubbleLeftRightIcon,
@@ -211,10 +210,7 @@ export default function ResumesPage() {
                     <span>上传中...</span>
                   </>
                 ) : (
-                  <>
-                    <CloudArrowUpIcon className="w-4 h-4" />
-                    <span>上传简历</span>
-                  </>
+                  <span>上传简历</span>
                 )}
               </button>
               <button
@@ -235,10 +231,7 @@ export default function ResumesPage() {
                     <span>创建中...</span>
                   </>
                 ) : (
-                  <>
-                    <PlusIcon className="w-4 h-4" />
-                    <span>新建简历</span>
-                  </>
+                  <span>新建简历</span>
                 )}
               </button>
             </div>
