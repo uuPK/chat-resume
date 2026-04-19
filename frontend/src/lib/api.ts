@@ -438,6 +438,7 @@ export const chatHistoryApi = ChatHistoryAPI
 // 导出类型
 export type {
   Resume,
+  ResumeListItem,
   ResumeContent,
   InterviewActionResponse,
   InterviewSession,
