@@ -289,15 +289,11 @@ export default function InterviewsPage() {
               <h1 className="text-5xl font-semibold" style={{ lineHeight: '1.00', color: '#0a0b0d' }}>
                 面试中心
               </h1>
-              <p className="mt-3 text-lg" style={{ color: '#5b616e' }}>
-                先选择一份简历，再补充岗位和 JD，上下文准备好后再进入统一面试流程。
-              </p>
             </div>
             <button
               type="button"
               onClick={openCreateInterviewModal}
-              className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors"
-              style={{ borderRadius: '999px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
+              className="btn-primary btn-sm"
             >
               创建面试
             </button>
@@ -319,211 +315,193 @@ export default function InterviewsPage() {
               role="dialog"
               aria-modal="true"
               aria-label="创建面试"
-              className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto p-6 md:p-8"
+              className="w-full max-w-4xl"
               style={{
-                border: '1px solid rgba(91,97,110,0.16)',
-                borderRadius: '24px',
-                background: 'linear-gradient(180deg, rgba(238,240,255,0.96) 0%, rgba(255,255,255,1) 100%)',
-                boxShadow: '0 24px 80px rgba(10,11,13,0.22)',
+                border: '1px solid rgba(91,97,110,0.2)',
+                borderRadius: '40px',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 32px 96px rgba(10,11,13,0.24)',
               }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-sm font-semibold tracking-[0.16em] uppercase" style={{ color: '#0052ff' }}>
-                    Start Interview
+              <div className="border-b px-7 py-7 md:px-9 md:py-8" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="max-w-2xl">
+                  <p className="text-sm font-semibold tracking-[0.16em] lowercase" style={{ color: '#0052ff' }}>
+                    start interview
                   </p>
-                  <h2 className="mt-2 text-3xl font-semibold" style={{ color: '#0a0b0d' }}>
+                  <h2 className="mt-3 text-5xl font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.00' }}>
                     新建模拟面试
                   </h2>
-                  <p className="mt-2 text-sm" style={{ color: '#5b616e' }}>
-                    先选模式，再选择简历和岗位上下文。练习模式会提供提示和题后反馈，拟真模式不会。
-                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  {selectedResumeLoading && (
-                    <span className="text-sm font-medium" style={{ color: '#0052ff' }}>
-                      正在读取简历中的岗位信息...
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateInterviewPanel(false)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-                    style={{ backgroundColor: '#ffffff', color: '#5b616e', border: '1px solid rgba(91,97,110,0.12)' }}
-                    aria-label="关闭创建面试弹层"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {pageError && (
-                <div
-                  className="mt-6 rounded-2xl px-4 py-3 text-sm"
-                  style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid rgba(220,38,38,0.12)' }}
-                >
-                  {pageError}
-                </div>
-              )}
-
-              {resumes.length === 0 && !loading ? (
-                <div
-                  className="mt-6 rounded-3xl px-6 py-10 text-center"
-                  style={{ backgroundColor: '#ffffff', border: '1px solid rgba(91,97,110,0.12)' }}
-                >
-                  <div
-                    className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-5"
-                    style={{ backgroundColor: '#eef0f3' }}
-                  >
-                    <MicrophoneIcon className="w-8 h-8" style={{ color: '#0052ff' }} />
-                  </div>
-                  <h3 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>
-                    还没有可用于面试的简历
-                  </h3>
-                  <p className="mt-2 text-sm" style={{ color: '#5b616e' }}>
-                    先去简历中心上传或整理一份简历，再回来开始模拟面试。
-                  </p>
-                  <Link href="/resumes" className="btn-primary btn-lg inline-flex items-center gap-2 mt-6">
-                    前往简历中心
-                  </Link>
-                </div>
-              ) : (
-                <div className="mt-6 grid gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: '#0a0b0d' }}>
-                      面试模式
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {INTERVIEW_MODE_OPTIONS.map((option) => {
-                        const isSelected = interviewMode === option.value
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setInterviewMode(option.value)}
-                            className="rounded-3xl px-4 py-4 text-left transition-colors"
-                            style={{
-                              border: isSelected ? '1px solid #0052ff' : '1px solid rgba(91,97,110,0.16)',
-                              backgroundColor: isSelected ? '#eef0ff' : '#ffffff',
-                              boxShadow: isSelected ? '0 0 0 3px rgba(0,82,255,0.08)' : 'none',
-                            }}
-                          >
-                            <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                              {option.label}
-                            </p>
-                            <p className="mt-1 text-xs leading-5" style={{ color: '#5b616e' }}>
-                              {option.description}
-                            </p>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-[1.2fr,0.8fr]">
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: '#0a0b0d' }}>
-                        选择简历
-                      </label>
-                      <select
-                        value={selectedResumeId}
-                        onChange={(event) => setSelectedResumeId(event.target.value)}
-                        className="w-full rounded-2xl px-4 py-3 text-sm outline-none transition-shadow"
-                        style={{
-                          border: '1px solid rgba(91,97,110,0.2)',
-                          backgroundColor: '#ffffff',
-                          color: '#0a0b0d',
-                          boxShadow: selectedResumeId ? '0 0 0 4px rgba(0,82,255,0.04)' : 'none',
-                        }}
+                  <div className="flex items-center gap-3">
+                    {selectedResumeLoading && (
+                      <span
+                        className="inline-flex items-center px-3 py-1 text-xs font-semibold"
+                        style={{ borderRadius: '100000px', backgroundColor: '#eef0f3', color: '#0052ff' }}
                       >
-                        <option value="">请选择一份简历</option>
-                        {resumes.map((resume) => (
-                          <option key={resume.id} value={resume.id}>
-                            {resume.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2" style={{ color: '#0a0b0d' }}>
-                        目标岗位
-                      </label>
-                      <input
-                        type="text"
-                        value={targetTitle}
-                        onChange={(event) => setTargetTitle(event.target.value)}
-                        placeholder="例如：前端工程师 / 产品经理"
-                        className="w-full rounded-2xl px-4 py-3 text-sm outline-none"
-                        style={{
-                          border: '1px solid rgba(91,97,110,0.2)',
-                          backgroundColor: '#ffffff',
-                          color: '#0a0b0d',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <label className="block text-sm font-medium" style={{ color: '#0a0b0d' }}>
-                        职位描述（JD）
-                      </label>
-                      {selectedResumeId && (
-                        <span className="text-xs" style={{ color: '#9ca3af' }}>
-                          选择简历后会自动回填该简历已保存的 JD
-                        </span>
-                      )}
-                    </div>
-                    <textarea
-                      value={jdText}
-                      onChange={(event) => setJdText(event.target.value)}
-                      placeholder="粘贴职位描述，或先在简历编辑页保存 JD 后再自动带入"
-                      rows={12}
-                      className="w-full rounded-3xl px-4 py-4 text-sm resize-none outline-none"
-                      style={{
-                        border: '1px solid rgba(91,97,110,0.2)',
-                        backgroundColor: '#ffffff',
-                        color: '#0a0b0d',
-                      }}
-                    />
-                  </div>
-
-                  {selectedResumeId && (
-                    <div
-                      className="rounded-2xl px-4 py-3 text-sm"
-                      style={{ backgroundColor: '#ffffff', border: '1px solid rgba(91,97,110,0.12)', color: '#5b616e' }}
-                    >
-                      当前简历关联信息：{targetCompany || '未设置目标公司'} · {targetTitle || '未设置目标岗位'}
-                    </div>
-                  )}
-
-                  {formError && (
-                    <div
-                      className="rounded-2xl px-4 py-3 text-sm"
-                      style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid rgba(220,38,38,0.12)' }}
-                    >
-                      {formError}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm" style={{ color: '#5b616e' }}>
-                      创建后会直接进入统一的结构化面试流程，并从第 1 题开始。
-                    </p>
+                        正在读取简历中的岗位信息...
+                      </span>
+                    )}
                     <button
                       type="button"
-                      onClick={handleCreateInterview}
-                      disabled={!selectedResumeId || creatingSession}
-                      className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                      style={{ borderRadius: '999px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
+                      onClick={() => setShowCreateInterviewPanel(false)}
+                      className="btn-secondary btn-sm h-11 w-11 p-0"
+                      aria-label="关闭创建面试弹层"
                     >
-                      {creatingSession ? '正在创建面试...' : '开始面试'}
+                      <XMarkIcon className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
+
+              <div className="px-7 py-7 md:px-9 md:py-8">
+                {pageError && (
+                  <div
+                    className="mb-6 rounded-[24px] px-5 py-4 text-sm"
+                    style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid rgba(220,38,38,0.12)' }}
+                  >
+                    {pageError}
+                  </div>
+                )}
+
+                {resumes.length === 0 && !loading ? (
+                  <div
+                    className="rounded-[32px] px-6 py-12 text-center"
+                    style={{ backgroundColor: '#ffffff', border: '1px solid rgba(91,97,110,0.2)' }}
+                  >
+                    <div
+                      className="mx-auto mb-5 flex h-16 w-16 items-center justify-center"
+                      style={{ borderRadius: '24px', backgroundColor: '#eef0f3' }}
+                    >
+                      <MicrophoneIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
+                    </div>
+                    <h3 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
+                      还没有可用于面试的简历
+                    </h3>
+                    <p className="mt-3 text-base" style={{ color: '#5b616e', lineHeight: '1.5' }}>
+                      先去简历中心上传或整理一份简历，再回来开始模拟面试。
+                    </p>
+                    <Link href="/resumes" className="btn-primary btn-lg mt-7 inline-flex items-center gap-2">
+                      前往简历中心
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="grid gap-7">
+                    <div>
+                      <label className="label">面试模式</label>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {INTERVIEW_MODE_OPTIONS.map((option) => {
+                          const isSelected = interviewMode === option.value
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setInterviewMode(option.value)}
+                              className="text-left transition-colors"
+                              style={{
+                                borderRadius: '32px',
+                                border: isSelected ? '1px solid #0052ff' : '1px solid rgba(91,97,110,0.2)',
+                                backgroundColor: isSelected ? '#eef0f3' : '#ffffff',
+                                boxShadow: isSelected ? '0 0 0 2px rgba(0,82,255,0.08)' : 'none',
+                                padding: '24px',
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[18px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.33' }}>
+                                    {option.label}
+                                  </p>
+                                  <p className="mt-2 text-sm" style={{ color: '#5b616e', lineHeight: '1.5' }}>
+                                    {option.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-[1.1fr,0.9fr]">
+                      <div>
+                        <label className="label">选择简历</label>
+                        <select
+                          value={selectedResumeId}
+                          onChange={(event) => setSelectedResumeId(event.target.value)}
+                          className="input"
+                        >
+                          <option value="">请选择一份简历</option>
+                          {resumes.map((resume) => (
+                            <option key={resume.id} value={resume.id}>
+                              {resume.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="label">目标岗位</label>
+                        <input
+                          type="text"
+                          value={targetTitle}
+                          onChange={(event) => setTargetTitle(event.target.value)}
+                          placeholder="例如：前端工程师 / 产品经理"
+                          className="input"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <label className="label mb-0">职位描述（JD）</label>
+                        {selectedResumeId && (
+                          <span className="text-xs" style={{ color: '#5b616e' }}>
+                            选择简历后会自动回填该简历已保存的 JD
+                          </span>
+                        )}
+                      </div>
+                      <textarea
+                        value={jdText}
+                        onChange={(event) => setJdText(event.target.value)}
+                        placeholder="粘贴职位描述，或先在简历编辑页保存 JD 后再自动带入"
+                        rows={11}
+                        className="input resize-none px-5 py-4"
+                        style={{ borderRadius: '24px' }}
+                      />
+                    </div>
+
+                    {selectedResumeId && (
+                      <div
+                        className="rounded-[24px] px-5 py-4 text-sm"
+                        style={{ backgroundColor: '#eef0f3', border: '1px solid rgba(91,97,110,0.12)', color: '#5b616e' }}
+                      >
+                        当前简历关联信息：{targetCompany || '未设置目标公司'} · {targetTitle || '未设置目标岗位'}
+                      </div>
+                    )}
+
+                    {formError && (
+                      <div
+                        className="rounded-[24px] px-5 py-4 text-sm"
+                        style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid rgba(220,38,38,0.12)' }}
+                      >
+                        {formError}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleCreateInterview}
+                        disabled={!selectedResumeId || creatingSession}
+                        className="btn-secondary btn-sm"
+                      >
+                        {creatingSession ? '正在创建面试...' : '开始面试'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </motion.section>
           </div>
         )}
