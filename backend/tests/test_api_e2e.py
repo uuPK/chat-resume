@@ -200,6 +200,24 @@ class TestAuth:
         assert resp.json()["full_name"] == "新名字"
 
 
+class TestAuthenticationMiddleware:
+    def test_invalid_token_cannot_access_resume_routes(self, client):
+        resp = client.get(
+            "/api/resumes/",
+            headers=_auth_headers("not-a-real-token"),
+        )
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Could not validate credentials"
+
+    def test_invalid_token_cannot_access_interview_routes(self, client):
+        resp = client.get(
+            "/api/interviews/",
+            headers=_auth_headers("not-a-real-token"),
+        )
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Could not validate credentials"
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 1.5 JD OCR 上传
 # ═══════════════════════════════════════════════════════════════════════════

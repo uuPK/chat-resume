@@ -1,10 +1,24 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume']
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes']
 const PUBLIC_PATHS = new Set(['/login', '/register', '/'])
 
-export function middleware(request: NextRequest) {
+// 这里通过后端 /auth/me 校验 token 真伪，避免只凭 cookie 存在就放行受保护页面。
+async function hasValidSession(accessToken: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const accessToken = request.cookies.get('access_token')?.value
 
@@ -20,14 +34,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (accessToken) {
+  if (accessToken && await hasValidSession(accessToken)) {
     return NextResponse.next()
   }
 
   const loginUrl = new URL('/login', request.url)
   const nextPath = `${pathname}${search}`
   loginUrl.searchParams.set('next', nextPath)
-  return NextResponse.redirect(loginUrl)
+  const response = NextResponse.redirect(loginUrl)
+  response.cookies.delete('access_token')
+  return response
 }
 
 export const config = {

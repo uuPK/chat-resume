@@ -8,13 +8,15 @@ FastAPI应用的初始化和配置入口点。
 from time import perf_counter
 from uuid import uuid4
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.entrypoints.http.router import api_router
+from app.entrypoints.http.deps import authenticate_token_with_db
 from app.infra.config import settings
-from app.infra.database import engine, Base
+from app.infra.database import Base, SessionLocal, engine
 from app.infra.db_observability import (
     get_request_metrics,
     reset_request_metrics,
@@ -45,6 +47,66 @@ app = FastAPI(
     version=settings.VERSION,
     openapi_url=f"{settings.API_STR}/openapi.json",
 )
+
+_PROTECTED_API_PREFIXES = (
+    f"{settings.API_STR}/resumes",
+    f"{settings.API_STR}/interviews",
+    f"{settings.API_STR}/upload",
+    f"{settings.API_STR}/ai",
+    f"{settings.API_STR}/users",
+    f"{settings.API_STR}/tts",
+    f"{settings.API_STR}/asr",
+)
+_AUTH_EXEMPT_PATHS = {
+    f"{settings.API_STR}/resumes/download",
+}
+
+
+def _is_protected_api_path(path: str) -> bool:
+    """用于判断请求路径是否属于必须先鉴权的敏感 API。"""
+    if path in _AUTH_EXEMPT_PATHS:
+        return False
+    if any(path.startswith(f"{exempt}/") for exempt in _AUTH_EXEMPT_PATHS):
+        return False
+    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in _PROTECTED_API_PREFIXES)
+
+
+def _extract_bearer_token(request: Request) -> str:
+    """用于从请求头中安全提取 Bearer 令牌。"""
+    authorization = request.headers.get("Authorization", "").strip()
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
+
+
+@app.middleware("http")
+async def authenticate_protected_api_requests(request: Request, call_next):
+    """用于在进入敏感 API 前统一完成服务端身份鉴权。"""
+    path = request.url.path
+    if request.method == "OPTIONS" or not _is_protected_api_path(path):
+        return await call_next(request)
+
+    db = SessionLocal()
+    try:
+        token = _extract_bearer_token(request)
+        claims, current_user = authenticate_token_with_db(token, db)
+        request.state.current_user_claims = claims
+        request.state.current_user = current_user
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers,
+        )
+    finally:
+        db.close()
+
+    return await call_next(request)
 
 
 # 添加中间件来记录请求

@@ -7,8 +7,9 @@ API依赖项模块
 
 import logging
 from time import perf_counter
+from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -17,7 +18,11 @@ from app.infra.database import get_db
 from app.infra.security import decode_access_token
 from app.services.domain import UserService
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
+# 这里关闭自动报错，方便中间件和依赖统一复用同一套鉴权逻辑。
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_STR}/auth/login",
+    auto_error=False,
+)
 logger = logging.getLogger(__name__)
 
 
@@ -43,11 +48,47 @@ def _decode_token_claims(token: str) -> dict:
     return {"id": user_id, **payload}
 
 
-async def get_current_user_claims(token: str = Depends(oauth2_scheme)):
+def _build_current_user_payload(user: Any) -> dict[str, Any]:
+    """用于把数据库用户对象裁剪成请求上下文所需字段。"""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "created_at": user.created_at,
+    }
+
+
+def authenticate_token_with_db(token: str, db: Session) -> tuple[dict[str, Any], dict[str, Any]]:
+    """用于给中间件和依赖复用完整的令牌鉴权流程。"""
+    claims = _decode_token_claims(token)
+    user_service = UserService(db)
+    user = user_service.get_by_id(claims["id"])
+    if user is None:
+        raise _credentials_exception()
+    return claims, _build_current_user_payload(user)
+
+
+def _get_cached_request_value(request: Request, key: str) -> Any:
+    """用于优先复用中间件已写入请求上下文的认证结果。"""
+    return getattr(request.state, key, None)
+
+
+async def get_current_user_claims(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
+):
     """用于在只需声明信息时避免额外查询用户表。"""
+    cached_claims = _get_cached_request_value(request, "current_user_claims")
+    if cached_claims is not None:
+        return cached_claims
+    if not token:
+        raise _credentials_exception()
+
     started_at = perf_counter()
     decode_started_at = perf_counter()
     claims = _decode_token_claims(token)
+    request.state.current_user_claims = claims
     decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
@@ -60,21 +101,36 @@ async def get_current_user_claims(token: str = Depends(oauth2_scheme)):
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
 ):
     """用于解析令牌并返回数据库中的当前用户信息。"""
-    started_at = perf_counter()
-    decode_started_at = perf_counter()
-    claims = _decode_token_claims(token)
-    decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
-    user_id = claims["id"]
-
-    user_service = UserService(db)
-    query_started_at = perf_counter()
-    user = user_service.get_by_id(user_id)
-    query_elapsed_ms = (perf_counter() - query_started_at) * 1000
-    if user is None:
+    cached_user = _get_cached_request_value(request, "current_user")
+    if cached_user is not None:
+        return cached_user
+    if not token:
         raise _credentials_exception()
+
+    started_at = perf_counter()
+    cached_claims = _get_cached_request_value(request, "current_user_claims")
+    decode_elapsed_ms = 0.0
+    query_started_at = perf_counter()
+    if cached_claims is not None:
+        user_id = cached_claims["id"]
+        user_service = UserService(db)
+        user = user_service.get_by_id(user_id)
+        if user is None:
+            raise _credentials_exception()
+        current_user = _build_current_user_payload(user)
+    else:
+        decode_started_at = perf_counter()
+        claims, current_user = authenticate_token_with_db(token, db)
+        request.state.current_user_claims = claims
+        decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
+        user_id = claims["id"]
+    query_elapsed_ms = (perf_counter() - query_started_at) * 1000
+    request.state.current_user = current_user
 
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
@@ -85,10 +141,4 @@ async def get_current_user(
         total_elapsed_ms,
     )
 
-    return {
-        "id": user.id,
-        "email": user.email,
-        "full_name": user.full_name,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-    }
+    return current_user

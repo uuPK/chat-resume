@@ -105,6 +105,35 @@ test.describe('登录', () => {
     expect(page.url()).toMatch(/\/(login|register)/)
   })
 
+  test('未登录访问所有受保护页面都会被服务端重定向', async ({ page }) => {
+    await page.context().clearCookies()
+    await page.goto('/login')
+    await page.evaluate(() => localStorage.clear())
+
+    for (const protectedPath of ['/dashboard', '/resume/1/edit', '/interviews', '/resumes']) {
+      await page.goto(protectedPath)
+      await page.waitForURL(/\/login/, { timeout: 10_000 })
+      expect(page.url()).toMatch(/\/login/)
+    }
+  })
+
+  test('伪造 access_token cookie 也不能进入受保护页面', async ({ page, baseURL }) => {
+    const cookieDomain = new URL(baseURL || 'http://localhost:3000').hostname
+    await page.context().addCookies([
+      {
+        name: 'access_token',
+        value: 'not-a-real-token',
+        domain: cookieDomain,
+        path: '/',
+        httpOnly: false,
+        sameSite: 'Lax',
+      },
+    ])
+    await page.goto('/dashboard')
+    await page.waitForURL(/\/login/, { timeout: 10_000 })
+    expect(page.url()).toMatch(/\/login/)
+  })
+
   test('页面包含跳转到注册页的链接', async ({ page }) => {
     await page.goto('/login')
     const regLink = page.locator('a[href="/register"]')

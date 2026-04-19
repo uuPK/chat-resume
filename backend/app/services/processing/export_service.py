@@ -7,6 +7,7 @@
 
 import base64
 import json
+import logging
 import os
 import uuid
 from html import escape
@@ -23,6 +24,8 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
 from app.infra.security import create_download_token
+
+logger = logging.getLogger(__name__)
 
 
 class ExportService:
@@ -41,7 +44,15 @@ class ExportService:
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
         html_content = self._build_html_content(resume_content)
-        await self._render_pdf_with_playwright(html_content, filepath)
+        try:
+            await self._render_pdf_with_playwright(html_content, filepath)
+        except Exception as exc:
+            # 这里在浏览器二进制缺失或启动失败时回退到纯 Python 渲染，避免核心导出功能整体不可用。
+            logger.warning(
+                "Playwright PDF export failed, falling back to ReportLab renderer: %s",
+                exc,
+            )
+            self._render_pdf_with_reportlab(resume_content, filepath)
         return filepath
 
     def export_to_docx(
@@ -68,7 +79,7 @@ class ExportService:
             "CustomHeading",
             parent=styles["Heading2"],
             fontSize=14,
-            textColor=colors.darkBlue,
+            textColor=colors.HexColor("#1d4ed8"),
             spaceAfter=6,
             spaceBefore=12,
         )
@@ -181,6 +192,115 @@ class ExportService:
                 margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
             )
             await browser.close()
+
+    def _render_pdf_with_reportlab(
+        self,
+        resume_content: Dict[str, Any],
+        filepath: str,
+    ) -> None:
+        """用于在无浏览器环境下兜底生成可下载的 PDF 文件。"""
+        doc = SimpleDocTemplate(filepath, pagesize=A4)
+        story = self._build_pdf_story(resume_content)
+        doc.build(story)
+
+    def _build_pdf_story(self, resume_content: Dict[str, Any]) -> list[Any]:
+        """用于复用统一的 PDF 内容结构，保证主渲染和兜底渲染一致。"""
+        story: list[Any] = []
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "CustomTitle",
+            parent=styles["Heading1"],
+            fontSize=18,
+            textColor=colors.black,
+            spaceAfter=12,
+            alignment=1,
+        )
+        heading_style = ParagraphStyle(
+            "CustomHeading",
+            parent=styles["Heading2"],
+            fontSize=14,
+            textColor=colors.HexColor("#1d4ed8"),
+            spaceAfter=6,
+            spaceBefore=12,
+        )
+        normal_style = styles["Normal"]
+
+        personal_info = resume_content.get("personal_info", {})
+        if personal_info.get("name"):
+            story.append(Paragraph(escape(str(personal_info["name"])), title_style))
+            story.append(Spacer(1, 12))
+
+        contact_info = self._build_contact_texts(personal_info)
+        if contact_info:
+            story.append(Paragraph(" | ".join(contact_info), normal_style))
+            story.append(Spacer(1, 12))
+
+        education = resume_content.get("education", [])
+        if education:
+            story.append(Paragraph("教育背景", heading_style))
+            for edu in education:
+                edu_text = self._join_parts(
+                    [
+                        edu.get("school", ""),
+                        edu.get("degree", ""),
+                        edu.get("major", ""),
+                        edu.get("duration", ""),
+                    ]
+                )
+                if edu_text:
+                    story.append(Paragraph(escape(edu_text), normal_style))
+                for highlight in self._build_highlight_texts(edu.get("highlights", [])):
+                    story.append(Paragraph(escape(highlight), normal_style))
+            story.append(Spacer(1, 12))
+
+        work_experience = resume_content.get("work_experience", [])
+        if work_experience:
+            story.append(Paragraph("工作经验", heading_style))
+            for work in work_experience:
+                work_text = self._join_parts(
+                    [
+                        work.get("company", ""),
+                        work.get("position", ""),
+                        work.get("duration", ""),
+                    ]
+                )
+                if work_text:
+                    story.append(Paragraph(escape(work_text), normal_style))
+                description = str(
+                    work.get("summary", "") or work.get("description", "")
+                ).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(work.get("highlights", [])):
+                    story.append(Paragraph(escape(highlight), normal_style))
+                story.append(Spacer(1, 6))
+            story.append(Spacer(1, 12))
+
+        skills = self._build_skill_texts(resume_content.get("skills", []))
+        if skills:
+            story.append(Paragraph("技能专长", heading_style))
+            story.append(Paragraph(" | ".join(escape(item) for item in skills), normal_style))
+            story.append(Spacer(1, 12))
+
+        projects = resume_content.get("projects", [])
+        if projects:
+            story.append(Paragraph("项目经验", heading_style))
+            for project in projects:
+                project_name = str(project.get("name", "")).strip()
+                if project_name:
+                    story.append(Paragraph(escape(project_name), normal_style))
+                description = str(
+                    project.get("summary", "") or project.get("description", "")
+                ).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(
+                    project.get("highlights", []) or project.get("achievements", [])
+                ):
+                    story.append(Paragraph(escape(highlight), normal_style))
+                story.append(Spacer(1, 6))
+
+        return story
 
     def _build_frontend_print_url(
         self, resume_content: Dict[str, Any], template: str
