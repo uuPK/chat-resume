@@ -423,7 +423,7 @@ export default function InterviewsPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-5 md:grid-cols-[1.1fr,0.9fr]">
+                    <div className="grid gap-5 md:grid-cols-3">
                       <div>
                         <label className="label">选择简历</label>
                         <select
@@ -438,6 +438,17 @@ export default function InterviewsPage() {
                             </option>
                           ))}
                         </select>
+                      </div>
+
+                      <div>
+                        <label className="label">目标公司</label>
+                        <input
+                          type="text"
+                          value={targetCompany}
+                          onChange={(event) => setTargetCompany(event.target.value)}
+                          placeholder="例如：腾讯 / 字节跳动"
+                          className="input"
+                        />
                       </div>
 
                       <div>
