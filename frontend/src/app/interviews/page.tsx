@@ -464,14 +464,7 @@ export default function InterviewsPage() {
                     </div>
 
                     <div>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <label className="label mb-0">职位描述（JD）</label>
-                        {selectedResumeId && (
-                          <span className="text-xs" style={{ color: '#5b616e' }}>
-                            选择简历后会自动回填该简历已保存的 JD
-                          </span>
-                        )}
-                      </div>
+                      <label className="label">职位描述（JD）</label>
                       <textarea
                         value={jdText}
                         onChange={(event) => setJdText(event.target.value)}
@@ -481,15 +474,6 @@ export default function InterviewsPage() {
                         style={{ borderRadius: '24px' }}
                       />
                     </div>
-
-                    {selectedResumeId && (
-                      <div
-                        className="rounded-[24px] px-5 py-4 text-sm"
-                        style={{ backgroundColor: '#eef0f3', border: '1px solid rgba(91,97,110,0.12)', color: '#5b616e' }}
-                      >
-                        当前简历关联信息：{targetCompany || '未设置目标公司'} · {targetTitle || '未设置目标岗位'}
-                      </div>
-                    )}
 
                     {formError && (
                       <div
