@@ -23,6 +23,7 @@ import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
+import StructuredInterviewPanel from '@/components/interview/StructuredInterviewPanel'
 import { ModuleConfig } from '@/components/preview/PaginatedResumePreview'
 import {
   ResumeLayoutConfig,
@@ -37,22 +38,8 @@ import {
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import { useStreamingChat, ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
-import { chatHistoryApi, type InterviewSession } from '@/lib/api'
-
-type IVMessage = {
-  id: string
-  type: 'user' | 'ai' | 'system'
-  content: string
-}
-
-function buildIVMessages(session: InterviewSession): IVMessage[] {
-  const msgs: IVMessage[] = []
-  for (const turn of session.turns || []) {
-    msgs.push({ id: `q-${turn.id}`, type: 'ai', content: turn.question })
-    if (turn.answer) msgs.push({ id: `a-${turn.id}`, type: 'user', content: turn.answer })
-  }
-  return msgs
-}
+import { chatHistoryApi } from '@/lib/api'
+import { useInterviewSession } from '@/hooks/useInterviewSession'
 
 interface Resume {
   id: number
@@ -319,13 +306,6 @@ export default function ResumeEditPage() {
   const [apiError, setApiError] = useState<string | null>(null)
   const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
 
-  // 面试相关状态
-  const [ivSession, setIvSession] = useState<InterviewSession | null>(null)
-  const [ivMessages, setIvMessages] = useState<IVMessage[]>([])
-  const [ivInput, setIvInput] = useState('')
-  const [ivSending, setIvSending] = useState(false)
-  const [ivError, setIvError] = useState<string | null>(null)
-  const ivMessagesEndRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -426,7 +406,6 @@ export default function ResumeEditPage() {
 
   useEffect(() => {
     setApiError(null)
-    setIvError(null)
     if (agentType === 'interview') {
       setEditorOpen(false)
     } else {
@@ -434,84 +413,19 @@ export default function ResumeEditPage() {
     }
   }, [agentType])
 
-  // 切换到面试模式时自动创建并启动 session
-  useEffect(() => {
-    if (agentType !== 'interview' || !resume || ivSession || ivSending) return
-    const jobApp = resume.content?.job_application || {}
-    setIvSending(true)
-    resumeApi.createInterviewSession({
-      resume_id: resume.id,
-      target_title: jobApp.target_title,
-      target_company: jobApp.target_company,
-      jd_text: jobApp.jd_text,
-      interview_type: 'general',
-      difficulty: 'medium',
-      language: 'zh-CN',
-      mode: 'text',
-    })
-      .then((created) => resumeApi.startInterviewSession(created.session.id))
-      .then((started) => {
-        setIvSession(started.session)
-        setIvMessages(buildIVMessages(started.session))
-      })
-      .catch((err) => setIvError(err instanceof Error ? err.message : '启动面试失败'))
-      .finally(() => setIvSending(false))
-  }, [agentType, resume])
-
-  // 面试消息自动滚动
-  useEffect(() => {
-    ivMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [ivMessages])
-
-  const sendInterviewAnswer = async () => {
-    const text = ivInput.trim()
-    if (!text || !ivSession || ivSending || ivSession.status === 'completed') return
-    setIvSending(true)
-    setIvError(null)
-    setIvInput('')
-    const userMsgId = `user-${Date.now()}`
-    const aiMsgId = `ai-stream-${Date.now()}`
-    setIvMessages((prev) => [...prev, { id: userMsgId, type: 'user', content: text }])
-    setIvMessages((prev) => [...prev, { id: aiMsgId, type: 'ai', content: '' }])
-    try {
-      for await (const event of resumeApi.answerInterviewSessionStream(ivSession.id, text)) {
-        if (event.type === 'token') {
-          setIvMessages((prev) =>
-            prev.map((m) => m.id === aiMsgId ? { ...m, content: m.content + event.content } : m)
-          )
-        } else if (event.type === 'done') {
-          setIvSession(event.session)
-          setIvMessages(buildIVMessages(event.session))
-        }
-      }
-    } catch (err) {
-      setIvMessages((prev) => prev.filter((m) => m.id !== aiMsgId))
-      setIvError(err instanceof Error ? err.message : '提交回答失败')
-    } finally {
-      setIvSending(false)
-    }
-  }
-
-  const endInterview = async () => {
-    if (!ivSession || ivSending || ivSession.status === 'completed') return
-    setIvSending(true)
-    try {
-      const result = await resumeApi.endInterviewSession(ivSession.id)
-      setIvSession(result.session)
-      setIvMessages(buildIVMessages(result.session))
-    } catch (err) {
-      setIvError(err instanceof Error ? err.message : '结束面试失败')
-    } finally {
-      setIvSending(false)
-    }
-  }
-
-  const resetInterview = () => {
-    setIvSession(null)
-    setIvMessages([])
-    setIvInput('')
-    setIvError(null)
-  }
+  const {
+    session: ivSession,
+    inputMessage: ivInput,
+    setInputMessage: setIvInput,
+    isSending: ivSending,
+    error: ivError,
+    pendingAnswer: ivPendingAnswer,
+    sendAnswer: sendInterviewAnswer,
+    endInterview,
+  } = useInterviewSession({
+    resume,
+    enabled: agentType === 'interview',
+  })
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
@@ -1260,19 +1174,7 @@ export default function ResumeEditPage() {
                     <TrashIcon className="w-3.5 h-3.5" />
                   </button>
                 ) : (
-                  <button
-                    onClick={endInterview}
-                    disabled={!ivSession || ivSending || ivSession?.status === 'completed'}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
-                    style={{
-                      borderRadius: '56px',
-                      border: '1px solid rgba(91,97,110,0.2)',
-                      backgroundColor: '#ffffff',
-                      color: '#5b616e',
-                    }}
-                  >
-                    结束面试
-                  </button>
+                  <div />
                 )}
               </div>
               <AnimatePresence mode="wait">
@@ -1286,86 +1188,16 @@ export default function ResumeEditPage() {
                 transition={{ duration: 0.2 }}
                 className="flex-1 flex flex-col min-h-0"
               >
-                <div className="flex-1 overflow-y-auto mb-4 space-y-3 min-h-0 max-h-full hide-scrollbar">
-                  {ivMessages.map((m) => (
-                    <div key={m.id} className={`flex w-full ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className="max-w-[85%] px-4 py-3"
-                        style={{
-                          borderRadius: m.type === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
-                          backgroundColor: m.type === 'user' ? '#0052ff' : m.type === 'system' ? '#fffbeb' : '#eef0f3',
-                          color: m.type === 'user' ? '#ffffff' : m.type === 'system' ? '#92400e' : '#0a0b0d',
-                          border: m.type === 'user' ? 'none' : '1px solid rgba(91,97,110,0.15)',
-                        }}
-                      >
-                        {m.type === 'user'
-                          ? <span className="text-[14px] whitespace-pre-wrap">{m.content}</span>
-                          : <MarkdownMessage content={m.content} />
-                        }
-                      </div>
-                    </div>
-                  ))}
-                  {ivSending && ivMessages.every((m) => !m.id.startsWith('ai-stream-') || m.content) && (
-                    <div className="flex w-full justify-start">
-                      <div
-                        className="max-w-[85%] px-4 py-3 text-sm"
-                        style={{
-                          borderRadius: '20px 20px 20px 6px',
-                          backgroundColor: '#eef0f3',
-                          border: '1px solid rgba(91,97,110,0.15)',
-                          color: '#5b616e',
-                        }}
-                      >
-                        <span className="inline-block animate-pulse">评估中...</span>
-                      </div>
-                    </div>
-                  )}
-                  {ivSession?.report_data && (
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
-                      <p className="font-medium">面试报告</p>
-                      {ivSession.report_data.summary && <p className="mt-2">{ivSession.report_data.summary}</p>}
-                      {(ivSession.report_data.weaknesses ?? []).length > 0 && (
-                        <p className="mt-2">主要问题：{(ivSession.report_data.weaknesses ?? []).join('；')}</p>
-                      )}
-                      {(ivSession.report_data.next_training_plan ?? []).length > 0 && (
-                        <p className="mt-2">下一步：{(ivSession.report_data.next_training_plan ?? []).join('；')}</p>
-                      )}
-                    </div>
-                  )}
-                  {ivError && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{ivError}</div>
-                  )}
-                  <div ref={ivMessagesEndRef} />
-                </div>
-                <div className="pt-3 flex-shrink-0">
-                  <div className="relative">
-                    <textarea
-                      value={ivInput}
-                      onChange={(e) => setIvInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendInterviewAnswer() } }}
-                      placeholder={ivSession?.status === 'completed' ? '本场面试已结束' : '输入你的回答...'}
-                      className="w-full p-3 pr-12 text-sm resize-none focus:outline-none"
-                      style={{
-                        border: '1px solid rgba(91,97,110,0.25)',
-                        borderRadius: '12px',
-                        color: '#0a0b0d',
-                      }}
-                      rows={2}
-                      disabled={ivSending || ivSession?.status === 'completed'}
-                    />
-                    <button
-                      onClick={sendInterviewAnswer}
-                      disabled={!ivInput.trim() || ivSending || ivSession?.status === 'completed'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center"
-                      style={{
-                        backgroundColor: ivInput.trim() && !ivSending && ivSession?.status !== 'completed' ? '#0052ff' : '#eef0f3',
-                        color: ivInput.trim() && !ivSending && ivSession?.status !== 'completed' ? '#ffffff' : '#9ca3af',
-                      }}
-                    >
-                      <ArrowUpIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                <StructuredInterviewPanel
+                  session={ivSession}
+                  inputMessage={ivInput}
+                  pendingAnswer={ivPendingAnswer}
+                  isSending={ivSending}
+                  error={ivError}
+                  onInputChange={setIvInput}
+                  onSendAnswer={sendInterviewAnswer}
+                  onEndInterview={endInterview}
+                />
               </motion.div>
               ) : (
               /* ── 简历 AGENT 模式 ── */
