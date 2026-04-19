@@ -533,17 +533,6 @@ export default function InterviewsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.05 }}
         >
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-2xl font-semibold" style={{ color: '#0a0b0d' }}>
-                历史记录
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: '#5b616e' }}>
-                查看未完成的面试，或回看已生成的报告。
-              </p>
-            </div>
-          </div>
-
           {loading ? (
             <div className="flex justify-center items-center py-16">
               <div
