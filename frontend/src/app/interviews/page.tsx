@@ -14,10 +14,10 @@ import Link from 'next/link'
 import MainNavigation from '@/components/layout/MainNavigation'
 import { resumeApi, type InterviewSessionSummary, type Resume, type ResumeListItem } from '@/lib/api'
 import {
-  CheckCircleIcon,
   ClockIcon,
   MicrophoneIcon,
   PlayCircleIcon,
+  TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 
@@ -41,8 +41,8 @@ function formatDate(dateString: string) {
  * 用于把面试状态映射成界面上的标签文案和颜色。
  */
 function statusLabel(status: string) {
-  if (status === 'completed') return { text: '已完成', bg: '#ecfdf5', color: '#059669' }
-  if (status === 'waiting_user_answer') return { text: '进行中', bg: '#eef0ff', color: '#0052ff' }
+  if (status === 'completed') return { text: '已完成', bg: '#eef0f3', color: '#0a0b0d' }
+  if (status === 'waiting_user_answer') return { text: '进行中', bg: '#eef0f3', color: '#0052ff' }
   return { text: '未开始', bg: '#eef0f3', color: '#5b616e' }
 }
 
@@ -91,6 +91,7 @@ export default function InterviewsPage() {
   const [selectedResumeId, setSelectedResumeId] = useState('')
   const [selectedResumeLoading, setSelectedResumeLoading] = useState(false)
   const [creatingSession, setCreatingSession] = useState(false)
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [targetCompany, setTargetCompany] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
@@ -229,6 +230,25 @@ export default function InterviewsPage() {
       setFormError(error instanceof Error ? error.message : '创建面试失败，请稍后重试')
     } finally {
       setCreatingSession(false)
+    }
+  }
+
+  /**
+   * 用于删除一条历史面试记录，并在成功后同步更新列表状态。
+   */
+  const handleDeleteInterview = async (sessionId: number) => {
+    const confirmed = window.confirm('确认删除这条面试记录吗？删除后无法恢复。')
+    if (!confirmed) return
+
+    setDeletingSessionId(sessionId)
+    setPageError(null)
+    try {
+      await resumeApi.deleteInterviewSession(sessionId)
+      setSessions((currentSessions) => currentSessions.filter((session) => session.id !== sessionId))
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : '删除面试记录失败')
+    } finally {
+      setDeletingSessionId(null)
     }
   }
 
@@ -537,7 +557,7 @@ export default function InterviewsPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {sessions.map((session, index) => {
                 const { text, bg, color } = statusLabel(session.status)
                 const started = session.started_at ? formatDate(session.started_at) : null
@@ -547,47 +567,69 @@ export default function InterviewsPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="flex items-center justify-between gap-4 p-5 transition-shadow"
+                    className="group relative flex items-center justify-between gap-5 p-6 transition-shadow"
                     style={{
                       border: '1px solid rgba(91,97,110,0.2)',
-                      borderRadius: '16px',
+                      borderRadius: '32px',
                       backgroundColor: '#ffffff',
                     }}
                   >
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteInterview(session.id)}
+                      disabled={deletingSessionId === session.id}
+                      className={`absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-white transition-opacity ${
+                        deletingSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      style={{
+                        boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+                        color: deletingSessionId === session.id ? '#dc2626' : '#9ca3af',
+                      }}
+                      title={deletingSessionId === session.id ? '正在删除...' : '删除面试记录'}
+                      aria-label={`删除面试记录 ${session.target_title || session.id}`}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.color = '#dc2626'
+                      }}
+                      onMouseLeave={(event) => {
+                        if (deletingSessionId === session.id) return
+                        event.currentTarget.style.color = '#9ca3af'
+                      }}
+                    >
+                      <TrashIcon
+                        className={`h-4 w-4 ${deletingSessionId === session.id ? 'animate-pulse' : ''}`}
+                      />
+                    </button>
                     <div className="flex items-center gap-4 min-w-0">
                       <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: session.status === 'completed' ? '#ecfdf5' : '#eef0f3' }}
+                        className="w-14 h-14 flex items-center justify-center flex-shrink-0"
+                        style={{ borderRadius: '24px', backgroundColor: '#eef0f3' }}
                       >
-                        {session.status === 'completed'
-                          ? <CheckCircleIcon className="w-5 h-5" style={{ color: '#059669' }} />
-                          : <PlayCircleIcon className="w-5 h-5" style={{ color: '#0052ff' }} />
-                        }
+                        <PlayCircleIcon className="w-7 h-7" style={{ color: '#0052ff' }} />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-semibold truncate" style={{ color: '#0a0b0d' }}>
+                        <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+                          <span className="truncate text-[18px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.33' }}>
                             {session.target_title || '未设置岗位'}
                           </span>
                           {session.target_company && (
-                            <span className="text-sm truncate" style={{ color: '#5b616e' }}>
+                            <span className="text-base truncate" style={{ color: '#5b616e' }}>
                               @ {session.target_company}
                             </span>
                           )}
                           <span
-                            className="text-xs font-semibold px-2.5 py-0.5"
-                            style={{ borderRadius: '100000px', backgroundColor: '#eef0ff', color: '#0052ff' }}
+                            className="px-3 py-1 text-xs font-semibold"
+                            style={{ borderRadius: '100000px', backgroundColor: '#eef0f3', color: '#0052ff' }}
                           >
                             {session.mode === 'simulation' ? '拟真模式' : '练习模式'}
                           </span>
                           <span
-                            className="text-xs font-semibold px-2.5 py-0.5"
+                            className="px-3 py-1 text-xs font-semibold"
                             style={{ borderRadius: '100000px', backgroundColor: bg, color }}
                           >
                             {text}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: '#9ca3af' }}>
+                        <div className="flex items-center gap-4 text-sm flex-wrap" style={{ color: '#5b616e' }}>
                           {started && (
                             <span className="flex items-center gap-1">
                               <ClockIcon className="w-3.5 h-3.5" />{started}
@@ -597,21 +639,22 @@ export default function InterviewsPage() {
                         </div>
                       </div>
                     </div>
-                    <Link
-                      href={`/resume/${session.resume_id}/interview?session=${session.id}`}
-                      className="flex-shrink-0 inline-flex items-center px-4 py-2 text-sm font-semibold text-white transition-colors"
-                      style={{ borderRadius: '56px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.backgroundColor = '#578bfa'
-                        event.currentTarget.style.borderColor = '#578bfa'
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.backgroundColor = '#0052ff'
-                        event.currentTarget.style.borderColor = '#0052ff'
-                      }}
-                    >
-                      {session.status === 'completed' ? '查看报告' : '继续面试'}
-                    </Link>
+                    <div className="flex flex-shrink-0 items-center gap-3">
+                      <Link
+                        href={`/resume/${session.resume_id}/interview?session=${session.id}`}
+                        className="btn-primary btn-sm"
+                        onMouseEnter={(event) => {
+                          event.currentTarget.style.backgroundColor = '#578bfa'
+                          event.currentTarget.style.borderColor = '#578bfa'
+                        }}
+                        onMouseLeave={(event) => {
+                          event.currentTarget.style.backgroundColor = '#0052ff'
+                          event.currentTarget.style.borderColor = '#0052ff'
+                        }}
+                      >
+                        {session.status === 'completed' ? '查看报告' : '继续面试'}
+                      </Link>
+                    </div>
                   </motion.div>
                 )
               })}

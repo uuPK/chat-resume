@@ -548,6 +548,61 @@ class TestInterviewSessions:
         assert "turns" not in session
         assert "current_turn" not in session
 
+    def test_delete_interview_removes_only_current_user_session(self, client):
+        other_email = "other_interview_user@example.com"
+        _register(client, other_email)
+        other_token = _login(client, other_email)
+        other_headers = _auth_headers(other_token)
+
+        other_resume_resp = client.post(
+            "/api/resumes/",
+            json={"title": "别人的面试简历", "content": _empty_resume_content()},
+            headers=other_headers,
+        )
+        assert other_resume_resp.status_code == 200, other_resume_resp.text
+        other_resume_id = other_resume_resp.json()["id"]
+
+        own_session_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id, "mode": "practice"},
+            headers=self.headers,
+        )
+        assert own_session_resp.status_code == 200, own_session_resp.text
+        own_session_id = own_session_resp.json()["session"]["id"]
+
+        other_session_resp = client.post(
+            "/api/interviews/",
+            json={"resume_id": other_resume_id, "mode": "practice"},
+            headers=other_headers,
+        )
+        assert other_session_resp.status_code == 200, other_session_resp.text
+        other_session_id = other_session_resp.json()["session"]["id"]
+
+        forbidden_resp = self.client.delete(
+            f"/api/interviews/{other_session_id}",
+            headers=self.headers,
+        )
+        assert forbidden_resp.status_code == 404
+
+        delete_resp = self.client.delete(
+            f"/api/interviews/{own_session_id}",
+            headers=self.headers,
+        )
+        assert delete_resp.status_code == 200, delete_resp.text
+        assert delete_resp.json()["message"] == "Interview session deleted"
+
+        get_deleted_resp = self.client.get(
+            f"/api/interviews/{own_session_id}",
+            headers=self.headers,
+        )
+        assert get_deleted_resp.status_code == 404
+
+        get_other_resp = client.get(
+            f"/api/interviews/{other_session_id}",
+            headers=other_headers,
+        )
+        assert get_other_resp.status_code == 200, get_other_resp.text
+
     def test_practice_mode_can_request_hint(self):
         create_resp = self.client.post(
             "/api/interviews/",

@@ -619,6 +619,22 @@ async def get_interview(
     return InterviewActionResponse(session=_serialize_session(session))
 
 
+@router.delete("/{session_id}", response_model=Dict[str, str])
+async def delete_interview(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于删除当前用户的一场面试记录及其关联轮次。"""
+    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    if not session or session.user_id != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
+
+    db.delete(session)
+    db.commit()
+    return {"message": "Interview session deleted"}
+
+
 @router.post("/{session_id}/start", response_model=InterviewActionResponse)
 async def start_interview(
     session_id: int,

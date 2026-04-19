@@ -297,6 +297,20 @@ class ResumeAPI {
     return handleApiResponse<InterviewSessionSummary[]>(response)
   }
 
+  /**
+   * 删除一条面试记录
+   */
+  static async deleteInterviewSession(sessionId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeaders() },
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `删除面试记录失败: ${response.status}`)
+    }
+  }
+
   static async createInterviewSession(data: {
     resume_id: number
     target_title?: string
