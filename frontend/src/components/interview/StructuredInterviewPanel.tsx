@@ -1,15 +1,15 @@
 /**
  * 结构化面试面板组件
  *
- * 用于统一展示按轮次推进的提问、回答、评估和最终报告。
+ * 用于按 DESIGN.md 的 Coinbase 风格统一展示问答、反馈和报告。
  */
 
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { motion } from 'framer-motion'
-import { ArrowUpIcon, LightBulbIcon, StopIcon } from '@heroicons/react/24/outline'
+import { ArrowUpIcon, LightBulbIcon } from '@heroicons/react/24/outline'
 
 import type { InterviewSession } from '@/lib/api'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
@@ -20,11 +20,6 @@ const ROUND_LABELS: Record<string, string> = {
   behavioral: '行为面试',
   technical: '技术考察',
   closing: '收尾',
-}
-
-const MODE_LABELS: Record<string, string> = {
-  practice: '练习模式',
-  simulation: '拟真模式',
 }
 
 interface StructuredInterviewPanelProps {
@@ -44,23 +39,6 @@ interface StructuredInterviewPanelProps {
 }
 
 /**
- * 读取当前待回答轮次，供顶部状态区展示。
- */
-function getActiveTurn(session: InterviewSession | null) {
-  const turns = session?.turns || []
-  return turns.find((turn) => turn.status === 'asked') || turns[turns.length - 1] || null
-}
-
-/**
- * 读取当前轮次的人类可读阶段名称。
- */
-function getCurrentRoundLabel(session: InterviewSession | null) {
-  const activeTurn = getActiveTurn(session)
-  if (!activeTurn?.question_type) return '准备中'
-  return ROUND_LABELS[activeTurn.question_type] || activeTurn.question_type
-}
-
-/**
  * 统一处理回答输入框里的回车发送交互。
  */
 function handleInputKeyDown(
@@ -71,6 +49,44 @@ function handleInputKeyDown(
     event.preventDefault()
     onSendAnswer()
   }
+}
+
+/**
+ * 将阶段标签转成统一的小尺寸 badge。
+ */
+function RoundBadge({ questionType }: { questionType?: string }) {
+  if (!questionType) return null
+  return (
+    <span
+      className="inline-flex items-center px-3 py-1 text-[11px] font-semibold"
+      style={{
+        borderRadius: '100000px',
+        backgroundColor: '#eef0f3',
+        color: '#0052ff',
+      }}
+    >
+      {ROUND_LABELS[questionType] || questionType}
+    </span>
+  )
+}
+
+/**
+ * 用统一的蓝色圆点承载面试官身份标识。
+ */
+function InterviewerAvatar() {
+  return (
+    <div
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center"
+      style={{
+        borderRadius: '100000px',
+        backgroundColor: '#0052ff',
+      }}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-white">
+        <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+      </svg>
+    </div>
+  )
 }
 
 /**
@@ -88,7 +104,6 @@ export default function StructuredInterviewPanel({
   onInputChange,
   onSendAnswer,
   onRequestHint,
-  onEndInterview,
   className = '',
 }: StructuredInterviewPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -96,11 +111,6 @@ export default function StructuredInterviewPanel({
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
   const isPracticeMode = session?.mode === 'practice'
-  const currentRoundLabel = useMemo(() => getCurrentRoundLabel(session), [session])
-  const answeredTurnCount = useMemo(
-    () => turns.filter((turn) => !!turn.answer).length,
-    [turns],
-  )
 
   /**
    * 在会话更新后自动滚动到当前底部，保证答题体验连续。
@@ -110,40 +120,8 @@ export default function StructuredInterviewPanel({
   }, [pendingAnswer, session])
 
   return (
-    <div className={`flex flex-col min-h-0 ${className}`}>
-      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm mb-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
-              Structured Interview
-            </p>
-            <div className="mt-1 flex items-center gap-2 flex-wrap">
-              <span className="text-lg font-semibold text-gray-900">{currentRoundLabel}</span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                第 {session?.current_turn_index || 0} 题
-              </span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                已回答 {answeredTurnCount} 题
-              </span>
-              {session?.mode && (
-                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
-                  {MODE_LABELS[session.mode] || session.mode}
-                </span>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={onEndInterview}
-            disabled={!session || isSending || isComplete}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50"
-          >
-            <StopIcon className="w-4 h-4" />
-            结束面试
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto space-y-4 min-h-0 hide-scrollbar">
+    <div className={`flex min-h-0 flex-col ${className}`}>
+      <div className="hide-scrollbar flex-1 space-y-5 overflow-y-auto min-h-0">
         {turns.map((turn) => {
           const hasAnswer = !!turn.answer
           const isActive = !hasAnswer && !pendingAnswer
@@ -154,118 +132,189 @@ export default function StructuredInterviewPanel({
           return (
             <motion.div
               key={turn.id}
-              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              initial={{ opacity: 0, y: 20, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.35 }}
-              className={`bg-white rounded-2xl shadow-sm overflow-hidden ${
-                isActive ? 'border-2 border-primary-200' : 'border border-gray-200'
-              }`}
+              transition={{ duration: 0.32 }}
+              style={{
+                borderRadius: '32px',
+                border: isActive ? '1px solid #0052ff' : '1px solid rgba(91, 97, 110, 0.2)',
+                backgroundColor: '#ffffff',
+              }}
             >
-              <div className="px-6 pt-5 pb-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
-                      <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
-                    </svg>
+              <div className="px-6 py-6">
+                <div className="flex items-start gap-4">
+                  <InterviewerAvatar />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                        面试官
+                      </span>
+                      <RoundBadge questionType={turn.question_type} />
+                      <span
+                        className="ml-auto inline-flex h-7 min-w-7 items-center justify-center px-2 text-xs font-semibold"
+                        style={{
+                          borderRadius: '100000px',
+                          backgroundColor: hasAnswer || isPendingEval ? '#eef0f3' : '#0052ff',
+                          color: hasAnswer || isPendingEval ? '#0a0b0d' : '#ffffff',
+                        }}
+                      >
+                        {turn.turn_index}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-4 text-base"
+                      style={{ color: '#0a0b0d', lineHeight: '1.56' }}
+                    >
+                      <MarkdownMessage content={turn.question} />
+                    </div>
                   </div>
-                  <span className="text-xs font-medium text-gray-500">面试官</span>
-                  {turn.question_type && (
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-500 font-medium">
-                      {ROUND_LABELS[turn.question_type] || turn.question_type}
-                    </span>
-                  )}
-                  <span className={`ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                    hasAnswer || isPendingEval
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-primary-100 text-primary-700'
-                  }`}>
-                    {turn.turn_index}
-                  </span>
-                </div>
-                <div className="text-[15px] text-gray-900 leading-relaxed pl-10">
-                  <MarkdownMessage content={turn.question} />
                 </div>
               </div>
 
               {displayAnswer && (
-                <div className="px-6 pb-3">
-                  <div className="bg-gray-50 rounded-xl px-4 py-3 text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap border border-gray-100">
+                <div className="px-6 pb-4">
+                  <div
+                    className="rounded-[24px] border px-5 py-4 text-[15px] whitespace-pre-wrap"
+                    style={{
+                      borderColor: 'rgba(91, 97, 110, 0.15)',
+                      backgroundColor: 'rgba(247,247,247,0.88)',
+                      color: '#0a0b0d',
+                      lineHeight: '1.56',
+                    }}
+                  >
                     {displayAnswer}
                   </div>
                 </div>
               )}
 
               {isPracticeMode && turn.evaluation && (
-                <div className="px-6 pb-4">
-                  <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100 text-sm">
-                    <p className="text-amber-900 whitespace-pre-wrap leading-relaxed">{turn.evaluation}</p>
+                <div className="px-6 pb-5">
+                  <div
+                    className="rounded-[24px] border px-5 py-4"
+                    style={{
+                      borderColor: 'rgba(0, 82, 255, 0.18)',
+                      backgroundColor: '#eef0f3',
+                    }}
+                  >
+                    <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#0052ff' }}>
+                      system feedback
+                    </p>
+                    <p
+                      className="mt-3 whitespace-pre-wrap text-[15px]"
+                      style={{ color: '#0a0b0d', lineHeight: '1.56' }}
+                    >
+                      {turn.evaluation}
+                    </p>
                   </div>
                 </div>
               )}
 
               {isPracticeMode && isGeneratingEvaluation && (
-                <div className="px-6 pb-4 flex items-center gap-2 text-sm text-amber-600">
-                  <div className="animate-spin h-4 w-4 border-2 border-amber-300 border-t-amber-500 rounded-full" />
-                  评估生成中...
+                <div className="px-6 pb-5">
+                  <div
+                    className="flex items-center gap-3 rounded-[24px] border px-5 py-4 text-sm"
+                    style={{
+                      borderColor: 'rgba(0, 82, 255, 0.18)',
+                      backgroundColor: '#eef0f3',
+                      color: '#0052ff',
+                    }}
+                  >
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#b8ccff] border-t-[#0052ff]" />
+                    评估生成中...
+                  </div>
                 </div>
               )}
 
               {isPendingEval && (
-                <div className="px-6 pb-4 flex items-center gap-2 text-sm text-gray-400">
-                  <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-primary-600 rounded-full" />
-                  评估中...
+                <div className="px-6 pb-5">
+                  <div
+                    className="flex items-center gap-3 rounded-[24px] border px-5 py-4 text-sm"
+                    style={{
+                      borderColor: 'rgba(91, 97, 110, 0.15)',
+                      backgroundColor: 'rgba(247,247,247,0.88)',
+                      color: '#5b616e',
+                    }}
+                  >
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#d6dae0] border-t-[#0052ff]" />
+                    正在生成下一题...
+                  </div>
                 </div>
               )}
 
               {isActive && !isComplete && (
-                <div className="px-6 pb-5 pt-1">
+                <div
+                  className="px-6 pb-6 pt-2"
+                  style={{ borderTop: '1px solid rgba(91, 97, 110, 0.12)' }}
+                >
                   {isPracticeMode && (
-                    <div className="mb-3 flex justify-start">
+                    <div className="mb-4 flex justify-start">
                       <button
                         type="button"
                         onClick={onRequestHint}
                         disabled={isRequestingHint || !onRequestHint}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 transition-colors disabled:opacity-60"
+                        className="btn-outline btn-sm gap-2"
                       >
-                        <LightBulbIcon className="w-4 h-4" />
+                        <LightBulbIcon className="h-4 w-4" />
                         {isRequestingHint ? '提示生成中...' : '给我提示'}
                       </button>
                     </div>
                   )}
 
                   {isPracticeMode && hintItems.length > 0 && (
-                    <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
-                      <ul className="space-y-1.5">
+                    <div
+                      className="mb-4 rounded-[24px] border px-5 py-4"
+                      style={{
+                        borderColor: 'rgba(0, 82, 255, 0.18)',
+                        backgroundColor: '#eef0f3',
+                      }}
+                    >
+                      <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#0052ff' }}>
+                        response guide
+                      </p>
+                      <ul className="mt-3 space-y-2">
                         {hintItems.map((hint, index) => (
-                          <li key={`${turn.id}-hint-${index}`} className="flex items-start gap-2 text-xs text-indigo-700">
-                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                          <li
+                            key={`${turn.id}-hint-${index}`}
+                            className="flex items-start gap-3 text-sm"
+                            style={{ color: '#0a0b0d', lineHeight: '1.5' }}
+                          >
+                            <span
+                              className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
+                              style={{ borderRadius: '100000px', backgroundColor: '#0052ff' }}
+                            />
                             <span>{hint}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  <div className="relative">
+
+                  <div
+                    className="rounded-[28px] border p-4"
+                    style={{
+                      borderColor: 'rgba(91, 97, 110, 0.2)',
+                      backgroundColor: '#ffffff',
+                    }}
+                  >
                     <textarea
                       value={inputMessage}
                       onChange={(event) => onInputChange(event.target.value)}
                       onKeyDown={(event) => handleInputKeyDown(event, onSendAnswer)}
                       placeholder="输入你的回答..."
-                      className="w-full p-3 pr-12 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      rows={3}
+                      className="input min-h-[124px] resize-none border-0 px-0 py-0 shadow-none focus:shadow-none"
+                      rows={4}
                       disabled={isSending}
                     />
-                    <button
-                      onClick={onSendAnswer}
-                      disabled={!inputMessage.trim() || isSending}
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                        inputMessage.trim() && !isSending
-                          ? 'bg-primary-600 text-white hover:bg-primary-700'
-                          : 'bg-gray-200 text-gray-400'
-                      }`}
-                    >
-                      <ArrowUpIcon className="w-4 h-4" />
-                    </button>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={onSendAnswer}
+                        disabled={!inputMessage.trim() || isSending}
+                        className="btn-primary btn-sm gap-2"
+                      >
+                        提交回答
+                        <ArrowUpIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -275,54 +324,88 @@ export default function StructuredInterviewPanel({
 
         {isSending && pendingAnswer && (
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            initial={{ opacity: 0, y: 20, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+            transition={{ duration: 0.32 }}
+            className="px-6 py-6"
+            style={{
+              borderRadius: '32px',
+              border: '1px solid rgba(91, 97, 110, 0.2)',
+              backgroundColor: '#eef0f3',
+            }}
           >
-            <div className="px-6 py-5 flex items-center gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm animate-pulse">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-white">
-                  <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
-                </svg>
+            <div className="flex items-center gap-4">
+              <InterviewerAvatar />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                  面试官
+                </p>
+                <p className="mt-1 text-sm" style={{ color: '#5b616e' }}>
+                  正在准备下一题...
+                </p>
               </div>
-              <span className="text-xs font-medium text-gray-500">面试官</span>
-              <span className="text-sm text-gray-400 ml-1">正在准备下一题...</span>
             </div>
           </motion.div>
         )}
 
         {report && (
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            initial={{ opacity: 0, y: 20, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            className="bg-white rounded-2xl border border-emerald-200 shadow-sm overflow-hidden"
+            transition={{ duration: 0.32 }}
+            className="overflow-hidden"
+            style={{
+              borderRadius: '32px',
+              backgroundColor: '#0a0b0d',
+              color: '#ffffff',
+            }}
           >
-            <div className="px-6 py-5">
-              <h3 className="font-semibold text-emerald-900 mb-3">面试报告</h3>
-              {report.summary && <p className="text-sm text-emerald-800 leading-relaxed">{report.summary}</p>}
+            <div className="px-6 py-6">
+              <p className="text-xs font-semibold tracking-[0.18em] lowercase" style={{ color: '#7ea6ff' }}>
+                interview report
+              </p>
+              <h3 className="mt-3 text-[32px] font-semibold" style={{ lineHeight: '1.13' }}>
+                面试报告
+              </h3>
+
+              {report.summary && (
+                <p className="mt-4 text-[15px]" style={{ color: 'rgba(255,255,255,0.84)', lineHeight: '1.56' }}>
+                  {report.summary}
+                </p>
+              )}
+
               {report.weaknesses && report.weaknesses.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-emerald-700 mb-1">待改进</p>
-                  <ul className="space-y-1">
+                <div className="mt-6">
+                  <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
+                    gaps to close
+                  </p>
+                  <ul className="mt-3 space-y-2">
                     {report.weaknesses.map((weakness, index) => (
-                      <li key={index} className="text-sm text-emerald-700 flex items-start gap-2">
-                        <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" />
-                        {weakness}
+                      <li key={index} className="flex items-start gap-3 text-sm" style={{ color: '#ffffff' }}>
+                        <span
+                          className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
+                          style={{ borderRadius: '100000px', backgroundColor: '#0052ff' }}
+                        />
+                        <span>{weakness}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
+
               {report.next_training_plan && report.next_training_plan.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-emerald-700 mb-1">下一步建议</p>
-                  <ul className="space-y-1">
+                <div className="mt-6">
+                  <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
+                    next training plan
+                  </p>
+                  <ul className="mt-3 space-y-2">
                     {report.next_training_plan.map((plan, index) => (
-                      <li key={index} className="text-sm text-emerald-700 flex items-start gap-2">
-                        <span className="mt-1.5 w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" />
-                        {plan}
+                      <li key={index} className="flex items-start gap-3 text-sm" style={{ color: '#ffffff' }}>
+                        <span
+                          className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
+                          style={{ borderRadius: '100000px', backgroundColor: '#0052ff' }}
+                        />
+                        <span>{plan}</span>
                       </li>
                     ))}
                   </ul>
@@ -333,7 +416,14 @@ export default function StructuredInterviewPanel({
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            className="rounded-[24px] border px-5 py-4 text-sm"
+            style={{
+              borderColor: 'rgba(220, 38, 38, 0.2)',
+              backgroundColor: '#fef2f2',
+              color: '#b91c1c',
+            }}
+          >
             {error}
           </div>
         )}

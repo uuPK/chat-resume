@@ -81,30 +81,18 @@ export default function InterviewPage() {
     )
   }
 
-  const isComplete = session?.status === 'completed'
-
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:hidden">
         <div className="w-full px-6">
-          <div className="flex justify-between items-center py-3">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/interviews"
-                className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-                title="返回面试中心"
-              >
-                <ArrowLeftIcon className="w-5 h-5" />
-              </Link>
-              <span className="text-sm font-medium text-gray-900">
-                模拟面试
-              </span>
-              {session && (
-                <span className="text-xs text-gray-400">
-                  第 {session.current_turn_index} 题 · {isComplete ? '已结束' : '进行中'}
-                </span>
-              )}
-            </div>
+          <div className="flex items-center py-3">
+            <Link
+              href="/interviews"
+              className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+              title="返回面试中心"
+            >
+              <ArrowLeftIcon className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </header>
