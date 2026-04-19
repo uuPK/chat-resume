@@ -632,11 +632,6 @@ export default function InterviewsPage() {
                             </span>
                           )}
                           <span>{session.answered_turn_count} 题已回答</span>
-                          {session.overall_score != null && (
-                            <span className="font-semibold" style={{ color: '#059669' }}>
-                              综合评分 {session.overall_score}/10
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>

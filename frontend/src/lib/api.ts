@@ -67,15 +67,7 @@ interface InterviewTurn {
   intent?: string
   expected_points?: string[]
   answer?: string
-  evaluation?: string | {
-    summary?: string
-    dimension_scores?: Record<string, number>
-    evidence?: string[]
-    gaps?: string[]
-    should_follow_up?: boolean
-    score?: number
-  }
-  score?: number
+  evaluation?: string
   follow_up_count: number
   status: string
 }
@@ -96,7 +88,6 @@ interface InterviewSession {
   plan?: {
     rounds?: Array<{ type: string; goal: string }>
   }
-  overall_score?: number
   started_at?: string
   ended_at?: string
   report_data?: {
@@ -119,7 +110,6 @@ interface InterviewSessionSummary {
   language: string
   mode: string
   status: string
-  overall_score?: number
   started_at?: string
   ended_at?: string
   answered_turn_count: number

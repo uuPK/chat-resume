@@ -73,33 +73,6 @@ function handleInputKeyDown(
 }
 
 /**
- * 兼容历史结构化评估和新文本评估，统一转成可展示的文字。
- */
-function getEvaluationDisplayText(evaluation: InterviewSession['turns'][number]['evaluation']) {
-  if (!evaluation) return ''
-  if (typeof evaluation === 'string') return evaluation
-
-  const parts: string[] = []
-  if (evaluation.summary) {
-    parts.push(evaluation.summary)
-  }
-  if ((evaluation.gaps?.length ?? 0) > 0) {
-    parts.push(`问题：${evaluation.gaps!.join('；')}`)
-  }
-  if ((evaluation.evidence?.length ?? 0) > 0) {
-    parts.push(`亮点：${evaluation.evidence!.join('；')}`)
-  }
-  if (Object.keys(evaluation.dimension_scores || {}).length > 0) {
-    const scoreText = Object.entries(evaluation.dimension_scores || {})
-      .map(([key, value]) => `${key} ${value}`)
-      .join('，')
-    parts.push(`评分：${scoreText}`)
-  }
-
-  return parts.join('\n')
-}
-
-/**
  * 统一渲染结构化面试的核心时间线。
  */
 export default function StructuredInterviewPanel({
@@ -155,11 +128,6 @@ export default function StructuredInterviewPanel({
                   {MODE_LABELS[session.mode] || session.mode}
                 </span>
               )}
-              {session?.overall_score != null && (isPracticeMode || isComplete) && (
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                  综合评分 {session.overall_score}/10
-                </span>
-              )}
             </div>
           </div>
           <button
@@ -179,7 +147,6 @@ export default function StructuredInterviewPanel({
           const isActive = !hasAnswer && !pendingAnswer
           const isPendingEval = !hasAnswer && !!pendingAnswer
           const displayAnswer = turn.answer || (isPendingEval ? pendingAnswer : null)
-          const evaluationDisplayText = getEvaluationDisplayText(turn.evaluation)
 
           return (
             <motion.div
@@ -225,10 +192,10 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
-              {isPracticeMode && evaluationDisplayText && (
+              {isPracticeMode && turn.evaluation && (
                 <div className="px-6 pb-4">
                   <div className="bg-amber-50 rounded-xl px-4 py-3 border border-amber-100 text-sm">
-                    <p className="text-amber-900 whitespace-pre-wrap leading-relaxed">{evaluationDisplayText}</p>
+                    <p className="text-amber-900 whitespace-pre-wrap leading-relaxed">{turn.evaluation}</p>
                   </div>
                 </div>
               )}

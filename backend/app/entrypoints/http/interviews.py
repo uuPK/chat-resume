@@ -185,8 +185,7 @@ def _serialize_turn(turn: InterviewTurn) -> dict[str, Any]:
         "intent": turn.intent,
         "expected_points": turn.expected_points,
         "answer": turn.answer,
-        "evaluation": turn.evaluation,
-        "score": turn.score,
+        "evaluation": _normalize_evaluation_text(turn.evaluation),
         "follow_up_count": turn.follow_up_count,
         "status": turn.status,
         "asked_at": turn.asked_at.isoformat() if turn.asked_at else None,
@@ -211,7 +210,6 @@ def _serialize_session(session: InterviewSession) -> dict[str, Any]:
         "current_round_index": session.current_round_index,
         "current_turn_index": session.current_turn_index,
         "plan": session.plan_json,
-        "overall_score": session.overall_score,
         "report_data": session.report_data,
         "started_at": session.started_at.isoformat() if session.started_at else None,
         "ended_at": session.ended_at.isoformat() if session.ended_at else None,
@@ -236,7 +234,6 @@ def _serialize_session_summary(
         "language": session.language,
         "mode": session.mode,
         "status": session.status,
-        "overall_score": session.overall_score,
         "started_at": session.started_at.isoformat() if session.started_at else None,
         "ended_at": session.ended_at.isoformat() if session.ended_at else None,
         "answered_turn_count": answered_turn_count,
@@ -251,12 +248,35 @@ def _latest_turn(session: InterviewSession) -> Optional[InterviewTurn]:
 
 def _collect_weaknesses(turns: list[InterviewTurn]) -> list[str]:
     """用于在没有结构化评分后生成通用的改进建议。"""
-    if any((turn.evaluation or "").strip() for turn in turns):
+    if any(_normalize_evaluation_text(turn.evaluation) for turn in turns):
         return [
             "逐题复盘面试评语，优先补足背景、动作和结果。",
             "围绕个人贡献和量化结果重新打磨回答。",
         ]
     return []
+
+
+def _normalize_evaluation_text(evaluation: Any) -> str:
+    """用于把历史结构化评估和新文本评估统一转换成纯文本。"""
+    if isinstance(evaluation, str):
+        return evaluation.strip()
+    if not isinstance(evaluation, dict):
+        return ""
+
+    parts: list[str] = []
+    summary = str(evaluation.get("summary") or "").strip()
+    if summary:
+        parts.append(summary)
+
+    gaps = [str(item).strip() for item in (evaluation.get("gaps") or []) if str(item).strip()]
+    if gaps:
+        parts.append("问题：" + "；".join(gaps[:3]))
+
+    evidence = [str(item).strip() for item in (evaluation.get("evidence") or []) if str(item).strip()]
+    if evidence:
+        parts.append("亮点：" + "；".join(evidence[:2]))
+
+    return "\n".join(parts).strip()
 
 
 def _fallback_hint(turn: InterviewTurn) -> list[str]:
@@ -663,8 +683,6 @@ async def answer_interview(
         history=history,
         event_callback=observer.on_runtime_event,
     )
-    turn.score = None
-    session.overall_score = None
 
     rounds = ((session.plan_json or {}).get("rounds") or [])
     current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
@@ -690,7 +708,6 @@ async def answer_interview(
                 "尽量加入量化指标和复盘结论。",
             ],
         }
-        session.overall_score = None
         db.commit()
         db.refresh(session)
         observer.finish("interview_completed")
@@ -803,8 +820,6 @@ async def answer_interview_stream(
         history=history,
         event_callback=observer.on_runtime_event,
     )
-    turn.score = None
-    session.overall_score = None
 
     async def generate():
         nonlocal session
@@ -872,7 +887,6 @@ async def answer_interview_stream(
                             "尽量加入量化指标和复盘结论。",
                         ],
                     }
-                    session.overall_score = None
                     db.commit()
                     db.refresh(session)
                     done_payload = {
@@ -940,7 +954,6 @@ async def end_interview(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
 
     turns = list(session.turns or [])
-    session.overall_score = None
     session.status = "completed"
     session.ended_at = _now()
     if session.report_data is None:
