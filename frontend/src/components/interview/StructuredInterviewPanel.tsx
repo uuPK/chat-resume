@@ -34,7 +34,6 @@ interface StructuredInterviewPanelProps {
   onInputChange: (value: string) => void
   onSendAnswer: () => void
   onRequestHint?: () => void
-  onEndInterview: () => void
   className?: string
 }
 

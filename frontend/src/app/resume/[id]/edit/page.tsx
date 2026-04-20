@@ -1205,7 +1205,6 @@ export default function ResumeEditPage() {
                   onInputChange={setIvInput}
                   onSendAnswer={sendInterviewAnswer}
                   onRequestHint={requestInterviewHint}
-                  onEndInterview={endInterview}
                 />
               </motion.div>
               ) : (

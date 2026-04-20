@@ -85,7 +85,7 @@ export default function InterviewPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:hidden">
         <div className="w-full px-6">
-          <div className="flex items-center py-3">
+          <div className="flex items-center justify-between py-3">
             <Link
               href="/interviews"
               className="flex items-center p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
@@ -93,6 +93,16 @@ export default function InterviewPage() {
             >
               <ArrowLeftIcon className="w-5 h-5" />
             </Link>
+            {session && session.status !== 'completed' && (
+              <button
+                type="button"
+                onClick={endInterview}
+                disabled={isSending}
+                className="btn-outline btn-sm"
+              >
+                {isSending ? '处理中...' : '结束面试'}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -172,7 +182,6 @@ export default function InterviewPage() {
             onInputChange={setInputMessage}
             onSendAnswer={sendAnswer}
             onRequestHint={requestHint}
-            onEndInterview={endInterview}
           />
         </div>
       </main>
