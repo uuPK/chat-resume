@@ -154,10 +154,12 @@ interface InterviewStreamDoneEvent extends InterviewActionResponse {
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// 获取认证头部信息
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('access_token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
+// 统一通过 HttpOnly Cookie 发起带登录态的请求。
+function apiFetch(path: string, init: RequestInit = {}) {
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+  })
 }
 
 // 处理API响应
@@ -176,11 +178,7 @@ class ResumeAPI {
    * 获取所有简历
    */
   static async getResumes(): Promise<ResumeListItem[]> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await apiFetch('/api/resumes/')
 
     return handleApiResponse<ResumeListItem[]>(response)
   }
@@ -189,11 +187,7 @@ class ResumeAPI {
    * 获取单个简历
    */
   static async getResume(id: number): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await apiFetch(`/api/resumes/${id}`)
 
     return handleApiResponse<Resume>(response)
   }
@@ -202,11 +196,10 @@ class ResumeAPI {
    * 创建新简历
    */
   static async createResume(data: CreateResumeData): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/`, {
+    const response = await apiFetch('/api/resumes/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify(data),
     })
@@ -218,11 +211,10 @@ class ResumeAPI {
    * 更新简历
    */
   static async updateResume(id: number, data: UpdateResumeData): Promise<Resume> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
+    const response = await apiFetch(`/api/resumes/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify(data),
     })
@@ -234,11 +226,8 @@ class ResumeAPI {
    * 删除简历
    */
   static async deleteResume(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}`, {
+    const response = await apiFetch(`/api/resumes/${id}`, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
     })
 
     if (!response.ok) {
@@ -254,11 +243,8 @@ class ResumeAPI {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${API_BASE_URL}/api/upload/resume`, {
+    const response = await apiFetch('/api/upload/resume', {
       method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
       body: formData,
     })
 
@@ -272,11 +258,8 @@ class ResumeAPI {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${API_BASE_URL}/api/upload/jd-ocr`, {
+    const response = await apiFetch('/api/upload/jd-ocr', {
       method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
       body: formData,
     })
 
@@ -291,11 +274,10 @@ class ResumeAPI {
     format: 'pdf' | 'docx' | 'html',
     template: string = 'default'
   ): Promise<ExportResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/resumes/${id}/export`, {
+    const response = await apiFetch(`/api/resumes/${id}/export`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         format,
@@ -307,9 +289,7 @@ class ResumeAPI {
   }
 
   static async listInterviewSessions(): Promise<InterviewSessionSummary[]> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/`, {
-      headers: { ...getAuthHeaders() },
-    })
+    const response = await apiFetch('/api/interviews/')
     return handleApiResponse<InterviewSessionSummary[]>(response)
   }
 
@@ -317,9 +297,8 @@ class ResumeAPI {
    * 删除一条面试记录
    */
   static async deleteInterviewSession(sessionId: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}`, {
       method: 'DELETE',
-      headers: { ...getAuthHeaders() },
     })
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -337,11 +316,10 @@ class ResumeAPI {
     language?: string
     mode?: string
   }): Promise<InterviewActionResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/`, {
+    const response = await apiFetch('/api/interviews/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify(data),
     })
@@ -352,40 +330,29 @@ class ResumeAPI {
    * 获取练习模式下当前题目的答题提示
    */
   static async getInterviewHint(sessionId: number): Promise<InterviewHintResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/hint`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}/hint`, {
       method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
     })
     return handleApiResponse<InterviewHintResponse>(response)
   }
 
   static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
-    })
+    const response = await apiFetch(`/api/interviews/${sessionId}`)
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
   static async startInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/start`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}/start`, {
       method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
     })
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
   static async answerInterviewSession(sessionId: number, answer: string): Promise<InterviewActionResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}/answer`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify({ answer }),
     })
@@ -396,11 +363,10 @@ class ResumeAPI {
     sessionId: number,
     answer: string,
   ): AsyncGenerator<InterviewStreamTokenEvent | InterviewStreamEvaluationEvent | InterviewStreamDoneEvent> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer/stream`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}/answer/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
       },
       body: JSON.stringify({ answer }),
     })
@@ -427,11 +393,8 @@ class ResumeAPI {
   }
 
   static async endInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/end`, {
+    const response = await apiFetch(`/api/interviews/${sessionId}/end`, {
       method: 'POST',
-      headers: {
-        ...getAuthHeaders(),
-      },
     })
     return handleApiResponse<InterviewActionResponse>(response)
   }
@@ -448,10 +411,7 @@ export interface ChatMessageRecord {
 
 export class ChatHistoryAPI {
   static async getMessages(resumeId: number): Promise<ChatMessageRecord[]> {
-    const token = localStorage.getItem('access_token')
-    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`)
     return handleApiResponse<ChatMessageRecord[]>(res)
   }
 
@@ -459,20 +419,17 @@ export class ChatHistoryAPI {
     resumeId: number,
     messages: { role: string; content: string; stream_events?: unknown }[]
   ): Promise<ChatMessageRecord[]> {
-    const token = localStorage.getItem('access_token')
-    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
+    const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(messages),
     })
     return handleApiResponse<ChatMessageRecord[]>(res)
   }
 
   static async clearMessages(resumeId: number): Promise<void> {
-    const token = localStorage.getItem('access_token')
-    const res = await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/chat-messages`, {
+    const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
     })
     await handleApiResponse<{ message: string }>(res)
   }

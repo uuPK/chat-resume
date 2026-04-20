@@ -28,13 +28,12 @@ export default function SettingsPage() {
     }
     setIsLoading(true)
     try {
-      const token = localStorage.getItem('access_token')
-      if (!token) { toast.error('请先登录'); return }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`,
         {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ full_name: userSettings.fullName.trim() })
         }
       )

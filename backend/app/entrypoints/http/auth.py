@@ -5,22 +5,23 @@
 处理用户身份验证和JWT令牌管理。
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.infra.database import get_db
-from app.infra.security import create_access_token, create_refresh_token, decode_access_token
+from app.infra.security import create_access_token
 from app.infra.config import settings
 from app.schemas.auth import (
     UserCreate,
     UserUpdate,
     UserResponse,
-    LoginResponse,
+    AuthSessionResponse,
+    LogoutResponse,
     RefreshTokenRequest,
 )
-from app.services.domain import UserService
+from app.services.domain import RefreshSessionService, UserService
 from app.entrypoints.http.deps import get_current_user
 import logging
 
@@ -28,6 +29,95 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
+
+
+def _cookie_base_kwargs() -> dict[str, object]:
+    """用于复用认证 Cookie 的公共安全参数。"""
+    kwargs: dict[str, object] = {
+        "httponly": True,
+        "secure": settings.AUTH_COOKIE_SECURE,
+        "samesite": settings.AUTH_COOKIE_SAMESITE,
+        "path": "/",
+    }
+    if settings.AUTH_COOKIE_DOMAIN.strip():
+        kwargs["domain"] = settings.AUTH_COOKIE_DOMAIN.strip()
+    return kwargs
+
+
+def _set_auth_cookies(
+    response: Response,
+    *,
+    access_token: str,
+    refresh_token: str,
+) -> None:
+    """用于把新的访问令牌和刷新令牌写入 HttpOnly Cookie。"""
+    cookie_kwargs = _cookie_base_kwargs()
+    response.set_cookie(
+        settings.ACCESS_TOKEN_COOKIE_NAME,
+        access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        **cookie_kwargs,
+    )
+    response.set_cookie(
+        settings.REFRESH_TOKEN_COOKIE_NAME,
+        refresh_token,
+        max_age=settings.REFRESH_SESSION_EXPIRE_DAYS * 24 * 60 * 60,
+        **cookie_kwargs,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    """用于在登出或认证失效时清理浏览器中的认证 Cookie。"""
+    cookie_kwargs = _cookie_base_kwargs()
+    response.delete_cookie(settings.ACCESS_TOKEN_COOKIE_NAME, **cookie_kwargs)
+    response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME, **cookie_kwargs)
+
+
+def _issue_auth_session(
+    response: Response,
+    *,
+    user,
+    db: Session,
+    previous_session_token: str | None = None,
+) -> AuthSessionResponse:
+    """用于签发访问令牌并轮换服务端刷新会话。"""
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(subject=user.id, expires_delta=access_token_expires)
+
+    refresh_session_service = RefreshSessionService(db)
+    session, refresh_token = refresh_session_service.create_session(user.id)
+    if previous_session_token:
+        previous_session = refresh_session_service.get_session_by_token(previous_session_token)
+        if previous_session and previous_session.id != session.id:
+            refresh_session_service.revoke_session(
+                previous_session,
+                replaced_by_session_id=session.id,
+            )
+
+    _set_auth_cookies(
+        response,
+        access_token=access_token,
+        refresh_token=refresh_token,
+    )
+    return AuthSessionResponse.model_validate(
+        {
+            "token_type": "bearer",
+            "user": user,
+        }
+    )
+
+
+def _get_refresh_token_from_request(
+    request: Request,
+    payload: RefreshTokenRequest | None,
+) -> str | None:
+    """用于兼容 Cookie 和旧 body 两种刷新令牌来源。"""
+    cookie_token = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
+    if payload is not None:
+        return payload.refresh_token
+    return None
 
 
 @router.post("/register", response_model=UserResponse)
@@ -48,9 +138,11 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
     return UserResponse.model_validate(user)
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=AuthSessionResponse)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ):
     """用于校验邮箱密码并签发访问令牌。"""
     user_service = UserService(db)
@@ -64,67 +156,66 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 创建访问令牌
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        subject=user.id, expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token(subject=user.id, expires_delta=timedelta(days=30))
-
-    # 返回包含用户信息的响应
-    return LoginResponse.model_validate(
-        {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": user,
-        }
-    )
+    return _issue_auth_session(response, user=user, db=db)
 
 
-@router.post("/refresh", response_model=LoginResponse)
+@router.post("/refresh", response_model=AuthSessionResponse)
 async def refresh_token(
-    request: RefreshTokenRequest, db: Session = Depends(get_db)
+    response: Response,
+    request: Request,
+    payload: RefreshTokenRequest | None = Body(default=None),
+    db: Session = Depends(get_db),
 ):
     """用于用刷新令牌换发一组新的登录令牌。"""
-    try:
-        claims = decode_access_token(request.refresh_token)
-    except Exception:
+    refresh_token_value = _get_refresh_token_from_request(request, payload)
+    if not refresh_token_value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
 
-    if claims.get("type") != "refresh":
+    refresh_session_service = RefreshSessionService(db)
+    refresh_session = refresh_session_service.get_session_by_token(refresh_token_value)
+    if not refresh_session_service.is_session_active(refresh_session):
+        _clear_auth_cookies(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
 
     user_service = UserService(db)
-    user = user_service.get_by_id(int(claims["sub"]))
-    if not user:
+    user = user_service.get_by_id(int(refresh_session.user_id))
+    if not user or not user.is_active:
+        _clear_auth_cookies(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
 
-    access_token = create_access_token(
-        subject=user.id,
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    refresh_session_service.touch_session(refresh_session)
+    return _issue_auth_session(
+        response,
+        user=user,
+        db=db,
+        previous_session_token=refresh_token_value,
     )
-    refresh_token_value = create_refresh_token(
-        subject=user.id,
-        expires_delta=timedelta(days=30),
-    )
-    return LoginResponse.model_validate(
-        {
-            "access_token": access_token,
-            "refresh_token": refresh_token_value,
-            "token_type": "bearer",
-            "user": user,
-        }
-    )
+
+
+@router.post("/logout", response_model=LogoutResponse)
+async def logout(
+    response: Response,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """用于吊销当前刷新会话并清理浏览器登录 Cookie。"""
+    refresh_token_value = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if refresh_token_value:
+        refresh_session_service = RefreshSessionService(db)
+        refresh_session = refresh_session_service.get_session_by_token(refresh_token_value)
+        if refresh_session and refresh_session.revoked_at is None:
+            refresh_session_service.revoke_session(refresh_session)
+    _clear_auth_cookies(response)
+    return LogoutResponse(message="Logged out")
 
 
 @router.get("/me", response_model=UserResponse)

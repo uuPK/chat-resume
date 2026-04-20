@@ -87,11 +87,18 @@ def _login(client: TestClient, email: str, password: str = "password123") -> str
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200, resp.text
-    return resp.json()["access_token"]
+    access_cookie = resp.cookies.get("access_token") or client.cookies.get("access_token")
+    assert access_cookie
+    return access_cookie
 
 
 def _auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _anonymous_client() -> TestClient:
+    """返回一个不带登录 Cookie 的独立测试客户端。"""
+    return TestClient(app)
 
 
 def _empty_resume_content() -> dict:
@@ -134,9 +141,19 @@ class TestAuth:
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert "access_token" in body
         assert body["token_type"] == "bearer"
         assert body["user"]["email"] == "login_test@example.com"
+        assert "access_token" not in body
+        assert "refresh_token" not in body
+        assert resp.cookies.get("access_token")
+        assert resp.cookies.get("refresh_token")
+
+    def test_login_cookie_allows_get_me_without_authorization_header(self, client):
+        _register(client, "cookie_me_user@example.com", full_name="Cookie用户")
+        _login(client, "cookie_me_user@example.com")
+        resp = client.get("/api/auth/me")
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "cookie_me_user@example.com"
 
     def test_login_wrong_password_returns_401(self, client):
         _register(client, "wrong_pw@example.com")
@@ -191,6 +208,46 @@ class TestAuth:
         assert resp.status_code == 401
         assert resp.json()["detail"] == "Could not validate credentials"
 
+    def test_inactive_user_cannot_login(self, client):
+        email = "inactive_login@example.com"
+        _register(client, email, full_name="被禁用用户")
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).first()
+            assert user is not None
+            user.is_active = False
+            db.add(user)
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.post(
+            "/api/auth/login",
+            data={"username": email, "password": "password123"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert resp.status_code == 401
+
+    def test_inactive_user_existing_token_is_rejected(self, client):
+        email = "inactive_token@example.com"
+        _register(client, email, full_name="已失效登录态用户")
+        token = _login(client, email)
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).first()
+            assert user is not None
+            user.is_active = False
+            db.add(user)
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.get("/api/auth/me", headers=_auth_headers(token))
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Could not validate credentials"
+
     def test_update_me_changes_full_name(self, client):
         _register(client, "update_me@example.com", full_name="旧名字")
         token = _login(client, "update_me@example.com")
@@ -201,6 +258,44 @@ class TestAuth:
         )
         assert resp.status_code == 200
         assert resp.json()["full_name"] == "新名字"
+
+    def test_refresh_rotates_refresh_session_and_rejects_reuse(self, client):
+        email = "refresh_rotate@example.com"
+        _register(client, email, full_name="刷新轮换用户")
+        _login(client, email)
+        stale_refresh_cookie = client.cookies.get("refresh_token")
+        assert stale_refresh_cookie
+
+        refresh_resp = client.post("/api/auth/refresh")
+        assert refresh_resp.status_code == 200
+        new_refresh_cookie = client.cookies.get("refresh_token")
+        assert new_refresh_cookie
+        assert new_refresh_cookie != stale_refresh_cookie
+
+        stale_client = TestClient(app)
+        stale_client.cookies.set("refresh_token", stale_refresh_cookie)
+        stale_refresh_resp = stale_client.post("/api/auth/refresh")
+        assert stale_refresh_resp.status_code == 401
+        assert stale_refresh_resp.json()["detail"] == "Invalid refresh token"
+
+    def test_logout_revokes_refresh_session(self, client):
+        email = "logout_revoke@example.com"
+        _register(client, email, full_name="登出吊销用户")
+        _login(client, email)
+        stale_refresh_cookie = client.cookies.get("refresh_token")
+        assert stale_refresh_cookie
+
+        logout_resp = client.post("/api/auth/logout")
+        assert logout_resp.status_code == 200
+        assert logout_resp.json()["message"] == "Logged out"
+        assert not client.cookies.get("access_token")
+        assert not client.cookies.get("refresh_token")
+
+        stale_client = TestClient(app)
+        stale_client.cookies.set("refresh_token", stale_refresh_cookie)
+        refresh_resp = stale_client.post("/api/auth/refresh")
+        assert refresh_resp.status_code == 401
+        assert refresh_resp.json()["detail"] == "Invalid refresh token"
 
 
 class TestAuthenticationMiddleware:
@@ -658,7 +753,7 @@ class TestInterviewSessions:
         assert hint_resp.json()["detail"] == "Hints are only available in practice mode"
 
     def test_list_resumes_without_auth_returns_401(self):
-        resp = self.client.get("/api/resumes/")
+        resp = _anonymous_client().get("/api/resumes/")
         assert resp.status_code == 401
 
 
@@ -1067,26 +1162,26 @@ class TestNegativeCases:
     # ── 未认证访问 ────────────────────────────────────────────────────────
 
     def test_get_resumes_without_token_returns_401(self):
-        resp = self.client.get("/api/resumes/")
+        resp = _anonymous_client().get("/api/resumes/")
         assert resp.status_code == 401
 
     def test_get_resume_without_token_returns_401(self):
-        resp = self.client.get(f"/api/resumes/{self.resume_id}")
+        resp = _anonymous_client().get(f"/api/resumes/{self.resume_id}")
         assert resp.status_code == 401
 
     def test_update_resume_without_token_returns_401(self):
-        resp = self.client.put(
+        resp = _anonymous_client().put(
             f"/api/resumes/{self.resume_id}",
             json={"title": "无 token"},
         )
         assert resp.status_code == 401
 
     def test_delete_resume_without_token_returns_401(self):
-        resp = self.client.delete(f"/api/resumes/{self.resume_id}")
+        resp = _anonymous_client().delete(f"/api/resumes/{self.resume_id}")
         assert resp.status_code == 401
 
     def test_update_layout_without_token_returns_401(self):
-        resp = self.client.put(
+        resp = _anonymous_client().put(
             f"/api/resumes/{self.resume_id}/layout",
             json={
                 "density": "compact",

@@ -71,17 +71,20 @@ def _is_protected_api_path(path: str) -> bool:
     return any(path == prefix or path.startswith(f"{prefix}/") for prefix in _PROTECTED_API_PREFIXES)
 
 
-def _extract_bearer_token(request: Request) -> str:
-    """用于从请求头中安全提取 Bearer 令牌。"""
+def _extract_request_token(request: Request) -> str:
+    """用于从请求头或 Cookie 中提取访问令牌。"""
     authorization = request.headers.get("Authorization", "").strip()
     scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token
+    if scheme.lower() == "bearer" and token:
+        return token
+    cookie_token = request.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
+    raise HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @app.middleware("http")
@@ -93,7 +96,7 @@ async def authenticate_protected_api_requests(request: Request, call_next):
 
     db = SessionLocal()
     try:
-        token = _extract_bearer_token(request)
+        token = _extract_request_token(request)
         claims, current_user = authenticate_token_with_db(token, db)
         request.state.current_user_claims = claims
         request.state.current_user = current_user
@@ -157,33 +160,23 @@ cors_origins = settings.BACKEND_CORS_ORIGINS
 logger.info(f"CORS Origins from settings: {cors_origins}")
 logger.info(f"CORS Origins type: {type(cors_origins)}")
 
-# 如果是生产环境且配置了特定域名，使用特定域名；否则允许所有来源
-if (
-    cors_origins
-    and len(cors_origins) > 0
-    and cors_origins != ["http://localhost:3000,https://localhost:3000"]
-):
-    logger.info("Using specific CORS origins")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-        max_age=86400,
-    )
-else:
-    logger.info("Using wildcard CORS origins")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-        max_age=86400,
-    )
+# Cookie 鉴权要求显式 origin，避免浏览器在跨域时丢掉凭证。
+configured_origins = [
+    origin for origin in cors_origins if origin and origin != "http://localhost:3000,https://localhost:3000"
+]
+effective_origins = list(
+    dict.fromkeys(configured_origins or [settings.FRONTEND_URL, "http://localhost:3000", "https://localhost:3000"])
+)
+logger.info("Using credentialed CORS origins: %s", effective_origins)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=effective_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
+)
 
 app.include_router(api_router, prefix=settings.API_STR)
 

@@ -12,6 +12,8 @@ import os
 
 
 class Settings(BaseSettings):
+    """用于集中管理运行环境里的所有配置项。"""
+
     PROJECT_NAME: str = "Chat Resume API"
     VERSION: str = "1.0.0"
     API_STR: str = "/api"
@@ -33,6 +35,16 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    REFRESH_SESSION_EXPIRE_DAYS: int = int(os.getenv("REFRESH_SESSION_EXPIRE_DAYS", "30"))
+    ACCESS_TOKEN_COOKIE_NAME: str = os.getenv("ACCESS_TOKEN_COOKIE_NAME", "access_token")
+    REFRESH_TOKEN_COOKIE_NAME: str = os.getenv("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+    AUTH_COOKIE_DOMAIN: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
+    AUTH_COOKIE_SAMESITE: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
+    AUTH_COOKIE_SECURE: bool = (
+        os.getenv("AUTH_COOKIE_SECURE", "").strip().lower() == "true"
+        if os.getenv("AUTH_COOKIE_SECURE") is not None
+        else os.getenv("APP_ENV", "development").strip().lower() != "development"
+    )
 
     # CORS
     BACKEND_CORS_ORIGINS: Union[str, List[str]] = (
@@ -41,11 +53,20 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        """用于把逗号分隔的 CORS 配置整理成列表。"""
         if isinstance(v, str):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, list):
             return v
         return []
+
+    @field_validator("AUTH_COOKIE_SAMESITE", mode="before")
+    def normalize_auth_cookie_samesite(cls, value: str) -> str:
+        """用于规范化 SameSite 配置并拦截非法值。"""
+        normalized = str(value).strip().lower()
+        if normalized not in {"lax", "strict", "none"}:
+            raise ValueError("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")
+        return normalized
 
     # OpenRouter API
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")

@@ -16,8 +16,10 @@ from typing import Dict, Optional
 import json
 import logging
 from app.infra.database import get_db
-from app.infra.security import decode_access_token
+from app.infra.config import settings
+from app.infra.database import SessionLocal
 from app.services.voice import ASRService
+from app.entrypoints.http.deps import authenticate_token_with_db
 from app.entrypoints.http.deps import get_current_user
 from pydantic import BaseModel
 
@@ -85,16 +87,19 @@ manager = ConnectionManager()
 @router.websocket("/realtime/{client_id}")
 async def websocket_asr_endpoint(websocket: WebSocket, client_id: str):
     """用于承接实时语音识别的 WebSocket 会话。"""
-    token = websocket.query_params.get("token")
+    token = websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
     if not token:
         await websocket.close(code=1008, reason="Missing access token")
         return
 
+    db = SessionLocal()
     try:
-        decode_access_token(token)
+        authenticate_token_with_db(token, db)
     except Exception:
         await websocket.close(code=1008, reason="Invalid access token")
         return
+    finally:
+        db.close()
 
     await manager.connect(websocket, client_id)
     asr_service = manager.get_asr_service(client_id)

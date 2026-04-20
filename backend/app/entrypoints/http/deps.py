@@ -35,6 +35,13 @@ def _credentials_exception() -> HTTPException:
     )
 
 
+def _get_request_token(request: Request, bearer_token: str | None) -> str | None:
+    """用于统一从请求头或 HttpOnly Cookie 中提取访问令牌。"""
+    if bearer_token:
+        return bearer_token
+    return request.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+
+
 def _decode_token_claims(token: str) -> dict:
     """用于解析访问令牌并提取最小用户声明。"""
     try:
@@ -66,6 +73,8 @@ def authenticate_token_with_db(token: str, db: Session) -> tuple[dict[str, Any],
     user = user_service.get_by_id(claims["id"])
     if user is None:
         raise _credentials_exception()
+    if not user.is_active:
+        raise _credentials_exception()
     return claims, _build_current_user_payload(user)
 
 
@@ -82,12 +91,13 @@ async def get_current_user_claims(
     cached_claims = _get_cached_request_value(request, "current_user_claims")
     if cached_claims is not None:
         return cached_claims
-    if not token:
+    resolved_token = _get_request_token(request, token)
+    if not resolved_token:
         raise _credentials_exception()
 
     started_at = perf_counter()
     decode_started_at = perf_counter()
-    claims = _decode_token_claims(token)
+    claims = _decode_token_claims(resolved_token)
     request.state.current_user_claims = claims
     decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
@@ -109,7 +119,8 @@ async def get_current_user(
     cached_user = _get_cached_request_value(request, "current_user")
     if cached_user is not None:
         return cached_user
-    if not token:
+    resolved_token = _get_request_token(request, token)
+    if not resolved_token:
         raise _credentials_exception()
 
     started_at = perf_counter()
@@ -125,7 +136,7 @@ async def get_current_user(
         current_user = _build_current_user_payload(user)
     else:
         decode_started_at = perf_counter()
-        claims, current_user = authenticate_token_with_db(token, db)
+        claims, current_user = authenticate_token_with_db(resolved_token, db)
         request.state.current_user_claims = claims
         decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
         user_id = claims["id"]

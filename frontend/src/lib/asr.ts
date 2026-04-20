@@ -66,14 +66,6 @@ class ASRService {
   }
 
   /**
-   * 获取认证头部
-   */
-  private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('access_token')
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
-  }
-
-  /**
    * 获取ASR配置
    */
   async getConfig(): Promise<ASRServiceConfig> {
@@ -84,9 +76,9 @@ class ASRService {
     try {
       const response = await fetch(`${this.apiBase}/api/asr/config`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...this.getAuthHeaders()
         },
         body: JSON.stringify({
           language: 'zh-CN',
@@ -176,16 +168,10 @@ class ASRService {
    */
   private async createWebSocketConnection(): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        reject(new Error('未登录，无法建立语音识别连接'))
-        return
-      }
-
       // 正确构建WebSocket URL
       const wsProtocol = this.apiBase.startsWith('https') ? 'wss' : 'ws'
       const wsHost = this.apiBase.replace(/^https?:\/\//, '')
-      const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}?token=${encodeURIComponent(token)}`
+      const wsUrl = `${wsProtocol}://${wsHost}/api/asr/realtime/${this.clientId}`
 
       console.log('尝试连接 WebSocket URL:', wsUrl)
       const ws = new WebSocket(wsUrl)
@@ -403,9 +389,9 @@ class ASRService {
 
       const response = await fetch(`${this.apiBase}/api/asr/interview-recognition`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...this.getAuthHeaders()
         },
         body: JSON.stringify({
           audio_data: audioBase64,

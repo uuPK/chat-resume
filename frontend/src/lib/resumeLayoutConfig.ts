@@ -179,17 +179,14 @@ export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
  * debounce 由调用方控制（edit/page.tsx 中 800ms）
  */
 export async function saveLayoutConfigToServer(resumeId: number, config: ResumeLayoutConfig): Promise<void> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-  if (!token) return
-
   // 同步更新本地缓存
   saveLayoutConfig(resumeId, config)
 
   await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/layout`, {
     method: 'PUT',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(serializeLayoutConfig(config)),
   })

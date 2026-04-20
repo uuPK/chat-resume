@@ -64,12 +64,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     abortControllerRef.current = new AbortController()
 
     try {
-      // 获取认证token
-      const token = localStorage.getItem('access_token')
-      if (!token) {
-        throw new Error('未找到认证token，请重新登录')
-      }
-
       // 转换聊天记录格式为后端需要的 OpenAI 格式
       const historyToSend = chatHistory.map((msg) => ({
         role: msg.type === 'ai' ? 'assistant' : 'user',
@@ -78,9 +72,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
       const response = await fetch(`${apiBaseUrl}/api/ai/chat/stream`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           message,
@@ -94,9 +88,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
       if (!response.ok) {
         if (response.status === 401) {
-          // 处理认证失败
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('user')
           throw new Error('认证已过期，请重新登录')
         }
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -272,12 +263,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       return
     }
     const apiBaseUrl = options.apiBaseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    const token = localStorage.getItem('access_token')
     await fetch(`${apiBaseUrl}/api/ai/chat/confirm-tool`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ session_id: sid, call_id: callId, confirmed }),
     })

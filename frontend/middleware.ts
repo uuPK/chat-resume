@@ -21,6 +21,7 @@ async function hasValidSession(accessToken: string): Promise<boolean> {
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const accessToken = request.cookies.get('access_token')?.value
+  const refreshToken = request.cookies.get('refresh_token')?.value
 
   if (PUBLIC_PATHS.has(pathname)) {
     return NextResponse.next()
@@ -35,6 +36,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (accessToken && await hasValidSession(accessToken)) {
+    return NextResponse.next()
+  }
+
+  if (refreshToken) {
     return NextResponse.next()
   }
 

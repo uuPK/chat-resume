@@ -40,23 +40,15 @@ class TTSService {
   }
 
   /**
-   * 获取认证头部
-   */
-  private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('access_token')
-    return token ? { 'Authorization': `Bearer ${token}` } : {}
-  }
-
-  /**
    * 文本转语音
    */
   async textToSpeech(request: TTSRequest): Promise<TTSResponse> {
     try {
       const response = await fetch(`${this.apiBase}/api/tts/text-to-speech`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...this.getAuthHeaders()
         },
         body: JSON.stringify(request)
       })
@@ -94,9 +86,9 @@ class TTSService {
     try {
       const response = await fetch(`${this.apiBase}/api/tts/interview-question-speech`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...this.getAuthHeaders()
         },
         body: JSON.stringify(request)
       })
@@ -198,7 +190,7 @@ class TTSService {
     try {
       const response = await fetch(`${this.apiBase}/api/tts/interviewer-voices`, {
         method: 'GET',
-        headers: this.getAuthHeaders()
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -220,7 +212,7 @@ class TTSService {
     try {
       const response = await fetch(`${this.apiBase}/api/tts/voices`, {
         method: 'GET',
-        headers: this.getAuthHeaders()
+        credentials: 'include',
       })
 
       if (!response.ok) {
