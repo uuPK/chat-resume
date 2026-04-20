@@ -141,6 +141,12 @@ interface InterviewStreamTokenEvent {
   content: string
 }
 
+interface InterviewStreamEvaluationEvent {
+  type: 'evaluation'
+  turn_id: number
+  evaluation: string
+}
+
 interface InterviewStreamDoneEvent extends InterviewActionResponse {
   type: 'done'
 }
@@ -389,7 +395,7 @@ class ResumeAPI {
   static async *answerInterviewSessionStream(
     sessionId: number,
     answer: string,
-  ): AsyncGenerator<InterviewStreamTokenEvent | InterviewStreamDoneEvent> {
+  ): AsyncGenerator<InterviewStreamTokenEvent | InterviewStreamEvaluationEvent | InterviewStreamDoneEvent> {
     const response = await fetch(`${API_BASE_URL}/api/interviews/${sessionId}/answer/stream`, {
       method: 'POST',
       headers: {

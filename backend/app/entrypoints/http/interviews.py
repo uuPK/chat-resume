@@ -5,6 +5,7 @@
 """
 
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import re
@@ -586,6 +587,14 @@ def _build_session_factory(db: Session) -> sessionmaker:
     return sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
 
 
+def _log_async_task_failure(task: asyncio.Task[Any]) -> None:
+    """用于统一记录后台异步任务里的异常，避免静默失败。"""
+    try:
+        task.result()
+    except Exception:
+        logger.exception("Interview background task failed")
+
+
 def _fallback_evaluation(question: str, answer: str) -> str:
     """用于在 LLM 评估失败时提供简短文本兜底结果。"""
     normalized = (answer or "").strip()
@@ -1018,18 +1027,20 @@ async def answer_interview(
         )
         db.commit()
         db.refresh(session)
-        background_tasks.add_task(
-            _persist_turn_evaluation,
-            session_factory=background_session_factory,
-            user_id=current_user["id"],
-            session_id=session.id,
-            turn_id=turn.id,
-            question=turn.question,
-            answer=answer_text,
-            resume_content=resume_content,
-            history=history,
-            event_callback=None,
+        evaluation_task = asyncio.create_task(
+            _persist_turn_evaluation(
+                session_factory=background_session_factory,
+                user_id=current_user["id"],
+                session_id=session.id,
+                turn_id=turn.id,
+                question=turn.question,
+                answer=answer_text,
+                resume_content=resume_content,
+                history=history,
+                event_callback=None,
+            )
         )
+        evaluation_task.add_done_callback(_log_async_task_failure)
         observer.finish("interview_completed")
         return InterviewActionResponse(
             session=_serialize_session(session),
@@ -1049,6 +1060,21 @@ async def answer_interview(
         new_round_type = current_round["type"]
         new_round_goal = current_round["goal"]
 
+    evaluation_task = asyncio.create_task(
+        _persist_turn_evaluation(
+            session_factory=background_session_factory,
+            user_id=current_user["id"],
+            session_id=session.id,
+            turn_id=turn.id,
+            question=turn.question,
+            answer=answer_text,
+            resume_content=resume_content,
+            history=history,
+            event_callback=None,
+        )
+    )
+    evaluation_task.add_done_callback(_log_async_task_failure)
+
     try:
         with observer:
             question = await _generate_question(
@@ -1062,19 +1088,6 @@ async def answer_interview(
         raise
     if not question:
         question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
-
-    background_tasks.add_task(
-        _persist_turn_evaluation,
-        session_factory=background_session_factory,
-        user_id=current_user["id"],
-        session_id=session.id,
-        turn_id=turn.id,
-        question=turn.question,
-        answer=answer_text,
-        resume_content=resume_content,
-        history=history,
-        event_callback=None,
-    )
 
     next_turn = InterviewTurn(
         session_id=session.id,
@@ -1105,7 +1118,6 @@ async def answer_interview_stream(
     session_id: int,
     http_request: Request,
     request: InterviewAnswerRequest,
-    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1146,21 +1158,6 @@ async def answer_interview_stream(
     db.commit()
     db.refresh(session)
 
-    if session.mode == "practice":
-        # 让题后评估在流式响应结束后执行，保证不会和下一题同帧出现。
-        background_tasks.add_task(
-            _persist_turn_evaluation,
-            session_factory=background_session_factory,
-            user_id=current_user["id"],
-            session_id=session.id,
-            turn_id=turn.id,
-            question=turn.question,
-            answer=answer_text,
-            resume_content=resume_content,
-            history=history,
-            event_callback=None,
-        )
-
     async def generate():
         nonlocal session
         with log_context(
@@ -1192,9 +1189,15 @@ async def answer_interview_stream(
                     remaining = max_q - questions_in_round
                     prompt = _build_same_round_prompt(current_round["type"], current_round["goal"], remaining)
 
-                # 2. 流式生成问题（结束场景跳过）
+                queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
                 accumulated = ""
-                if prompt is not None:
+
+                async def stream_next_question() -> None:
+                    """用于把下一题的 token 按流式事件推入队列。"""
+                    nonlocal accumulated
+                    if prompt is None:
+                        await queue.put({"type": "question_complete"})
+                        return
                     try:
                         async for chunk in _interviewer_agent.chat_stream(
                             user_message=prompt,
@@ -1205,66 +1208,128 @@ async def answer_interview_stream(
                             token = chunk.get("content") or ""
                             if token:
                                 accumulated += token
-                                yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
+                                await queue.put({"type": "token", "content": token})
                     except Exception as e:
                         observer.fail(str(e))
                         logger.warning("Stream generation failed: %s", e)
-                        accumulated = ""
+                    finally:
+                        await queue.put({"type": "question_complete"})
 
-                question = accumulated.strip() or None
+                async def stream_turn_evaluation() -> None:
+                    """用于并行生成当前题评估，并把结果作为事件推入队列。"""
+                    if session.mode != "practice":
+                        await queue.put({"type": "evaluation_complete"})
+                        return
+                    try:
+                        evaluation_text = await _persist_turn_evaluation(
+                            session_factory=background_session_factory,
+                            user_id=current_user["id"],
+                            session_id=session.id,
+                            turn_id=turn.id,
+                            question=turn.question,
+                            answer=answer_text,
+                            resume_content=resume_content,
+                            history=history,
+                            event_callback=None,
+                        )
+                        await queue.put(
+                            {
+                                "type": "evaluation",
+                                "turn_id": turn.id,
+                                "evaluation": evaluation_text,
+                            }
+                        )
+                    finally:
+                        await queue.put({"type": "evaluation_complete"})
 
-                # 3. 持久化新状态
-                if is_completed:
-                    session.status = "completed"
-                    session.ended_at = _now()
-                    session.report_data = _build_interview_report(
-                        turns=list(session.turns or []),
-                        target_title=session.target_title or "",
-                        target_company=session.target_company or "",
-                    )
-                    db.commit()
-                    db.refresh(session)
-                    done_payload = {
-                        "type": "done",
-                        "next_action": "completed",
-                        "session": _serialize_session(session),
-                    }
-                else:
-                    if force_next_round:
-                        next_round = rounds[next_round_index]
-                        new_round_type = next_round["type"]
-                        new_round_goal = next_round["goal"]
+                question_task = asyncio.create_task(stream_next_question())
+                question_task.add_done_callback(_log_async_task_failure)
+                evaluation_task = asyncio.create_task(stream_turn_evaluation())
+                evaluation_task.add_done_callback(_log_async_task_failure)
+
+                question_completed = False
+                evaluation_completed = session.mode != "practice"
+                done_emitted = False
+
+                while not (done_emitted and evaluation_completed):
+                    event = await queue.get()
+                    event_type = str(event.get("type") or "")
+
+                    if event_type == "token":
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                        continue
+
+                    if event_type == "evaluation":
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                        continue
+
+                    if event_type == "evaluation_complete":
+                        evaluation_completed = True
+                        continue
+
+                    if event_type != "question_complete":
+                        continue
+
+                    question_completed = True
+                    question = accumulated.strip() or None
+
+                    if is_completed:
+                        session.status = "completed"
+                        session.ended_at = _now()
+                        session.report_data = _build_interview_report(
+                            turns=list(session.turns or []),
+                            target_title=session.target_title or "",
+                            target_company=session.target_company or "",
+                        )
+                        db.commit()
+                        db.refresh(session)
+                        done_payload = {
+                            "type": "done",
+                            "next_action": "completed",
+                            "session": _serialize_session(session),
+                        }
                     else:
-                        new_round_type = current_round["type"]
-                        new_round_goal = current_round["goal"]
-                    if not question:
-                        question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
-                    next_turn = InterviewTurn(
-                        session_id=session.id,
-                        turn_index=session.current_turn_index + 1,
-                        round_index=next_round_index,
-                        question=question,
-                        question_type=new_round_type,
-                        intent=new_round_goal,
-                        status="asked",
-                        asked_at=_now(),
-                    )
-                    session.current_turn_index += 1
-                    session.current_round_index = next_round_index
-                    session.status = "waiting_user_answer"
-                    db.add(next_turn)
-                    db.commit()
-                    db.refresh(session)
-                    done_payload = {
-                        "type": "done",
-                        "next_action": "next_question",
-                        "message": question,
-                        "session": _serialize_session(session),
-                    }
+                        if force_next_round:
+                            next_round = rounds[next_round_index]
+                            new_round_type = next_round["type"]
+                            new_round_goal = next_round["goal"]
+                        else:
+                            new_round_type = current_round["type"]
+                            new_round_goal = current_round["goal"]
+                        if not question:
+                            question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+                        next_turn = InterviewTurn(
+                            session_id=session.id,
+                            turn_index=session.current_turn_index + 1,
+                            round_index=next_round_index,
+                            question=question,
+                            question_type=new_round_type,
+                            intent=new_round_goal,
+                            status="asked",
+                            asked_at=_now(),
+                        )
+                        session.current_turn_index += 1
+                        session.current_round_index = next_round_index
+                        session.status = "waiting_user_answer"
+                        db.add(next_turn)
+                        db.commit()
+                        db.refresh(session)
+                        done_payload = {
+                            "type": "done",
+                            "next_action": "next_question",
+                            "message": question,
+                            "session": _serialize_session(session),
+                        }
 
-                logger.info("Interview stream completed next_action=%s", done_payload["next_action"])
-                observer.finish(done_payload.get("message") or done_payload["next_action"])
-                yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+                    logger.info("Interview stream completed next_action=%s", done_payload["next_action"])
+                    observer.finish(done_payload.get("message") or done_payload["next_action"])
+                    yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+                    done_emitted = True
+
+                if not question_completed:
+                    await question_task
+                if not evaluation_completed:
+                    await evaluation_task
 
     return StreamingResponse(
         generate(),
@@ -1274,7 +1339,6 @@ async def answer_interview_stream(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
-        background=background_tasks,
     )
 
 

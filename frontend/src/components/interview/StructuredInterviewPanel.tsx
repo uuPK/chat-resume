@@ -26,6 +26,7 @@ interface StructuredInterviewPanelProps {
   session: InterviewSession | null
   inputMessage: string
   pendingAnswer: string | null
+  pendingQuestion?: string | null
   pendingEvaluationTurnId?: number | null
   isSending: boolean
   isRequestingHint?: boolean
@@ -95,6 +96,7 @@ export default function StructuredInterviewPanel({
   session,
   inputMessage,
   pendingAnswer,
+  pendingQuestion = null,
   pendingEvaluationTurnId = null,
   isSending,
   isRequestingHint = false,
@@ -309,7 +311,33 @@ export default function StructuredInterviewPanel({
           )
         })}
 
-        {isSending && pendingAnswer && (
+        {isSending && pendingQuestion && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.32 }}
+            className="px-6 py-6"
+            style={{
+              borderRadius: '32px',
+              border: '1px solid rgba(91, 97, 110, 0.2)',
+              backgroundColor: '#ffffff',
+            }}
+          >
+            <div className="flex items-start gap-4">
+              <InterviewerAvatar />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                  面试官
+                </p>
+                <p className="mt-3 whitespace-pre-wrap text-[15px]" style={{ color: '#0a0b0d', lineHeight: '1.56' }}>
+                  {pendingQuestion}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {isSending && pendingAnswer && !pendingQuestion && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

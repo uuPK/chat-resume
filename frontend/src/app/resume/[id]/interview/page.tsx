@@ -46,6 +46,7 @@ export default function InterviewPage() {
     isSending,
     isRequestingHint,
     pendingAnswer,
+    pendingQuestion,
     pendingEvaluationTurnId,
     error: sessionError,
     hintItems,
@@ -174,6 +175,7 @@ export default function InterviewPage() {
             session={session}
             inputMessage={inputMessage}
             pendingAnswer={pendingAnswer}
+            pendingQuestion={pendingQuestion}
             pendingEvaluationTurnId={pendingEvaluationTurnId}
             isSending={isSending}
             isRequestingHint={isRequestingHint}

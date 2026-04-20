@@ -421,6 +421,7 @@ export default function ResumeEditPage() {
     isRequestingHint: ivRequestingHint,
     error: ivError,
     pendingAnswer: ivPendingAnswer,
+    pendingQuestion: ivPendingQuestion,
     pendingEvaluationTurnId: ivPendingEvaluationTurnId,
     hintItems: ivHintItems,
     sendAnswer: sendInterviewAnswer,
@@ -1197,6 +1198,7 @@ export default function ResumeEditPage() {
                   session={ivSession}
                   inputMessage={ivInput}
                   pendingAnswer={ivPendingAnswer}
+                  pendingQuestion={ivPendingQuestion}
                   pendingEvaluationTurnId={ivPendingEvaluationTurnId}
                   isSending={ivSending}
                   isRequestingHint={ivRequestingHint}

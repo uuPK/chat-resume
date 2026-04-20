@@ -94,6 +94,7 @@ export function useInterviewSession({
   const [isRequestingHint, setIsRequestingHint] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingAnswer, setPendingAnswer] = useState<string | null>(null)
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
   const [pendingEvaluationTurnId, setPendingEvaluationTurnId] = useState<number | null>(null)
   const [hintItems, setHintItems] = useState<string[]>([])
 
@@ -105,6 +106,7 @@ export function useInterviewSession({
     setInputMessage('')
     setError(null)
     setPendingAnswer(null)
+    setPendingQuestion(null)
     setPendingEvaluationTurnId(null)
     setIsSending(false)
     setHintItems([])
@@ -177,13 +179,49 @@ export function useInterviewSession({
     setError(null)
     setInputMessage('')
     setPendingAnswer(text)
+    setPendingQuestion(null)
+    setPendingEvaluationTurnId(
+      session.mode === 'practice'
+        ? ([...session.turns].reverse().find((turn) => turn.status === 'asked')?.id ?? null)
+        : null,
+    )
     setHintItems([])
 
     try {
       for await (const event of resumeApi.answerInterviewSessionStream(session.id, text)) {
+        if (event.type === 'token') {
+          setPendingQuestion((currentQuestion) => `${currentQuestion || ''}${event.content}`)
+          continue
+        }
+        if (event.type === 'evaluation') {
+          setSession((currentSession) => {
+            if (!currentSession) return currentSession
+            return {
+              ...currentSession,
+              turns: currentSession.turns.map((turn) => (
+                turn.id === event.turn_id
+                  ? { ...turn, evaluation: event.evaluation }
+                  : turn
+              )),
+            }
+          })
+          setPendingEvaluationTurnId((currentTurnId) => (currentTurnId === event.turn_id ? null : currentTurnId))
+          continue
+        }
         if (event.type === 'done') {
-          setSession(event.session)
+          setSession((currentSession) => {
+            if (!currentSession) return event.session
+            return {
+              ...event.session,
+              turns: event.session.turns.map((turn) => {
+                const existingTurn = currentSession.turns.find((item) => item.id === turn.id)
+                if (turn.evaluation || !existingTurn?.evaluation) return turn
+                return { ...turn, evaluation: existingTurn.evaluation }
+              }),
+            }
+          })
           setPendingAnswer(null)
+          setPendingQuestion(null)
           const answeredTurn = [...event.session.turns].reverse().find((turn) => !!turn.answer)
           if (event.session.mode === 'practice' && answeredTurn && !answeredTurn.evaluation) {
             setPendingEvaluationTurnId(answeredTurn.id)
@@ -195,6 +233,7 @@ export function useInterviewSession({
       }
     } catch (err) {
       setPendingAnswer(null)
+      setPendingQuestion(null)
       setPendingEvaluationTurnId(null)
       setError(err instanceof Error ? err.message : '提交回答失败')
     } finally {
@@ -247,6 +286,7 @@ export function useInterviewSession({
     isRequestingHint,
     error,
     pendingAnswer,
+    pendingQuestion,
     pendingEvaluationTurnId,
     hintItems,
     sendAnswer,
