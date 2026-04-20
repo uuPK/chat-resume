@@ -359,6 +359,73 @@ class TestJDOcrUpload:
         assert "Unsupported image format" in resp.json()["detail"]
 
 
+class TestResumeUpload:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        """为简历上传接口测试准备登录态。"""
+        _register(client, "resume_upload_user@example.com")
+        self.token = _login(client, "resume_upload_user@example.com")
+        self.headers = _auth_headers(self.token)
+        self.client = client
+
+    def test_upload_resume_parses_and_persists_uploaded_file(self, monkeypatch):
+        """通过真实 multipart 上传验证简历上传接口会走解析和入库链路。"""
+        fixture_path = Path(__file__).resolve().parent / "fixtures" / "sample_resume_upload.txt"
+        extracted_text = fixture_path.read_text(encoding="utf-8")
+        saved_file_path = "/tmp/test_resume_upload.txt"
+        deleted_paths: list[str] = []
+
+        async def _fake_save_uploaded_file(self, file):
+            """模拟保存上传文件，并验证接口确实收到了真实文件名。"""
+            assert file.filename == "sample_resume_upload.txt"
+            return saved_file_path
+
+        def _fake_extract_text_from_file(self, file_path: str, filename: str) -> str:
+            """模拟从已保存文件中提取文本，供后续解析使用。"""
+            assert file_path == saved_file_path
+            assert filename == "sample_resume_upload.txt"
+            return extracted_text
+
+        async def _fake_parse_resume_text_async(self, text: str) -> dict:
+            """模拟 AI 简历解析结果，保证接口级测试不依赖外部模型。"""
+            assert text == extracted_text
+            return {
+                "parsing_quality": 0.92,
+                "parsing_method": "ai",
+                "job_application": {"target_company": "OpenAI", "target_title": "后端工程师"},
+                "personal_info": {"name": "测试用户", "email": "e2e@example.com"},
+                "work_experience": [
+                    {"company": "OpenAI", "position": "后端工程师", "duration": "2024-至今", "highlights": []}
+                ],
+                "education": [],
+                "skills": [],
+                "projects": [],
+            }
+
+        def _fake_delete_file(self, file_path: str) -> None:
+            """记录临时文件清理动作，确保上传流程会尝试回收临时文件。"""
+            deleted_paths.append(file_path)
+
+        monkeypatch.setattr("app.entrypoints.http.upload.FileService.save_uploaded_file", _fake_save_uploaded_file)
+        monkeypatch.setattr("app.entrypoints.http.upload.FileService.extract_text_from_file", _fake_extract_text_from_file)
+        monkeypatch.setattr("app.entrypoints.http.upload.FileService.delete_file", _fake_delete_file)
+        monkeypatch.setattr("app.entrypoints.http.upload.ResumeParser.parse_resume_text_async", _fake_parse_resume_text_async)
+
+        response = self.client.post(
+            "/api/upload/resume",
+            files={"file": ("sample_resume_upload.txt", fixture_path.read_bytes(), "text/plain")},
+            headers=self.headers,
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["title"] == "sample_resume_upload"
+        assert body["original_filename"] == "sample_resume_upload.txt"
+        assert body["content"]["personal_info"]["name"] == "测试用户"
+        assert body["content"]["job_application"]["target_company"] == "OpenAI"
+        assert deleted_paths == [saved_file_path]
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. 简历 CRUD
