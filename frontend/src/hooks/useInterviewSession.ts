@@ -115,23 +115,13 @@ export function useInterviewSession({
    * 在下一题已展示后补拉当前题评估，避免和下一题同时出现。
    */
   const waitForEvaluation = useCallback(async (sessionId: number, turnId: number) => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      await delay(300)
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await delay(500)
       try {
         const result = await resumeApi.getInterviewSession(sessionId)
         const targetTurn = result.session.turns.find((turn) => turn.id === turnId)
         if (!targetTurn?.evaluation) continue
-        setSession((currentSession) => {
-          if (!currentSession) return currentSession
-          return {
-            ...currentSession,
-            turns: currentSession.turns.map((turn) => (
-              turn.id === turnId
-                ? { ...turn, evaluation: targetTurn.evaluation }
-                : turn
-            )),
-          }
-        })
+        setSession(result.session)
         setPendingEvaluationTurnId((currentTurnId) => (currentTurnId === turnId ? null : currentTurnId))
         return
       } catch {

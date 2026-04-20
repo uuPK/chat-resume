@@ -72,6 +72,13 @@ interface InterviewTurn {
   status: string
 }
 
+interface InterviewReportDimension {
+  title: string
+  assessment: string
+  evidence: string
+  advice: string
+}
+
 interface InterviewSession {
   id: number
   resume_id: number
@@ -93,8 +100,11 @@ interface InterviewSession {
   report_data?: {
     summary?: string
     strengths?: string[]
+    dimensions?: InterviewReportDimension[]
+    recurring_issues?: string[]
     weaknesses?: string[]
     next_training_plan?: string[]
+    resume_feedback?: string[]
   }
   turns: InterviewTurn[]
   current_turn?: InterviewTurn | null

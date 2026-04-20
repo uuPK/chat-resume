@@ -448,6 +448,10 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
         assert ended["report_data"] is not None
+        assert ended["report_data"]["dimensions"]
+        assert ended["report_data"]["recurring_issues"]
+        assert ended["report_data"]["next_training_plan"]
+        assert ended["report_data"]["resume_feedback"]
 
     def test_stream_answer_returns_next_question_before_background_evaluation(self, monkeypatch):
         async def _delayed_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):

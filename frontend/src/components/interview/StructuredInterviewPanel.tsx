@@ -110,6 +110,10 @@ export default function StructuredInterviewPanel({
   const report = session?.report_data
   const isComplete = session?.status === 'completed'
   const isPracticeMode = session?.mode === 'practice'
+  const reportDimensions = report?.dimensions || []
+  const reportIssues = report?.recurring_issues || report?.weaknesses || []
+  const reportTrainingPlan = report?.next_training_plan || []
+  const reportResumeFeedback = report?.resume_feedback || []
 
   /**
    * 在会话更新后自动滚动到当前底部，保证答题体验连续。
@@ -224,22 +228,6 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
-              {isPendingEval && (
-                <div className="px-6 pb-5">
-                  <div
-                    className="flex items-center gap-3 rounded-[24px] border px-5 py-4 text-sm"
-                    style={{
-                      borderColor: 'rgba(91, 97, 110, 0.15)',
-                      backgroundColor: 'rgba(247,247,247,0.88)',
-                      color: '#5b616e',
-                    }}
-                  >
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#d6dae0] border-t-[#0052ff]" />
-                    正在生成下一题...
-                  </div>
-                </div>
-              )}
-
               {isActive && !isComplete && (
                 <div
                   className="px-6 pb-6 pt-2"
@@ -335,13 +323,16 @@ export default function StructuredInterviewPanel({
           >
             <div className="flex items-center gap-4">
               <InterviewerAvatar />
-              <div>
+              <div className="flex items-center gap-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#d6dae0] border-t-[#0052ff]" />
+                <div>
                 <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
                   面试官
                 </p>
                 <p className="mt-1 text-sm" style={{ color: '#5b616e' }}>
                   正在准备下一题...
                 </p>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -373,13 +364,44 @@ export default function StructuredInterviewPanel({
                 </p>
               )}
 
-              {report.weaknesses && report.weaknesses.length > 0 && (
+              {reportDimensions.length > 0 && (
+                <div className="mt-6 space-y-4">
+                  <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
+                    dimension review
+                  </p>
+                  {reportDimensions.map((dimension) => (
+                    <div
+                      key={dimension.title}
+                      className="rounded-[24px] border px-5 py-4"
+                      style={{
+                        borderColor: 'rgba(126, 166, 255, 0.18)',
+                        backgroundColor: 'rgba(255,255,255,0.04)',
+                      }}
+                    >
+                      <p className="text-sm font-semibold" style={{ color: '#ffffff' }}>
+                        {dimension.title}
+                      </p>
+                      <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.88)', lineHeight: '1.6' }}>
+                        {dimension.assessment}
+                      </p>
+                      <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.68)', lineHeight: '1.6' }}>
+                        {dimension.evidence}
+                      </p>
+                      <p className="mt-2 text-sm" style={{ color: '#7ea6ff', lineHeight: '1.6' }}>
+                        {dimension.advice}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reportIssues.length > 0 && (
                 <div className="mt-6">
                   <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
-                    gaps to close
+                    recurring issues
                   </p>
                   <ul className="mt-3 space-y-2">
-                    {report.weaknesses.map((weakness, index) => (
+                    {reportIssues.map((weakness, index) => (
                       <li key={index} className="flex items-start gap-3 text-sm" style={{ color: '#ffffff' }}>
                         <span
                           className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
@@ -392,19 +414,38 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
-              {report.next_training_plan && report.next_training_plan.length > 0 && (
+              {reportTrainingPlan.length > 0 && (
                 <div className="mt-6">
                   <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
                     next training plan
                   </p>
                   <ul className="mt-3 space-y-2">
-                    {report.next_training_plan.map((plan, index) => (
+                    {reportTrainingPlan.map((plan, index) => (
                       <li key={index} className="flex items-start gap-3 text-sm" style={{ color: '#ffffff' }}>
                         <span
                           className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
                           style={{ borderRadius: '100000px', backgroundColor: '#0052ff' }}
                         />
                         <span>{plan}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {reportResumeFeedback.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-xs font-semibold tracking-[0.16em] lowercase" style={{ color: '#7ea6ff' }}>
+                    resume feedback
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {reportResumeFeedback.map((feedback, index) => (
+                      <li key={index} className="flex items-start gap-3 text-sm" style={{ color: '#ffffff' }}>
+                        <span
+                          className="mt-[7px] h-1.5 w-1.5 flex-shrink-0"
+                          style={{ borderRadius: '100000px', backgroundColor: '#0052ff' }}
+                        />
+                        <span>{feedback}</span>
                       </li>
                     ))}
                   </ul>
