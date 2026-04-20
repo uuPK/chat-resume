@@ -15,7 +15,7 @@ import type {
 } from '@/types/resume'
 
 // 简历内容接口定义
-interface Resume {
+export interface Resume {
   id: number
   title: string
   content: ResumeContent
@@ -26,7 +26,7 @@ interface Resume {
   updated_at?: string
 }
 
-interface ResumeListItem {
+export interface ResumeListItem {
   id: number
   title: string
   original_filename?: string
@@ -441,8 +441,6 @@ export const chatHistoryApi = ChatHistoryAPI
 
 // 导出类型
 export type {
-  Resume,
-  ResumeListItem,
   ResumeContent,
   InterviewActionResponse,
   InterviewHintResponse,
