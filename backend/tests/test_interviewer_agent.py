@@ -2,7 +2,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -38,7 +37,9 @@ class FakeChatService:
 class InterviewerAgentTests(unittest.IsolatedAsyncioTestCase):
     async def test_chat_returns_plain_text_without_tool_calls(self):
         agent = InterviewerAgent()
-        agent.runtime = AgentRuntime(chat_service=FakeChatService("请你先用两分钟介绍一下你最近的核心项目。"))
+        agent.runtime = AgentRuntime(
+            chat_service=FakeChatService("请你先用两分钟介绍一下你最近的核心项目。")
+        )
 
         result = await agent.chat(
             user_message="开始面试",

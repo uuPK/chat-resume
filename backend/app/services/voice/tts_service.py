@@ -5,9 +5,11 @@
 支持MiniMax等多种TTS服务。
 """
 
-import httpx
-from typing import Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, Optional
+
+import httpx
+
 from app.infra.config import settings
 
 

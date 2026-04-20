@@ -29,7 +29,16 @@ def extract_keywords(text: str, limit: int = 6) -> list[str]:
         if not normalized:
             continue
         lowered = normalized.lower()
-        if lowered in {"请问", "一下", "一个", "这个", "那个", "为什么", "怎么", "是否"}:
+        if lowered in {
+            "请问",
+            "一下",
+            "一个",
+            "这个",
+            "那个",
+            "为什么",
+            "怎么",
+            "是否",
+        }:
             continue
         if lowered not in {item.lower() for item in keywords}:
             keywords.append(normalized)
@@ -50,13 +59,25 @@ def analyze_turn(turn: InterviewTurn) -> dict[str, bool]:
     question_keywords = extract_keywords(turn.question, limit=4)
     answer_keywords = extract_keywords(answer, limit=8)
 
-    directly_answers = not question_keywords or contains_keyword(answer, question_keywords)
-    has_ownership = any(token in answer for token in ("我", "自己", "主导", "负责", "推进"))
+    directly_answers = not question_keywords or contains_keyword(
+        answer, question_keywords
+    )
+    has_ownership = any(
+        token in answer for token in ("我", "自己", "主导", "负责", "推进")
+    )
     has_metrics = any(char.isdigit() for char in answer)
     has_context = len(answer) >= 60
     has_depth = len(answer) >= 120
-    has_reflection = any(token in answer for token in ("复盘", "总结", "学到", "改进", "下次"))
-    mentions_result = any(token in answer for token in ("结果", "效果", "提升", "增长", "降低", "优化")) or has_metrics
+    has_reflection = any(
+        token in answer for token in ("复盘", "总结", "学到", "改进", "下次")
+    )
+    mentions_result = (
+        any(
+            token in answer
+            for token in ("结果", "效果", "提升", "增长", "降低", "优化")
+        )
+        or has_metrics
+    )
 
     return {
         "directly_answers": directly_answers,
@@ -70,7 +91,9 @@ def analyze_turn(turn: InterviewTurn) -> dict[str, bool]:
     }
 
 
-def build_report_dimension(title: str, assessment: str, evidence: str, advice: str) -> dict[str, str]:
+def build_report_dimension(
+    title: str, assessment: str, evidence: str, advice: str
+) -> dict[str, str]:
     """用于统一构造前端可直接展示的报告维度项。"""
     return {
         "title": title,
@@ -90,9 +113,14 @@ def build_interview_report(
     """用于把整场问答整理成结构化面试报告。"""
     answered_turns = [turn for turn in turns if (turn.answer or "").strip()]
     if not answered_turns:
-        summary_prefix = "本场面试已提前结束。" if ended_by_user else "本场模拟面试已结束。"
+        summary_prefix = (
+            "本场面试已提前结束。" if ended_by_user else "本场模拟面试已结束。"
+        )
         return {
-            "summary": f"{summary_prefix} 当前样本还不足，建议至少完成 3 题后再看完整复盘。",
+            "summary": (
+                f"{summary_prefix} 当前样本还不足，"
+                "建议至少完成 3 题后再看完整复盘。"
+            ),
             "dimensions": [
                 build_report_dimension(
                     "切题度",
@@ -156,9 +184,14 @@ def build_interview_report(
         recurring_issues.append("多次缺少量化结果或具体指标，回答说服力不够。")
     if context_count <= max(1, total // 2):
         recurring_issues.append("多次缺少背景和过程，回答容易显得过短。")
-    if any(turn.question_type == "behavioral" for turn, _signal in analyzed_turns) and reflection_count == 0:
+    if (
+        any(turn.question_type == "behavioral" for turn, _signal in analyzed_turns)
+        and reflection_count == 0
+    ):
         recurring_issues.append("行为题里复盘不足，缺少你从事件里学到了什么。")
-    recurring_issues = recurring_issues[:3] or ["整体完成度尚可，下一轮重点把回答说得更具体。"]
+    recurring_issues = recurring_issues[:3] or [
+        "整体完成度尚可，下一轮重点把回答说得更具体。"
+    ]
 
     if direct_count >= max(1, total - 1):
         strongest_point = "多数回答能先回应问题本身"
@@ -169,7 +202,9 @@ def build_interview_report(
     else:
         strongest_point = "能持续完成整场问答"
 
-    issue_pressure = total - direct_count + total - ownership_count + total - metrics_count
+    issue_pressure = (
+        total - direct_count + total - ownership_count + total - metrics_count
+    )
     if issue_pressure <= total:
         overall_verdict = "整体已经具备继续深聊的基础"
     elif issue_pressure <= total * 2:
@@ -193,7 +228,11 @@ def build_interview_report(
     focus_evidence = f"{direct_count}/{total} 题在回答里明显命中了题干关键词。"
     focus_advice = "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
 
-    clarity_hits = sum(1 for _, signal in analyzed_turns if signal["has_context"] and signal["directly_answers"])
+    clarity_hits = sum(
+        1
+        for _, signal in analyzed_turns
+        if signal["has_context"] and signal["directly_answers"]
+    )
     if clarity_hits >= max(1, total - 1):
         clarity_assessment = "回答组织相对清楚，听者能跟上你的表达节奏。"
     elif clarity_hits >= max(1, total // 2):
@@ -203,7 +242,11 @@ def build_interview_report(
     clarity_evidence = f"{clarity_hits}/{total} 题同时具备基本切题和背景展开。"
     clarity_advice = "统一按背景、动作、结果三段式说，避免只给一句结论。"
 
-    depth_hits = sum(1 for _, signal in analyzed_turns if signal["has_ownership"] and signal["mentions_result"])
+    depth_hits = sum(
+        1
+        for _, signal in analyzed_turns
+        if signal["has_ownership"] and signal["mentions_result"]
+    )
     if depth_hits >= max(1, total - 1):
         depth_assessment = "项目和经历能讲到个人动作与结果，深度相对够用。"
     elif depth_hits >= max(1, total // 2):
@@ -214,7 +257,9 @@ def build_interview_report(
         f"{ownership_count}/{total} 题明确讲到个人贡献，"
         f"{result_count}/{total} 题补到了结果或效果。"
     )
-    depth_advice = "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+    depth_advice = (
+        "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+    )
 
     if not role_keywords:
         role_assessment = "这场更多基于简历追问，岗位匹配表达样本还不够。"
@@ -222,21 +267,30 @@ def build_interview_report(
         role_advice = "下轮开始前把目标岗位和公司补全，并准备一版岗位动机。"
     elif role_match_count >= max(1, total // 2):
         role_assessment = "回答里已经能主动贴近目标岗位，匹配表达比较自然。"
-        role_evidence = f"{role_match_count}/{total} 题回答中主动提到了岗位或公司相关关键词。"
+        role_evidence = (
+            f"{role_match_count}/{total} 题回答中主动提到了岗位或公司相关关键词。"
+        )
         role_advice = "继续把岗位关键词和代表项目绑定起来，说清楚为什么你适合这个岗位。"
     else:
         role_assessment = "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。"
-        role_evidence = f"{role_match_count}/{total} 题回答中主动提到了岗位或公司相关关键词。"
+        role_evidence = (
+            f"{role_match_count}/{total} 题回答中主动提到了岗位或公司相关关键词。"
+        )
         role_advice = "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
 
     next_training_plan: list[str] = []
     if direct_count <= max(1, total // 2):
         next_training_plan.append("先练“直接回答问题”，每题先用一句话给结论，再展开。")
     if ownership_count <= max(1, total // 2):
-        next_training_plan.append("再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。")
+        next_training_plan.append(
+            "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。"
+        )
     if metrics_count <= max(1, total // 2):
         next_training_plan.append("再练“量化结果”，每题至少补一个结果指标或业务影响。")
-    if any(turn.question_type == "behavioral" for turn, _signal in analyzed_turns) and reflection_count == 0:
+    if (
+        any(turn.question_type == "behavioral" for turn, _signal in analyzed_turns)
+        and reflection_count == 0
+    ):
         next_training_plan.append("行为题补一层复盘，说明你从这件事里学到了什么。")
     next_training_plan = next_training_plan[:3] or [
         "下一轮继续保持直接回答问题的习惯。",
@@ -245,24 +299,43 @@ def build_interview_report(
 
     resume_feedback: list[str] = []
     if metrics_count <= max(1, total // 2):
-        resume_feedback.append("简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。")
+        resume_feedback.append(
+            "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。"
+        )
     if ownership_count <= max(1, total // 2):
-        resume_feedback.append("简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。")
+        resume_feedback.append(
+            "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。"
+        )
     if direct_count <= max(1, total // 2):
-        resume_feedback.append("简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。")
+        resume_feedback.append(
+            "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+        )
     if role_keywords and role_match_count <= max(1, total // 3):
         resume_feedback.append(
-            f"简历里需要更明显地突出与“{target_title or target_company}”直接相关的能力和经历。"
+            (
+                "简历里需要更明显地突出与"
+                f"“{target_title or target_company}”直接相关的能力和经历。"
+            )
         )
-    resume_feedback = resume_feedback[:3] or ["简历和面试表达基本一致，下一轮重点继续打磨结果和细节。"]
+    resume_feedback = resume_feedback[:3] or [
+        "简历和面试表达基本一致，下一轮重点继续打磨结果和细节。"
+    ]
 
     return {
         "summary": summary,
         "dimensions": [
-            build_report_dimension("切题度", focus_assessment, focus_evidence, focus_advice),
-            build_report_dimension("表达清晰度", clarity_assessment, clarity_evidence, clarity_advice),
-            build_report_dimension("项目/经历深度", depth_assessment, depth_evidence, depth_advice),
-            build_report_dimension("岗位匹配度", role_assessment, role_evidence, role_advice),
+            build_report_dimension(
+                "切题度", focus_assessment, focus_evidence, focus_advice
+            ),
+            build_report_dimension(
+                "表达清晰度", clarity_assessment, clarity_evidence, clarity_advice
+            ),
+            build_report_dimension(
+                "项目/经历深度", depth_assessment, depth_evidence, depth_advice
+            ),
+            build_report_dimension(
+                "岗位匹配度", role_assessment, role_evidence, role_advice
+            ),
         ],
         "recurring_issues": recurring_issues,
         "weaknesses": recurring_issues,
@@ -346,7 +419,9 @@ def fallback_evaluation(question: str, answer: str) -> str:
     gaps: list[str] = []
     missing_question_focus = False
     question_keywords = re.findall(r"[\u4e00-\u9fffA-Za-z]{2,}", question or "")
-    if question_keywords and not any(keyword in normalized for keyword in question_keywords[:4]):
+    if question_keywords and not any(
+        keyword in normalized for keyword in question_keywords[:4]
+    ):
         missing_question_focus = True
     if len(normalized) < 60:
         gaps.append("回答偏短，缺少背景和结果")
@@ -357,8 +432,14 @@ def fallback_evaluation(question: str, answer: str) -> str:
     if missing_question_focus:
         gaps.insert(0, "没有直接回应问题本身")
     if gaps:
-        return "面试系统反馈：" + "；".join(gaps[:2]) + "。建议先直接回答问题，再补充个人贡献和结果。"
-    return "面试系统反馈：回答基本切题，但还可以补充更具体的个人动作和结果，让信息更完整。"
+        return (
+            "面试系统反馈："
+            + "；".join(gaps[:2])
+            + "。建议先直接回答问题，再补充个人贡献和结果。"
+        )
+    return (
+        "面试系统反馈：回答基本切题，但还可以补充更具体的个人动作和结果，让信息更完整。"
+    )
 
 
 async def evaluate_answer_with_llm(
@@ -417,9 +498,16 @@ async def persist_turn_evaluation(
 
     db = session_factory()
     try:
-        session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+        session = (
+            db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+        )
         turn = db.query(InterviewTurn).filter(InterviewTurn.id == turn_id).first()
-        if not session or session.user_id != user_id or not turn or turn.session_id != session_id:
+        if (
+            not session
+            or session.user_id != user_id
+            or not turn
+            or turn.session_id != session_id
+        ):
             return evaluation_text
 
         turn.evaluation = evaluation_text
@@ -428,7 +516,8 @@ async def persist_turn_evaluation(
                 turns=list(session.turns or []),
                 target_title=session.target_title or "",
                 target_company=session.target_company or "",
-                ended_by_user="已提前结束" in str((session.report_data or {}).get("summary") or ""),
+                ended_by_user="已提前结束"
+                in str((session.report_data or {}).get("summary") or ""),
             )
         db.commit()
         return evaluation_text

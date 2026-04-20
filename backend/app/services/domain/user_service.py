@@ -5,11 +5,13 @@
 处理用户数据验证和安全性检查。
 """
 
-from sqlalchemy.orm import Session
 from typing import Optional
+
+from sqlalchemy.orm import Session
+
+from app.infra.security import get_password_hash, verify_password
 from app.models.user import User
 from app.schemas.auth import UserCreate, UserUpdate
-from app.infra.security import get_password_hash, verify_password
 
 
 class UserService:

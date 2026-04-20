@@ -5,8 +5,9 @@
 支持多种格式导出的数据验证和序列化。
 """
 
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class ExportRequest(BaseModel):

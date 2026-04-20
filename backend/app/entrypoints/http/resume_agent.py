@@ -4,24 +4,26 @@
 提供与 AI Agent 聊天交互的 API 端点，包括简历优化。
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends, Request
+import json
+import logging
+from copy import deepcopy
+from typing import Any, Dict, cast
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Dict, Any, cast
-from copy import deepcopy
-from uuid import uuid4
+
 from app.agents.resume import ResumeAgent
-from app.runtime import AgentHarness, confirmation_manager
-from app.state import AgentSessionStore
-from app.services.domain import ResumeService
-from app.services.llm import ChatService
+from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.infra.langfuse_observer import LangfuseRunObserver
 from app.infra.request_context import log_context
-from app.entrypoints.http.deps import get_current_user
-import json
-import logging
+from app.runtime import AgentHarness, confirmation_manager
+from app.services.domain import ResumeService
+from app.services.llm import ChatService
+from app.state import AgentSessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +93,9 @@ _MODULE_TO_SECTION = {
 }
 
 
-def _filter_resume_by_visible_modules(resume_content: Dict[str, Any], visible_modules: list[str]) -> Dict[str, Any]:
+def _filter_resume_by_visible_modules(
+    resume_content: Dict[str, Any], visible_modules: list[str]
+) -> Dict[str, Any]:
     """用于按前端可见模块裁剪传给 Agent 的简历内容。"""
     if not visible_modules:
         return resume_content
@@ -157,7 +161,14 @@ async def chat_with_resume_stream(
             )
             try:
                 if session_id:
-                    yield f"data: {json.dumps({'session_id': session_id, 'content': '', 'done': False}, ensure_ascii=False)}\n\n"
+                    session_payload = {
+                        "session_id": session_id,
+                        "content": "",
+                        "done": False,
+                    }
+                    yield (
+                        f"data: {json.dumps(session_payload, ensure_ascii=False)}\n\n"
+                    )
 
                 # 获取用户真实简历数据
                 resume_service = ResumeService(db)
@@ -174,7 +185,11 @@ async def chat_with_resume_stream(
 
                 if resume.owner_id != current_user["id"]:
                     error_data = {
-                        "error": f"没有权限访问此简历 (简历所有者: {resume.owner_id}, 当前用户: {current_user['id']})",
+                        "error": (
+                            "没有权限访问此简历 "
+                            f"(简历所有者: {resume.owner_id}, "
+                            f"当前用户: {current_user['id']})"
+                        ),
                         "done": True,
                     }
                     yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
@@ -235,7 +250,10 @@ async def chat_with_resume_stream(
 
                     observer.finish("".join(final_content_parts))
 
-                if latest_resume_content is not None and latest_resume_content != original_resume:
+                if (
+                    latest_resume_content is not None
+                    and latest_resume_content != original_resume
+                ):
                     resume_service.update(
                         chat_request.resume_id,
                         {"content": latest_resume_content},
@@ -304,7 +322,10 @@ async def confirm_tool(
             if latest_pending and isinstance(latest_pending.payload, dict)
             else None
         )
-        if session.status != "waiting_confirmation" or pending_call_id != request.call_id:
+        if (
+            session.status != "waiting_confirmation"
+            or pending_call_id != request.call_id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="当前 session 没有匹配的待确认工具调用",
@@ -331,11 +352,15 @@ async def confirm_tool(
             return {
                 "ok": False,
                 "resumable": True,
-                "message": "确认结果已记录，但当前流式连接已结束，需要恢复 session 后继续执行",
+                "message": (
+                    "确认结果已记录，但当前流式连接已结束，需要恢复 session 后继续执行"
+                ),
             }
 
         await queue.put(request.confirmed)
-        logger.info("Resume agent tool confirmation received confirmed=%s", request.confirmed)
+        logger.info(
+            "Resume agent tool confirmation received confirmed=%s", request.confirmed
+        )
         return {"ok": True}
 
 
@@ -386,7 +411,9 @@ async def resume_agent_session(
             Dict[str, Any],
             resume.content if isinstance(resume.content, dict) else {},
         )
-        metadata = session.metadata_json if isinstance(session.metadata_json, dict) else {}
+        metadata = (
+            session.metadata_json if isinstance(session.metadata_json, dict) else {}
+        )
         visible_modules = metadata.get("visible_modules")
         filtered_resume = _filter_resume_by_visible_modules(
             resume_dict,
@@ -413,7 +440,9 @@ async def resume_agent_session(
                 {"content": latest_resume_content},
             )
 
-        logger.info("Resume agent session resumed applied=%s", bool(result.get("applied")))
+        logger.info(
+            "Resume agent session resumed applied=%s", bool(result.get("applied"))
+        )
         return {
             "ok": True,
             "session_id": request.session_id,

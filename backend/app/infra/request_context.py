@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Iterator
 
-
 _request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 _session_id_var: ContextVar[str | None] = ContextVar("session_id", default=None)
 _tool_call_id_var: ContextVar[str | None] = ContextVar("tool_call_id", default=None)

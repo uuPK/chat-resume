@@ -9,6 +9,7 @@ from time import perf_counter
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
+
 from app.infra.config import settings
 from app.infra.db_observability import record_checkout, record_query
 
@@ -30,9 +31,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @event.listens_for(engine, "before_cursor_execute")
-def before_cursor_execute(
-    conn, cursor, statement, parameters, context, executemany
-):
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
     context._query_started_at = perf_counter()
 
 
@@ -42,6 +41,7 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
     if query_started_at is None:
         return
     record_query(statement, (perf_counter() - query_started_at) * 1000)
+
 
 Base = declarative_base()
 

@@ -8,9 +8,12 @@
 import logging
 from time import perf_counter
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import get_current_user, get_current_user_claims
 from app.infra.database import get_db
 from app.schemas.resume import (
     LayoutConfigUpdate,
@@ -22,7 +25,6 @@ from app.schemas.resume import (
     dump_resume_preview_content_for_list,
 )
 from app.services.domain import ResumeService
-from app.entrypoints.http.deps import get_current_user, get_current_user_claims
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -47,7 +49,9 @@ def _build_resume_response(resume) -> ResumeResponse:
 def _build_resume_list_item(resume) -> ResumeListItem:
     """用于把数据库简历对象转换成列表页摘要模型。"""
     content = resume.content if isinstance(resume.content, dict) else {}
-    job_application = content.get("job_application", {}) if isinstance(content, dict) else {}
+    job_application = (
+        content.get("job_application", {}) if isinstance(content, dict) else {}
+    )
     return ResumeListItem.model_validate(
         {
             "id": resume.id,
@@ -61,6 +65,7 @@ def _build_resume_list_item(resume) -> ResumeListItem:
             "preview_content": dump_resume_preview_content_for_list(content),
         }
     )
+
 
 @router.get("/", response_model=List[ResumeListItem])
 async def get_resumes(
@@ -112,7 +117,10 @@ async def get_resume(
     validate_elapsed_ms = (perf_counter() - validate_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
-        "get_resume timings resume_id=%s user_id=%s query_ms=%.2f validate_ms=%.2f total_ms=%.2f",
+        (
+            "get_resume timings resume_id=%s user_id=%s query_ms=%.2f "
+            "validate_ms=%.2f total_ms=%.2f"
+        ),
         resume_id,
         current_user["id"],
         query_elapsed_ms,
@@ -174,9 +182,13 @@ async def update_resume_layout(
     resume_service = ResumeService(db)
     resume = resume_service.get_by_id(resume_id)
     if not resume:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
     if resume.owner_id != current_user["id"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
 
     updated = resume_service.update(resume_id, {"layout_config": layout.model_dump()})
     return _build_resume_response(updated)
@@ -214,10 +226,12 @@ async def delete_resume(
 
     return {"message": "Resume deleted successfully"}
 
+
 # ── 聊天记录 ──────────────────────────────────────────────────────────────────
 
+
 class ChatMessageIn(BaseModel):
-    role: str   # "user" | "assistant"
+    role: str  # "user" | "assistant"
     content: str
     stream_events: list | None = None
 
@@ -236,9 +250,13 @@ def _check_resume_access(resume_id: int, user_id: int, db: Session):
     resume_service = ResumeService(db)
     resume = resume_service.get_by_id(resume_id)
     if not resume:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
     if resume.owner_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
     return resume
 
 
@@ -251,6 +269,7 @@ async def get_chat_messages(
     """用于读取某份简历下保存的全部聊天记录。"""
     _check_resume_access(resume_id, current_user["id"], db)
     from app.models.resume import ResumeChatMessage
+
     msgs = (
         db.query(ResumeChatMessage)
         .filter(ResumeChatMessage.resume_id == resume_id)
@@ -270,6 +289,7 @@ async def append_chat_messages(
     """用于批量保存一次对话往返中的聊天记录。"""
     _check_resume_access(resume_id, current_user["id"], db)
     from app.models.resume import ResumeChatMessage
+
     saved = []
     for msg in messages:
         if msg.role not in ("user", "assistant"):
@@ -297,6 +317,9 @@ async def clear_chat_messages(
     """用于清空某份简历下的全部聊天记录。"""
     _check_resume_access(resume_id, current_user["id"], db)
     from app.models.resume import ResumeChatMessage
-    db.query(ResumeChatMessage).filter(ResumeChatMessage.resume_id == resume_id).delete()
+
+    db.query(ResumeChatMessage).filter(
+        ResumeChatMessage.resume_id == resume_id
+    ).delete()
     db.commit()
     return {"message": "cleared"}

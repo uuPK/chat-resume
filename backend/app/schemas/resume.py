@@ -178,7 +178,9 @@ class SkillItem(ResumeBaseModel):
             if "items" in value:
                 items = value.get("items", [])
                 if isinstance(items, list):
-                    normalized_items = [str(item).strip() for item in items if str(item).strip()]
+                    normalized_items = [
+                        str(item).strip() for item in items if str(item).strip()
+                    ]
                 elif items:
                     normalized_items = [str(items).strip()]
                 else:
@@ -336,7 +338,9 @@ class ResumeContent(ResumeBaseModel):
                 if isinstance(item, dict) and item.get("name"):
                     has_legacy_shape = True
                     category = str(item.get("category", "其他")).strip() or "其他"
-                    grouped.setdefault(category, []).append(str(item.get("name", "")).strip())
+                    grouped.setdefault(category, []).append(
+                        str(item.get("name", "")).strip()
+                    )
                     continue
                 if isinstance(item, str) and item.strip():
                     has_legacy_shape = True
@@ -436,30 +440,28 @@ _RESUME_LIST_PREVIEW_INCLUDE = {
 
 def _prune_empty_frontend_value(value: Any) -> Any:
     if isinstance(value, dict):
+        pruned = {key: _prune_empty_frontend_value(item) for key, item in value.items()}
         pruned = {
-            key: _prune_empty_frontend_value(item)
-            for key, item in value.items()
-        }
-        pruned = {
-            key: item
-            for key, item in pruned.items()
-            if item not in (None, "", [], {})
+            key: item for key, item in pruned.items() if item not in (None, "", [], {})
         }
         return pruned
 
     if isinstance(value, list):
-        pruned = [
-            _prune_empty_frontend_value(item)
-            for item in value
-        ]
+        pruned = [_prune_empty_frontend_value(item) for item in value]
         return [item for item in pruned if item not in (None, "", [], {})]
 
     return value
 
 
-def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
+def dump_resume_content_for_frontend(
+    content: "ResumeContent | dict[str, Any]",
+) -> dict[str, Any]:
     """输出和前端编辑器/预览一致的简历结构，作为统一标准。"""
-    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
+    normalized = (
+        content
+        if isinstance(content, ResumeContent)
+        else ResumeContent.model_validate(content)
+    )
     frontend_content = normalized.model_dump(
         mode="json",
         include=_FRONTEND_RESUME_CONTENT_INCLUDE,
@@ -467,9 +469,15 @@ def dump_resume_content_for_frontend(content: "ResumeContent | dict[str, Any]") 
     return _prune_empty_frontend_value(frontend_content) or {}
 
 
-def dump_resume_preview_content_for_list(content: "ResumeContent | dict[str, Any]") -> dict[str, Any]:
+def dump_resume_preview_content_for_list(
+    content: "ResumeContent | dict[str, Any]",
+) -> dict[str, Any]:
     """输出列表页卡片预览所需的最小内容，避免逐条详情请求。"""
-    normalized = content if isinstance(content, ResumeContent) else ResumeContent.model_validate(content)
+    normalized = (
+        content
+        if isinstance(content, ResumeContent)
+        else ResumeContent.model_validate(content)
+    )
     preview_content = normalized.model_dump(
         mode="json",
         include=_RESUME_LIST_PREVIEW_INCLUDE,
@@ -515,6 +523,7 @@ class ResumeResponse(BaseModel):
 
 class ResumeListItem(BaseModel):
     """列表页轻量响应。"""
+
     id: int
     title: str
     original_filename: Optional[str] = None

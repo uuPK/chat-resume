@@ -52,6 +52,126 @@ function buildResumeResponse(id: number) {
   }
 }
 
+/**
+ * 在浏览器里注入一个可控的 Resume Agent mock，用于真实驱动流式 diff 确认交互。
+ */
+async function installResumeAgentMock(page: Page) {
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window)
+    const diffSummary = [
+      '改前：负责前端开发',
+      '改后：主导前端重构，首屏加载提速 35%',
+      '改动理由：补充量化结果',
+    ].join('\n')
+
+    ;(window as Window & {
+      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
+      __resumeAgentResolve?: (confirmed: boolean) => void
+    }).__resumeAgentConfirmCalls = []
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const requestUrl =
+        typeof input === 'string'
+          ? input
+          : input instanceof Request
+            ? input.url
+            : input.toString()
+      const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
+
+      if (requestUrl.includes('/chat-messages')) {
+        return new Response('[]', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (requestUrl.includes('/api/ai/chat/confirm-tool')) {
+        const payload = init?.body && typeof init.body === 'string'
+          ? JSON.parse(init.body)
+          : { confirmed: false }
+        const runtimeWindow = window as Window & {
+          __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
+          __resumeAgentResolve?: (confirmed: boolean) => void
+        }
+        runtimeWindow.__resumeAgentConfirmCalls?.push(payload)
+        runtimeWindow.__resumeAgentResolve?.(Boolean(payload.confirmed))
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (requestUrl.includes('/api/ai/chat/stream')) {
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream({
+          async start(controller) {
+            const runtimeWindow = window as Window & {
+              __resumeAgentResolve?: (confirmed: boolean) => void
+            }
+            const decision = new Promise<boolean>((resolve) => {
+              runtimeWindow.__resumeAgentResolve = resolve
+            })
+            const pushEvent = (payload: Record<string, unknown>) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+            }
+            const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+            pushEvent({ session_id: 'resume_session_e2e', content: '', done: false })
+            await sleep(50)
+            pushEvent({ content: '我建议先强化项目结果表达。', done: false })
+            await sleep(50)
+            pushEvent({
+              tool_pending: true,
+              call_id: 'call_e2e',
+              tool_name: '优化项目经历',
+              diff_summary: diffSummary,
+              done: false,
+            })
+
+            const confirmed = await decision
+            await sleep(50)
+            pushEvent({
+              [confirmed ? 'tool_confirmed' : 'tool_rejected']: true,
+              call_id: 'call_e2e',
+              tool_name: '优化项目经历',
+              diff_summary: diffSummary,
+              done: false,
+            })
+            await sleep(50)
+            pushEvent({
+              content: confirmed ? '已应用修改。' : '已保留原文。',
+              done: false,
+            })
+            await sleep(30)
+            pushEvent({ done: true })
+            controller.close()
+          },
+        })
+
+        return new Response(stream, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }
+
+      return originalFetch(input, init)
+    }
+  })
+}
+
+/**
+ * 读取浏览器侧记录下来的确认请求，验证用户点击是否真的发出了对应确认结果。
+ */
+async function readResumeAgentConfirmCalls(page: Page) {
+  return page.evaluate(() => {
+    const runtimeWindow = window as Window & {
+      __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
+    }
+    return runtimeWindow.__resumeAgentConfirmCalls || []
+  })
+}
+
 test.describe('编辑页工作流', () => {
   test('上传真实文件后会进入编辑页并加载返回的简历', async ({ page }) => {
     await loginAs(page, uniqueEmail('uploadflow'))
@@ -297,5 +417,54 @@ test.describe('编辑页工作流', () => {
     await page.getByRole('button', { name: '结束面试' }).click()
     await expect(page.getByText('面试报告')).toBeVisible()
     await expect(page.getByText('这轮回答基本切题，但还需要补更多结果指标。')).toBeVisible()
+  })
+
+  test('Resume Agent 可以展示流式 diff 并确认修改', async ({ page }) => {
+    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentconfirm'))
+
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resumeId}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByText('优化项目经历')).toBeVisible()
+    await expect(page.getByText('主导前端重构，首屏加载提速 35%')).toBeVisible()
+    await page.getByRole('button', { name: '确认修改' }).click()
+
+    await expect(page.getByText('已应用修改。')).toBeVisible()
+    const confirmCalls = await readResumeAgentConfirmCalls(page)
+    expect(confirmCalls).toHaveLength(1)
+    expect(confirmCalls[0]).toMatchObject({
+      session_id: 'resume_session_e2e',
+      call_id: 'call_e2e',
+      confirmed: true,
+    })
+  })
+
+  test('Resume Agent 可以拒绝待确认的 diff 修改', async ({ page }) => {
+    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentreject'))
+
+    await installResumeAgentMock(page)
+    await page.goto(`/resume/${resumeId}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByText('优化项目经历')).toBeVisible()
+    await page.getByRole('button', { name: '拒绝' }).click()
+
+    await expect(page.getByText('已保留原文。')).toBeVisible()
+    const confirmCalls = await readResumeAgentConfirmCalls(page)
+    expect(confirmCalls).toHaveLength(1)
+    expect(confirmCalls[0]).toMatchObject({
+      session_id: 'resume_session_e2e',
+      call_id: 'call_e2e',
+      confirmed: false,
+    })
   })
 })

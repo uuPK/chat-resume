@@ -5,16 +5,18 @@
 处理文件格式检查、大小限制和上传错误处理。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+import logging
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
+from app.schemas.resume import ResumeCreate, ResumeResponse
 from app.services.domain import FileService, ResumeService
 from app.services.processing import JDOcrService, ResumeParser
-from app.schemas.resume import ResumeResponse, ResumeCreate
-from app.entrypoints.http.deps import get_current_user
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,10 @@ def _validate_jd_image(file: UploadFile) -> None:
     if content_type not in _ALLOWED_JD_IMAGE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported image format. Please upload PNG, JPG, JPEG, or WEBP images.",
+            detail=(
+                "Unsupported image format. "
+                "Please upload PNG, JPG, JPEG, or WEBP images."
+            ),
         )
 
 
@@ -58,7 +63,9 @@ async def upload_resume(
     if f".{file_extension}" not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file format. Please upload PDF, DOCX, DOC, or TXT files.",
+            detail=(
+                "Unsupported file format. Please upload PDF, DOCX, DOC, or TXT files."
+            ),
         )
 
     file_service = None

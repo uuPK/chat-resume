@@ -3,7 +3,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -25,9 +24,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
 
     def test_execute_wraps_success_result(self):
         resume = {
-            "projects": [
-                {"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}
-            ]
+            "projects": [{"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}]
         }
         executor = ResumeToolExecutor()
 
@@ -55,7 +52,10 @@ class ResumeToolExecutorTests(unittest.TestCase):
                 "item_id": "proj_1",
                 "text": "新增成果",
             },
-            context={"resume_content": {"projects": []}, "allowed_sections": {"skills"}},
+            context={
+                "resume_content": {"projects": []},
+                "allowed_sections": {"skills"},
+            },
         )
 
         self.assertFalse(result["result"]["success"])
@@ -78,11 +78,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
 
     def test_write_user_memory_persists_markdown_for_bound_user(self):
         executor = ResumeToolExecutor()
-        content = (
-            "# 长期记忆\n\n"
-            "## 写作偏好\n"
-            "- 不要夸大经历\n"
-        )
+        content = "# 长期记忆\n\n## 写作偏好\n- 不要夸大经历\n"
 
         result = executor.execute(
             tool_name="write_user_memory",

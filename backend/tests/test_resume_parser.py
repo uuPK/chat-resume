@@ -30,8 +30,8 @@ def _parser() -> AIResumeParser:
 # 1. _extract_basic_info
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestExtractBasicInfo(unittest.TestCase):
 
+class TestExtractBasicInfo(unittest.TestCase):
     def test_extracts_mainland_phone(self):
         info = _parser()._extract_basic_info("联系方式：13812345678")
         self.assertEqual(info["phone"], "13812345678")
@@ -136,8 +136,8 @@ class TestExtractBasicInfo(unittest.TestCase):
 # 2. _parse_ai_response
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestParseAiResponse(unittest.TestCase):
 
+class TestParseAiResponse(unittest.TestCase):
     def test_parses_clean_json(self):
         raw = '{"personal_info": {"name": "张伟"}, "skills": []}'
         result = _parser()._parse_ai_response(raw)
@@ -178,8 +178,8 @@ class TestParseAiResponse(unittest.TestCase):
 # 3. _clean_json_string
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestCleanJsonString(unittest.TestCase):
 
+class TestCleanJsonString(unittest.TestCase):
     def test_removes_json_code_fence(self):
         cleaned = _parser()._clean_json_string('```json\n{"a":1}\n```')
         self.assertEqual(cleaned, '{"a":1}')
@@ -190,7 +190,7 @@ class TestCleanJsonString(unittest.TestCase):
 
     def test_removes_bom(self):
         cleaned = _parser()._clean_json_string('\ufeff{"a":1}')
-        self.assertFalse(cleaned.startswith('\ufeff'))
+        self.assertFalse(cleaned.startswith("\ufeff"))
 
     def test_strips_surrounding_whitespace(self):
         cleaned = _parser()._clean_json_string('  \n{"a":1}\n  ')
@@ -200,6 +200,7 @@ class TestCleanJsonString(unittest.TestCase):
         raw = '{"desc": "line1\nline2"}'
         cleaned = _parser()._clean_json_string(raw)
         import json
+
         parsed = json.loads(cleaned)
         self.assertIn("line1", parsed["desc"])
 
@@ -207,6 +208,7 @@ class TestCleanJsonString(unittest.TestCase):
         valid = '{"name": "张伟", "skills": ["Python", "Go"]}'
         cleaned = _parser()._clean_json_string(valid)
         import json
+
         self.assertEqual(json.loads(cleaned), json.loads(valid))
 
 
@@ -214,70 +216,84 @@ class TestCleanJsonString(unittest.TestCase):
 # 4. _calculate_parsing_quality
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestCalculateParsingQuality(unittest.TestCase):
 
+class TestCalculateParsingQuality(unittest.TestCase):
     def test_empty_resume_scores_zero(self):
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {}, "skills": [], "projects": [], "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {"personal_info": {}, "skills": [], "projects": [], "education": []}
+        )
         self.assertEqual(score, 0.0)
 
     def test_full_personal_info_contributes_40_percent(self):
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {"name": "张伟", "email": "a@b.com", "phone": "138"},
-            "skills": [], "projects": [], "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {
+                "personal_info": {"name": "张伟", "email": "a@b.com", "phone": "138"},
+                "skills": [],
+                "projects": [],
+                "education": [],
+            }
+        )
         self.assertAlmostEqual(score, 0.4)
 
     def test_partial_personal_info_partial_score(self):
         # 只有 name(4分)，满分10分，→ 0.4 * 0.4 = 0.16
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {"name": "张伟"},
-            "skills": [], "projects": [], "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {
+                "personal_info": {"name": "张伟"},
+                "skills": [],
+                "projects": [],
+                "education": [],
+            }
+        )
         self.assertAlmostEqual(score, 0.16)
 
     def test_education_contributes_10_percent(self):
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {},
-            "skills": [],
-            "projects": [],
-            "education": [{"school": "北大"}]
-        })
+        score = _parser()._calculate_parsing_quality(
+            {
+                "personal_info": {},
+                "skills": [],
+                "projects": [],
+                "education": [{"school": "北大"}],
+            }
+        )
         self.assertAlmostEqual(score, 0.1)
 
     def test_8_skills_contributes_full_25_percent(self):
         skills = [{"category": "语言", "items": [str(i)]} for i in range(8)]
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {}, "skills": skills, "projects": [], "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {"personal_info": {}, "skills": skills, "projects": [], "education": []}
+        )
         self.assertAlmostEqual(score, 0.25)
 
     def test_3_projects_contributes_full_25_percent(self):
         projects = [{"name": f"项目{i}"} for i in range(3)]
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {}, "skills": [], "projects": projects, "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {"personal_info": {}, "skills": [], "projects": projects, "education": []}
+        )
         self.assertAlmostEqual(score, 0.25)
 
     def test_score_capped_at_1(self):
         skills = [{"category": "语言", "items": [str(i)]} for i in range(20)]
         projects = [{"name": f"项目{i}"} for i in range(10)]
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {"name": "张伟", "email": "a@b.com", "phone": "138"},
-            "skills": skills,
-            "projects": projects,
-            "education": [{"school": "北大"}]
-        })
+        score = _parser()._calculate_parsing_quality(
+            {
+                "personal_info": {"name": "张伟", "email": "a@b.com", "phone": "138"},
+                "skills": skills,
+                "projects": projects,
+                "education": [{"school": "北大"}],
+            }
+        )
         self.assertLessEqual(score, 1.0)
 
     def test_score_is_rounded_to_2_decimals(self):
-        score = _parser()._calculate_parsing_quality({
-            "personal_info": {"name": "张伟"},
-            "skills": [{"category": "x", "items": ["a"]}],
-            "projects": [],
-            "education": []
-        })
+        score = _parser()._calculate_parsing_quality(
+            {
+                "personal_info": {"name": "张伟"},
+                "skills": [{"category": "x", "items": ["a"]}],
+                "projects": [],
+                "education": [],
+            }
+        )
         self.assertEqual(score, round(score, 2))
 
 
@@ -285,11 +301,18 @@ class TestCalculateParsingQuality(unittest.TestCase):
 # 5. _create_fallback_result
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestCreateFallbackResult(unittest.TestCase):
 
+class TestCreateFallbackResult(unittest.TestCase):
     def test_returns_required_keys(self):
         result = _parser()._create_fallback_result("任意文本")
-        for key in ("personal_info", "education", "work_experience", "skills", "projects", "raw_text"):
+        for key in (
+            "personal_info",
+            "education",
+            "work_experience",
+            "skills",
+            "projects",
+            "raw_text",
+        ):
             self.assertIn(key, result)
 
     def test_parsing_method_is_fallback(self):

@@ -39,7 +39,8 @@ def recover_resume_session(
         not pending_event
         or not isinstance(pending_event.payload, dict)
         or not confirmation_event
-        or confirmation_event.event_type not in {"tool_call_confirmed", "tool_call_rejected"}
+        or confirmation_event.event_type
+        not in {"tool_call_confirmed", "tool_call_rejected"}
         or not isinstance(confirmation_event.payload, dict)
     ):
         return {

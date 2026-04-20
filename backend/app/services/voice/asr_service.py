@@ -8,12 +8,14 @@
 import asyncio
 import gzip
 import json
+import logging
 import struct
 import uuid
-import logging
-from typing import Dict, Any
 from enum import Enum
+from typing import Any, Dict
+
 import websockets
+
 from app.infra.config import settings
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -697,7 +696,9 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "已完成流式重试。",
         )
 
-    async def test_optimize_stream_auto_executes_read_user_memory_without_confirmation(self):
+    async def test_optimize_stream_auto_executes_read_user_memory_without_confirmation(
+        self,
+    ):
         chat_service = FakeChatService(
             stream_rounds=[
                 [
@@ -772,8 +773,14 @@ class ChatServiceChunkParsingTests(unittest.TestCase):
                 {
                     "message": {
                         "content": [
-                            {"type": "text", "text": '{"question":"请介绍你的系统设计思路",'},
-                            {"type": "text", "text": '"question_type":"technical","intent":"评估架构能力"}'},
+                            {
+                                "type": "text",
+                                "text": '{"question":"请介绍你的系统设计思路",',
+                            },
+                            {
+                                "type": "text",
+                                "text": '"question_type":"technical","intent":"评估架构能力"}',
+                            },
                         ]
                     }
                 }
@@ -838,8 +845,14 @@ class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
                             "finish_reason": "stop",
                             "message": {
                                 "content": [
-                                    {"type": "text", "text": '{"question":"请介绍你的系统设计思路",'},
-                                    {"type": "text", "text": '"question_type":"technical","intent":"评估架构能力"}'},
+                                    {
+                                        "type": "text",
+                                        "text": '{"question":"请介绍你的系统设计思路",',
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": '"question_type":"technical","intent":"评估架构能力"}',
+                                    },
                                 ]
                             },
                         }
@@ -861,7 +874,9 @@ class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
             '{"question":"请介绍你的系统设计思路","question_type":"technical","intent":"评估架构能力"}',
         )
 
-    async def test_next_message_falls_back_to_stream_when_non_stream_provider_returns_empty_packet(self):
+    async def test_next_message_falls_back_to_stream_when_non_stream_provider_returns_empty_packet(
+        self,
+    ):
         chat_service = FakeChatService(
             responses=[
                 {
@@ -908,7 +923,9 @@ class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(chat_service.chat_calls, 1)
         self.assertEqual(chat_service.stream_calls, 1)
         self.assertEqual(message["content"], "我来直接帮你改写这条亮点。")
-        self.assertEqual(message["tool_calls"][0]["function"]["name"], "update_highlight")
+        self.assertEqual(
+            message["tool_calls"][0]["function"]["name"], "update_highlight"
+        )
 
 
 if __name__ == "__main__":

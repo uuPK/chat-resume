@@ -1,6 +1,6 @@
 """用于定义 Agent 会话和事件日志的持久化模型。"""
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -38,7 +38,9 @@ class AgentEvent(Base):
     __tablename__ = "agent_events"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String, ForeignKey("agent_sessions.id"), nullable=False, index=True)
+    session_id = Column(
+        String, ForeignKey("agent_sessions.id"), nullable=False, index=True
+    )
     sequence = Column(Integer, nullable=False)
     event_type = Column(String, nullable=False, index=True)
     source = Column(String, nullable=False)

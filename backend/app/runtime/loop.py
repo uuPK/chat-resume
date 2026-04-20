@@ -159,8 +159,7 @@ class AgentRuntime:
                     "max_tokens": defaults.get("max_tokens", 1500),
                 },
                 "tool_names": [
-                    tool.get("function", {}).get("name")
-                    for tool in agent.tools_schema
+                    tool.get("function", {}).get("name") for tool in agent.tools_schema
                 ],
                 "done": False,
             }
@@ -185,7 +184,7 @@ class AgentRuntime:
                         "done": False,
                     }
 
-                for tc_delta in (delta.get("tool_calls") or []):
+                for tc_delta in delta.get("tool_calls") or []:
                     idx = tc_delta.get("index", 0)
                     if idx not in accumulated_tool_calls:
                         accumulated_tool_calls[idx] = {
@@ -242,10 +241,14 @@ class AgentRuntime:
                                 self._tool_name(tc),
                             )
                             preview_context = {
-                                "resume_content": deepcopy(context.get("resume_content")),
+                                "resume_content": deepcopy(
+                                    context.get("resume_content")
+                                ),
                             }
                             preview_result = agent.tool_executor(tc, preview_context)
-                        diff_summary = preview_result.get("display_message") or "执行完成"
+                        diff_summary = (
+                            preview_result.get("display_message") or "执行完成"
+                        )
                         diff_items = preview_result.get("result", {}).get(
                             "diff_items",
                             [],
@@ -311,14 +314,20 @@ class AgentRuntime:
                         else:
                             with log_context(tool_call_id=self._tool_call_id(tc)):
                                 logger.info(
-                                    "AgentRuntime tool_execute_start agent=%s tool=%s confirmed=%s",
+                                    (
+                                        "AgentRuntime tool_execute_start "
+                                        "agent=%s tool=%s confirmed=%s"
+                                    ),
                                     agent.prompt_spec.name,
                                     preview_result["tool_name"],
                                     True,
                                 )
                                 tool_result = agent.tool_executor(tc, context)
                                 logger.info(
-                                    "AgentRuntime tool_execute_result agent=%s tool=%s success=%s",
+                                    (
+                                        "AgentRuntime tool_execute_result "
+                                        "agent=%s tool=%s success=%s"
+                                    ),
                                     agent.prompt_spec.name,
                                     tool_result["tool_name"],
                                     not self._is_tool_failure(tool_result),
@@ -438,7 +447,10 @@ class AgentRuntime:
         if len(tool_calls) <= 1:
             return tool_calls
         logger.info(
-            "Agent returned %s tool calls in one round; only the first will be executed",
+            (
+                "Agent returned %s tool calls in one round; "
+                "only the first will be executed"
+            ),
             len(tool_calls),
         )
         return tool_calls[:1]
@@ -499,13 +511,15 @@ class AgentRuntime:
                     "max_tokens": defaults.get("max_tokens", 1500),
                 },
                 "tool_names": [
-                    tool.get("function", {}).get("name")
-                    for tool in agent.tools_schema
+                    tool.get("function", {}).get("name") for tool in agent.tools_schema
                 ],
             },
         )
         logger.info(
-            "AgentRuntime request agent=%s system_prompt_preview=%r user_message_preview=%r",
+            (
+                "AgentRuntime request agent=%s "
+                "system_prompt_preview=%r user_message_preview=%r"
+            ),
             agent.prompt_spec.name,
             system_prompt[:1500],
             str(user_message)[:1500],
@@ -525,13 +539,18 @@ class AgentRuntime:
             )
             choice = response["choices"][0]
             message = dict(choice["message"])
-            message["content"] = ChatService._coerce_content_text(message.get("content"))
+            message["content"] = ChatService._coerce_content_text(
+                message.get("content")
+            )
             finish_reason = choice.get("finish_reason")
             has_tool_calls = bool(message.get("tool_calls"))
 
             if self._should_fallback_to_stream(response, choice, message):
                 logger.warning(
-                    "AgentRuntime empty non-stream response agent=%s; falling back to streamed aggregation",
+                    (
+                        "AgentRuntime empty non-stream response agent=%s; "
+                        "falling back to streamed aggregation"
+                    ),
                     agent.prompt_spec.name,
                 )
                 message = await self._collect_message_via_stream(
@@ -554,13 +573,19 @@ class AgentRuntime:
 
             max_tokens = min(max(base_max_tokens * 2, 512), 2048)
             logger.warning(
-                "AgentRuntime empty truncated response agent=%s; retrying with max_tokens=%s",
+                (
+                    "AgentRuntime empty truncated response agent=%s; "
+                    "retrying with max_tokens=%s"
+                ),
                 agent.prompt_spec.name,
                 max_tokens,
             )
 
         logger.info(
-            "AgentRuntime response agent=%s finish_reason=%s content_preview=%r tool_calls=%s",
+            (
+                "AgentRuntime response agent=%s finish_reason=%s "
+                "content_preview=%r tool_calls=%s"
+            ),
             agent.prompt_spec.name,
             choice.get("finish_reason"),
             (message.get("content") or "")[:300],
@@ -605,7 +630,7 @@ class AgentRuntime:
             if chunk:
                 accumulated_content += chunk
 
-            for tc_delta in (delta.get("tool_calls") or []):
+            for tc_delta in delta.get("tool_calls") or []:
                 idx = tc_delta.get("index", 0)
                 if idx not in accumulated_tool_calls:
                     accumulated_tool_calls[idx] = {
@@ -657,9 +682,7 @@ class AgentRuntime:
         stream_events: List[Dict[str, Any]] = []
         retry_exhausted_message: Optional[str] = None
         error_counts = (
-            recoverable_error_counts
-            if recoverable_error_counts is not None
-            else {}
+            recoverable_error_counts if recoverable_error_counts is not None else {}
         )
 
         for tool_call in tool_calls:
@@ -723,7 +746,9 @@ class AgentRuntime:
                 }
             )
             stream_event = {
-                "qr_images": [tool_result["qr_image"]] if tool_result["qr_image"] else [],
+                "qr_images": [tool_result["qr_image"]]
+                if tool_result["qr_image"]
+                else [],
             }
             if self._is_tool_failure(tool_result):
                 stream_event.update(

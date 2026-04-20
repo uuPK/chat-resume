@@ -7,14 +7,17 @@ PDF 导出服务测试模块
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import sys
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+import app.services.processing.export_service as export_service_module
 from app.infra.config import settings
 from app.services.processing.export_service import ExportService
 
@@ -55,6 +58,15 @@ def _sample_resume_content() -> dict:
     }
 
 
+def _decode_print_payload(print_url: str) -> dict:
+    """用于把打印页 URL 里的 base64 载荷还原成可断言的字典。"""
+    parsed = urlparse(print_url)
+    query = parse_qs(parsed.query)
+    encoded = unquote(query["data"][0])
+    raw = base64.urlsafe_b64decode(encoded.encode("utf-8")).decode("utf-8")
+    return json.loads(raw)
+
+
 def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
     """用于验证 PDF 导出会把前端打印页 URL 交给 Playwright。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
@@ -89,3 +101,156 @@ def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
     assert parsed.path == "/resume/print"
     assert "data" in query
     assert query["data"][0]
+
+
+def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeypatch):
+    """用于验证打印页 URL 会完整携带模板名和中文简历内容。"""
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
+    export_service = ExportService()
+
+    print_url = export_service._build_frontend_print_url(
+        _sample_resume_content(),
+        template="compact",
+    )
+    parsed = urlparse(print_url)
+    payload = _decode_print_payload(print_url)
+
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "frontend.example.com"
+    assert parsed.path == "/resume/print"
+    assert payload["template"] == "compact"
+    assert payload["content"]["personal_info"]["name"] == "张三"
+    assert (
+        payload["content"]["work_experience"][0]["summary"]
+        == "负责简历系统后端开发与性能优化。"
+    )
+
+
+def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkeypatch):
+    """用于验证 Playwright 渲染时会使用正确的页面参数和 PDF 选项。"""
+    export_service = ExportService()
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "resume.pdf"
+
+    class FakePage:
+        """用于记录页面导航和导出参数。"""
+
+        async def goto(self, url: str, wait_until: str) -> None:
+            captured["goto"] = {"url": url, "wait_until": wait_until}
+
+        async def emulate_media(self, media: str) -> None:
+            captured["media"] = media
+
+        async def pdf(self, **kwargs) -> None:
+            captured["pdf"] = kwargs
+            Path(kwargs["path"]).write_bytes(b"%PDF-fake")
+
+    class FakeBrowser:
+        """用于模拟浏览器实例并暴露页面对象。"""
+
+        def __init__(self) -> None:
+            self.page = FakePage()
+
+        async def new_page(self, **kwargs):
+            captured["viewport"] = kwargs["viewport"]
+            return self.page
+
+        async def close(self) -> None:
+            captured["closed"] = True
+
+    class FakeChromium:
+        """用于记录浏览器启动参数。"""
+
+        async def launch(self, headless: bool):
+            captured["launch"] = {"headless": headless}
+            return FakeBrowser()
+
+    class FakePlaywright:
+        """用于暴露假的 chromium 客户端。"""
+
+        chromium = FakeChromium()
+
+    class FakePlaywrightContext:
+        """用于模拟 async_playwright 上下文管理器。"""
+
+        async def __aenter__(self):
+            return FakePlaywright()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(
+        export_service_module,
+        "async_playwright",
+        lambda: FakePlaywrightContext(),
+    )
+
+    asyncio.run(
+        export_service._render_pdf_with_playwright(
+            "https://frontend.example.com/resume/print?data=abc",
+            str(output_path),
+        )
+    )
+
+    assert captured["launch"] == {"headless": True}
+    assert captured["viewport"] == {"width": 1280, "height": 1810}
+    assert captured["goto"] == {
+        "url": "https://frontend.example.com/resume/print?data=abc",
+        "wait_until": "networkidle",
+    }
+    assert captured["media"] == "print"
+    assert captured["pdf"] == {
+        "path": str(output_path),
+        "format": "A4",
+        "print_background": True,
+        "margin": {"top": "0", "right": "0", "bottom": "0", "left": "0"},
+    }
+    assert captured["closed"] is True
+    assert output_path.read_bytes().startswith(b"%PDF")
+
+
+def test_export_to_pdf_surfaces_playwright_failure(tmp_path, monkeypatch):
+    """用于验证浏览器渲染失败时导出接口会继续抛出原始异常。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+
+    async def _raise_render_error(self, print_url: str, filepath: str) -> None:
+        """用于模拟 Playwright 启动失败的异常分支。"""
+        del self, print_url, filepath
+        raise RuntimeError("Executable doesn't exist")
+
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_with_playwright",
+        _raise_render_error,
+    )
+
+    try:
+        asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
+    except RuntimeError as exc:
+        assert "Executable doesn't exist" in str(exc)
+    else:
+        raise AssertionError("导出失败时应抛出 Playwright 原始异常")
+
+
+def test_get_file_url_returns_signed_download_path(tmp_path, monkeypatch):
+    """用于验证导出文件地址会拼出带签名的下载路径。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    monkeypatch.setattr(
+        export_service_module,
+        "create_download_token",
+        lambda filename, user_id: (
+            f"expires=123&user_id={user_id}&signature=signed-{filename}"
+        ),
+    )
+
+    file_url = export_service.get_file_url(
+        filepath=str(tmp_path / "exports" / "resume_demo.pdf"),
+        user_id=42,
+    )
+
+    assert file_url == (
+        "/api/resumes/download/resume_demo.pdf?"
+        "expires=123&user_id=42&signature=signed-resume_demo.pdf"
+    )

@@ -5,10 +5,11 @@
 使用Pydantic BaseSettings进行配置验证和环境变量读取。
 """
 
+import os
 from typing import List, Union
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
-import os
 
 
 class Settings(BaseSettings):
@@ -35,9 +36,15 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
-    REFRESH_SESSION_EXPIRE_DAYS: int = int(os.getenv("REFRESH_SESSION_EXPIRE_DAYS", "30"))
-    ACCESS_TOKEN_COOKIE_NAME: str = os.getenv("ACCESS_TOKEN_COOKIE_NAME", "access_token")
-    REFRESH_TOKEN_COOKIE_NAME: str = os.getenv("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+    REFRESH_SESSION_EXPIRE_DAYS: int = int(
+        os.getenv("REFRESH_SESSION_EXPIRE_DAYS", "30")
+    )
+    ACCESS_TOKEN_COOKIE_NAME: str = os.getenv(
+        "ACCESS_TOKEN_COOKIE_NAME", "access_token"
+    )
+    REFRESH_TOKEN_COOKIE_NAME: str = os.getenv(
+        "REFRESH_TOKEN_COOKIE_NAME", "refresh_token"
+    )
     AUTH_COOKIE_DOMAIN: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
     AUTH_COOKIE_SAMESITE: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
     AUTH_COOKIE_SECURE: bool = (
@@ -120,7 +127,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     USER_MEMORY_DIR: str = os.getenv("USER_MEMORY_DIR", "data/memory/users")
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
-    JD_OCR_MAX_FILE_SIZE: int = int(os.getenv("JD_OCR_MAX_FILE_SIZE", str(10 * 1024 * 1024)))
+    JD_OCR_MAX_FILE_SIZE: int = int(
+        os.getenv("JD_OCR_MAX_FILE_SIZE", str(10 * 1024 * 1024))
+    )
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     # Observability

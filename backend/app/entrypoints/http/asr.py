@@ -3,25 +3,25 @@ ASR (自动语音识别) API端点
 支持火山引擎端到端实时语音大模型
 """
 
-from fastapi import (
-    APIRouter,
-    WebSocket,
-    WebSocketDisconnect,
-    Depends,
-    HTTPException,
-    status,
-)
-from sqlalchemy.orm import Session
-from typing import Dict, Optional
 import json
 import logging
-from app.infra.database import get_db
-from app.infra.config import settings
-from app.infra.database import SessionLocal
-from app.services.voice import ASRService
-from app.entrypoints.http.deps import authenticate_token_with_db
-from app.entrypoints.http.deps import get_current_user
+from typing import Dict, Optional
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import authenticate_token_with_db, get_current_user
+from app.infra.config import settings
+from app.infra.database import SessionLocal, get_db
+from app.services.voice import ASRService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -201,7 +201,7 @@ async def get_asr_config(
 ):
     """用于返回前端初始化实时识别所需的配置。"""
     try:
-        from app.services.voice.asr_service import ASRService, ASRProvider
+        from app.services.voice.asr_service import ASRProvider, ASRService
 
         asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
         service_info = asr_service.get_provider_info()
@@ -235,7 +235,7 @@ async def recognize_audio(
 ):
     """用于执行一次非实时的整段音频识别。"""
     try:
-        from app.services.voice.asr_service import ASRService, ASRProvider
+        from app.services.voice.asr_service import ASRProvider, ASRService
 
         asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
 
@@ -245,7 +245,9 @@ async def recognize_audio(
         audio_data = base64.b64decode(request.audio_data)
 
         # 执行识别
-        result = await asr_service.recognize_speech(audio_data, format=request.format or "mp3")
+        result = await asr_service.recognize_speech(
+            audio_data, format=request.format or "mp3"
+        )
 
         return {
             "success": True,
@@ -268,7 +270,7 @@ async def get_asr_status(
 ):
     """用于返回 ASR 服务的配置和运行状态。"""
     try:
-        from app.services.voice.asr_service import ASRService, ASRProvider
+        from app.services.voice.asr_service import ASRProvider, ASRService
 
         asr_service = ASRService(ASRProvider.VOLCENGINE_BIGMODEL)
 

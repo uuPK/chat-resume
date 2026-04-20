@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, noload
 
+from app.agents.interview import InterviewerAgent
 from app.infra.langfuse_observer import LangfuseRunObserver
 from app.infra.request_context import log_context
 from app.models import InterviewSession, InterviewTurn
@@ -38,8 +39,11 @@ from app.services.interview.planning_service import (
     build_plan,
     build_same_round_prompt,
 )
-from app.services.interview.serializer import latest_turn, serialize_session, serialize_session_summary
-from app.agents.interview import InterviewerAgent
+from app.services.interview.serializer import (
+    latest_turn,
+    serialize_session,
+    serialize_session_summary,
+)
 
 _interviewer_agent = InterviewerAgent()
 
@@ -53,17 +57,25 @@ def get_resume_for_user(db: Session, resume_id: int, user_id: int):
     """用于校验用户对目标简历的访问权限。"""
     resume = ResumeService(db).get_by_id(resume_id)
     if not resume:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
     if resume.owner_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
     return resume
 
 
 def get_session_or_404(db: Session, session_id: int, user_id: int) -> InterviewSession:
     """用于统一读取并校验当前用户拥有的面试 session。"""
-    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    session = (
+        db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    )
     if not session or session.user_id != user_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found"
+        )
     return session
 
 
@@ -84,13 +96,18 @@ def create_interview_session(
     resume = get_resume_for_user(db, resume_id, user_id)
     resume_content = resume.content if isinstance(resume.content, dict) else {}
     plan = build_plan(resume_content, interview_type)
-    job_application = (resume_content.get("job_application") or {}) if isinstance(resume_content, dict) else {}
+    job_application = (
+        (resume_content.get("job_application") or {})
+        if isinstance(resume_content, dict)
+        else {}
+    )
 
     session = InterviewSession(
         user_id=user_id,
         resume_id=resume_id,
         target_title=target_title or str(job_application.get("target_title", "") or ""),
-        target_company=target_company or str(job_application.get("target_company", "") or ""),
+        target_company=target_company
+        or str(job_application.get("target_company", "") or ""),
         jd_text=jd_text or str(job_application.get("jd_text", "") or ""),
         interview_type=interview_type,
         difficulty=difficulty,
@@ -117,11 +134,16 @@ async def get_interview_hints(
     """用于在练习模式下为当前题目生成简短提示。"""
     session = get_session_or_404(db, session_id, user_id)
     if session.mode != "practice":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Hints are only available in practice mode")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Hints are only available in practice mode",
+        )
 
     turn = latest_turn(session)
     if not turn or turn.status != "asked":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No active question to hint")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="No active question to hint"
+        )
 
     resume = get_resume_for_user(db, session.resume_id, user_id)
     resume_content = resume.content if isinstance(resume.content, dict) else {}
@@ -191,16 +213,23 @@ def list_interview_sessions(*, db: Session, user_id: int) -> list[dict[str, Any]
     sessions = (
         db.query(
             InterviewSession,
-            func.coalesce(answered_turn_counts.c.answered_turn_count, 0).label("answered_turn_count"),
+            func.coalesce(answered_turn_counts.c.answered_turn_count, 0).label(
+                "answered_turn_count"
+            ),
         )
-        .outerjoin(answered_turn_counts, answered_turn_counts.c.session_id == InterviewSession.id)
+        .outerjoin(
+            answered_turn_counts,
+            answered_turn_counts.c.session_id == InterviewSession.id,
+        )
         .options(noload(InterviewSession.turns))
         .filter(InterviewSession.user_id == user_id)
         .order_by(InterviewSession.id.desc())
         .all()
     )
     return [
-        serialize_session_summary(session, answered_turn_count=int(answered_turn_count or 0))
+        serialize_session_summary(
+            session, answered_turn_count=int(answered_turn_count or 0)
+        )
         for session, answered_turn_count in sessions
     ]
 
@@ -239,7 +268,7 @@ async def start_interview_session(
             "request_id": getattr(http_request.state, "request_id", None),
         },
     )
-    rounds = ((session.plan_json or {}).get("rounds") or [])
+    rounds = (session.plan_json or {}).get("rounds") or []
     first_round = rounds[0] if rounds else {}
     round_goal = first_round.get("goal", "自我介绍与岗位匹配")
     try:
@@ -247,7 +276,9 @@ async def start_interview_session(
             question = await generate_question(
                 resume_content=resume_content,
                 history=[],
-                prompt=build_first_round_prompt(first_round.get("type", "warmup"), round_goal),
+                prompt=build_first_round_prompt(
+                    first_round.get("type", "warmup"), round_goal
+                ),
                 event_callback=observer.on_runtime_event,
             )
     except Exception as exc:
@@ -287,11 +318,15 @@ async def answer_interview_session(
     """用于处理一次回答并生成下一题或结束面试。"""
     session = get_session_or_404(db, session_id, user_id)
     if session.status == "completed":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Interview already completed")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Interview already completed"
+        )
 
     turn = latest_turn(session)
     if not turn or turn.status != "asked":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No active question to answer")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="No active question to answer"
+        )
 
     resume = get_resume_for_user(db, session.resume_id, user_id)
     resume_content = resume.content if isinstance(resume.content, dict) else {}
@@ -315,10 +350,12 @@ async def answer_interview_session(
     turn.answered_at = now()
     turn.status = "done"
 
-    rounds = ((session.plan_json or {}).get("rounds") or [])
+    rounds = (session.plan_json or {}).get("rounds") or []
     current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
     max_q = int(current_round.get("max_questions") or 2)
-    questions_in_round = sum(1 for item in session.turns if item.round_index == turn.round_index)
+    questions_in_round = sum(
+        1 for item in session.turns if item.round_index == turn.round_index
+    )
     force_next_round = questions_in_round >= max_q
     next_round_index = turn.round_index + 1 if force_next_round else turn.round_index
 
@@ -357,7 +394,9 @@ async def answer_interview_session(
         new_round_goal = next_round["goal"]
     else:
         remaining = max_q - questions_in_round
-        prompt = build_same_round_prompt(current_round["type"], current_round["goal"], remaining)
+        prompt = build_same_round_prompt(
+            current_round["type"], current_round["goal"], remaining
+        )
         new_round_index = turn.round_index
         new_round_type = current_round["type"]
         new_round_goal = current_round["goal"]
@@ -389,7 +428,9 @@ async def answer_interview_session(
         observer.fail(str(exc))
         raise
     if not question:
-        question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+        question = (
+            "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+        )
 
     next_turn = InterviewTurn(
         session_id=session.id,
@@ -422,11 +463,15 @@ async def stream_answer_interview_session(
     """用于流式生成下一题并在结束时返回最新 session。"""
     session = get_session_or_404(db, session_id, user_id)
     if session.status == "completed":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Interview already completed")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Interview already completed"
+        )
 
     turn = latest_turn(session)
     if not turn or turn.status != "asked":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No active question to answer")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="No active question to answer"
+        )
 
     resume = get_resume_for_user(db, session.resume_id, user_id)
     resume_content = resume.content if isinstance(resume.content, dict) else {}
@@ -459,22 +504,32 @@ async def stream_answer_interview_session(
             session_id=str(session_id),
         ):
             with observer:
-                rounds = ((session.plan_json or {}).get("rounds") or [])
-                current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
+                rounds = (session.plan_json or {}).get("rounds") or []
+                current_round = (
+                    rounds[turn.round_index] if turn.round_index < len(rounds) else {}
+                )
                 max_q = int(current_round.get("max_questions") or 2)
-                questions_in_round = sum(1 for item in session.turns if item.round_index == turn.round_index)
+                questions_in_round = sum(
+                    1 for item in session.turns if item.round_index == turn.round_index
+                )
                 force_next_round = questions_in_round >= max_q
-                next_round_index = turn.round_index + 1 if force_next_round else turn.round_index
+                next_round_index = (
+                    turn.round_index + 1 if force_next_round else turn.round_index
+                )
                 is_completed = force_next_round and next_round_index >= len(rounds)
 
                 if is_completed:
                     prompt = None
                 elif force_next_round:
                     next_round = rounds[next_round_index]
-                    prompt = build_next_round_prompt(next_round["type"], next_round["goal"])
+                    prompt = build_next_round_prompt(
+                        next_round["type"], next_round["goal"]
+                    )
                 else:
                     remaining = max_q - questions_in_round
-                    prompt = build_same_round_prompt(current_round["type"], current_round["goal"], remaining)
+                    prompt = build_same_round_prompt(
+                        current_round["type"], current_round["goal"], remaining
+                    )
 
                 queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
                 accumulated = ""
@@ -518,7 +573,13 @@ async def stream_answer_interview_session(
                             history=history,
                             event_callback=None,
                         )
-                        await queue.put({"type": "evaluation", "turn_id": turn.id, "evaluation": evaluation_text})
+                        await queue.put(
+                            {
+                                "type": "evaluation",
+                                "turn_id": turn.id,
+                                "evaluation": evaluation_text,
+                            }
+                        )
                     finally:
                         await queue.put({"type": "evaluation_complete"})
 
@@ -571,7 +632,10 @@ async def stream_answer_interview_session(
                             new_round_type = current_round["type"]
                             new_round_goal = current_round["goal"]
                         if not question:
-                            question = "挑一个你最能代表岗位匹配度的项目，讲清楚背景、目标、你的动作和结果。"
+                            question = (
+                                "挑一个你最能代表岗位匹配度的项目，"
+                                "讲清楚背景、目标、你的动作和结果。"
+                            )
                         next_turn = InterviewTurn(
                             session_id=session.id,
                             turn_index=session.current_turn_index + 1,
@@ -595,7 +659,9 @@ async def stream_answer_interview_session(
                             "session": serialize_session(session),
                         }
 
-                    observer.finish(done_payload.get("message") or done_payload["next_action"])
+                    observer.finish(
+                        done_payload.get("message") or done_payload["next_action"]
+                    )
                     yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
                     done_emitted = True
 
@@ -615,7 +681,9 @@ async def stream_answer_interview_session(
     )
 
 
-def end_interview_session(*, db: Session, user_id: int, session_id: int) -> InterviewSession:
+def end_interview_session(
+    *, db: Session, user_id: int, session_id: int
+) -> InterviewSession:
     """用于让用户主动结束当前面试。"""
     session = get_session_or_404(db, session_id, user_id)
     turns = list(session.turns or [])

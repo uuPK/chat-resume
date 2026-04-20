@@ -13,6 +13,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
+
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.infra.security import decode_access_token
@@ -66,7 +67,9 @@ def _build_current_user_payload(user: Any) -> dict[str, Any]:
     }
 
 
-def authenticate_token_with_db(token: str, db: Session) -> tuple[dict[str, Any], dict[str, Any]]:
+def authenticate_token_with_db(
+    token: str, db: Session
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """用于给中间件和依赖复用完整的令牌鉴权流程。"""
     claims = _decode_token_claims(token)
     user_service = UserService(db)
@@ -145,7 +148,10 @@ async def get_current_user(
 
     total_elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
-        "get_current_user timings user_id=%s decode_ms=%.2f query_ms=%.2f total_ms=%.2f",
+        (
+            "get_current_user timings user_id=%s decode_ms=%.2f "
+            "query_ms=%.2f total_ms=%.2f"
+        ),
         user_id,
         decode_elapsed_ms,
         query_elapsed_ms,

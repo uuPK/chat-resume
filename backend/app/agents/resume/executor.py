@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.tools.base import ToolExecutor
-from app.tools.resume.registry import execute_resume_tool
 from app.tools.resume.read_user_memory_tool import read_user_memory
+from app.tools.resume.registry import execute_resume_tool
 from app.tools.resume.write_user_memory_tool import write_user_memory
-
 
 TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "write_user_memory": {"content"},
@@ -50,7 +49,9 @@ class ResumeToolExecutor(ToolExecutor):
         if tool_name == "read_user_memory":
             return self._execute_read_user_memory(context=context)
         if tool_name == "write_user_memory":
-            return self._execute_write_user_memory(tool_input=tool_input, context=context)
+            return self._execute_write_user_memory(
+                tool_input=tool_input, context=context
+            )
 
         resume_content = context["resume_content"]
         allowed_sections = context.get("allowed_sections")
@@ -112,7 +113,9 @@ class ResumeToolExecutor(ToolExecutor):
                 if isinstance(result, dict)
                 else None
             ),
-            "qr_image": result.get("image_base64") if isinstance(result, dict) else None,
+            "qr_image": result.get("image_base64")
+            if isinstance(result, dict)
+            else None,
             "updated_section_name": self._get_section_name(
                 result.get("updated_section") if isinstance(result, dict) else None
             ),
@@ -154,7 +157,9 @@ class ResumeToolExecutor(ToolExecutor):
                 recoverable=True,
             )
         try:
-            result = write_user_memory(user_id=user_id, content=str(tool_input.get("content", "") or ""))
+            result = write_user_memory(
+                user_id=user_id, content=str(tool_input.get("content", "") or "")
+            )
         except ValueError as exc:
             return self.error_result(
                 "write_user_memory",

@@ -7,7 +7,6 @@ from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -29,7 +28,14 @@ class FakeResumeAgent:
         event_callback=None,
         user_id: int | None = None,
     ):
-        del user_message, conversation_history, confirmation_queue, allowed_sections, event_callback, user_id
+        del (
+            user_message,
+            conversation_history,
+            confirmation_queue,
+            allowed_sections,
+            event_callback,
+            user_id,
+        )
         yield {
             "content": "",
             "tool_pending": True,
@@ -49,7 +55,9 @@ class FakeResumeAgent:
 
 class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        engine = create_engine(
+            "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        )
         Base.metadata.create_all(bind=engine)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         self.db = self.SessionLocal()

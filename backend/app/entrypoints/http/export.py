@@ -1,16 +1,18 @@
 """用于提供简历导出和下载入口。"""
 
 import os
-from typing import Dict, Any, cast
+from typing import Any, Dict, cast
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.infra.security import verify_download_token
-from app.services.processing import ExportService
-from app.services.domain import ResumeService
 from app.schemas.export import ExportRequest, ExportResponse
-from app.entrypoints.http.deps import get_current_user
+from app.services.domain import ResumeService
+from app.services.processing import ExportService
 
 router = APIRouter()
 
@@ -112,7 +114,9 @@ async def download_file(
     file_extension = os.path.splitext(filename)[1].lower()
     media_type_map = {
         ".pdf": "application/pdf",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".docx": (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
         ".html": "text/html",
     }
 

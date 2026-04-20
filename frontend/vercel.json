@@ -1,3 +1,17 @@
 {
-  "regions": ["hkg1"]
+  "regions": ["hkg1"],
+  "rewrites": [
+    {
+      "source": "/api/resumes",
+      "destination": "https://chat-resume-production-d148.up.railway.app/api/resumes/"
+    },
+    {
+      "source": "/api/interviews",
+      "destination": "https://chat-resume-production-d148.up.railway.app/api/interviews/"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://chat-resume-production-d148.up.railway.app/api/:path*"
+    }
+  ]
 }

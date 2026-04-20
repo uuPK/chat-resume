@@ -26,12 +26,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.agents.interview.agent import InterviewerAgent
 from app.infra.database import Base, get_db
 from app.main import app
-from app.state.store import AgentSessionStore
-from app.runtime.permissions import confirmation_manager
-from app.agents.interview.agent import InterviewerAgent
 from app.models.user import User
+from app.runtime.permissions import confirmation_manager
+from app.state.store import AgentSessionStore
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
 
@@ -58,6 +58,7 @@ app.dependency_overrides[get_db] = _override_get_db
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(scope="session", autouse=True)
 def _create_tables():
     """在整个测试会话开始时建表，结束时销毁。"""
@@ -73,7 +74,13 @@ def client():
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────────
 
-def _register(client: TestClient, email: str, password: str = "password123", full_name: str | None = None):
+
+def _register(
+    client: TestClient,
+    email: str,
+    password: str = "password123",
+    full_name: str | None = None,
+):
     payload = {"email": email, "password": password}
     if full_name:
         payload["full_name"] = full_name
@@ -87,7 +94,9 @@ def _login(client: TestClient, email: str, password: str = "password123") -> str
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     assert resp.status_code == 200, resp.text
-    access_cookie = resp.cookies.get("access_token") or client.cookies.get("access_token")
+    access_cookie = resp.cookies.get("access_token") or client.cookies.get(
+        "access_token"
+    )
     assert access_cookie
     return access_cookie
 
@@ -115,6 +124,7 @@ def _empty_resume_content() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. 认证流程
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestAuth:
     def test_register_creates_user(self, client):
@@ -320,6 +330,7 @@ class TestAuthenticationMiddleware:
 # 1.5 JD OCR 上传
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestJDOcrUpload:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
@@ -329,7 +340,9 @@ class TestJDOcrUpload:
         self.client = client
 
     def test_upload_jd_image_returns_ocr_text(self, monkeypatch):
-        async def _fake_extract_text_from_image(self, image_bytes: bytes, mime_type: str) -> str:
+        async def _fake_extract_text_from_image(
+            self, image_bytes: bytes, mime_type: str
+        ) -> str:
             assert image_bytes == b"fake-image-bytes"
             assert mime_type == "image/png"
             return "岗位职责\\n1. 负责后端开发"
@@ -370,7 +383,9 @@ class TestResumeUpload:
 
     def test_upload_resume_parses_and_persists_uploaded_file(self, monkeypatch):
         """通过真实 multipart 上传验证简历上传接口会走解析和入库链路。"""
-        fixture_path = Path(__file__).resolve().parent / "fixtures" / "sample_resume_upload.txt"
+        fixture_path = (
+            Path(__file__).resolve().parent / "fixtures" / "sample_resume_upload.txt"
+        )
         extracted_text = fixture_path.read_text(encoding="utf-8")
         saved_file_path = "/tmp/test_resume_upload.txt"
         deleted_paths: list[str] = []
@@ -392,10 +407,18 @@ class TestResumeUpload:
             return {
                 "parsing_quality": 0.92,
                 "parsing_method": "ai",
-                "job_application": {"target_company": "OpenAI", "target_title": "后端工程师"},
+                "job_application": {
+                    "target_company": "OpenAI",
+                    "target_title": "后端工程师",
+                },
                 "personal_info": {"name": "测试用户", "email": "e2e@example.com"},
                 "work_experience": [
-                    {"company": "OpenAI", "position": "后端工程师", "duration": "2024-至今", "highlights": []}
+                    {
+                        "company": "OpenAI",
+                        "position": "后端工程师",
+                        "duration": "2024-至今",
+                        "highlights": [],
+                    }
                 ],
                 "education": [],
                 "skills": [],
@@ -406,14 +429,31 @@ class TestResumeUpload:
             """记录临时文件清理动作，确保上传流程会尝试回收临时文件。"""
             deleted_paths.append(file_path)
 
-        monkeypatch.setattr("app.entrypoints.http.upload.FileService.save_uploaded_file", _fake_save_uploaded_file)
-        monkeypatch.setattr("app.entrypoints.http.upload.FileService.extract_text_from_file", _fake_extract_text_from_file)
-        monkeypatch.setattr("app.entrypoints.http.upload.FileService.delete_file", _fake_delete_file)
-        monkeypatch.setattr("app.entrypoints.http.upload.ResumeParser.parse_resume_text_async", _fake_parse_resume_text_async)
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.save_uploaded_file",
+            _fake_save_uploaded_file,
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.extract_text_from_file",
+            _fake_extract_text_from_file,
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.delete_file", _fake_delete_file
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.ResumeParser.parse_resume_text_async",
+            _fake_parse_resume_text_async,
+        )
 
         response = self.client.post(
             "/api/upload/resume",
-            files={"file": ("sample_resume_upload.txt", fixture_path.read_bytes(), "text/plain")},
+            files={
+                "file": (
+                    "sample_resume_upload.txt",
+                    fixture_path.read_bytes(),
+                    "text/plain",
+                )
+            },
             headers=self.headers,
         )
 
@@ -426,10 +466,10 @@ class TestResumeUpload:
         assert deleted_paths == [saved_file_path]
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. 简历 CRUD
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestResumeCRUD:
     @pytest.fixture(autouse=True)
@@ -541,12 +581,16 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         self.resume_id = create_resp.json()["id"]
 
-        async def _fake_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):
+        async def _fake_chat(
+            self,
+            user_message,
+            resume_content,
+            conversation_history=None,
+            event_callback=None,
+        ):
             del self, resume_content, conversation_history, event_callback
             if "[EVALUATE]" in user_message:
-                return {
-                    "content": "回答结构基本完整，但还可以补充更多量化结果。"
-                }
+                return {"content": "回答结构基本完整，但还可以补充更多量化结果。"}
             if "请给候选人 3 条简短提示" in user_message:
                 return {
                     "content": "1. 先交代项目背景和目标\n2. 重点讲你亲自做了什么\n3. 最后补一个量化结果"
@@ -590,11 +634,16 @@ class TestInterviewSessions:
         answered = answer_resp.json()
         assert answered["next_action"] in ("next_question", "completed")
         assert answered["session"]["status"] in ("waiting_user_answer", "completed")
-        assert answered["session"]["turns"][0]["evaluation"] in ("", "回答结构基本完整，但还可以补充更多量化结果。")
+        assert answered["session"]["turns"][0]["evaluation"] in (
+            "",
+            "回答结构基本完整，但还可以补充更多量化结果。",
+        )
 
         latest_evaluation = ""
         for _ in range(10):
-            detail_resp = self.client.get(f"/api/interviews/{session_id}", headers=self.headers)
+            detail_resp = self.client.get(
+                f"/api/interviews/{session_id}", headers=self.headers
+            )
             assert detail_resp.status_code == 200, detail_resp.text
             latest_evaluation = detail_resp.json()["session"]["turns"][0]["evaluation"]
             if latest_evaluation:
@@ -616,14 +665,28 @@ class TestInterviewSessions:
         assert ended["report_data"]["resume_feedback"]
 
     def test_stream_answer_runs_evaluation_in_parallel(self, monkeypatch):
-        async def _delayed_chat(self, user_message, resume_content, conversation_history=None, event_callback=None):
+        async def _delayed_chat(
+            self,
+            user_message,
+            resume_content,
+            conversation_history=None,
+            event_callback=None,
+        ):
             del self, resume_content, conversation_history, event_callback
             if "[EVALUATE]" in user_message:
                 await asyncio.sleep(0.01)
-                return {"content": "面试系统反馈：回答切题，但可以补充更具体的技术细节。"}
+                return {
+                    "content": "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
+                }
             return {"content": "先做一个和岗位最相关的自我介绍。"}
 
-        async def _fake_chat_stream(self, user_message, resume_content, conversation_history=None, event_callback=None):
+        async def _fake_chat_stream(
+            self,
+            user_message,
+            resume_content,
+            conversation_history=None,
+            event_callback=None,
+        ):
             del self, user_message, resume_content, conversation_history, event_callback
             for chunk in ["请具体讲讲", "你在项目里的", "技术取舍。"]:
                 await asyncio.sleep(0.03)
@@ -664,10 +727,17 @@ class TestInterviewSessions:
                     continue
                 events.append(json.loads(line[6:]))
 
-        evaluation_index = next(index for index, item in enumerate(events) if item["type"] == "evaluation")
-        done_index = next(index for index, item in enumerate(events) if item["type"] == "done")
+        evaluation_index = next(
+            index for index, item in enumerate(events) if item["type"] == "evaluation"
+        )
+        done_index = next(
+            index for index, item in enumerate(events) if item["type"] == "done"
+        )
         assert evaluation_index < done_index
-        assert events[evaluation_index]["evaluation"] == "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
+        assert (
+            events[evaluation_index]["evaluation"]
+            == "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
+        )
         assert events[done_index]["message"] == "请具体讲讲你在项目里的技术取舍。"
 
     def test_list_interviews_returns_lightweight_summary(self):
@@ -828,6 +898,7 @@ class TestInterviewSessions:
 # 3. 跨用户权限隔离
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestResumePermissions:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
@@ -883,6 +954,7 @@ class TestResumePermissions:
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. 聊天记录 CRUD
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestChatMessages:
     @pytest.fixture(autouse=True)
@@ -972,7 +1044,13 @@ class TestChatMessages:
         ]
         resp = self.client.post(
             f"/api/resumes/{self.resume_id}/chat-messages",
-            json=[{"role": "assistant", "content": "已优化", "stream_events": stream_events}],
+            json=[
+                {
+                    "role": "assistant",
+                    "content": "已优化",
+                    "stream_events": stream_events,
+                }
+            ],
             headers=self.headers,
         )
         assert resp.status_code == 200
@@ -992,6 +1070,7 @@ class TestChatMessages:
 # ═══════════════════════════════════════════════════════════════════════════
 # 5. Agent 确认会话
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestAgentConfirmation:
     @pytest.fixture(autouse=True)
@@ -1023,7 +1102,9 @@ class TestAgentConfirmation:
                 resume_id=self.resume_id,
                 task_type="resume_optimization",
             )
-            store.update_status(session_id, "waiting_confirmation", current_step=call_id)
+            store.update_status(
+                session_id, "waiting_confirmation", current_step=call_id
+            )
             store.append_event(
                 session_id=session_id,
                 event_type="tool_call_previewed",
@@ -1114,7 +1195,9 @@ class TestAgentConfirmation:
                 task_type="resume_optimization",
                 metadata={"visible_modules": ["projects"]},
             )
-            store.update_status(session_id, "waiting_confirmation", current_step="call_1")
+            store.update_status(
+                session_id, "waiting_confirmation", current_step="call_1"
+            )
             store.append_event(
                 session_id=session_id,
                 event_type="user_message",
@@ -1183,11 +1266,15 @@ class TestAgentConfirmation:
         body = resp.json()
         assert body["ok"] is True
         assert body["applied"] is True
-        assert body["resume_content"]["projects"][0]["overview"] == "恢复接口写入的新简介"
+        assert (
+            body["resume_content"]["projects"][0]["overview"] == "恢复接口写入的新简介"
+        )
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 7. 健康检查 & 根路由
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestHealthEndpoints:
     def test_root_returns_200(self, client):
@@ -1211,6 +1298,7 @@ class TestHealthEndpoints:
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. 负向场景
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestNegativeCases:
     @pytest.fixture(autouse=True)
@@ -1253,7 +1341,13 @@ class TestNegativeCases:
             json={
                 "density": "compact",
                 "moduleOrder": ["personal", "education", "work", "projects", "skills"],
-                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": [
+                    "personal",
+                    "education",
+                    "work",
+                    "projects",
+                    "skills",
+                ],
                 "spacingScale": 0.8,
             },
         )
@@ -1289,7 +1383,13 @@ class TestNegativeCases:
             json={
                 "density": "normal",
                 "moduleOrder": ["personal", "education", "work", "projects", "skills"],
-                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": [
+                    "personal",
+                    "education",
+                    "work",
+                    "projects",
+                    "skills",
+                ],
                 "spacingScale": 1.0,
             },
             headers=_auth_headers(self.token),
@@ -1330,7 +1430,13 @@ class TestNegativeCases:
             json={
                 "density": "compact",
                 "moduleOrder": ["personal", "education", "work", "projects", "skills"],
-                "visibleModules": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": [
+                    "personal",
+                    "education",
+                    "work",
+                    "projects",
+                    "skills",
+                ],
                 "spacingScale": 0.7,
             },
             headers=_auth_headers(attacker_token),

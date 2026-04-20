@@ -5,8 +5,9 @@
 包括请求数据验证和响应数据序列化。
 """
 
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 
 

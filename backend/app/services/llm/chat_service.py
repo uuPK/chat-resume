@@ -7,12 +7,11 @@ AI 聊天服务模块
 import asyncio
 import logging
 from time import perf_counter
-from typing import Dict, Any, List, Optional, AsyncGenerator, overload, Literal
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, overload
 
 import httpx
 
 from app.infra.config import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +31,7 @@ class ChatService:
             pool=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
         )
         self.max_retries = max(0, settings.OPENROUTER_MAX_RETRIES)
-        self.retry_backoff_seconds = max(
-            0.0, settings.OPENROUTER_RETRY_BACKOFF_SECONDS
-        )
+        self.retry_backoff_seconds = max(0.0, settings.OPENROUTER_RETRY_BACKOFF_SECONDS)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -172,7 +169,9 @@ class ChatService:
             if not messages or messages[0].get("role") != "system":
                 messages = [{"role": "system", "content": system_prompt}] + messages
 
-        payload = self._build_payload(messages, temperature, max_tokens, stream=True, tools=tools)
+        payload = self._build_payload(
+            messages, temperature, max_tokens, stream=True, tools=tools
+        )
         url = self._get_endpoint_url()
         emitted_any_delta = False
 
@@ -197,12 +196,17 @@ class ChatService:
                         continue
                 if not emitted_any_delta:
                     logger.warning(
-                        "OpenRouter stream completed without usable deltas model=%s payload_size=%s",
+                        (
+                            "OpenRouter stream completed without usable deltas "
+                            "model=%s payload_size=%s"
+                        ),
                         self.model,
                         len(_json.dumps(payload, ensure_ascii=False)),
                     )
         except httpx.HTTPStatusError as e:
-            raise Exception(f"AI服务请求失败: {e.response.status_code} - {e.response.text}")
+            raise Exception(
+                f"AI服务请求失败: {e.response.status_code} - {e.response.text}"
+            )
         except Exception as e:
             raise Exception(f"AI服务请求异常: {str(e)}")
 
@@ -356,7 +360,11 @@ class ChatService:
                 if 400 <= status < 500 and status != 429:
                     raise Exception(f"AI服务请求失败: {status} - {body}") from e
                 last_error = e
-            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+            except (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.NetworkError,
+            ) as e:
                 logger.warning(
                     "OpenRouter network error attempt=%s type=%s message=%s",
                     attempt + 1,
@@ -373,9 +381,13 @@ class ChatService:
 
         if isinstance(last_error, httpx.HTTPStatusError):
             raise Exception(
-                f"AI服务请求失败: {last_error.response.status_code} - {last_error.response.text[:500]}"
+                "AI服务请求失败: "
+                f"{last_error.response.status_code} - "
+                f"{last_error.response.text[:500]}"
             ) from last_error
-        raise Exception(f"AI服务请求异常: {str(last_error) if last_error else 'unknown error'}")
+        raise Exception(
+            f"AI服务请求异常: {str(last_error) if last_error else 'unknown error'}"
+        )
 
     async def chat_with_context(
         self,

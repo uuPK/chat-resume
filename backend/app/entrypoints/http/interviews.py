@@ -16,6 +16,7 @@ from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.services.interview.serializer import serialize_session
 from app.services.interview.session_service import (
+    answer_interview_session,
     create_interview_session,
     delete_interview_session,
     end_interview_session,
@@ -24,7 +25,6 @@ from app.services.interview.session_service import (
     list_interview_sessions,
     start_interview_session,
     stream_answer_interview_session,
-    answer_interview_session,
 )
 
 router = APIRouter()
@@ -83,7 +83,9 @@ async def create_interview(
         language=request.language,
         mode=request.mode,
     )
-    return InterviewActionResponse(session=serialize_session(session), next_action="start")
+    return InterviewActionResponse(
+        session=serialize_session(session), next_action="start"
+    )
 
 
 @router.post("/{session_id}/hint", response_model=InterviewHintResponse)
@@ -203,8 +205,12 @@ async def end_interview(
     db: Session = Depends(get_db),
 ):
     """用于让用户主动结束当前面试。"""
-    session = end_interview_session(db=db, user_id=current_user["id"], session_id=session_id)
-    return InterviewActionResponse(session=serialize_session(session), next_action="completed")
+    session = end_interview_session(
+        db=db, user_id=current_user["id"], session_id=session_id
+    )
+    return InterviewActionResponse(
+        session=serialize_session(session), next_action="completed"
+    )
 
 
 @router.get("/{session_id}/report", response_model=InterviewActionResponse)

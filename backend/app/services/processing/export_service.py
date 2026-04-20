@@ -13,8 +13,6 @@ from html import escape
 from typing import Any, Dict
 from urllib.parse import quote
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from playwright.async_api import async_playwright
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -118,7 +116,9 @@ class ExportService:
                 ).strip()
                 if description:
                     story.append(Paragraph(escape(description), normal_style))
-                for highlight in self._build_highlight_texts(work.get("highlights", [])):
+                for highlight in self._build_highlight_texts(
+                    work.get("highlights", [])
+                ):
                     story.append(Paragraph(escape(highlight), normal_style))
                 story.append(Spacer(1, 6))
             story.append(Spacer(1, 12))
@@ -126,7 +126,9 @@ class ExportService:
         skills = self._build_skill_texts(resume_content.get("skills", []))
         if skills:
             story.append(Paragraph("技能专长", heading_style))
-            story.append(Paragraph(" | ".join(escape(item) for item in skills), normal_style))
+            story.append(
+                Paragraph(" | ".join(escape(item) for item in skills), normal_style)
+            )
             story.append(Spacer(1, 12))
 
         projects = resume_content.get("projects", [])
@@ -190,7 +192,9 @@ class ExportService:
             "template": template,
         }
         encoded = base64.urlsafe_b64encode(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
         ).decode("utf-8")
         return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?data={quote(encoded)}"
 
@@ -207,41 +211,77 @@ class ExportService:
             f"<span>{escape(text)}</span>"
             for text in self._build_contact_texts(personal_info)
         )
-        education_html = "".join(
-            f"""
+        education_parts: list[str] = []
+        for item in education:
+            subtitle = self._join_parts(
+                [
+                    item.get("degree", ""),
+                    item.get("major", ""),
+                    item.get("duration", ""),
+                ]
+            )
+            education_parts.append(
+                f"""
             <div class="item">
                 <div class="item-title">{escape(str(item.get("school", "")))}</div>
-                <div class="item-subtitle">{escape(self._join_parts([item.get("degree", ""), item.get("major", ""), item.get("duration", "")]))}</div>
+                <div class="item-subtitle">{escape(subtitle)}</div>
                 {self._build_highlights_html(item.get("highlights", []))}
             </div>
             """
-            for item in education
-        )
-        work_html = "".join(
-            f"""
+            )
+        education_html = "".join(education_parts)
+
+        work_parts: list[str] = []
+        for item in work_experience:
+            subtitle = self._join_parts(
+                [
+                    item.get("position", ""),
+                    item.get("duration", ""),
+                ]
+            )
+            description = str(
+                item.get("summary", "") or item.get("description", "")
+            ).strip()
+            work_parts.append(
+                f"""
             <div class="item">
                 <div class="item-title">{escape(str(item.get("company", "")))}</div>
-                <div class="item-subtitle">{escape(self._join_parts([item.get("position", ""), item.get("duration", "")]))}</div>
-                <div class="item-content">{escape(str(item.get("summary", "") or item.get("description", "")).strip())}</div>
+                <div class="item-subtitle">{escape(subtitle)}</div>
+                <div class="item-content">{escape(description)}</div>
                 {self._build_highlights_html(item.get("highlights", []))}
             </div>
             """
-            for item in work_experience
-        )
+            )
+        work_html = "".join(work_parts)
         skill_html = "".join(
             f'<span class="skill">{escape(item)}</span>' for item in skills
         )
-        project_html = "".join(
-            f"""
+        project_parts: list[str] = []
+        for item in projects:
+            subtitle = self._join_parts(
+                [
+                    item.get("role", ""),
+                    item.get("duration", ""),
+                ]
+            )
+            description = str(
+                item.get("summary", "") or item.get("description", "")
+            ).strip()
+            project_parts.append(
+                f"""
             <div class="item">
                 <div class="item-title">{escape(str(item.get("name", "")))}</div>
-                <div class="item-subtitle">{escape(self._join_parts([item.get("role", ""), item.get("duration", "")]))}</div>
-                <div class="item-content">{escape(str(item.get("summary", "") or item.get("description", "")).strip())}</div>
-                {self._build_highlights_html(item.get("highlights", []) or item.get("achievements", []))}
+                <div class="item-subtitle">{escape(subtitle)}</div>
+                <div class="item-content">{escape(description)}</div>
+                {
+                    self._build_highlights_html(
+                        item.get("highlights", []) or item.get("achievements", [])
+                    )
+                }
             </div>
             """
-            for item in projects
-        )
+            )
+        project_html = "".join(project_parts)
 
         return f"""
 <!DOCTYPE html>
@@ -256,7 +296,8 @@ class ExportService:
             padding: 20px;
             color: #111827;
             background: #f3f4f6;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         }}
         .page {{
             width: 816px;
@@ -334,7 +375,12 @@ class ExportService:
         </div>
         {self._wrap_section("教育背景", education_html)}
         {self._wrap_section("工作经验", work_html)}
-        {self._wrap_section("技能专长", f'<div class="skills">{skill_html}</div>' if skill_html else "")}
+        {
+            self._wrap_section(
+                "技能专长",
+                f'<div class="skills">{skill_html}</div>' if skill_html else "",
+            )
+        }
         {self._wrap_section("项目经验", project_html)}
     </div>
 </body>
@@ -380,9 +426,17 @@ class ExportService:
                 category = str(item.get("category", "")).strip()
                 grouped_items = item.get("items", [])
                 if isinstance(grouped_items, list) and grouped_items:
-                    labels = [str(skill).strip() for skill in grouped_items if str(skill).strip()]
+                    labels = [
+                        str(skill).strip()
+                        for skill in grouped_items
+                        if str(skill).strip()
+                    ]
                     if labels:
-                        values.append(f"{category}：{' / '.join(labels)}" if category else " / ".join(labels))
+                        values.append(
+                            f"{category}：{' / '.join(labels)}"
+                            if category
+                            else " / ".join(labels)
+                        )
                     continue
                 label = item.get("name", "")
             else:

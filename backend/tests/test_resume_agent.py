@@ -1,8 +1,8 @@
 import sys
 import unittest
 from pathlib import Path
-from jinja2 import Template
 
+from jinja2 import Template
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -78,9 +78,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("35%", result["diff_items"][0]["after"])
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
-        prompt_path = (
-            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        )
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
             target_title="前端工程师",
@@ -94,9 +92,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("不允许编造不存在的数字", rendered)
 
     def test_system_prompt_includes_memory_tool_guidance(self):
-        prompt_path = (
-            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        )
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
             target_title="AI Agent 开发工程师",
@@ -110,9 +106,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("长期记忆只记录稳定信息", rendered)
 
     def test_system_prompt_enforces_optimize_first_default(self):
-        prompt_path = (
-            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        )
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
             target_title="产品经理",
@@ -126,9 +120,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("首轮目标是“先产出改动”", rendered)
 
     def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
-        prompt_path = (
-            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        )
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
             target_title="运营",
@@ -144,9 +136,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("禁止泛泛地问“要不要我帮你优化”", rendered)
 
     def test_system_prompt_explicitly_blocks_high_risk_fabrication_requests(self):
-        prompt_path = (
-            BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        )
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
             target_title="高级后端工程师",

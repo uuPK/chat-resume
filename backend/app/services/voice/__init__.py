@@ -5,7 +5,7 @@
 支持多种语音服务提供商。
 """
 
-from .tts_service import TTSService
 from .asr_service import ASRService
+from .tts_service import TTSService
 
 __all__ = ["TTSService", "ASRService"]

@@ -7,12 +7,12 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.runtime.loop import AgentDefinition, AgentRuntime
 from app.prompts import load_prompt
+from app.runtime.loop import AgentDefinition, AgentRuntime
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 
+from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
-from .executor import ResumeToolExecutor, TOOL_REQUIRED_ARGS
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,9 @@ class ResumeAgent:
                 "content": event.get("content", ""),
                 "qr_images": event.get("qr_images", []),
                 "tool_calls": event.get("tool_calls", []),
-                "resume_content": context.get("resume_content") if event.get("context") is not None else None,
+                "resume_content": context.get("resume_content")
+                if event.get("context") is not None
+                else None,
                 "tool_pending": event.get("tool_pending"),
                 "tool_confirmed": event.get("tool_confirmed"),
                 "tool_rejected": event.get("tool_rejected"),

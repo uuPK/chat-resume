@@ -2,12 +2,14 @@ import sys
 import unittest
 from pathlib import Path
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.schemas.resume import ResumeContent, dump_resume_content_for_frontend  # noqa: E402
+from app.schemas.resume import (  # noqa: E402
+    ResumeContent,
+    dump_resume_content_for_frontend,
+)
 
 
 class ResumeSchemaNormalizationTests(unittest.TestCase):

@@ -7,9 +7,11 @@
 
 import os
 import uuid
-from fastapi import UploadFile, HTTPException
+
 import pdfplumber
 from docx import Document
+from fastapi import HTTPException, UploadFile
+
 from app.infra.config import settings
 
 

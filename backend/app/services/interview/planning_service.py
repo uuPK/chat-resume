@@ -10,7 +10,6 @@ from typing import Any
 
 from app.schemas.resume import dump_resume_content_for_frontend
 
-
 # 用于统一定义不同面试阶段的固定约束，避免路由层散落 prompt 片段。
 ROUND_INSTRUCTIONS: dict[str, str] = {
     "warmup": (
@@ -58,7 +57,10 @@ def get_round_instructions(question_type: str) -> str:
 def build_first_round_prompt(question_type: str, round_goal: str) -> str:
     """用于生成首轮提问时的系统提示。"""
     instructions = get_round_instructions(question_type)
-    return f"{instructions}\n开始一场模拟面试。当前阶段目标：{round_goal}。请直接提出第一题。"
+    return (
+        f"{instructions}\n开始一场模拟面试。"
+        f"当前阶段目标：{round_goal}。请直接提出第一题。"
+    )
 
 
 def build_next_round_prompt(question_type: str, round_goal: str) -> str:
@@ -67,11 +69,14 @@ def build_next_round_prompt(question_type: str, round_goal: str) -> str:
     return f"{instructions}\n进入下一阶段：{round_goal}。请直接提出该阶段的第一个问题。"
 
 
-def build_same_round_prompt(question_type: str, round_goal: str, remaining_questions: int) -> str:
+def build_same_round_prompt(
+    question_type: str, round_goal: str, remaining_questions: int
+) -> str:
     """用于生成同一轮内继续追问时的提问提示。"""
     instructions = get_round_instructions(question_type)
     return (
-        f"{instructions}\n当前面试阶段：{round_goal}（本阶段还可再问 {remaining_questions} 题）。"
+        f"{instructions}\n当前面试阶段：{round_goal}"
+        f"（本阶段还可再问 {remaining_questions} 题）。"
         "根据候选人刚才的回答，决定追问细节还是转向该阶段下一个核心问题。"
     )
 
@@ -109,7 +114,11 @@ def rounds_for_type(interview_type: str) -> list[dict[str, Any]]:
     if interview_type == "technical":
         return [
             {"type": "warmup", "goal": "自我介绍与岗位匹配", "max_questions": 2},
-            {"type": "resume_deep_dive", "goal": "项目真实性与个人贡献", "max_questions": 4},
+            {
+                "type": "resume_deep_dive",
+                "goal": "项目真实性与个人贡献",
+                "max_questions": 4,
+            },
             {"type": "technical", "goal": "技术深度与工程判断", "max_questions": 4},
             {"type": "technical", "goal": "系统设计与排障能力", "max_questions": 3},
             {"type": "closing", "goal": "总结与反问", "max_questions": 2},
@@ -128,9 +137,17 @@ def build_plan(resume_content: dict[str, Any], interview_type: str) -> dict[str,
     return {
         "rounds": rounds_for_type(interview_type),
         "resume_highlights": {
-            "work_experience_count": len(normalized_content.get("work_experience") or []),
+            "work_experience_count": len(
+                normalized_content.get("work_experience") or []
+            ),
             "project_count": len(normalized_content.get("projects") or []),
-            "target_title": ((normalized_content.get("job_application") or {}).get("target_title") or ""),
-            "target_company": ((normalized_content.get("job_application") or {}).get("target_company") or ""),
+            "target_title": (
+                (normalized_content.get("job_application") or {}).get("target_title")
+                or ""
+            ),
+            "target_company": (
+                (normalized_content.get("job_application") or {}).get("target_company")
+                or ""
+            ),
         },
     }

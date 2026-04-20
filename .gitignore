@@ -110,3 +110,4 @@ example/
 
 # Local agent tooling
 .agents/
+.vercel

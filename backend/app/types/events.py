@@ -2,7 +2,6 @@
 
 from typing import Final
 
-
 AGENT_EVENT_TYPES: Final[tuple[str, ...]] = (
     "user_message",
     "agent_response_delta",

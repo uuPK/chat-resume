@@ -6,16 +6,19 @@ API路由聚合模块
 """
 
 from fastapi import APIRouter
+
 from app.entrypoints.http import (
-    auth,
-    users,
-    resumes,
-    upload,
-    export,
-    resume_agent as chat,
-    interviews,
-    tts,
     asr,
+    auth,
+    export,
+    interviews,
+    resumes,
+    tts,
+    upload,
+    users,
+)
+from app.entrypoints.http import (
+    resume_agent as chat,
 )
 
 api_router = APIRouter()

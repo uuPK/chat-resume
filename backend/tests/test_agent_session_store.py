@@ -5,20 +5,21 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.infra.database import Base  # noqa: E402
 from app.infra.request_context import log_context  # noqa: E402
-from app.models import AgentEvent, AgentSession, Resume, User  # noqa: E402
+from app.models import Resume, User  # noqa: E402
 from app.state.store import AgentSessionStore  # noqa: E402
 
 
 class AgentSessionStoreTests(unittest.TestCase):
     def setUp(self):
-        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        engine = create_engine(
+            "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        )
         Base.metadata.create_all(bind=engine)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         self.db = self.SessionLocal()
@@ -69,7 +70,9 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.assertEqual(second.sequence, 2)
 
         events = store.list_events(session.id)
-        self.assertEqual([event.event_type for event in events], ["user_message", "tool_call_failed"])
+        self.assertEqual(
+            [event.event_type for event in events], ["user_message", "tool_call_failed"]
+        )
 
         updated = store.update_status(
             session.id,

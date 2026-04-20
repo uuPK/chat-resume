@@ -5,16 +5,16 @@
 处理简历数据验证和业务规则。
 """
 
-from typing import List
 import logging
+from typing import List
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.models.resume import Resume, OptimizationRecord
+from app.models.resume import OptimizationRecord, Resume
 from app.schemas.resume import (
-    ResumeCreate,
     ResumeContent,
+    ResumeCreate,
     dump_resume_content_for_frontend,
 )
 

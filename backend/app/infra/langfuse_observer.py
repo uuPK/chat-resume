@@ -80,7 +80,9 @@ class LangfuseRunObserver:
             self._root_observation.update(**update_kwargs)
             self._root_observation.end()
         except Exception as exc:
-            logger.warning("Langfuse finish failed run_id=%s error=%s", self.run_id, exc)
+            logger.warning(
+                "Langfuse finish failed run_id=%s error=%s", self.run_id, exc
+            )
 
     def fail(self, error: str, *, metadata: dict[str, Any] | None = None) -> None:
         if not self.enabled or self._root_observation is None:
@@ -101,7 +103,10 @@ class LangfuseRunObserver:
         if not self.enabled:
             return
         try:
-            if event.get("prompt_rendered") or event.get("event_type") == "prompt_rendered":
+            if (
+                event.get("prompt_rendered")
+                or event.get("event_type") == "prompt_rendered"
+            ):
                 self._record_prompt_rendered(event)
             elif event.get("llm_request") or event.get("event_type") == "llm_request":
                 self._pending_llm_request = event
@@ -117,7 +122,9 @@ class LangfuseRunObserver:
             ):
                 self._record_tool_result(event)
         except Exception as exc:
-            logger.warning("Langfuse runtime event failed run_id=%s error=%s", self.run_id, exc)
+            logger.warning(
+                "Langfuse runtime event failed run_id=%s error=%s", self.run_id, exc
+            )
 
     def _record_prompt_rendered(self, event: dict[str, Any]) -> None:
         with self.client.start_as_current_observation(
@@ -154,7 +161,9 @@ class LangfuseRunObserver:
 
     def _cache_tool_call(self, event: dict[str, Any]) -> None:
         call_id = event.get("call_id")
-        cache_key = str(call_id or event.get("tool_name") or len(self._pending_tool_calls))
+        cache_key = str(
+            call_id or event.get("tool_name") or len(self._pending_tool_calls)
+        )
         self._pending_tool_calls[cache_key] = {
             "tool_name": event.get("tool_name"),
             "tool_input": event.get("tool_input"),
@@ -171,8 +180,9 @@ class LangfuseRunObserver:
             success = False
         if event.get("event_type") == "tool_result":
             success = bool(event.get("success", False))
+        tool_name = event.get("tool_name") or pending.get("tool_name") or "unknown"
         with self.client.start_as_current_observation(
-            name=f"tool:{event.get('tool_name') or pending.get('tool_name') or 'unknown'}",
+            name=f"tool:{tool_name}",
             as_type="tool",
             input=pending.get("tool_input") or pending.get("tool_call"),
             output=event.get("result"),

@@ -4,9 +4,10 @@
 定义简历相关的数据库表结构，包括简历内容、优化记录和聊天记录等。
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from app.infra.database import Base
 
 
@@ -26,7 +27,9 @@ class Resume(Base):
     # Relationships
     owner = relationship("User", back_populates="resumes")
     optimization_records = relationship("OptimizationRecord", back_populates="resume")
-    chat_messages = relationship("ResumeChatMessage", back_populates="resume", order_by="ResumeChatMessage.id")
+    chat_messages = relationship(
+        "ResumeChatMessage", back_populates="resume", order_by="ResumeChatMessage.id"
+    )
 
 
 class OptimizationRecord(Base):
@@ -48,9 +51,11 @@ class ResumeChatMessage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     resume_id = Column(Integer, ForeignKey("resumes.id"), nullable=False)
-    role = Column(String, nullable=False)   # "user" | "assistant"
+    role = Column(String, nullable=False)  # "user" | "assistant"
     content = Column(Text, nullable=False)
-    stream_events = Column(JSON, nullable=True)  # 工具确认事件流（confirmed/rejected + diffSummary）
+    stream_events = Column(
+        JSON, nullable=True
+    )  # 工具确认事件流（confirmed/rejected + diffSummary）
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     resume = relationship("Resume", back_populates="chat_messages")

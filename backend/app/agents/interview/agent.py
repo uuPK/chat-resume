@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from app.runtime.loop import AgentDefinition, AgentRuntime
 from app.prompts import load_prompt
+from app.runtime.loop import AgentDefinition, AgentRuntime
 
 from .prompt_context import build_interviewer_prompt_context
 
@@ -75,7 +75,9 @@ class InterviewerAgent:
         """用于生成面试提示词渲染所需的上下文。"""
         return build_interviewer_prompt_context(context)
 
-    def _run_tool(self, tool_call: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_tool(
+        self, tool_call: Dict[str, Any], context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """用于显式拒绝面试 Agent 不支持的工具调用。"""
         del tool_call, context
         raise RuntimeError("InterviewerAgent does not support tool calls")

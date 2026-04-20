@@ -23,11 +23,19 @@ def normalize_evaluation_text(evaluation: Any) -> str:
     if summary:
         parts.append(summary)
 
-    gaps = [str(item).strip() for item in (evaluation.get("gaps") or []) if str(item).strip()]
+    gaps = [
+        str(item).strip()
+        for item in (evaluation.get("gaps") or [])
+        if str(item).strip()
+    ]
     if gaps:
         parts.append("问题：" + "；".join(gaps[:3]))
 
-    evidence = [str(item).strip() for item in (evaluation.get("evidence") or []) if str(item).strip()]
+    evidence = [
+        str(item).strip()
+        for item in (evaluation.get("evidence") or [])
+        if str(item).strip()
+    ]
     if evidence:
         parts.append("亮点：" + "；".join(evidence[:2]))
 

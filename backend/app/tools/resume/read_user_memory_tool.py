@@ -20,5 +20,7 @@ def read_user_memory(
         "memory_file": result["memory_file"],
         "exists": exists,
         "content": content,
-        "message": "已读取当前用户长期记忆" if exists else "当前用户还没有长期记忆，已返回默认模板",
+        "message": "已读取当前用户长期记忆"
+        if exists
+        else "当前用户还没有长期记忆，已返回默认模板",
     }

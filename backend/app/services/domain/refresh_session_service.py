@@ -55,7 +55,9 @@ class RefreshSessionService:
             return False
         if session.revoked_at is not None:
             return False
-        return _coerce_database_datetime(session.expires_at) >= datetime.now(timezone.utc)
+        return _coerce_database_datetime(session.expires_at) >= datetime.now(
+            timezone.utc
+        )
 
     def touch_session(self, session: RefreshSession) -> RefreshSession:
         """用于记录一次成功刷新，便于后续排查和审计。"""

@@ -4,7 +4,7 @@
 定义结构化面试 session / turn / report 的最小表结构。
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -48,7 +48,9 @@ class InterviewTurn(Base):
     __tablename__ = "interview_turns"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("interview_sessions.id"), nullable=False, index=True)
+    session_id = Column(
+        Integer, ForeignKey("interview_sessions.id"), nullable=False, index=True
+    )
     turn_index = Column(Integer, nullable=False)
     round_index = Column(Integer, nullable=False, default=0)
     question = Column(Text, nullable=False)

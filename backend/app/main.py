@@ -5,6 +5,7 @@ FastAPI应用的初始化和配置入口点。
 负责路由注册、中间件配置、错误处理和启动逻辑。
 """
 
+import logging
 from time import perf_counter
 from uuid import uuid4
 
@@ -13,20 +14,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.entrypoints.http.router import api_router
 from app.entrypoints.http.deps import authenticate_token_with_db
+from app.entrypoints.http.router import api_router
 from app.infra.config import settings
-from app.infra.database import Base, SessionLocal, engine
+from app.infra.database import SessionLocal
 from app.infra.db_observability import (
     get_request_metrics,
     reset_request_metrics,
     start_request_metrics,
 )
-from app.infra.logging_setup import configure_logging
 from app.infra.langfuse_setup import configure_langfuse, shutdown_langfuse
+from app.infra.logging_setup import configure_logging
 from app.infra.request_context import bind_log_context, reset_log_context
 from app.infra.sentry_setup import configure_sentry
-import logging
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ def _truncate_log_value(value: str | None, limit: int = 240) -> str:
     if len(normalized) <= limit:
         return normalized
     return f"{normalized[:limit]}..."
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -68,7 +69,10 @@ def _is_protected_api_path(path: str) -> bool:
         return False
     if any(path.startswith(f"{exempt}/") for exempt in _AUTH_EXEMPT_PATHS):
         return False
-    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in _PROTECTED_API_PREFIXES)
+    return any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in _PROTECTED_API_PREFIXES
+    )
 
 
 def _extract_request_token(request: Request) -> str:
@@ -138,7 +142,11 @@ async def log_requests(request: Request, call_next):
             )
         else:
             logger.info(
-                "Response: %s request_ms=%.2f db_checkout_count=%s db_checkout_ms=%.2f db_query_count=%s db_query_ms=%.2f db_longest_query_ms=%.2f db_longest_query_sql=%s",
+                (
+                    "Response: %s request_ms=%.2f db_checkout_count=%s "
+                    "db_checkout_ms=%.2f db_query_count=%s db_query_ms=%.2f "
+                    "db_longest_query_ms=%.2f db_longest_query_sql=%s"
+                ),
                 status_code,
                 request_elapsed_ms,
                 metrics.checkout_count,
@@ -162,10 +170,15 @@ logger.info(f"CORS Origins type: {type(cors_origins)}")
 
 # Cookie 鉴权要求显式 origin，避免浏览器在跨域时丢掉凭证。
 configured_origins = [
-    origin for origin in cors_origins if origin and origin != "http://localhost:3000,https://localhost:3000"
+    origin
+    for origin in cors_origins
+    if origin and origin != "http://localhost:3000,https://localhost:3000"
 ]
 effective_origins = list(
-    dict.fromkeys(configured_origins or [settings.FRONTEND_URL, "http://localhost:3000", "https://localhost:3000"])
+    dict.fromkeys(
+        configured_origins
+        or [settings.FRONTEND_URL, "http://localhost:3000", "https://localhost:3000"]
+    )
 )
 logger.info("Using credentialed CORS origins: %s", effective_origins)
 app.add_middleware(
@@ -189,6 +202,7 @@ async def root():
 @app.get("/health")
 async def health_check(response: Response):
     from app.infra.database import SessionLocal
+
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))

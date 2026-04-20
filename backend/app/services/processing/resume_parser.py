@@ -5,14 +5,16 @@
 支持多种简历格式（PDF、Word等）的解析处理。
 """
 
+import asyncio
+import json
+import logging
 import os
 import re
-import json
-import asyncio
-from typing import Dict, Any
+from typing import Any, Dict
+
 import httpx
-import logging
 from dotenv import load_dotenv
+
 from ..domain.file_service import FileService
 
 logger = logging.getLogger(__name__)
@@ -115,7 +117,11 @@ class AIResumeParser:
                     pool=read_timeout,  # 连接池超时与读取超时一致
                 )
 
-                logger.debug(f"动态超时配置: 连接{timeout_config.connect}s, 读取{timeout_config.read}s")
+                logger.debug(
+                    "动态超时配置: 连接%ss, 读取%ss",
+                    timeout_config.connect,
+                    timeout_config.read,
+                )
 
                 async with httpx.AsyncClient(timeout=timeout_config) as client:
                     response = await client.post(
@@ -131,7 +137,10 @@ class AIResumeParser:
                             "messages": [
                                 {
                                     "role": "system",
-                                    "content": "你是一个专业的简历解析助手，擅长将简历文本转换为结构化的JSON数据。",
+                                    "content": (
+                                        "你是一个专业的简历解析助手，"
+                                        "擅长将简历文本转换为结构化的JSON数据。"
+                                    ),
                                 },
                                 {"role": "user", "content": prompt},
                             ],
@@ -165,7 +174,9 @@ class AIResumeParser:
                     logger.info("AI解析成功")
                     return validated_data
                 else:
-                    logger.error(f"API请求失败: {response.status_code} - {response.text[:500]}")
+                    logger.error(
+                        f"API请求失败: {response.status_code} - {response.text[:500]}"
+                    )
 
             except httpx.TimeoutException as e:
                 logger.warning(f"第 {attempt + 1} 次尝试超时: {e}")
@@ -392,7 +403,9 @@ class AIResumeParser:
                     )
                 elif isinstance(skill, dict) and skill.get("name"):
                     category = str(skill.get("category", "其他"))
-                    grouped_skills.setdefault(category, []).append(str(skill.get("name", "")).strip())
+                    grouped_skills.setdefault(category, []).append(
+                        str(skill.get("name", "")).strip()
+                    )
                 elif isinstance(skill, str):
                     grouped_skills.setdefault("其他", []).append(skill.strip())
             validated_skills.extend(
@@ -477,43 +490,60 @@ class AIResumeParser:
         info: Dict[str, Any] = {}
 
         # 手机号（支持 +86 前缀、空格/连字符分隔的11位号码）
-        phone_match = re.search(r'(?:\+86[-\s]?)?(1[3-9]\d[-\s]?\d{4}[-\s]?\d{4})', text)
+        phone_match = re.search(
+            r"(?:\+86[-\s]?)?(1[3-9]\d[-\s]?\d{4}[-\s]?\d{4})", text
+        )
         if phone_match:
-            info["phone"] = re.sub(r'[-\s]', '', phone_match.group())
+            info["phone"] = re.sub(r"[-\s]", "", phone_match.group())
 
         # 邮箱
-        email_match = re.search(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}', text)
+        email_match = re.search(
+            r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", text
+        )
         if email_match:
             info["email"] = email_match.group()
 
         # GitHub URL
-        github_match = re.search(r'github\.com/[\w\-]+(?:/[\w\-]+)?', text, re.IGNORECASE)
+        github_match = re.search(
+            r"github\.com/[\w\-]+(?:/[\w\-]+)?", text, re.IGNORECASE
+        )
         if github_match:
-            info["github"] = 'https://' + github_match.group()
+            info["github"] = "https://" + github_match.group()
 
         # LinkedIn URL
-        linkedin_match = re.search(r'linkedin\.com/in/[\w\-]+', text, re.IGNORECASE)
+        linkedin_match = re.search(r"linkedin\.com/in/[\w\-]+", text, re.IGNORECASE)
         if linkedin_match:
-            info["linkedin"] = 'https://' + linkedin_match.group()
+            info["linkedin"] = "https://" + linkedin_match.group()
 
         # 姓名：优先匹配"姓名：xxx"格式，捕获到行尾（去除结尾空白）
-        name_labeled = re.search(r'(?:姓\s*名|name)\s*[：:]\s*(.+)', text, re.IGNORECASE)
+        name_labeled = re.search(
+            r"(?:姓\s*名|name)\s*[：:]\s*(.+)", text, re.IGNORECASE
+        )
         if name_labeled:
             info["name"] = name_labeled.group(1).strip()
         else:
             for line in text.splitlines():
                 stripped = line.strip()
                 # 取2-6个汉字，或2-20个字母的纯名字行
-                if re.fullmatch(r'[\u4e00-\u9fff]{2,6}', stripped) or re.fullmatch(r'[A-Za-z][a-zA-Z\s]{1,19}', stripped):
+                if re.fullmatch(r"[\u4e00-\u9fff]{2,6}", stripped) or re.fullmatch(
+                    r"[A-Za-z][a-zA-Z\s]{1,19}", stripped
+                ):
                     # 排除明显的标题/关键词行
-                    if stripped not in ('个人简历', '简历', 'Resume', 'CV', 'Curriculum Vitae'):
+                    if stripped not in (
+                        "个人简历",
+                        "简历",
+                        "Resume",
+                        "CV",
+                        "Curriculum Vitae",
+                    ):
                         info["name"] = stripped
                         break
 
         # 求职意向
         position_match = re.search(
-            r'(?:求职意向|应聘岗位|应聘职位|目标岗位|position)\s*[：:]\s*(.+)',
-            text, re.IGNORECASE
+            r"(?:求职意向|应聘岗位|应聘职位|目标岗位|position)\s*[：:]\s*(.+)",
+            text,
+            re.IGNORECASE,
         )
         if position_match:
             info["position"] = position_match.group(1).strip()[:50]

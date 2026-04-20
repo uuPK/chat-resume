@@ -46,15 +46,20 @@ class JDOcrService:
                 stream=False,
             )
 
-        content = ChatService._coerce_content_text(
-            response.get("choices", [{}])[0].get("message", {}).get("content", "")
-        ) or ""
+        content = (
+            ChatService._coerce_content_text(
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
+            or ""
+        )
         return self._normalize_ocr_text(content)
 
     @staticmethod
     def _normalize_ocr_text(text: str) -> str:
         """用于清理模型偶发附带的代码块包裹和多余空白。"""
-        normalized = re.sub(r"^```(?:text|markdown)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL)
+        normalized = re.sub(
+            r"^```(?:text|markdown)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL
+        )
         return normalized.strip()
 
 

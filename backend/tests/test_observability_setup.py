@@ -1,22 +1,20 @@
 import json
+import logging
 import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import logging
-
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.infra.logging_setup import JsonFormatter  # noqa: E402
+from app.infra.config import settings  # noqa: E402
 from app.infra.langfuse_observer import LangfuseRunObserver  # noqa: E402
 from app.infra.langfuse_setup import configure_langfuse  # noqa: E402
+from app.infra.logging_setup import JsonFormatter  # noqa: E402
 from app.infra.request_context import log_context  # noqa: E402
 from app.infra.sentry_setup import _before_send  # noqa: E402
-from app.infra.config import settings  # noqa: E402
 
 
 class ObservabilitySetupTests(unittest.TestCase):
@@ -55,13 +53,17 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(event["extra"]["request_id"], "req_ctx")
 
     def test_configure_langfuse_is_disabled_without_credentials(self):
-        with patch("app.infra.langfuse_setup._langfuse_client", None), \
-             patch.object(settings, "LANGFUSE_PUBLIC_KEY", ""), \
-             patch.object(settings, "LANGFUSE_SECRET_KEY", ""):
+        with (
+            patch("app.infra.langfuse_setup._langfuse_client", None),
+            patch.object(settings, "LANGFUSE_PUBLIC_KEY", ""),
+            patch.object(settings, "LANGFUSE_SECRET_KEY", ""),
+        ):
             self.assertFalse(configure_langfuse())
 
     def test_langfuse_observer_is_noop_when_client_missing(self):
-        with patch("app.infra.langfuse_observer.get_langfuse_client", return_value=None):
+        with patch(
+            "app.infra.langfuse_observer.get_langfuse_client", return_value=None
+        ):
             observer = LangfuseRunObserver(
                 run_id="run_test",
                 agent_type="resume",
@@ -70,5 +72,7 @@ class ObservabilitySetupTests(unittest.TestCase):
                 input_text="hello",
             )
             with observer:
-                observer.on_runtime_event({"prompt_rendered": True, "system_prompt": "test"})
+                observer.on_runtime_event(
+                    {"prompt_rendered": True, "system_prompt": "test"}
+                )
                 observer.finish("done")

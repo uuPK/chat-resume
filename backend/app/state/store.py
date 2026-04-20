@@ -9,8 +9,8 @@ from uuid import uuid4
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.state.models import AgentEvent, AgentSession
 from app.infra.request_context import get_log_context
+from app.state.models import AgentEvent, AgentSession
 
 
 class AgentSessionStore:
@@ -49,11 +49,7 @@ class AgentSessionStore:
 
     def get_session(self, session_id: str) -> AgentSession | None:
         """用于按 session_id 查询单条 Agent session。"""
-        return (
-            self.db.query(AgentSession)
-            .filter(AgentSession.id == session_id)
-            .first()
-        )
+        return self.db.query(AgentSession).filter(AgentSession.id == session_id).first()
 
     def update_status(
         self,

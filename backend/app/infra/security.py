@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 
 from jose import jwt
 from passlib.context import CryptContext
+
 from app.infra.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,14 +26,18 @@ def create_access_token(
     subject: Union[str, Any], expires_delta: timedelta | None = None
 ) -> str:
     """用于签发短期访问令牌给后续 API 鉴权使用。"""
-    return create_token(subject=subject, expires_delta=expires_delta, token_type="access")
+    return create_token(
+        subject=subject, expires_delta=expires_delta, token_type="access"
+    )
 
 
 def create_refresh_token(
     subject: Union[str, Any], expires_delta: timedelta | None = None
 ) -> str:
     """用于兼容旧流程生成刷新令牌。"""
-    return create_token(subject=subject, expires_delta=expires_delta, token_type="refresh")
+    return create_token(
+        subject=subject, expires_delta=expires_delta, token_type="refresh"
+    )
 
 
 def create_token(

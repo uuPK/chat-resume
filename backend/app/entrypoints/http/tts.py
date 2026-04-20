@@ -3,16 +3,18 @@ TTS (Text-to-Speech) API端点
 提供文本转语音和语音克隆功能
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
+import os
+import tempfile
 from typing import Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.services.voice import TTSService
 from app.services.voice.tts_service import TTSProvider
-from app.entrypoints.http.deps import get_current_user
-from pydantic import BaseModel
-import tempfile
-import os
 
 router = APIRouter()
 
@@ -57,7 +59,9 @@ async def text_to_speech(
             content=result,
             media_type=f"audio/{request.format or 'mp3'}",
             headers={
-                "Content-Disposition": f"attachment; filename=speech.{request.format or 'mp3'}"
+                "Content-Disposition": (
+                    f"attachment; filename=speech.{request.format or 'mp3'}"
+                )
             },
         )
 
@@ -152,7 +156,6 @@ async def get_voice_list(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取音色列表失败: {str(e)}",
         )
-
 
 
 @router.get("/health")

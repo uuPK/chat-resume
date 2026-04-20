@@ -37,7 +37,11 @@ class AgentHarness:
         visible_modules: list[str],
     ) -> None:
         """用于创建一次新的简历优化 session 并记录首条用户消息。"""
-        logger.info("AgentHarness create_resume_session resume_id=%s user_id=%s", resume_id, user_id)
+        logger.info(
+            "AgentHarness create_resume_session resume_id=%s user_id=%s",
+            resume_id,
+            user_id,
+        )
         self.session_store.create_session(
             session_id=session_id,
             user_id=user_id,
@@ -128,7 +132,10 @@ class AgentHarness:
         latest_resume_content: dict[str, Any] | None,
     ) -> None:
         """用于在流式执行结束后补齐最终回复和完成事件。"""
-        logger.info("AgentHarness complete_resume_session has_checkpoint=%s", latest_resume_content is not None)
+        logger.info(
+            "AgentHarness complete_resume_session has_checkpoint=%s",
+            latest_resume_content is not None,
+        )
         if final_content:
             self.session_store.append_event(
                 session_id=session_id,

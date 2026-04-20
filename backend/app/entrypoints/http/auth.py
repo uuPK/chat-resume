@@ -5,25 +5,27 @@
 处理用户身份验证和JWT令牌管理。
 """
 
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import timedelta
 from time import perf_counter
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
+from app.entrypoints.http.deps import get_current_user
+from app.infra.config import settings
 from app.infra.database import get_db
 from app.infra.security import create_access_token
-from app.infra.config import settings
 from app.schemas.auth import (
-    UserCreate,
-    UserUpdate,
-    UserResponse,
     AuthSessionResponse,
     LogoutResponse,
     RefreshTokenRequest,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
 )
 from app.services.domain import RefreshSessionService, UserService
-from app.entrypoints.http.deps import get_current_user
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +84,16 @@ def _issue_auth_session(
 ) -> AuthSessionResponse:
     """用于签发访问令牌并轮换服务端刷新会话。"""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(subject=user.id, expires_delta=access_token_expires)
+    access_token = create_access_token(
+        subject=user.id, expires_delta=access_token_expires
+    )
 
     refresh_session_service = RefreshSessionService(db)
     session, refresh_token = refresh_session_service.create_session(user.id)
     if previous_session_token:
-        previous_session = refresh_session_service.get_session_by_token(previous_session_token)
+        previous_session = refresh_session_service.get_session_by_token(
+            previous_session_token
+        )
         if previous_session and previous_session.id != session.id:
             refresh_session_service.revoke_session(
                 previous_session,
@@ -211,7 +217,9 @@ async def logout(
     refresh_token_value = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
     if refresh_token_value:
         refresh_session_service = RefreshSessionService(db)
-        refresh_session = refresh_session_service.get_session_by_token(refresh_token_value)
+        refresh_session = refresh_session_service.get_session_by_token(
+            refresh_token_value
+        )
         if refresh_session and refresh_session.revoked_at is None:
             refresh_session_service.revoke_session(refresh_session)
     _clear_auth_cookies(response)
@@ -240,7 +248,9 @@ async def update_current_user(
 ):
     """用于更新当前登录用户的可编辑资料。"""
     logger.info(
-        f"更新用户信息请求 - 用户ID: {current_user['id']}, 更新数据: {user_update.model_dump()}"
+        "更新用户信息请求 - 用户ID: %s, 更新数据: %s",
+        current_user["id"],
+        user_update.model_dump(),
     )
     user_service = UserService(db)
 
@@ -253,7 +263,9 @@ async def update_current_user(
         )
 
     logger.info(
-        f"用户信息更新成功 - 用户ID: {updated_user.id}, 新姓名: {updated_user.full_name}"
+        "用户信息更新成功 - 用户ID: %s, 新姓名: %s",
+        updated_user.id,
+        updated_user.full_name,
     )
 
     return UserResponse.model_validate(updated_user)

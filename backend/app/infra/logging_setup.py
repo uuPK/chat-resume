@@ -36,7 +36,11 @@ def configure_logging() -> None:
         formatter = JsonFormatter()
     else:
         formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - [req=%(request_id)s ses=%(session_id)s tool=%(tool_call_id)s] %(message)s",
+            (
+                "%(asctime)s - %(name)s - %(levelname)s - "
+                "[req=%(request_id)s ses=%(session_id)s "
+                "tool=%(tool_call_id)s] %(message)s"
+            ),
             "%Y-%m-%d %H:%M:%S",
         )
 

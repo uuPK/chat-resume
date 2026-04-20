@@ -6,6 +6,7 @@ Prompt Loader - 按照 AgentSpec 模式管理 Prompt
 - Markdown 文件存放 Prompt 正文
 - Jinja2 负责变量渲染（支持 {{ VAR }} 和 {% if %} 条件块）
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -36,9 +37,7 @@ class AgentPromptSpec:
         try:
             return Template(raw, undefined=StrictUndefined).render(**context)
         except UndefinedError as e:
-            raise ValueError(
-                f"Prompt '{self.name}' 渲染失败，缺少变量: {e}"
-            ) from e
+            raise ValueError(f"Prompt '{self.name}' 渲染失败，缺少变量: {e}") from e
 
     def __repr__(self) -> str:
         return f"AgentPromptSpec(name={self.name!r}, version={self.version!r})"
@@ -62,7 +61,9 @@ def load_prompt(agent_name: str) -> AgentPromptSpec:
     version = str(data.get("version", "1.0"))
     agent = data.get("agent", {})
 
-    prompt_path = (spec_file.parent / agent.get("system_prompt_path", "./system.md")).resolve()
+    prompt_path = (
+        spec_file.parent / agent.get("system_prompt_path", "./system.md")
+    ).resolve()
     if not prompt_path.exists():
         raise FileNotFoundError(f"System prompt file not found: {prompt_path}")
 

@@ -1,8 +1,9 @@
 """用于提供用户资料读取接口。"""
 
 from fastapi import APIRouter, Depends
-from app.schemas.auth import UserResponse
+
 from app.entrypoints.http.deps import get_current_user
+from app.schemas.auth import UserResponse
 
 router = APIRouter()
 

@@ -17,7 +17,10 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "read_user_memory",
-            "description": "读取当前登录用户的长期记忆 Markdown 文件，用于了解用户过往确认过的偏好、策略和事实。",
+            "description": (
+                "读取当前登录用户的长期记忆 Markdown 文件，"
+                "用于了解用户过往确认过的偏好、策略和事实。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -29,13 +32,19 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "write_user_memory",
-            "description": "覆盖写入当前登录用户的长期记忆 Markdown 文件。写入前应先读取现有记忆，并保留仍然有效的长期信息。",
+            "description": (
+                "覆盖写入当前登录用户的长期记忆 Markdown 文件。"
+                "写入前应先读取现有记忆，并保留仍然有效的长期信息。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "content": {
                         "type": "string",
-                        "description": "要写回的完整 Markdown 内容，应保留有效旧记忆并合并本轮新增的长期信息。",
+                        "description": (
+                            "要写回的完整 Markdown 内容，"
+                            "应保留有效旧记忆并合并本轮新增的长期信息。"
+                        ),
                     }
                 },
                 "required": ["content"],
@@ -46,7 +55,9 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_overview",
-            "description": "更新 projects 板块中某个项目的 overview 简介，不修改其他事实字段。",
+            "description": (
+                "更新 projects 板块中某个项目的 overview 简介，不修改其他事实字段。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -64,7 +75,9 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
                     },
                     "reason": {
                         "type": "string",
-                        "description": "本次修改的简短理由，供前端展示，如“突出量化结果”",
+                        "description": (
+                            "本次修改的简短理由，供前端展示，如“突出量化结果”"
+                        ),
                     },
                 },
                 "required": ["section", "item_id", "overview"],
@@ -97,7 +110,9 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
                     },
                     "reason": {
                         "type": "string",
-                        "description": "本次修改的简短理由，供前端展示，如“补充岗位关键词”",
+                        "description": (
+                            "本次修改的简短理由，供前端展示，如“补充岗位关键词”"
+                        ),
                     },
                 },
                 "required": ["section", "item_id", "highlight_id", "text"],

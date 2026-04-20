@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from app.state.models import AgentEvent, AgentSession
 from app.types.session import (
     LatestSummary,
     PendingAction,
     ResumableStep,
     SessionSnapshot,
 )
-from app.state.models import AgentEvent, AgentSession
 
 
 def reduce_session_snapshot(
@@ -30,7 +30,9 @@ def reduce_session_snapshot(
                 tool_name=str(payload.get("tool_name") or ""),
                 call_id=str(payload.get("call_id") or ""),
                 summary=str(payload.get("diff_summary") or ""),
-                input=payload.get("tool_input") if isinstance(payload.get("tool_input"), dict) else None,
+                input=payload.get("tool_input")
+                if isinstance(payload.get("tool_input"), dict)
+                else None,
             )
             resumable_step = ResumableStep(
                 kind="tool_execution",
@@ -39,7 +41,11 @@ def reduce_session_snapshot(
             )
         elif event.event_type == "agent_response":
             latest_summary = LatestSummary(text=str(payload.get("content") or ""))
-        elif event.event_type in {"tool_call_confirmed", "tool_call_rejected", "session_completed"}:
+        elif event.event_type in {
+            "tool_call_confirmed",
+            "tool_call_rejected",
+            "session_completed",
+        }:
             pending_action = None
 
     return SessionSnapshot(
