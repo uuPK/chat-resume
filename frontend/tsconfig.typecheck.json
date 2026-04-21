@@ -8,6 +8,7 @@
   "exclude": [
     "node_modules",
     ".next",
+    ".next-dev",
     "e2e",
     "playwright.config.ts"
   ]

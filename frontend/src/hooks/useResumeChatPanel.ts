@@ -174,10 +174,11 @@ export function useResumeChatPanel({
   }, [enabled, loadChatHistory])
 
   /**
-   * 发送一条新消息，并在发送前确保当前简历草稿已保存。
+   * 发送一条指定消息，并在发送前确保当前简历草稿已保存。
    */
-  const sendMessage = useCallback(async () => {
-    if (!inputMessage.trim() || isSending || isStreaming) return
+  const dispatchMessage = useCallback(async (messageContent: string, clearInput = false) => {
+    const trimmedMessage = messageContent.trim()
+    if (!trimmedMessage || isSending || isStreaming) return
 
     try {
       await performAutoSave()
@@ -189,7 +190,7 @@ export function useResumeChatPanel({
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: inputMessage.trim(),
+      content: trimmedMessage,
       timestamp: new Date(),
     }
     appendMessage(userMessage)
@@ -199,18 +200,33 @@ export function useResumeChatPanel({
       ])
     }
 
-    const currentMessage = inputMessage.trim()
-    setInputMessage('')
+    if (clearInput) {
+      setInputMessage('')
+    }
     setIsSending(true)
     setApiError(null)
     try {
-      await sendStreamingMessage(currentMessage, messages)
+      await sendStreamingMessage(trimmedMessage, messages)
     } catch (error) {
       setApiError('流式聊天发送失败，请重试')
     } finally {
       setIsSending(false)
     }
-  }, [appendMessage, inputMessage, isSending, isStreaming, messages, performAutoSave, resumeId, sendStreamingMessage])
+  }, [appendMessage, isSending, isStreaming, messages, performAutoSave, resumeId, sendStreamingMessage])
+
+  /**
+   * 发送输入框中的消息，并在成功提交后清空输入框。
+   */
+  const sendMessage = useCallback(async () => {
+    await dispatchMessage(inputMessage, true)
+  }, [dispatchMessage, inputMessage])
+
+  /**
+   * 发送一条预设快捷消息，避免按钮动作覆盖用户手写草稿。
+   */
+  const sendPresetMessage = useCallback(async (messageContent: string) => {
+    await dispatchMessage(messageContent)
+  }, [dispatchMessage])
 
   /**
    * 清空当前聊天历史，并同步删除服务端已保存的消息。
@@ -260,5 +276,6 @@ export function useResumeChatPanel({
     handleClearMessages,
     handleKeyPress,
     sendMessage,
+    sendPresetMessage,
   }
 }

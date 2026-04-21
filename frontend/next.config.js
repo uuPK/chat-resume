@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 开发态单独使用目录，避免 next build 覆盖正在运行的 next dev 产物。
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   images: {
     domains: ['localhost'],
   },
