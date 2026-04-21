@@ -8,6 +8,7 @@
 import logging
 from datetime import timedelta
 from time import perf_counter
+from typing import Literal, TypedDict, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -17,6 +18,7 @@ from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.infra.security import create_access_token
+from app.models.user import User
 from app.schemas.auth import (
     AuthSessionResponse,
     LogoutResponse,
@@ -33,12 +35,25 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
 
 
-def _cookie_base_kwargs() -> dict[str, object]:
+class CookieKwargs(TypedDict, total=False):
+    """用于精确定义认证 Cookie 复用参数，方便类型检查器理解展开参数。"""
+
+    httponly: bool
+    secure: bool
+    samesite: Literal["lax", "strict", "none"] | None
+    path: str
+    domain: str
+
+
+def _cookie_base_kwargs() -> CookieKwargs:
     """用于复用认证 Cookie 的公共安全参数。"""
-    kwargs: dict[str, object] = {
+    kwargs: CookieKwargs = {
         "httponly": True,
         "secure": settings.AUTH_COOKIE_SECURE,
-        "samesite": settings.AUTH_COOKIE_SAMESITE,
+        "samesite": cast(
+            Literal["lax", "strict", "none"] | None,
+            settings.AUTH_COOKIE_SAMESITE,
+        ),
         "path": "/",
     }
     if settings.AUTH_COOKIE_DOMAIN.strip():
@@ -78,7 +93,7 @@ def _clear_auth_cookies(response: Response) -> None:
 def _issue_auth_session(
     response: Response,
     *,
-    user,
+    user: User,
     db: Session,
     previous_session_token: str | None = None,
 ) -> AuthSessionResponse:
@@ -188,6 +203,7 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
+    assert refresh_session is not None
 
     user_service = UserService(db)
     user = user_service.get_by_id(int(refresh_session.user_id))

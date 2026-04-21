@@ -15,12 +15,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.agents.resume import ResumeAgent
+from app.agents.resume.agent import ResumeAgent
 from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.infra.langfuse_observer import LangfuseRunObserver
 from app.infra.request_context import log_context
-from app.runtime import AgentHarness, confirmation_manager
+from app.runtime.harness import AgentHarness
+from app.runtime.permissions import confirmation_manager
 from app.services.domain import ResumeService
 from app.services.llm import ChatService
 from app.state import AgentSessionStore
@@ -212,18 +213,14 @@ async def chat_with_resume_stream(
                     if _should_ignore_history_for_request(chat_request.message)
                     else chat_request.chat_history
                 )
-                harness = AgentHarness(db) if session_id else None
-
-                if harness and session_id:
-                    harness.create_resume_session(
-                        session_id=session_id,
-                        user_id=current_user["id"],
-                        resume_id=chat_request.resume_id,
-                        user_message=chat_request.message,
-                        visible_modules=chat_request.visible_modules,
-                    )
-
-                assert harness is not None
+                harness = AgentHarness(db)
+                harness.create_resume_session(
+                    session_id=session_id,
+                    user_id=current_user["id"],
+                    resume_id=chat_request.resume_id,
+                    user_message=chat_request.message,
+                    visible_modules=chat_request.visible_modules,
+                )
                 with observer:
                     event_stream = harness.run_resume_stream(
                         session_id=session_id,

@@ -24,17 +24,22 @@ logger = logging.getLogger(__name__)
 
 
 class ResumeService:
+    """用于封装简历的增删改查和文件清理逻辑。"""
+
     def __init__(self, db: Session):
+        """用于保存当前请求复用的数据库会话。"""
         self.db = db
 
-    def get_by_id(self, resume_id: int) -> Resume:
+    def get_by_id(self, resume_id: int) -> Resume | None:
+        """用于按主键查询单个简历。"""
         return self.db.query(Resume).filter(Resume.id == resume_id).first()
 
     def get_by_owner(self, owner_id: int) -> List[Resume]:
+        """用于查询某个用户拥有的全部简历。"""
         return self.db.query(Resume).filter(Resume.owner_id == owner_id).all()
 
     def create(self, resume_create: ResumeCreate, owner_id: int) -> Resume:
-        """创建简历记录"""
+        """用于创建新的简历记录。"""
         resume = Resume(
             title=resume_create.title,
             content=self._serialize_content(resume_create.content),
@@ -53,7 +58,10 @@ class ResumeService:
             raise e
 
     def update(self, resume_id: int, resume_update: dict) -> Resume:
+        """用于更新单份简历并同步标记 JSON 字段脏状态。"""
         resume = self.get_by_id(resume_id)
+        if resume is None:
+            raise ValueError(f"Resume {resume_id} 不存在，无法更新")
         if resume:
             for key, value in resume_update.items():
                 if key == "content":
@@ -70,7 +78,7 @@ class ResumeService:
         return dump_resume_content_for_frontend(content)
 
     def delete(self, resume_id: int) -> bool:
-        """删除简历及其关联数据"""
+        """用于删除简历及其关联记录和上传文件。"""
         resume = self.get_by_id(resume_id)
         if not resume:
             return False

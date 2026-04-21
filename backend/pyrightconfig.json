@@ -1,8 +1,16 @@
 {
-  "reportMissingImports": false,
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "include": [
+    "app"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "alembic",
+    "uploads"
+  ],
   "reportMissingModuleSource": false,
-  "ignore": [
-    "app/agents/tools/resume_tools/login_verifier.py",
-    "app/agents/tools/resume_tools/boss_zhipin_fastmcp_v2.py"
-  ]
+  "reportUnsupportedDunderAll": false,
+  "useLibraryCodeForTypes": true
 }

@@ -72,8 +72,7 @@ indent-style = "space"
 line-length = 88
 target-version = ['py38']
 
-[tool.pyright]
-# 忽略缺失的导入
-reportMissingImports = false
-# 或者只忽略特定的模块
-reportMissingModuleSource = false
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+]

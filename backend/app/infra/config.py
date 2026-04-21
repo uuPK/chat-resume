@@ -6,7 +6,7 @@
 """
 
 import os
-from typing import List, Union
+from typing import List, Literal, Union, cast
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -46,7 +46,10 @@ class Settings(BaseSettings):
         "REFRESH_TOKEN_COOKIE_NAME", "refresh_token"
     )
     AUTH_COOKIE_DOMAIN: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
-    AUTH_COOKIE_SAMESITE: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
+    AUTH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = cast(
+        Literal["lax", "strict", "none"],
+        os.getenv("AUTH_COOKIE_SAMESITE", "lax"),
+    )
     AUTH_COOKIE_SECURE: bool = (
         os.getenv("AUTH_COOKIE_SECURE", "").strip().lower() == "true"
         if os.getenv("AUTH_COOKIE_SECURE") is not None
@@ -68,12 +71,14 @@ class Settings(BaseSettings):
         return []
 
     @field_validator("AUTH_COOKIE_SAMESITE", mode="before")
-    def normalize_auth_cookie_samesite(cls, value: str) -> str:
+    def normalize_auth_cookie_samesite(
+        cls, value: str
+    ) -> Literal["lax", "strict", "none"]:
         """用于规范化 SameSite 配置并拦截非法值。"""
         normalized = str(value).strip().lower()
         if normalized not in {"lax", "strict", "none"}:
             raise ValueError("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")
-        return normalized
+        return cast(Literal["lax", "strict", "none"], normalized)
 
     # OpenRouter API
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")

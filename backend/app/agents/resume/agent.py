@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.prompts import load_prompt
 from app.runtime.loop import AgentDefinition, AgentRuntime
@@ -93,7 +93,7 @@ class ResumeAgent:
         allowed_sections: Optional[set[str]] = None,
         event_callback=None,
         user_id: Optional[int] = None,
-    ):
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
         context = {
             "resume_content": resume_content,

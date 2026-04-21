@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import logging
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -28,15 +28,18 @@ _request_metrics: ContextVar[RequestDBMetrics | None] = ContextVar(
 )
 
 
-def start_request_metrics() -> object:
+def start_request_metrics() -> Token[RequestDBMetrics | None]:
+    """用于在请求开始时初始化一份新的数据库指标快照。"""
     return _request_metrics.set(RequestDBMetrics())
 
 
 def get_request_metrics() -> RequestDBMetrics | None:
+    """用于读取当前请求上下文中的数据库指标。"""
     return _request_metrics.get()
 
 
-def reset_request_metrics(token: object) -> None:
+def reset_request_metrics(token: Token[RequestDBMetrics | None]) -> None:
+    """用于在请求结束后恢复上一个 metrics 上下文。"""
     _request_metrics.reset(token)
 
 

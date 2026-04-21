@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.prompts import load_prompt
 from app.runtime.loop import AgentDefinition, AgentRuntime
@@ -55,7 +55,7 @@ class InterviewerAgent:
         resume_content: Dict[str, Any],
         conversation_history: Optional[List[Dict[str, str]]] = None,
         event_callback=None,
-    ):
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """用于执行一次流式面试官回复。"""
         async for event in self.runtime.run_stream(
             agent=self.definition,

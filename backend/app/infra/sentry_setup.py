@@ -5,12 +5,12 @@ Sentry initialization helpers.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.types import Event, Hint
 
 from app.infra.config import settings
 from app.infra.request_context import get_log_context
@@ -18,7 +18,8 @@ from app.infra.request_context import get_log_context
 logger = logging.getLogger(__name__)
 
 
-def _before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
+def _before_send(event: Event, hint: Hint) -> Event | None:
+    """用于在发送 Sentry 事件前补充当前请求上下文标签。"""
     del hint
     context = get_log_context()
     tags = event.setdefault("tags", {})

@@ -114,7 +114,7 @@ def find_item(
     resume_content: dict[str, Any],
     section: str,
     item_id: str,
-) -> tuple[list[dict[str, Any]], int] | tuple[None, None]:
+) -> tuple[list[dict[str, Any]], int | None] | tuple[None, None]:
     """用于在指定板块里定位目标条目及其索引。"""
     items: list[dict[str, Any]] = resume_content.get(section) or []
     if not isinstance(items, list):

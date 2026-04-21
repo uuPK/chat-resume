@@ -48,6 +48,16 @@ from app.services.interview.serializer import (
 _interviewer_agent = InterviewerAgent()
 
 
+def _get_session_rounds(session: InterviewSession) -> list[dict[str, Any]]:
+    """用于把 session 里的计划 JSON 安全收窄成轮次列表。"""
+    if not isinstance(session.plan_json, dict):
+        return []
+    rounds = session.plan_json.get("rounds")
+    if not isinstance(rounds, list):
+        return []
+    return [item for item in rounds if isinstance(item, dict)]
+
+
 def now() -> datetime:
     """用于统一生成带时区的当前时间。"""
     return datetime.now(timezone.utc)
@@ -268,7 +278,7 @@ async def start_interview_session(
             "request_id": getattr(http_request.state, "request_id", None),
         },
     )
-    rounds = (session.plan_json or {}).get("rounds") or []
+    rounds = _get_session_rounds(session)
     first_round = rounds[0] if rounds else {}
     round_goal = first_round.get("goal", "自我介绍与岗位匹配")
     try:
@@ -350,7 +360,7 @@ async def answer_interview_session(
     turn.answered_at = now()
     turn.status = "done"
 
-    rounds = (session.plan_json or {}).get("rounds") or []
+    rounds = _get_session_rounds(session)
     current_round = rounds[turn.round_index] if turn.round_index < len(rounds) else {}
     max_q = int(current_round.get("max_questions") or 2)
     questions_in_round = sum(
@@ -504,7 +514,7 @@ async def stream_answer_interview_session(
             session_id=str(session_id),
         ):
             with observer:
-                rounds = (session.plan_json or {}).get("rounds") or []
+                rounds = _get_session_rounds(session)
                 current_round = (
                     rounds[turn.round_index] if turn.round_index < len(rounds) else {}
                 )

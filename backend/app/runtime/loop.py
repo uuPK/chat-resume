@@ -17,7 +17,7 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from app.infra.request_context import log_context
 from app.prompts import AgentPromptSpec
@@ -111,7 +111,7 @@ class AgentRuntime:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         confirmation_queue: Optional[asyncio.Queue] = None,
         event_callback: Optional[RuntimeEventCallback] = None,
-    ) -> Iterable[Dict[str, Any]]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """真正的上游流式转发。
 
         - tool_call 轮次：积累完整响应后执行工具，期间发送工具进度事件
@@ -658,7 +658,8 @@ class AgentRuntime:
         message: Dict[str, Any],
     ) -> bool:
         """用于判断当前非流式返回是否异常到需要改走流式兜底。"""
-        usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+        raw_usage = response.get("usage")
+        usage: Dict[str, Any] = raw_usage if isinstance(raw_usage, dict) else {}
         total_tokens = usage.get("total_tokens")
         finish_reason = choice.get("finish_reason")
         return (
@@ -745,7 +746,7 @@ class AgentRuntime:
                     "content": json.dumps(tool_result["result"], ensure_ascii=False),
                 }
             )
-            stream_event = {
+            stream_event: Dict[str, Any] = {
                 "qr_images": [tool_result["qr_image"]]
                 if tool_result["qr_image"]
                 else [],

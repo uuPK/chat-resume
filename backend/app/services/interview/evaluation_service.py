@@ -118,8 +118,7 @@ def build_interview_report(
         )
         return {
             "summary": (
-                f"{summary_prefix} 当前样本还不足，"
-                "建议至少完成 3 题后再看完整复盘。"
+                f"{summary_prefix} 当前样本还不足，建议至少完成 3 题后再看完整复盘。"
             ),
             "dimensions": [
                 build_report_dimension(
