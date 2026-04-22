@@ -6,6 +6,7 @@
 
 - `chat-resume-product-improvement-plan.md`：现阶段产品判断、优先级和改进方向
 - `next-step-todolist.md`：下一步精简待办和优先级列表
+- `metrics-evidence-pack.md`：如何把 Agent 评测和性能结果整理成求职证据包
 
 ## 后续建议
 
