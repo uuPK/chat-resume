@@ -127,6 +127,8 @@ class Settings(BaseSettings):
     # 火山引擎TTS API
     VOLCENGINE_TTS_API_KEY: str = os.getenv("VOLCENGINE_TTS_API_KEY", "")
     VOLCENGINE_TTS_APP_ID: str = os.getenv("VOLCENGINE_TTS_APP_ID", "")
+    # volcano_mega = 大模型语音合成；volcano_tts = 标准语音合成
+    VOLCENGINE_TTS_CLUSTER: str = os.getenv("VOLCENGINE_TTS_CLUSTER", "")
 
     # 火山引擎端到端实时语音大模型
     VOLCENGINE_DIALOGUE_APP_ID: str = os.getenv("VOLCENGINE_DIALOGUE_APP_ID", "")

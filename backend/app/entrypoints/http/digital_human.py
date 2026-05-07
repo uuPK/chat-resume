@@ -19,6 +19,7 @@ from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.models.interview import InterviewSession
+from app.models.resume import Resume
 from app.services.digital_human import (
     LiveAvatarConfigurationError,
     LiveAvatarService,
@@ -221,23 +222,74 @@ def _build_greeting(
     *, target_title: str, target_company: str, language: str
 ) -> str:
     """用于生成数字人进入房间后的第一句欢迎语。"""
+    has_context = bool(target_title.strip() and target_company.strip())
     if _prefers_chinese(language):
+        if has_context:
+            return (
+                f"你好，欢迎来到今天的模拟面试。"
+                f"我们将围绕 {target_company} 的 {target_title} 岗位进行面试。"
+                f"准备好了就告诉我，我们随时可以开始。"
+            )
+        return "你好，欢迎来到模拟面试。请先做一个简短的自我介绍吧。"
+    if has_context:
         return (
-            "欢迎来到模拟面试。"
-            f"今天我们会围绕你申请的 {target_company} 的 {target_title} 岗位展开。"
-            "准备好后，我们就开始。"
+            f"Hello and welcome to your mock interview. "
+            f"Today we'll be focusing on the {target_title} role at {target_company}. "
+            f"Let me know when you're ready to begin."
         )
-    return (
-        "Welcome to your mock interview. "
-        f"We will focus on the {target_title} role at {target_company}. "
-        "Let's begin when you are ready."
-    )
+    return "Hello and welcome. Please start with a brief self-introduction."
 
 
 def _prefers_chinese(language: str) -> bool:
     """用于根据 session 语言判断 Tavus 是否应使用中文。"""
     normalized = language.strip().lower()
     return normalized.startswith("zh") or "chinese" in normalized or "中文" in language
+
+
+def _extract_resume_text(resume_content: dict) -> str:
+    """把结构化简历 JSON 转为面试官可读的纯文本摘要。"""
+    lines: list[str] = []
+
+    pi = resume_content.get("personal_info") or {}
+    name = pi.get("name") or pi.get("full_name") or ""
+    if name:
+        lines.append(f"候选人姓名：{name}")
+
+    summary = resume_content.get("summary") or {}
+    summary_text = summary.get("content") or summary.get("text") or ""
+    if summary_text:
+        lines.append(f"个人总结：{summary_text[:500]}")
+
+    for exp in (resume_content.get("work_experience") or [])[:5]:
+        company = exp.get("company") or ""
+        title = exp.get("title") or exp.get("position") or ""
+        duration = f"{exp.get('start_date','')}-{exp.get('end_date','')}"
+        desc = exp.get("description") or exp.get("responsibilities") or ""
+        if isinstance(desc, list):
+            desc = "；".join(str(d) for d in desc)
+        lines.append(f"工作经历：{company} | {title} | {duration}\n{str(desc)[:400]}")
+
+    for edu in (resume_content.get("education") or [])[:3]:
+        school = edu.get("school") or edu.get("institution") or ""
+        major = edu.get("major") or edu.get("field") or ""
+        degree = edu.get("degree") or ""
+        lines.append(f"教育背景：{school} | {major} | {degree}")
+
+    for proj in (resume_content.get("projects") or [])[:3]:
+        proj_name = proj.get("name") or ""
+        proj_desc = proj.get("description") or ""
+        if isinstance(proj_desc, list):
+            proj_desc = "；".join(str(d) for d in proj_desc)
+        lines.append(f"项目经历：{proj_name}\n{str(proj_desc)[:300]}")
+
+    skill_items: list[str] = []
+    for skill in (resume_content.get("skills") or [])[:5]:
+        items = skill.get("items") or []
+        skill_items.extend(str(i) for i in items[:8])
+    if skill_items:
+        lines.append(f"技能：{', '.join(skill_items)}")
+
+    return "\n\n".join(lines)
 
 
 def _build_volcengine_system_role(
@@ -247,6 +299,7 @@ def _build_volcengine_system_role(
     language: str,
     difficulty: str,
     jd_text: str,
+    resume_text: str = "",
 ) -> str:
     """用于构建火山引擎 O 版本的 system_role。"""
     if _prefers_chinese(language):
@@ -258,8 +311,10 @@ def _build_volcengine_system_role(
             f"候选人正在准备 {target_company} 的 {target_title} 岗位。"
             f"面试难度：{difficulty}。"
         )
+        if resume_text:
+            role += f"\n\n候选人简历信息：\n{resume_text[:2000]}"
         if jd_text:
-            role += f"\n岗位 JD 信息：\n{jd_text[:3000]}"
+            role += f"\n\n岗位 JD 信息：\n{jd_text[:2000]}"
         return role
 
     role = (
@@ -269,8 +324,10 @@ def _build_volcengine_system_role(
         f"Interview language: {language}. Difficulty: {difficulty}. "
         "Ask concise questions and wait for the candidate to answer."
     )
+    if resume_text:
+        role += f"\n\nCandidate resume:\n{resume_text[:2000]}"
     if jd_text:
-        role += f"\nJob description context:\n{jd_text[:3000]}"
+        role += f"\n\nJob description context:\n{jd_text[:2000]}"
     return role
 
 
@@ -290,20 +347,36 @@ async def voice_session_ws(
         await websocket.close()
         return
 
-    # 加载面试上下文构建 system_role
+    # 加载面试上下文构建 system_role 和开场白
     system_role = ""
+    greeting = ""
     interview_session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     if interview_session:
+        # 加载对应简历内容
+        resume_text = ""
+        if interview_session.resume_id:
+            resume = db.query(Resume).filter(Resume.id == interview_session.resume_id).first()
+            if resume and resume.content:
+                resume_text = _extract_resume_text(
+                    resume.content if isinstance(resume.content, dict) else {}
+                )
+
         system_role = _build_volcengine_system_role(
             target_title=interview_session.target_title or "目标岗位",
             target_company=interview_session.target_company or "目标公司",
             language=interview_session.language,
             difficulty=interview_session.difficulty,
             jd_text=interview_session.jd_text or "",
+            resume_text=resume_text,
+        )
+        greeting = _build_greeting(
+            target_title=interview_session.target_title or "",
+            target_company=interview_session.target_company or "",
+            language=interview_session.language,
         )
 
     try:
-        await service.proxy_session(client_ws=websocket, system_role=system_role)
+        await service.proxy_session(client_ws=websocket, system_role=system_role, greeting=greeting)
     except WebSocketDisconnect:
         pass
     except Exception as exc:

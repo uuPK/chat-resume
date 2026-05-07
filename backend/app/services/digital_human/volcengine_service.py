@@ -47,6 +47,7 @@ EVENT_FINISH_CONNECTION = 2
 EVENT_START_SESSION = 100
 EVENT_FINISH_SESSION = 102
 EVENT_SEND_AUDIO = 200
+EVENT_SAY_HELLO = 300        # 触发豆包说开场白，payload: {"content": "..."}
 
 # 服务器 → 客户端事件
 EVENT_CONNECTION_STARTED = 50
@@ -195,6 +196,11 @@ def _build_finish_session(session_id: str) -> bytes:
     return _build_session_json_frame(EVENT_FINISH_SESSION, session_id, {})
 
 
+def _build_say_hello_frame(session_id: str, content: str) -> bytes:
+    """Event 300：让豆包用自己的声音说出 content 作为开场白。"""
+    return _build_session_json_frame(EVENT_SAY_HELLO, session_id, {"content": content})
+
+
 def _describe_pcm16(pcm_bytes: bytes) -> Dict[str, float | int]:
     """Return small PCM diagnostics so we can tell silence from speech."""
     if len(pcm_bytes) < 2:
@@ -340,6 +346,169 @@ def _extract_is_final(data: Dict[str, Any]) -> bool:
     return False
 
 
+# ── 开场白 TTS ───────────────────────────────────────────
+
+
+async def _synthesize_greeting_pcm(text: str, speaker_id: str = "") -> Optional[bytes]:
+    """用火山引擎 TTS HTTP API 把开场白合成为 PCM s16le 24kHz mono 字节流。
+
+    使用与实时对话相同的 speaker_id，确保声音一致。
+    """
+    import base64
+    import httpx
+
+    tts_api_key = settings.VOLCENGINE_TTS_API_KEY
+    tts_app_id  = settings.VOLCENGINE_TTS_APP_ID
+    if not (tts_api_key and tts_app_id):
+        logger.warning(
+            "Volcengine TTS not configured: TTS_APP_ID=%r TTS_API_KEY=%s",
+            tts_app_id or "(empty)",
+            "set" if tts_api_key else "(empty)",
+        )
+        return None
+
+    voice_type = speaker_id or "BV700_streaming"
+    # 大模型语音合成用 volcano_mega；标准 TTS 用 volcano_tts
+    cluster = settings.VOLCENGINE_TTS_CLUSTER or "volcano_mega"
+    payload = {
+        "app": {"appid": tts_app_id, "token": tts_api_key, "cluster": cluster},
+        "user": {"uid": "interview-greeting"},
+        "audio": {
+            "voice_type": voice_type,
+            "encoding": "pcm",
+            "sample_rate": RECV_SAMPLE_RATE,
+            "speed_ratio": 1.0,
+            "volume_ratio": 1.0,
+            "pitch_ratio": 1.0,
+        },
+        "request": {
+            "reqid": str(uuid.uuid4()),
+            "text": text,
+            "text_type": "plain",
+            "operation": "query",
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer;{tts_api_key}",
+        "Content-Type": "application/json",
+    }
+    logger.info(
+        "Greeting TTS request: appid=%s cluster=%s voice=%s text_len=%d",
+        tts_app_id, cluster, voice_type, len(text),
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://openspeech.bytedance.com/api/v1/tts",
+                json=payload,
+                headers=headers,
+            )
+            logger.info(
+                "Greeting TTS response: status=%s content_type=%s body=%s",
+                resp.status_code,
+                resp.headers.get("content-type", ""),
+                resp.text[:500],
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            code = body.get("code")
+            if code != 3000:
+                logger.warning("Volcengine TTS error: code=%s message=%s", code, body.get("message"))
+                return None
+            audio_b64 = body.get("data")
+            if not audio_b64:
+                logger.warning("Volcengine TTS: missing data field in response")
+                return None
+            pcm = base64.b64decode(audio_b64)
+            logger.info("Greeting TTS success: %d PCM bytes", len(pcm))
+            return pcm
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "Greeting TTS HTTP %s: %s",
+            exc.response.status_code,
+            exc.response.text[:500],
+        )
+    except Exception as exc:
+        logger.warning("Greeting TTS failed: %s", exc)
+    return None
+
+
+async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
+    """用豆包实时对话 APP 的凭证调大模型语音合成，合成 16kHz PCM 触发词。
+
+    大模型语音合成使用 X-Api-* 头部认证，与实时对话同一套 APP 凭证。
+    输出 16kHz s16le mono PCM，可直接作为音频帧发给实时对话 session。
+    """
+    import base64
+    import httpx
+
+    app_id = settings.VOLCENGINE_DIALOGUE_APP_ID
+    # app.token 用通用 Access Token（控制台"服务接口认证信息"里的 Access Token）
+    token = settings.VOLCENGINE_ACCESS_TOKEN
+    if not (app_id and token):
+        logger.warning(
+            "Trigger TTS: VOLCENGINE_DIALOGUE_APP_ID=%r VOLCENGINE_ACCESS_TOKEN=%s",
+            app_id or "(empty)",
+            "set" if token else "(empty)",
+        )
+        return None
+
+    speaker_id = settings.VOLCENGINE_DIALOGUE_SPEAKER_ID or "BV700_streaming"
+    cluster = settings.VOLCENGINE_TTS_CLUSTER or "volcano_mega"
+    payload = {
+        "app": {"appid": app_id, "token": token, "cluster": cluster},
+        "user": {"uid": "interview-trigger"},
+        "audio": {
+            "voice_type": speaker_id,
+            "encoding": "pcm",
+            "sample_rate": SEND_SAMPLE_RATE,   # 16kHz，匹配豆包实时对话输入格式
+            "speed_ratio": 1.0,
+            "volume_ratio": 1.0,
+            "pitch_ratio": 1.0,
+        },
+        "request": {
+            "reqid": str(uuid.uuid4()),
+            "text": "你好",
+            "text_type": "plain",
+            "operation": "query",
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer;{token}",
+        "Content-Type": "application/json",
+    }
+    logger.info("Trigger TTS request: app_id=%s cluster=%s voice=%s", app_id, cluster, speaker_id)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://openspeech.bytedance.com/api/v1/tts",
+                json=payload,
+                headers=headers,
+            )
+            logger.info(
+                "Trigger TTS response: status=%s body=%s",
+                resp.status_code,
+                resp.text[:400],
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            code = body.get("code")
+            if code != 3000:
+                logger.warning("Trigger TTS error: code=%s message=%s", code, body.get("message"))
+                return None
+            audio_b64 = body.get("data")
+            if not audio_b64:
+                return None
+            pcm = base64.b64decode(audio_b64)
+            logger.info("Trigger TTS success: %d PCM bytes @ 16kHz", len(pcm))
+            return pcm
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Trigger TTS HTTP %s: %s", exc.response.status_code, exc.response.text[:400])
+    except Exception as exc:
+        logger.warning("Trigger TTS failed: %s", exc)
+    return None
+
+
 # ── 服务类 ────────────────────────────────────────────────
 
 
@@ -381,6 +550,7 @@ class VolcengineVoiceService:
         *,
         client_ws: Any,
         system_role: str = "",
+        greeting: str = "",
         bot_name: str = "面试官",
     ) -> None:
         """在前端 WebSocket 和火山引擎之间双向代理音视数据。
@@ -452,6 +622,11 @@ class VolcengineVoiceService:
                 return
 
             await client_ws.send_json({"type": "ready", "session_id": session_id})
+
+            # Event 300 SayHello：直接让豆包用自己的声音说开场白，无需外部 TTS
+            if greeting:
+                await volc_ws.send(_build_say_hello_frame(session_id, greeting))
+                logger.info("SayHello sent: %s", greeting[:60])
 
             # 3) 双向转发
             import asyncio
