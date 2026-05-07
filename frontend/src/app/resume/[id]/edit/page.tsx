@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import type { Resume } from '@/lib/api'
 import Link from 'next/link'
@@ -23,11 +23,9 @@ import SkillsEditor from '@/components/editor/SkillsEditor'
 import ProjectsEditor from '@/components/editor/ProjectsEditor'
 import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
-import StructuredInterviewPanel from '@/components/interview/StructuredInterviewPanel'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import type { ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
-import { useInterviewSession } from '@/hooks/useInterviewSession'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { AutoSaveStatus } from '@/hooks/useResumeAutoSave'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
@@ -54,10 +52,8 @@ const JD_MATCH_ANALYSIS_PROMPT = [
 export default function ResumeEditPage() {
   const params = useParams()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const { user, isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
-  const [agentType, setAgentType] = useState<'resume' | 'interview'>('resume')
 
   const resumeId = params?.id as string
   const {
@@ -121,7 +117,7 @@ export default function ResumeEditPage() {
     visibleModules: Array.from(layoutConfig.visibleModules),
     performAutoSave,
     onResumeUpdate: (content) => applyAgentResumeContent(content as Resume['content']),
-    enabled: mounted && isAuthenticated && agentType === 'resume',
+    enabled: mounted && isAuthenticated,
   })
 
   useEffect(() => {
@@ -129,41 +125,9 @@ export default function ResumeEditPage() {
   }, [])
 
   useEffect(() => {
-    const requestedAgent = searchParams?.get('agent')
-    if (requestedAgent === 'interview' || requestedAgent === 'interviewer') {
-      setAgentType('interview')
-    } else if (requestedAgent === 'resume') {
-      setAgentType('resume')
-    }
-  }, [searchParams])
-
-  useEffect(() => {
     setApiError(null)
-    if (agentType === 'interview') {
-      setEditorOpen(false)
-    } else {
-      setEditorOpen(true)
-    }
-  }, [agentType])
-
-  const {
-    session: ivSession,
-    inputMessage: ivInput,
-    setInputMessage: setIvInput,
-    isSending: ivSending,
-    isRequestingHint: ivRequestingHint,
-    error: ivError,
-    pendingAnswer: ivPendingAnswer,
-    pendingQuestion: ivPendingQuestion,
-    pendingEvaluationTurnId: ivPendingEvaluationTurnId,
-    hintItems: ivHintItems,
-    sendAnswer: sendInterviewAnswer,
-    requestHint: requestInterviewHint,
-  } = useInterviewSession({
-    resume,
-    enabled: agentType === 'interview',
-    defaultMode: 'practice',
-  })
+    setEditorOpen(true)
+  }, [setApiError, setEditorOpen])
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
@@ -305,7 +269,6 @@ export default function ResumeEditPage() {
         >
           {/* Left Panel - Editor */}
           <AnimatePresence initial={false}>
-          {agentType !== 'interview' && (
           <motion.div
             initial={{ opacity: 0, width: 0 }}
             animate={{ opacity: 1, width: editorAnimateWidth }}
@@ -419,10 +382,9 @@ export default function ResumeEditPage() {
             </div>
             )}
           </motion.div>
-          )}
           </AnimatePresence>
 
-          {agentType !== 'interview' && editorOpen && (
+          {editorOpen && (
             <div
               className="w-2 flex-shrink-0 cursor-col-resize flex items-center justify-center group select-none print:hidden"
               onPointerDown={handleEditorDividerPointerDown}
@@ -486,7 +448,7 @@ export default function ResumeEditPage() {
               }}
             >
               <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                {agentType === 'resume' && (resume.content.job_application?.target_company || resume.content.job_application?.target_title) ? (
+                {(resume.content.job_application?.target_company || resume.content.job_application?.target_title) ? (
                   <button
                     onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
                     title="点击编辑目标岗位"
@@ -504,53 +466,23 @@ export default function ResumeEditPage() {
                     </span>
                   </button>
                 ) : <div />}
-                {agentType === 'resume' ? (
-                  <button
-                    onClick={handleClearMessages}
-                    disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
-                    aria-label={isClearingMessages ? '清空中' : '清空消息'}
-                    className="inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
-                    style={{
-                      borderRadius: '8px',
-                      border: '1px solid rgba(91,97,110,0.2)',
-                      backgroundColor: '#ffffff',
-                      color: '#5b616e',
-                    }}
-                  >
-                    <TrashIcon className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <div />
-                )}
+                <button
+                  onClick={handleClearMessages}
+                  disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
+                  aria-label={isClearingMessages ? '清空中' : '清空消息'}
+                  className="inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
+                  style={{
+                    borderRadius: '8px',
+                    border: '1px solid rgba(91,97,110,0.2)',
+                    backgroundColor: '#ffffff',
+                    color: '#5b616e',
+                  }}
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
               </div>
               <AnimatePresence mode="wait">
-              {agentType === 'interview' ? (
-              /* ── 面试模式 ── */
-              <motion.div
-                key="interview"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex-1 flex flex-col min-h-0"
-              >
-                <StructuredInterviewPanel
-                  session={ivSession}
-                  inputMessage={ivInput}
-                  pendingAnswer={ivPendingAnswer}
-                  pendingQuestion={ivPendingQuestion}
-                  pendingEvaluationTurnId={ivPendingEvaluationTurnId}
-                  isSending={ivSending}
-                  isRequestingHint={ivRequestingHint}
-                  error={ivError}
-                  hintItems={ivHintItems}
-                  onInputChange={setIvInput}
-                  onSendAnswer={sendInterviewAnswer}
-                  onRequestHint={requestInterviewHint}
-                />
-              </motion.div>
-              ) : (
-              /* ── 简历 AGENT 模式 ── */
+              {/* ── 简历 AGENT 模式 ── */}
               <motion.div
                 key="resume"
                 initial={{ opacity: 0 }}
@@ -810,7 +742,6 @@ export default function ResumeEditPage() {
                 </div>
               </div>
               </motion.div>
-              )}
               </AnimatePresence>
             </div>
           </motion.div>

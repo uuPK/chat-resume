@@ -1,16 +1,9 @@
 import type {
-  CustomSection,
   Education,
-  JobApplication,
-  Language,
   PersonalInfo,
   Project,
   ResumeContent,
-  ResumeHighlight,
-  ResumeLink,
-  ResumeMeta,
   Skill,
-  Summary,
   WorkExperience,
 } from '@/types/resume'
 
@@ -130,25 +123,6 @@ interface InterviewActionResponse {
   message?: string
   evaluation?: InterviewTurn['evaluation']
   next_action?: string
-}
-
-interface InterviewHintResponse {
-  hints: string[]
-}
-
-interface InterviewStreamTokenEvent {
-  type: 'token'
-  content: string
-}
-
-interface InterviewStreamEvaluationEvent {
-  type: 'evaluation'
-  turn_id: number
-  evaluation: string
-}
-
-interface InterviewStreamDoneEvent extends InterviewActionResponse {
-  type: 'done'
 }
 
 interface DigitalHumanConversation {
@@ -352,70 +326,9 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
-  /**
-   * 获取练习模式下当前题目的答题提示
-   */
-  static async getInterviewHint(sessionId: number): Promise<InterviewHintResponse> {
-    const response = await apiFetch(`/api/interviews/${sessionId}/hint`, {
-      method: 'POST',
-    })
-    return handleApiResponse<InterviewHintResponse>(response)
-  }
-
   static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await apiFetch(`/api/interviews/${sessionId}`)
     return handleApiResponse<InterviewActionResponse>(response)
-  }
-
-  static async startInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
-    const response = await apiFetch(`/api/interviews/${sessionId}/start`, {
-      method: 'POST',
-    })
-    return handleApiResponse<InterviewActionResponse>(response)
-  }
-
-  static async answerInterviewSession(sessionId: number, answer: string): Promise<InterviewActionResponse> {
-    const response = await apiFetch(`/api/interviews/${sessionId}/answer`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ answer }),
-    })
-    return handleApiResponse<InterviewActionResponse>(response)
-  }
-
-  static async *answerInterviewSessionStream(
-    sessionId: number,
-    answer: string,
-  ): AsyncGenerator<InterviewStreamTokenEvent | InterviewStreamEvaluationEvent | InterviewStreamDoneEvent> {
-    const response = await apiFetch(`/api/interviews/${sessionId}/answer/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ answer }),
-    })
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(text || `请求失败 (${response.status})`)
-    }
-    const reader = response.body!.getReader()
-    const decoder = new TextDecoder()
-    let buf = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n')
-      buf = lines.pop() ?? ''
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        try {
-          yield JSON.parse(line.slice(6))
-        } catch {}
-      }
-    }
   }
 
   static async endInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
@@ -428,7 +341,7 @@ class ResumeAPI {
 
 class DigitalHumanAPI {
   /**
-   * 为结构化面试创建真实数字人视频会话。
+   * 为实时语音面试创建数字人会话。
    */
   static async createConversation(interviewSessionId: number): Promise<DigitalHumanConversation> {
     const response = await fetchWithTimeout('/api/digital-human/conversations', {
@@ -501,7 +414,6 @@ export type {
   DigitalHumanConversation,
   ResumeContent,
   InterviewActionResponse,
-  InterviewHintResponse,
   InterviewSession,
   InterviewSessionSummary,
   InterviewTurn,

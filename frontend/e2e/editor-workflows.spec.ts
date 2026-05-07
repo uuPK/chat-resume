@@ -247,11 +247,11 @@ test.describe('编辑页工作流', () => {
     expect(bytes.startsWith('%PDF-1.4')).toBeTruthy()
   })
 
-  test('面试工作台可以完成开始、回答、收到反馈并结束查看报告', async ({ page }) => {
+  test('面试工作台只保留实时语音面试入口', async ({ page }) => {
     const resumeId = await createResumeFromDashboard(page, uniqueEmail('interviewflow'))
     const baseResume = buildResumeResponse(Number(resumeId))
 
-    const startedSession = {
+    const voiceSession = {
       id: 1,
       resume_id: Number(resumeId),
       target_title: '前端工程师',
@@ -261,91 +261,12 @@ test.describe('编辑页工作流', () => {
       difficulty: 'medium',
       language: 'zh-CN',
       mode: 'practice',
-      status: 'waiting_user_answer',
+      status: 'interview_ready',
       current_round_index: 0,
-      current_turn_index: 1,
-      plan: { rounds: [{ type: 'warmup', goal: '自我介绍与背景确认' }] },
-      turns: [
-        {
-          id: 101,
-          turn_index: 1,
-          round_index: 0,
-          question: '你好，请先做一个和目标岗位最相关的自我介绍。',
-          question_type: 'warmup',
-          intent: '自我介绍与背景确认',
-          follow_up_count: 0,
-          status: 'asked',
-        },
-      ],
-      current_turn: {
-        id: 101,
-        turn_index: 1,
-        round_index: 0,
-        question: '你好，请先做一个和目标岗位最相关的自我介绍。',
-        question_type: 'warmup',
-        intent: '自我介绍与背景确认',
-        follow_up_count: 0,
-        status: 'asked',
-      },
-    }
-
-    const sessionAfterAnswer = {
-      ...startedSession,
-      current_turn_index: 2,
-      turns: [
-        {
-          id: 101,
-          turn_index: 1,
-          round_index: 0,
-          question: '你好，请先做一个和目标岗位最相关的自我介绍。',
-          question_type: 'warmup',
-          intent: '自我介绍与背景确认',
-          answer: '我最近主要做前端性能优化和智能简历相关产品。',
-          evaluation: '面试系统反馈：有直接回答问题，接下来可以再补一段更具体的项目结果。',
-          follow_up_count: 0,
-          status: 'done',
-        },
-        {
-          id: 102,
-          turn_index: 2,
-          round_index: 0,
-          question: '继续说一个你亲自负责并拿到明确结果的项目。',
-          question_type: 'resume_deep_dive',
-          intent: '项目深挖与个人贡献',
-          follow_up_count: 0,
-          status: 'asked',
-        },
-      ],
-      current_turn: {
-        id: 102,
-        turn_index: 2,
-        round_index: 0,
-        question: '继续说一个你亲自负责并拿到明确结果的项目。',
-        question_type: 'resume_deep_dive',
-        intent: '项目深挖与个人贡献',
-        follow_up_count: 0,
-        status: 'asked',
-      },
-    }
-
-    const completedSession = {
-      ...sessionAfterAnswer,
-      status: 'completed',
-      ended_at: new Date().toISOString(),
-      report_data: {
-        summary: '这轮回答基本切题，但还需要补更多结果指标。',
-        dimensions: [
-          {
-            title: '切题度',
-            assessment: '回答能基本回应问题。',
-            evidence: '第一题已经说明了近期方向。',
-            advice: '下一轮先给结论再展开。',
-          },
-        ],
-        recurring_issues: ['量化结果不足。'],
-        next_training_plan: ['补充更明确的项目结果。'],
-        resume_feedback: ['把项目成果补成数字。'],
-      },
+      current_turn_index: 0,
+      plan: null,
+      turns: [],
+      current_turn: null,
     }
 
     await page.route(`**/api/resumes/${resumeId}`, async (route) => {
@@ -360,41 +281,9 @@ test.describe('编辑页工作流', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          session: {
-            ...startedSession,
-            status: 'interview_ready',
-            turns: [],
-            current_turn: null,
-            current_turn_index: 0,
-          },
-          next_action: 'start',
+          session: voiceSession,
+          next_action: 'voice',
         }),
-      })
-    })
-    await page.route('**/api/interviews/1/start', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          session: startedSession,
-          message: startedSession.current_turn.question,
-          next_action: 'answer',
-        }),
-      })
-    })
-    await page.route('**/api/interviews/1/answer/stream', async (route) => {
-      const body = [
-        'data: {"type":"token","content":"继续说一个你亲自负责并拿到明确结果的项目。"}',
-        '',
-        'data: {"type":"evaluation","turn_id":101,"evaluation":"面试系统反馈：有直接回答问题，接下来可以再补一段更具体的项目结果。"}',
-        '',
-        `data: ${JSON.stringify({ type: 'done', next_action: 'next_question', message: sessionAfterAnswer.current_turn.question, session: sessionAfterAnswer }, null, 0)}`,
-        '',
-      ].join('\n')
-      await route.fulfill({
-        status: 200,
-        contentType: 'text/event-stream',
-        body,
       })
     })
     await page.route('**/api/interviews/1/end', async (route) => {
@@ -402,21 +291,29 @@ test.describe('编辑页工作流', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          session: completedSession,
+          session: { ...voiceSession, status: 'completed', ended_at: new Date().toISOString() },
           next_action: 'completed',
+        }),
+      })
+    })
+    await page.route('**/api/digital-human/conversations', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          provider: 'volcengine',
+          session_id: '1',
+          status: 'ready',
         }),
       })
     })
 
     await page.goto(`/resume/${resumeId}/interview`)
-    await expect(page.getByText('你好，请先做一个和目标岗位最相关的自我介绍。')).toBeVisible()
-    await page.getByPlaceholder('输入你的回答...').fill('我最近主要做前端性能优化和智能简历相关产品。')
-    await page.getByRole('button', { name: '提交回答' }).click()
-    await expect(page.getByText('面试系统反馈：有直接回答问题，接下来可以再补一段更具体的项目结果。')).toBeVisible()
-    await expect(page.getByText('继续说一个你亲自负责并拿到明确结果的项目。')).toBeVisible()
-    await page.getByRole('button', { name: '结束面试' }).click()
-    await expect(page.getByText('面试报告')).toBeVisible()
-    await expect(page.getByText('这轮回答基本切题，但还需要补更多结果指标。')).toBeVisible()
+    await expect(page.getByText('语音面试')).toBeVisible()
+    await expect(page.getByText('对话内容会实时显示在这里')).toBeVisible()
+    await expect(page.getByPlaceholder('输入你的回答...')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '提交回答' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '给我提示' })).toHaveCount(0)
   })
 
   test('Resume Agent 可以展示流式 diff 并确认修改', async ({ page }) => {

@@ -10,10 +10,7 @@ API 端到端集成测试
 
 from __future__ import annotations
 
-import asyncio
-import json
 import sys
-import time
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -26,7 +23,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.agents.interview.agent import InterviewerAgent
 from app.infra.database import Base, get_db
 from app.main import app
 from app.models.user import User
@@ -581,29 +577,7 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         self.resume_id = create_resp.json()["id"]
 
-        async def _fake_chat(
-            self,
-            user_message,
-            resume_content,
-            conversation_history=None,
-            event_callback=None,
-        ):
-            del self, resume_content, conversation_history, event_callback
-            if "[EVALUATE]" in user_message:
-                return {"content": "回答结构基本完整，但还可以补充更多量化结果。"}
-            if "请给候选人 3 条简短提示" in user_message:
-                return {
-                    "content": "1. 先交代项目背景和目标\n2. 重点讲你亲自做了什么\n3. 最后补一个量化结果"
-                }
-            if "追问" in user_message:
-                return {"content": "你刚才提到做了优化，具体指标提升了多少？"}
-            if "下一轮" in user_message:
-                return {"content": "换一个问题，说说你在项目里做过最难的一次技术取舍。"}
-            return {"content": "先做一个和岗位最相关的自我介绍。"}
-
-        monkeypatch.setattr(InterviewerAgent, "chat", _fake_chat)
-
-    def test_interview_session_flow(self):
+    def test_voice_interview_session_lifecycle(self):
         create_resp = self.client.post(
             "/api/interviews/",
             json={
@@ -614,42 +588,12 @@ class TestInterviewSessions:
             headers=self.headers,
         )
         assert create_resp.status_code == 200, create_resp.text
-        session_id = create_resp.json()["session"]["id"]
-
-        start_resp = self.client.post(
-            f"/api/interviews/{session_id}/start",
-            headers=self.headers,
-        )
-        assert start_resp.status_code == 200, start_resp.text
-        started = start_resp.json()["session"]
-        assert started["status"] == "waiting_user_answer"
-        assert started["current_turn"]["question"] == "先做一个和岗位最相关的自我介绍。"
-
-        answer_resp = self.client.post(
-            f"/api/interviews/{session_id}/answer",
-            json={"answer": "我负责后端开发。"},
-            headers=self.headers,
-        )
-        assert answer_resp.status_code == 200, answer_resp.text
-        answered = answer_resp.json()
-        assert answered["next_action"] in ("next_question", "completed")
-        assert answered["session"]["status"] in ("waiting_user_answer", "completed")
-        assert answered["session"]["turns"][0]["evaluation"] in (
-            "",
-            "回答结构基本完整，但还可以补充更多量化结果。",
-        )
-
-        latest_evaluation = ""
-        for _ in range(10):
-            detail_resp = self.client.get(
-                f"/api/interviews/{session_id}", headers=self.headers
-            )
-            assert detail_resp.status_code == 200, detail_resp.text
-            latest_evaluation = detail_resp.json()["session"]["turns"][0]["evaluation"]
-            if latest_evaluation:
-                break
-            time.sleep(0.02)
-        assert latest_evaluation == "回答结构基本完整，但还可以补充更多量化结果。"
+        created = create_resp.json()
+        assert created["next_action"] == "voice"
+        session_id = created["session"]["id"]
+        assert created["session"]["status"] == "interview_ready"
+        assert created["session"]["turns"] == []
+        assert created["session"]["current_turn"] is None
 
         end_resp = self.client.post(
             f"/api/interviews/{session_id}/end",
@@ -658,87 +602,6 @@ class TestInterviewSessions:
         assert end_resp.status_code == 200, end_resp.text
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
-        assert ended["report_data"] is not None
-        assert ended["report_data"]["dimensions"]
-        assert ended["report_data"]["recurring_issues"]
-        assert ended["report_data"]["next_training_plan"]
-        assert ended["report_data"]["resume_feedback"]
-
-    def test_stream_answer_runs_evaluation_in_parallel(self, monkeypatch):
-        async def _delayed_chat(
-            self,
-            user_message,
-            resume_content,
-            conversation_history=None,
-            event_callback=None,
-        ):
-            del self, resume_content, conversation_history, event_callback
-            if "[EVALUATE]" in user_message:
-                await asyncio.sleep(0.01)
-                return {
-                    "content": "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
-                }
-            return {"content": "先做一个和岗位最相关的自我介绍。"}
-
-        async def _fake_chat_stream(
-            self,
-            user_message,
-            resume_content,
-            conversation_history=None,
-            event_callback=None,
-        ):
-            del self, user_message, resume_content, conversation_history, event_callback
-            for chunk in ["请具体讲讲", "你在项目里的", "技术取舍。"]:
-                await asyncio.sleep(0.03)
-                yield {"content": chunk}
-
-        monkeypatch.setattr(InterviewerAgent, "chat", _delayed_chat)
-        monkeypatch.setattr(InterviewerAgent, "chat_stream", _fake_chat_stream)
-
-        create_resp = self.client.post(
-            "/api/interviews/",
-            json={
-                "resume_id": self.resume_id,
-                "interview_type": "general",
-                "difficulty": "medium",
-                "mode": "practice",
-            },
-            headers=self.headers,
-        )
-        assert create_resp.status_code == 200, create_resp.text
-        session_id = create_resp.json()["session"]["id"]
-
-        start_resp = self.client.post(
-            f"/api/interviews/{session_id}/start",
-            headers=self.headers,
-        )
-        assert start_resp.status_code == 200, start_resp.text
-
-        events: list[dict[str, object]] = []
-        with self.client.stream(
-            "POST",
-            f"/api/interviews/{session_id}/answer/stream",
-            json={"answer": "我负责技术选型和多 Agent 协调。"},
-            headers=self.headers,
-        ) as response:
-            assert response.status_code == 200, response.text
-            for line in response.iter_lines():
-                if not line.startswith("data: "):
-                    continue
-                events.append(json.loads(line[6:]))
-
-        evaluation_index = next(
-            index for index, item in enumerate(events) if item["type"] == "evaluation"
-        )
-        done_index = next(
-            index for index, item in enumerate(events) if item["type"] == "done"
-        )
-        assert evaluation_index < done_index
-        assert (
-            events[evaluation_index]["evaluation"]
-            == "面试系统反馈：回答切题，但可以补充更具体的技术细节。"
-        )
-        assert events[done_index]["message"] == "请具体讲讲你在项目里的技术取舍。"
 
     def test_list_interviews_returns_lightweight_summary(self):
         create_resp = self.client.post(
@@ -753,26 +616,13 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         session_id = create_resp.json()["session"]["id"]
 
-        start_resp = self.client.post(
-            f"/api/interviews/{session_id}/start",
-            headers=self.headers,
-        )
-        assert start_resp.status_code == 200, start_resp.text
-
-        answer_resp = self.client.post(
-            f"/api/interviews/{session_id}/answer",
-            json={"answer": "我负责后端开发，并把接口响应时间降低了 30%。"},
-            headers=self.headers,
-        )
-        assert answer_resp.status_code == 200, answer_resp.text
-
         list_resp = self.client.get("/api/interviews/", headers=self.headers)
         assert list_resp.status_code == 200, list_resp.text
         sessions = list_resp.json()
         assert len(sessions) >= 1
         session = next(item for item in sessions if item["id"] == session_id)
         assert session["id"] == session_id
-        assert session["answered_turn_count"] == 1
+        assert session["answered_turn_count"] == 0
         assert "turns" not in session
         assert "current_turn" not in session
 
@@ -831,7 +681,7 @@ class TestInterviewSessions:
         )
         assert get_other_resp.status_code == 200, get_other_resp.text
 
-    def test_practice_mode_can_request_hint(self):
+    def test_removed_structured_interview_routes_return_404(self):
         create_resp = self.client.post(
             "/api/interviews/",
             json={
@@ -845,49 +695,27 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         session_id = create_resp.json()["session"]["id"]
 
-        start_resp = self.client.post(
-            f"/api/interviews/{session_id}/start",
+        assert self.client.post(
+            f"/api/interviews/{session_id}/start", headers=self.headers
+        ).status_code == 404
+        assert self.client.post(
+            f"/api/interviews/{session_id}/answer",
+            json={"answer": "旧文本回答"},
             headers=self.headers,
-        )
-        assert start_resp.status_code == 200, start_resp.text
-
-        hint_resp = self.client.post(
+        ).status_code == 404
+        assert self.client.post(
+            f"/api/interviews/{session_id}/answer/stream",
+            json={"answer": "旧文本回答"},
+            headers=self.headers,
+        ).status_code == 404
+        assert self.client.post(
             f"/api/interviews/{session_id}/hint",
             headers=self.headers,
-        )
-        assert hint_resp.status_code == 200, hint_resp.text
-        assert hint_resp.json()["hints"] == [
-            "先交代项目背景和目标",
-            "重点讲你亲自做了什么",
-            "最后补一个量化结果",
-        ]
-
-    def test_simulation_mode_rejects_hint_request(self):
-        create_resp = self.client.post(
-            "/api/interviews/",
-            json={
-                "resume_id": self.resume_id,
-                "interview_type": "general",
-                "difficulty": "medium",
-                "mode": "simulation",
-            },
+        ).status_code == 404
+        assert self.client.get(
+            f"/api/interviews/{session_id}/report",
             headers=self.headers,
-        )
-        assert create_resp.status_code == 200, create_resp.text
-        session_id = create_resp.json()["session"]["id"]
-
-        start_resp = self.client.post(
-            f"/api/interviews/{session_id}/start",
-            headers=self.headers,
-        )
-        assert start_resp.status_code == 200, start_resp.text
-
-        hint_resp = self.client.post(
-            f"/api/interviews/{session_id}/hint",
-            headers=self.headers,
-        )
-        assert hint_resp.status_code == 409
-        assert hint_resp.json()["detail"] == "Hints are only available in practice mode"
+        ).status_code == 404
 
     def test_list_resumes_without_auth_returns_401(self):
         resp = _anonymous_client().get("/api/resumes/")
