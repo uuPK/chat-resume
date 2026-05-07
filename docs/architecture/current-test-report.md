@@ -2,10 +2,11 @@
 
 ## 结论
 
-- 后端测试：`12` 个文件，`168` 个 `pytest` 用例，实测全部通过。
+- 后端测试：`12` 个文件，`173` 个 `pytest` 用例，实测全部通过。
 - 前端测试：`3` 个 Playwright 文件，当前已确认 `auth`、`dashboard`、`editor-workflows` 在仓库内存在。
 - 本次已执行：
-  - `backend`: `168 passed`
+  - `backend`: `173 passed`
+  - `backend coverage`: `63%`
   - `frontend`: `npm run type-check` 通过
   - `frontend`: `npm run e2e` 通过
 - 整体判断：后端测试较扎实，前端关键主链路已有覆盖，但自动化门禁仍不足。
@@ -16,6 +17,7 @@
 cd backend
 uv sync --extra dev
 uv run pytest tests -q
+uv run --extra dev pytest tests --cov=app --cov-report=term-missing
 
 cd ../frontend
 npm run type-check
@@ -24,9 +26,40 @@ npm run e2e
 
 结果：
 
-- 后端：`168 passed, 3 warnings`
+- 后端：`173 passed, 3 warnings`
+- 后端覆盖率：`63%`
 - 前端类型检查：通过
 - 前端 E2E：通过
+
+## 覆盖率统计
+
+后端已接入 `pytest-cov`，覆盖率配置集中在 `backend/pyproject.toml`：
+
+- 统计范围：`app/`
+- 统计口径：行覆盖率 + 分支覆盖率
+- 默认报告：`term-missing`，显示未覆盖行
+- 当前策略：先观察覆盖率，不设置 `fail_under` 硬阈值，避免在补齐薄弱模块前阻塞日常验证
+
+最近一次完整执行结果：
+
+- `173 passed, 3 warnings`
+- 总覆盖率：`63%`
+- 覆盖较高：`runtime/loop.py`、认证、简历 CRUD、Resume Agent 核心工具流、Agent state store
+- 覆盖较低：语音服务、导出服务、文件处理、部分第三方 LLM / OCR 适配、Agent 状态快照与回放
+
+推荐命令：
+
+```bash
+cd backend
+uv run --extra dev pytest tests --cov=app --cov-report=term-missing
+```
+
+如需生成 HTML 报告：
+
+```bash
+cd backend
+uv run --extra dev pytest tests --cov=app --cov-report=html
+```
 
 ## 测试分布
 

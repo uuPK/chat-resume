@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { ModuleConfig, DEFAULT_MODULE_ORDER } from '@/components/preview/PaginatedResumePreview'
+import { useEffect, useState } from 'react'
 import { 
   ArrowUpIcon, 
   ArrowDownIcon,
   EyeIcon,
   EyeSlashIcon 
 } from '@heroicons/react/24/outline'
+import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
+import type { ModuleConfig } from '@/types/resumeLayout'
 
 interface ModuleOrderEditorProps {
   moduleOrder?: ModuleConfig[]
@@ -15,10 +16,14 @@ interface ModuleOrderEditorProps {
 }
 
 export default function ModuleOrderEditor({ 
-  moduleOrder = DEFAULT_MODULE_ORDER, 
+  moduleOrder = DEFAULT_MODULE_CONFIG,
   onChange 
 }: ModuleOrderEditorProps) {
   const [modules, setModules] = useState<ModuleConfig[]>(moduleOrder)
+
+  useEffect(() => {
+    setModules(moduleOrder)
+  }, [moduleOrder])
 
   // 移动模块位置
   const moveModule = (index: number, direction: 'up' | 'down') => {
@@ -52,8 +57,8 @@ export default function ModuleOrderEditor({
 
   // 重置为默认顺序
   const resetToDefault = () => {
-    setModules(DEFAULT_MODULE_ORDER)
-    onChange(DEFAULT_MODULE_ORDER)
+    setModules(DEFAULT_MODULE_CONFIG)
+    onChange(DEFAULT_MODULE_CONFIG)
   }
 
   // 应用预设配置
@@ -220,9 +225,3 @@ export default function ModuleOrderEditor({
     </div>
   )
 }
-
-
-
-
-
-

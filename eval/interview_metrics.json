@@ -1,0 +1,4188 @@
+{
+  "generatedAt": "2026-04-22T17:31:58.216645+00:00",
+  "config": {
+    "apiUrl": "http://localhost:8000",
+    "runs": 2,
+    "timeoutSeconds": 20.0,
+    "pollIntervalSeconds": 0.5,
+    "evaluationPolls": 20
+  },
+  "benchmarkData": {
+    "userEmail": "interview_metrics_1776879010@example.com",
+    "resumeId": 49,
+    "resumeTitle": "面试链路基准简历",
+    "scenarioCount": 6
+  },
+  "summary": {
+    "totalSessions": 6,
+    "practiceSessions": 4,
+    "simulationSessions": 2,
+    "createSuccessCount": 6,
+    "createSuccessRate": 100.0,
+    "startSuccessCount": 6,
+    "startSuccessRate": 100.0,
+    "hintRequestedCount": 2,
+    "hintSuccessCount": 2,
+    "hintSuccessRate": 100.0,
+    "answerSuccessCount": 6,
+    "answerSuccessRate": 100.0,
+    "evaluationExpectedCount": 4,
+    "evaluationReadyCount": 4,
+    "evaluationReadyRate": 100.0,
+    "endAttemptedCount": 6,
+    "endSuccessCount": 6,
+    "endSuccessRate": 100.0,
+    "reportSuccessCount": 6,
+    "reportSuccessRate": 100.0,
+    "chainCompletionCount": 6,
+    "chainCompletionRate": 100.0
+  },
+  "scenarioResults": [
+    {
+      "name": "practice_stream",
+      "displayName": "practice_stream#1",
+      "runIndex": 1,
+      "mode": "practice",
+      "requestHint": false,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 63,
+            "session": {
+              "id": 63,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 63,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:23.459315",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 105,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:23.459089",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 105,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:23.459089",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": null,
+          "detail": "当前场景未请求提示。",
+          "data": null,
+          "skipped": true
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "token",
+                "content": "好的，我对你的背景有了"
+              },
+              {
+                "type": "token",
+                "content": "初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位"
+              },
+              {
+                "type": "token",
+                "content": "？跟你现在的方向有什么关联？"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                "session": {
+                  "id": 63,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "practice",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:30:23.459315",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 105,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:30:23.459089",
+                      "answered_at": "2026-04-22T17:30:23.494906"
+                    },
+                    {
+                      "id": 106,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:30:29.528531",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 106,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:30:29.528531",
+                    "answered_at": null
+                  }
+                }
+              },
+              {
+                "type": "evaluation",
+                "turn_id": 105,
+                "evaluation": "回答偏项目描述，缺少个人背景和当前状态的交代。建议先介绍自己的技术栈和目前的工作状态，再自然过渡到项目经历。"
+              }
+            ],
+            "session": {
+              "id": 63,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:23.459315",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 105,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:23.459089",
+                  "answered_at": "2026-04-22T17:30:23.494906"
+                },
+                {
+                  "id": 106,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:29.528531",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 106,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:29.528531",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式事件中已返回当前题评估。",
+          "data": {
+            "evaluation": "回答偏项目描述，缺少个人背景和当前状态的交代。建议先介绍自己的技术栈和目前的工作状态，再自然过渡到项目经历。"
+          },
+          "skipped": false
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 63,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:23.459315",
+              "ended_at": "2026-04-22T17:30:32.436896",
+              "turns": [
+                {
+                  "id": 105,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "回答偏项目描述，缺少个人背景和当前状态的交代。建议先介绍自己的技术栈和目前的工作状态，再自然过渡到项目经历。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:23.459089",
+                  "answered_at": "2026-04-22T17:30:23.494906"
+                },
+                {
+                  "id": 106,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:29.528531",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 106,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:29.528531",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 63,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:23.459315",
+              "ended_at": "2026-04-22T17:30:32.436896",
+              "turns": [
+                {
+                  "id": 105,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单自我介绍一下，包括你现在的工作状态和主要的技术背景。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "回答偏项目描述，缺少个人背景和当前状态的交代。建议先介绍自己的技术栈和目前的工作状态，再自然过渡到项目经历。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:23.459089",
+                  "answered_at": "2026-04-22T17:30:23.494906"
+                },
+                {
+                  "id": 106,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:29.528531",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 106,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，我对你的背景有了初步了解。能否说一下，是什么吸引你想看看求职实验室这个 AI 应用工程师的岗位？跟你现在的方向有什么关联？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:29.528531",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    },
+    {
+      "name": "practice_stream_with_hint",
+      "displayName": "practice_stream_with_hint#1",
+      "runIndex": 1,
+      "mode": "practice",
+      "requestHint": true,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 64,
+            "session": {
+              "id": 64,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 64,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:34.779251",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 107,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:34.779003",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 107,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:34.779003",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功获取答题提示。",
+          "data": {
+            "hints": [
+              "好的，给你3条提示：",
+              "**最近在做什么**：聚焦一个你主导或深度参与的项目，说清楚你负责哪块、解决了什么问题。",
+              "**为什么是AI应用工程师**：想清楚你和这个岗位的结合点——是你的技术积累、项目经验，还是对AI应用方向的兴趣。"
+            ]
+          },
+          "skipped": false
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "evaluation",
+                "turn_id": 107,
+                "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。"
+              },
+              {
+                "type": "token",
+                "content": "行，那就开始"
+              },
+              {
+                "type": "token",
+                "content": "吧。"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "行，那就开始吧。",
+                "session": {
+                  "id": 64,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "practice",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:30:34.779251",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 107,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                      "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:30:34.779003",
+                      "answered_at": "2026-04-22T17:30:44.933291"
+                    },
+                    {
+                      "id": 108,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "行，那就开始吧。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:30:53.637510",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 108,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "行，那就开始吧。",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:30:53.637510",
+                    "answered_at": null
+                  }
+                }
+              }
+            ],
+            "session": {
+              "id": 64,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:34.779251",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 107,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:34.779003",
+                  "answered_at": "2026-04-22T17:30:44.933291"
+                },
+                {
+                  "id": 108,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那就开始吧。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:53.637510",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 108,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那就开始吧。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:53.637510",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式事件中已返回当前题评估。",
+          "data": {
+            "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。"
+          },
+          "skipped": false
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 64,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:34.779251",
+              "ended_at": "2026-04-22T17:30:53.669279",
+              "turns": [
+                {
+                  "id": 107,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:34.779003",
+                  "answered_at": "2026-04-22T17:30:44.933291"
+                },
+                {
+                  "id": 108,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那就开始吧。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:53.637510",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 108,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那就开始吧。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:53.637510",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 64,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:34.779251",
+              "ended_at": "2026-04-22T17:30:53.669279",
+              "turns": [
+                {
+                  "id": 107,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。不用背简历，聊聊你最近在做什么、为什么想看 AI 应用工程师这个岗位就行。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有在做自我介绍，而是在告诉我你打算怎么讲。这两件事完全不同，先把内容真的讲出来。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:34.779003",
+                  "answered_at": "2026-04-22T17:30:44.933291"
+                },
+                {
+                  "id": 108,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那就开始吧。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:53.637510",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 108,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那就开始吧。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:53.637510",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    },
+    {
+      "name": "simulation_stream",
+      "displayName": "simulation_stream#1",
+      "runIndex": 1,
+      "mode": "simulation",
+      "requestHint": false,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 65,
+            "session": {
+              "id": 65,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 65,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:57.533783",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 109,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:30:57.533667",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 109,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:30:57.533667",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": null,
+          "detail": "当前场景未请求提示。",
+          "data": null,
+          "skipped": true
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "token",
+                "content": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想"
+              },
+              {
+                "type": "token",
+                "content": "多问一句——你目前是在职看机会，还是已经离职了？以及"
+              },
+              {
+                "type": "token",
+                "content": "你是怎么了解到我们这个 AI 应用工程师岗位的？"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                "session": {
+                  "id": 65,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "simulation",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:30:57.533783",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 109,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:30:57.533667",
+                      "answered_at": "2026-04-22T17:30:57.568099"
+                    },
+                    {
+                      "id": 110,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:31:04.641434",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 110,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:31:04.641434",
+                    "answered_at": null
+                  }
+                }
+              }
+            ],
+            "session": {
+              "id": 65,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:30:57.533783",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 109,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:57.533667",
+                  "answered_at": "2026-04-22T17:30:57.568099"
+                },
+                {
+                  "id": 110,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:04.641434",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 110,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:04.641434",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": null,
+          "detail": "simulation 模式不要求当前题评估。",
+          "data": null,
+          "skipped": true
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 65,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:57.533783",
+              "ended_at": "2026-04-22T17:31:04.677822",
+              "turns": [
+                {
+                  "id": 109,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:57.533667",
+                  "answered_at": "2026-04-22T17:30:57.568099"
+                },
+                {
+                  "id": 110,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:04.641434",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 110,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:04.641434",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 65,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:30:57.533783",
+              "ended_at": "2026-04-22T17:31:04.677822",
+              "turns": [
+                {
+                  "id": 109,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:30:57.533667",
+                  "answered_at": "2026-04-22T17:30:57.568099"
+                },
+                {
+                  "id": 110,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:04.641434",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 110,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "明白了，你刚才提到的那个项目听起来和我们的岗位方向挺接近的。我想多问一句——你目前是在职看机会，还是已经离职了？以及你是怎么了解到我们这个 AI 应用工程师岗位的？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:04.641434",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    },
+    {
+      "name": "practice_stream",
+      "displayName": "practice_stream#2",
+      "runIndex": 2,
+      "mode": "practice",
+      "requestHint": false,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 66,
+            "session": {
+              "id": 66,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 66,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:08.348622",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 111,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:08.348530",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 111,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:08.348530",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": null,
+          "detail": "当前场景未请求提示。",
+          "data": null,
+          "skipped": true
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "token",
+                "content": "好的，你提到的求职工作台听起来和求职实验室这个"
+              },
+              {
+                "type": "token",
+                "content": "岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向"
+              },
+              {
+                "type": "token",
+                "content": "感兴趣吗？"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                "session": {
+                  "id": 66,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "practice",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:31:08.348622",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 111,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:31:08.348530",
+                      "answered_at": "2026-04-22T17:31:08.378425"
+                    },
+                    {
+                      "id": 112,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:31:15.216159",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 112,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:31:15.216159",
+                    "answered_at": null
+                  }
+                }
+              },
+              {
+                "type": "evaluation",
+                "turn_id": 111,
+                "evaluation": "只讲了项目经历，没回答\"目前工作状态\"和\"为什么对这个岗位感兴趣\"这两个必答题；另外\"可接受范围\"太模糊，需要量化具体数值。继续。"
+              }
+            ],
+            "session": {
+              "id": 66,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:08.348622",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 111,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:08.348530",
+                  "answered_at": "2026-04-22T17:31:08.378425"
+                },
+                {
+                  "id": 112,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:15.216159",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 112,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:15.216159",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式事件中已返回当前题评估。",
+          "data": {
+            "evaluation": "只讲了项目经历，没回答\"目前工作状态\"和\"为什么对这个岗位感兴趣\"这两个必答题；另外\"可接受范围\"太模糊，需要量化具体数值。继续。"
+          },
+          "skipped": false
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 66,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:08.348622",
+              "ended_at": "2026-04-22T17:31:21.212887",
+              "turns": [
+                {
+                  "id": 111,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "只讲了项目经历，没回答\"目前工作状态\"和\"为什么对这个岗位感兴趣\"这两个必答题；另外\"可接受范围\"太模糊，需要量化具体数值。继续。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:08.348530",
+                  "answered_at": "2026-04-22T17:31:08.378425"
+                },
+                {
+                  "id": 112,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:15.216159",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 112,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:15.216159",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 66,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:08.348622",
+              "ended_at": "2026-04-22T17:31:21.212887",
+              "turns": [
+                {
+                  "id": 111,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "你好，请先简单介绍一下你自己，包括你目前的工作状态和为什么对 AI 应用工程师这个岗位感兴趣。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我最近负责一个求职工作台项目，主导了结构化简历编辑和面试链路设计，并把关键页面的交互延迟降到了可接受范围。",
+                  "evaluation": "只讲了项目经历，没回答\"目前工作状态\"和\"为什么对这个岗位感兴趣\"这两个必答题；另外\"可接受范围\"太模糊，需要量化具体数值。继续。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:08.348530",
+                  "answered_at": "2026-04-22T17:31:08.378425"
+                },
+                {
+                  "id": 112,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:15.216159",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 112,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "好的，你提到的求职工作台听起来和求职实验室这个岗位有一定关联。能简单说说，你现在是在职状态还是已经离职，以及为什么对 AI 应用工程师这个方向感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:15.216159",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    },
+    {
+      "name": "practice_stream_with_hint",
+      "displayName": "practice_stream_with_hint#2",
+      "runIndex": 2,
+      "mode": "practice",
+      "requestHint": true,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 67,
+            "session": {
+              "id": 67,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 67,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:25.211444",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 113,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:25.211322",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 113,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:25.211322",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功获取答题提示。",
+          "data": {
+            "hints": [
+              "我继续面试——请你回答刚才的问题，做个自我介绍吧。"
+            ]
+          },
+          "skipped": false
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "token",
+                "content": "行，那你"
+              },
+              {
+                "type": "evaluation",
+                "turn_id": 113,
+                "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。"
+              },
+              {
+                "type": "token",
+                "content": "按这个框架开始吧，先从项目背景说起。"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "行，那你按这个框架开始吧，先从项目背景说起。",
+                "session": {
+                  "id": 67,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "practice",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:31:25.211444",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 113,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                      "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:31:25.211322",
+                      "answered_at": "2026-04-22T17:31:34.240765"
+                    },
+                    {
+                      "id": 114,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:31:39.382710",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 114,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:31:39.382710",
+                    "answered_at": null
+                  }
+                }
+              }
+            ],
+            "session": {
+              "id": 67,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:25.211444",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 113,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:25.211322",
+                  "answered_at": "2026-04-22T17:31:34.240765"
+                },
+                {
+                  "id": 114,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:39.382710",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 114,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:39.382710",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式事件中已返回当前题评估。",
+          "data": {
+            "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。"
+          },
+          "skipped": false
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 67,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:25.211444",
+              "ended_at": "2026-04-22T17:31:39.404508",
+              "turns": [
+                {
+                  "id": 113,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:25.211322",
+                  "answered_at": "2026-04-22T17:31:34.240765"
+                },
+                {
+                  "id": 114,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:39.382710",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 114,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:39.382710",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 67,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "practice",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:25.211444",
+              "ended_at": "2026-04-22T17:31:39.404508",
+              "turns": [
+                {
+                  "id": 113,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先做个自我介绍吧。你之前做全栈工程师，主要在实验求职科技那边，能大概讲讲你平时主要负责哪些方向、偏重哪块技术栈吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "我会先说明项目背景，再讲我负责的 Agent 编排、评测体系和端到端验证，最后补充性能指标和上线后的稳定性观察。",
+                  "evaluation": "你没有回答问题本身，只是在描述你的回答结构。我问的是你实际负责什么、偏重哪块技术栈，直接说。",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:25.211322",
+                  "answered_at": "2026-04-22T17:31:34.240765"
+                },
+                {
+                  "id": 114,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:39.382710",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 114,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "行，那你按这个框架开始吧，先从项目背景说起。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:39.382710",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    },
+    {
+      "name": "simulation_stream",
+      "displayName": "simulation_stream#2",
+      "runIndex": 2,
+      "mode": "simulation",
+      "requestHint": false,
+      "steps": {
+        "create": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已创建面试 session。",
+          "data": {
+            "sessionId": 68,
+            "session": {
+              "id": 68,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "interview_ready",
+              "current_round_index": 0,
+              "current_turn_index": 0,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": null,
+              "ended_at": null,
+              "turns": [],
+              "current_turn": null
+            }
+          },
+          "skipped": false
+        },
+        "start": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功生成第一题。",
+          "data": {
+            "session": {
+              "id": 68,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 1,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:50.261374",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 115,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:50.261253",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 115,
+                "turn_index": 1,
+                "round_index": 0,
+                "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:50.261253",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "hint": {
+          "success": true,
+          "statusCode": null,
+          "detail": "当前场景未请求提示。",
+          "data": null,
+          "skipped": true
+        },
+        "answer": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "流式回答完成并收到 done 事件。",
+          "data": {
+            "events": [
+              {
+                "type": "token",
+                "content": "听起来"
+              },
+              {
+                "type": "token",
+                "content": "你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对"
+              },
+              {
+                "type": "token",
+                "content": "这类岗位感兴趣吗？"
+              },
+              {
+                "type": "done",
+                "next_action": "next_question",
+                "message": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                "session": {
+                  "id": 68,
+                  "resume_id": 49,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室",
+                  "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+                  "interview_type": "general",
+                  "difficulty": "medium",
+                  "language": "zh-CN",
+                  "mode": "simulation",
+                  "status": "waiting_user_answer",
+                  "current_round_index": 0,
+                  "current_turn_index": 2,
+                  "plan": {
+                    "rounds": [
+                      {
+                        "type": "warmup",
+                        "goal": "自我介绍与背景确认",
+                        "max_questions": 2
+                      },
+                      {
+                        "type": "resume_deep_dive",
+                        "goal": "项目深挖与个人贡献",
+                        "max_questions": 15
+                      },
+                      {
+                        "type": "behavioral",
+                        "goal": "行为能力与沟通协作",
+                        "max_questions": 3
+                      },
+                      {
+                        "type": "closing",
+                        "goal": "总结与反问",
+                        "max_questions": 2
+                      }
+                    ],
+                    "resume_highlights": {
+                      "work_experience_count": 1,
+                      "project_count": 1,
+                      "target_title": "AI 应用工程师",
+                      "target_company": "求职实验室"
+                    }
+                  },
+                  "report_data": null,
+                  "started_at": "2026-04-22T17:31:50.261374",
+                  "ended_at": null,
+                  "turns": [
+                    {
+                      "id": 115,
+                      "turn_index": 1,
+                      "round_index": 0,
+                      "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "done",
+                      "asked_at": "2026-04-22T17:31:50.261253",
+                      "answered_at": "2026-04-22T17:31:50.298181"
+                    },
+                    {
+                      "id": 116,
+                      "turn_index": 2,
+                      "round_index": 0,
+                      "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                      "question_type": "warmup",
+                      "intent": "自我介绍与背景确认",
+                      "expected_points": null,
+                      "answer": null,
+                      "evaluation": "",
+                      "follow_up_count": 0,
+                      "status": "asked",
+                      "asked_at": "2026-04-22T17:31:58.174425",
+                      "answered_at": null
+                    }
+                  ],
+                  "current_turn": {
+                    "id": 116,
+                    "turn_index": 2,
+                    "round_index": 0,
+                    "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                    "question_type": "warmup",
+                    "intent": "自我介绍与背景确认",
+                    "expected_points": null,
+                    "answer": null,
+                    "evaluation": "",
+                    "follow_up_count": 0,
+                    "status": "asked",
+                    "asked_at": "2026-04-22T17:31:58.174425",
+                    "answered_at": null
+                  }
+                }
+              }
+            ],
+            "session": {
+              "id": 68,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "waiting_user_answer",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": null,
+              "started_at": "2026-04-22T17:31:50.261374",
+              "ended_at": null,
+              "turns": [
+                {
+                  "id": 115,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:50.261253",
+                  "answered_at": "2026-04-22T17:31:50.298181"
+                },
+                {
+                  "id": 116,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:58.174425",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 116,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:58.174425",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "evaluation": {
+          "success": true,
+          "statusCode": null,
+          "detail": "simulation 模式不要求当前题评估。",
+          "data": null,
+          "skipped": true
+        },
+        "end": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "已成功结束面试并生成报告。",
+          "data": {
+            "session": {
+              "id": 68,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:50.261374",
+              "ended_at": "2026-04-22T17:31:58.198406",
+              "turns": [
+                {
+                  "id": 115,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:50.261253",
+                  "answered_at": "2026-04-22T17:31:50.298181"
+                },
+                {
+                  "id": 116,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:58.174425",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 116,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:58.174425",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        },
+        "report": {
+          "success": true,
+          "statusCode": 200,
+          "detail": "最终报告字段完整。",
+          "data": {
+            "session": {
+              "id": 68,
+              "resume_id": 49,
+              "target_title": "AI 应用工程师",
+              "target_company": "求职实验室",
+              "jd_text": "负责 AI 应用开发、Agent 编排、前后端联调与性能优化。",
+              "interview_type": "general",
+              "difficulty": "medium",
+              "language": "zh-CN",
+              "mode": "simulation",
+              "status": "completed",
+              "current_round_index": 0,
+              "current_turn_index": 2,
+              "plan": {
+                "rounds": [
+                  {
+                    "type": "warmup",
+                    "goal": "自我介绍与背景确认",
+                    "max_questions": 2
+                  },
+                  {
+                    "type": "resume_deep_dive",
+                    "goal": "项目深挖与个人贡献",
+                    "max_questions": 15
+                  },
+                  {
+                    "type": "behavioral",
+                    "goal": "行为能力与沟通协作",
+                    "max_questions": 3
+                  },
+                  {
+                    "type": "closing",
+                    "goal": "总结与反问",
+                    "max_questions": 2
+                  }
+                ],
+                "resume_highlights": {
+                  "work_experience_count": 1,
+                  "project_count": 1,
+                  "target_title": "AI 应用工程师",
+                  "target_company": "求职实验室"
+                }
+              },
+              "report_data": {
+                "summary": "本场面试已提前结束。整体可以继续，但稳定性还不够。当前最需要优先修正的是：多次没有直接回答问题本身，建议先给结论再展开。相对做得更好的是：部分回答已经能讲清个人贡献。",
+                "dimensions": [
+                  {
+                    "title": "切题度",
+                    "assessment": "多次偏离题干重点，切题度是当前最明显的问题。",
+                    "evidence": "0/1 题在回答里明显命中了题干关键词。",
+                    "advice": "下一轮每题先用一句话直接回答问题，再补背景、动作和结果。"
+                  },
+                  {
+                    "title": "表达清晰度",
+                    "assessment": "表达组织偏弱，很多回答缺少基本的背景和过程说明。",
+                    "evidence": "0/1 题同时具备基本切题和背景展开。",
+                    "advice": "统一按背景、动作、结果三段式说，避免只给一句结论。"
+                  },
+                  {
+                    "title": "项目/经历深度",
+                    "assessment": "项目和经历多数停留在表面，个人贡献和结果讲得不够深。",
+                    "evidence": "1/1 题明确讲到个人贡献，0/1 题补到了结果或效果。",
+                    "advice": "每个项目都固定补三件事：你具体做了什么、为什么这样做、最后结果怎样。"
+                  },
+                  {
+                    "title": "岗位匹配度",
+                    "assessment": "岗位匹配点表达偏弱，回答更多停留在经历本身，没有主动贴岗位。",
+                    "evidence": "0/1 题回答中主动提到了岗位或公司相关关键词。",
+                    "advice": "每次回答最后补一句：这段经历为什么和目标岗位直接相关。"
+                  }
+                ],
+                "recurring_issues": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "weaknesses": [
+                  "多次没有直接回答问题本身，建议先给结论再展开。",
+                  "多次没有把个人贡献讲清楚，需要明确“我做了什么”。",
+                  "多次缺少量化结果或具体指标，回答说服力不够。"
+                ],
+                "next_training_plan": [
+                  "先练“直接回答问题”，每题先用一句话给结论，再展开。",
+                  "再练“个人贡献”，每个项目都明确说出你亲自负责的动作和决策。",
+                  "再练“量化结果”，每题至少补一个结果指标或业务影响。"
+                ],
+                "resume_feedback": [
+                  "简历里的项目成果需要补成可直接复述的数字，否则面试里也很难自然讲出指标。",
+                  "简历里的项目描述要更突出“我主导/我负责”的部分，降低团队口吻。",
+                  "简历里的项目背景和目标可以写得更清楚，方便面试时快速切题。"
+                ]
+              },
+              "started_at": "2026-04-22T17:31:50.261374",
+              "ended_at": "2026-04-22T17:31:58.198406",
+              "turns": [
+                {
+                  "id": 115,
+                  "turn_index": 1,
+                  "round_index": 0,
+                  "question": "好，先简单自我介绍一下吧，重点说说最近在做什么、对这个岗位有什么想法。",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": "这个项目里我重点负责面试会话管理、流式回答和报告生成，核心目标是让用户能稳定完成一次从提问到复盘的完整练习。",
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "done",
+                  "asked_at": "2026-04-22T17:31:50.261253",
+                  "answered_at": "2026-04-22T17:31:50.298181"
+                },
+                {
+                  "id": 116,
+                  "turn_index": 2,
+                  "round_index": 0,
+                  "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                  "question_type": "warmup",
+                  "intent": "自我介绍与背景确认",
+                  "expected_points": null,
+                  "answer": null,
+                  "evaluation": "",
+                  "follow_up_count": 0,
+                  "status": "asked",
+                  "asked_at": "2026-04-22T17:31:58.174425",
+                  "answered_at": null
+                }
+              ],
+              "current_turn": {
+                "id": 116,
+                "turn_index": 2,
+                "round_index": 0,
+                "question": "听起来你最近一直在做 AI 相关的应用落地，正好求职实验室这个岗位也是偏 AI 应用开发。能说说你为什么对这类岗位感兴趣吗？",
+                "question_type": "warmup",
+                "intent": "自我介绍与背景确认",
+                "expected_points": null,
+                "answer": null,
+                "evaluation": "",
+                "follow_up_count": 0,
+                "status": "asked",
+                "asked_at": "2026-04-22T17:31:58.174425",
+                "answered_at": null
+              }
+            }
+          },
+          "skipped": false
+        }
+      },
+      "chainCompleted": true,
+      "finalStatus": "completed",
+      "reportReady": true
+    }
+  ]
+}

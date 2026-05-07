@@ -90,6 +90,7 @@ export default function ResumeEditPage() {
     handleLayoutConfigChange,
     handleSmartFitHeaderClick,
     handleExportPDF,
+    recognizeJobDescriptionImage,
     updateResumeContent,
     applyAgentResumeContent,
   } = useResumeEditor({
@@ -375,6 +376,7 @@ export default function ResumeEditPage() {
                     <JobApplicationEditor
                       data={resume.content.job_application || {}}
                       onChange={(data) => updateResumeContent('job_application', data)}
+                      onRecognizeJdImage={recognizeJobDescriptionImage}
                     />
                   )}
 

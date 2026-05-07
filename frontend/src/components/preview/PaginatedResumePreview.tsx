@@ -10,11 +10,10 @@ import WorkExperiencePreview from './sections/WorkExperiencePreview'
 import SkillsPreview from './sections/SkillsPreview'
 import ProjectsPreview from './sections/ProjectsPreview'
 import type { ResumeContent } from '@/types/resume'
+import type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
 
-// 模块类型定义
-export type ModuleType = 'personal' | 'education' | 'work' | 'skills' | 'projects'
-
-const SECTION_ID_MAP: Record<ModuleType, string> = {
+const SECTION_ID_MAP: Record<ResumeModule, string> = {
   personal: 'personal-info-section',
   education: 'education-section',
   work: 'work-experience-section',
@@ -24,28 +23,11 @@ const SECTION_ID_MAP: Record<ModuleType, string> = {
 
 const SECTION_ID_TO_MODULE = Object.entries(SECTION_ID_MAP).reduce(
   (acc, [moduleType, sectionId]) => {
-    acc[sectionId] = moduleType as ModuleType
+    acc[sectionId] = moduleType as ResumeModule
     return acc
   },
-  {} as Record<string, ModuleType>
+  {} as Record<string, ResumeModule>
 )
-
-// 模块配置接口
-export interface ModuleConfig {
-  type: ModuleType
-  visible: boolean
-  order: number
-  label: string
-}
-
-// 默认模块顺序配置
-export const DEFAULT_MODULE_ORDER: ModuleConfig[] = [
-  { type: 'personal', visible: true, order: 0, label: '个人信息' },
-  { type: 'education', visible: true, order: 1, label: '教育背景' },
-  { type: 'work', visible: true, order: 2, label: '工作经验' },
-  { type: 'projects', visible: true, order: 3, label: '项目经验' },
-  { type: 'skills', visible: true, order: 4, label: '技能专长' },
-]
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent
@@ -58,7 +40,7 @@ interface PaginatedResumePreviewProps {
 
 export default function PaginatedResumePreview({
   content,
-  moduleOrder = DEFAULT_MODULE_ORDER,
+  moduleOrder = DEFAULT_MODULE_CONFIG,
   spacingScale = 1,
   onSpacingScaleChange,
   onTotalPagesChange,
@@ -179,7 +161,7 @@ export default function PaginatedResumePreview({
     </section>
   )
 
-  const renderModule = (moduleType: ModuleType, renderLines?: number[]): JSX.Element | null => {
+  const renderModule = (moduleType: ResumeModule, renderLines?: number[]): JSX.Element | null => {
     const sectionId = SECTION_ID_MAP[moduleType]
 
     switch (moduleType) {

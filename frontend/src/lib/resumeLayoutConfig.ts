@@ -4,8 +4,11 @@
  * 管理简历的视觉密度、间距、模块顺序等配置
  */
 
+import type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+
+export type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+
 export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
-export type ResumeModule = 'personal' | 'education' | 'work' | 'skills' | 'projects'
 
 /**
  * 三档预设对应的 spacingScale 值
@@ -91,6 +94,29 @@ export const MODULE_LABELS: Record<ResumeModule, string> = {
   skills: '技能',
   projects: '项目经验'
 }
+
+/**
+ * 将布局配置转换成预览和编辑器共用的模块列表。
+ */
+export function buildModuleConfig(
+  moduleOrder: ResumeModule[],
+  visibleModules: Set<ResumeModule>,
+): ModuleConfig[] {
+  return moduleOrder.map((module, index) => ({
+    type: module,
+    visible: visibleModules.has(module),
+    order: index,
+    label: MODULE_LABELS[module],
+  }))
+}
+
+/**
+ * 默认模块配置列表。
+ */
+export const DEFAULT_MODULE_CONFIG: ModuleConfig[] = buildModuleConfig(
+  DEFAULT_MODULE_ORDER,
+  new Set(DEFAULT_MODULE_ORDER),
+)
 
 /**
  * 简历布局配置接口

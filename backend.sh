@@ -27,7 +27,7 @@ fi
 
 # 创建并同步虚拟环境
 echo "📦 使用 uv 同步依赖..."
-uv sync
+uv sync --extra dev
 
 # 检查数据库
 echo "🗄️ 初始化数据库..."

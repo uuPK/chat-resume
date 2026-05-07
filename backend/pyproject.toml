@@ -41,6 +41,7 @@ license = {text = "MIT"}
 dev = [
     "pytest==7.4.3",
     "pytest-asyncio==0.21.1",
+    "pytest-cov==4.1.0",
     "black",
     "ruff",
     "mypy",
@@ -71,6 +72,22 @@ indent-style = "space"
 [tool.black]
 line-length = 88
 target-version = ['py38']
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = [
+    "app/infra/database.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
 
 [dependency-groups]
 dev = [

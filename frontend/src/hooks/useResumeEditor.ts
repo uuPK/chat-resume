@@ -12,8 +12,8 @@ import toast from 'react-hot-toast'
 
 import { resumeApi, type Resume } from '@/lib/api'
 import {
+  buildModuleConfig,
   DEFAULT_LAYOUT_CONFIG,
-  MODULE_LABELS,
   deserializeLayoutConfig,
   loadLayoutConfig,
   ResumeLayoutConfig,
@@ -21,7 +21,7 @@ import {
   saveLayoutConfig,
   saveLayoutConfigToServer,
 } from '@/lib/resumeLayoutConfig'
-import { ModuleConfig } from '@/components/preview/PaginatedResumePreview'
+import type { ModuleConfig } from '@/types/resumeLayout'
 
 import { AutoSaveStatus, useResumeAutoSave } from './useResumeAutoSave'
 
@@ -200,6 +200,14 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
   }, [updateDraft])
 
   /**
+   * 识别 JD 图片中的文字，供页面把 OCR 能力注入给编辑组件。
+   */
+  const recognizeJobDescriptionImage = useCallback(async (file: File) => {
+    const result = await resumeApi.ocrJobDescriptionImage(file)
+    return result.text
+  }, [])
+
+  /**
    * 接收 Agent 回写的整份简历内容，并把它视为新的已保存快照。
    */
   const applyAgentResumeContent = useCallback((content: Resume['content']) => {
@@ -212,14 +220,10 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     })
   }, [setAutoSaveStatus, syncResumeSnapshot])
 
-  const moduleOrder = useMemo<ModuleConfig[]>(() => (
-    layoutConfig.moduleOrder.map((module, index) => ({
-      type: module,
-      visible: layoutConfig.visibleModules.has(module),
-      order: index,
-      label: MODULE_LABELS[module],
-    }))
-  ), [layoutConfig])
+  const moduleOrder = useMemo<ModuleConfig[]>(
+    () => buildModuleConfig(layoutConfig.moduleOrder, layoutConfig.visibleModules),
+    [layoutConfig],
+  )
 
   const editorSections = useMemo(() => {
     const allSections = [
@@ -269,6 +273,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     handleLayoutConfigChange,
     handleSmartFitHeaderClick,
     handleExportPDF,
+    recognizeJobDescriptionImage,
     updateResumeContent,
     updateResumeTitle,
     applyAgentResumeContent,

@@ -115,6 +115,55 @@ def _filter_resume_by_visible_modules(
     return filtered
 
 
+def _get_resume_for_user(
+    resume_service: ResumeService, *, resume_id: int, user_id: int
+):
+    """用于统一读取并校验当前用户可访问的简历。"""
+    resume = resume_service.get_by_id(resume_id)
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="简历不存在",
+        )
+    if resume.owner_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="没有权限访问此简历",
+        )
+    return resume
+
+
+def _dump_resume_content(resume: Any) -> Dict[str, Any]:
+    """用于把 ORM 简历内容安全收窄成可编辑字典。"""
+    return cast(
+        Dict[str, Any],
+        resume.content if isinstance(resume.content, dict) else {},
+    )
+
+
+def _load_filtered_resume_content(
+    resume: Any, visible_modules: list[str]
+) -> Dict[str, Any]:
+    """用于读取简历内容并按可见模块裁剪上下文。"""
+    return _filter_resume_by_visible_modules(
+        _dump_resume_content(resume),
+        visible_modules,
+    )
+
+
+def _persist_resume_if_changed(
+    resume_service: ResumeService,
+    *,
+    resume_id: int,
+    latest_resume_content: Any,
+    original_resume: Dict[str, Any],
+) -> None:
+    """用于只在内容确实变化时落库存储结构化简历。"""
+    if latest_resume_content is None or latest_resume_content == original_resume:
+        return
+    resume_service.update(resume_id, {"content": latest_resume_content})
+
+
 @router.post("/chat/stream")
 async def chat_with_resume_stream(
     request: Request,
@@ -173,10 +222,14 @@ async def chat_with_resume_stream(
 
                 # 获取用户真实简历数据
                 resume_service = ResumeService(db)
-                resume = resume_service.get_by_id(chat_request.resume_id)
-
-                if not resume:
-                    error_data = {"error": "简历不存在", "done": True}
+                try:
+                    resume = _get_resume_for_user(
+                        resume_service,
+                        resume_id=chat_request.resume_id,
+                        user_id=current_user["id"],
+                    )
+                except HTTPException as exc:
+                    error_data = {"error": str(exc.detail), "done": True}
                     yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
                     return
 
@@ -184,24 +237,8 @@ async def chat_with_resume_stream(
                 logger.debug(f"Stream Resume owner_id: {resume.owner_id}")
                 logger.debug(f"Stream Current user ID: {current_user['id']}")
 
-                if resume.owner_id != current_user["id"]:
-                    error_data = {
-                        "error": (
-                            "没有权限访问此简历 "
-                            f"(简历所有者: {resume.owner_id}, "
-                            f"当前用户: {current_user['id']})"
-                        ),
-                        "done": True,
-                    }
-                    yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
-                    return
-
-                resume_dict: Dict[str, Any] = cast(
-                    Dict[str, Any],
-                    resume.content if isinstance(resume.content, dict) else {},
-                )
-                resume_dict = _filter_resume_by_visible_modules(
-                    resume_dict,
+                resume_dict = _load_filtered_resume_content(
+                    resume,
                     chat_request.visible_modules,
                 )
 
@@ -247,14 +284,12 @@ async def chat_with_resume_stream(
 
                     observer.finish("".join(final_content_parts))
 
-                if (
-                    latest_resume_content is not None
-                    and latest_resume_content != original_resume
-                ):
-                    resume_service.update(
-                        chat_request.resume_id,
-                        {"content": latest_resume_content},
-                    )
+                _persist_resume_if_changed(
+                    resume_service,
+                    resume_id=chat_request.resume_id,
+                    latest_resume_content=latest_resume_content,
+                    original_resume=original_resume,
+                )
 
                 # 发送结束标记，附带最终简历内容用于刷新预览
                 end_data: Dict[str, Any] = {
@@ -392,28 +427,17 @@ async def resume_agent_session(
             )
 
         resume_service = ResumeService(db)
-        resume = resume_service.get_by_id(session.resume_id)
-        if not resume:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="简历不存在",
-            )
-        if resume.owner_id != current_user["id"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="没有权限访问此简历",
-            )
-
-        resume_dict: Dict[str, Any] = cast(
-            Dict[str, Any],
-            resume.content if isinstance(resume.content, dict) else {},
+        resume = _get_resume_for_user(
+            resume_service,
+            resume_id=session.resume_id,
+            user_id=current_user["id"],
         )
         metadata = (
             session.metadata_json if isinstance(session.metadata_json, dict) else {}
         )
         visible_modules = metadata.get("visible_modules")
-        filtered_resume = _filter_resume_by_visible_modules(
-            resume_dict,
+        filtered_resume = _load_filtered_resume_content(
+            resume,
             visible_modules if isinstance(visible_modules, list) else [],
         )
         original_resume = deepcopy(filtered_resume)
@@ -431,10 +455,12 @@ async def resume_agent_session(
             )
 
         latest_resume_content = result["resume_content"]
-        if result.get("applied") and latest_resume_content != original_resume:
-            resume_service.update(
-                session.resume_id,
-                {"content": latest_resume_content},
+        if result.get("applied"):
+            _persist_resume_if_changed(
+                resume_service,
+                resume_id=session.resume_id,
+                latest_resume_content=latest_resume_content,
+                original_resume=original_resume,
             )
 
         logger.info(

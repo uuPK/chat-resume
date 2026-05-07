@@ -5,19 +5,12 @@ import type { ChangeEvent, ClipboardEvent } from 'react'
 import { PhotoIcon } from '@heroicons/react/24/outline'
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-
-import { resumeApi } from '@/lib/api'
-
-interface JobApplicationData {
-  target_company?: string
-  target_title?: string
-  jd_text?: string
-  strategy?: string
-}
+import type { JobApplication } from '@/types/resume'
 
 interface JobApplicationEditorProps {
-  data: JobApplicationData
-  onChange: (data: JobApplicationData) => void
+  data: JobApplication
+  onChange: (data: JobApplication) => void
+  onRecognizeJdImage: (file: File) => Promise<string>
 }
 
 const ALLOWED_JD_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
@@ -25,9 +18,13 @@ const ALLOWED_JD_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/w
 /**
  * 用于编辑目标岗位信息，并支持从 JD 图片中自动识别文字。
  */
-export default function JobApplicationEditor({ data, onChange }: JobApplicationEditorProps) {
+export default function JobApplicationEditor({
+  data,
+  onChange,
+  onRecognizeJdImage,
+}: JobApplicationEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [formData, setFormData] = useState<JobApplicationData>({
+  const [formData, setFormData] = useState<JobApplication>({
     target_company: data.target_company || '',
     target_title: data.target_title || '',
     jd_text: data.jd_text || '',
@@ -50,7 +47,7 @@ export default function JobApplicationEditor({ data, onChange }: JobApplicationE
   /**
    * 用于统一更新字段并把变更同步给父组件。
    */
-  const handleInputChange = (field: keyof JobApplicationData, value: string) => {
+  const handleInputChange = (field: keyof JobApplication, value: string) => {
     const newData = { ...formData, [field]: value }
     setFormData(newData)
     onChange(newData)
@@ -87,9 +84,9 @@ export default function JobApplicationEditor({ data, onChange }: JobApplicationE
     const toastId = toast.loading('正在识别 JD 图片...')
 
     try {
-      const result = await resumeApi.ocrJobDescriptionImage(file)
+      const recognizedText = await onRecognizeJdImage(file)
       toast.dismiss(toastId)
-      applyRecognizedText(result.text)
+      applyRecognizedText(recognizedText)
     } catch (error) {
       toast.dismiss(toastId)
       const message = error instanceof Error ? error.message : 'JD 图片识别失败，请重试'

@@ -245,9 +245,12 @@ class ChatMessageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def _check_resume_access(resume_id: int, user_id: int, db: Session):
+def _check_resume_access(
+    resume_id: int,
+    user_id: int,
+    resume_service: ResumeService,
+):
     """用于复用简历存在性和归属校验。"""
-    resume_service = ResumeService(db)
     resume = resume_service.get_by_id(resume_id)
     if not resume:
         raise HTTPException(
@@ -267,15 +270,9 @@ async def get_chat_messages(
     db: Session = Depends(get_db),
 ):
     """用于读取某份简历下保存的全部聊天记录。"""
-    _check_resume_access(resume_id, current_user["id"], db)
-    from app.models.resume import ResumeChatMessage
-
-    msgs = (
-        db.query(ResumeChatMessage)
-        .filter(ResumeChatMessage.resume_id == resume_id)
-        .order_by(ResumeChatMessage.id.asc())
-        .all()
-    )
+    resume_service = ResumeService(db)
+    _check_resume_access(resume_id, current_user["id"], resume_service)
+    msgs = resume_service.list_chat_messages(resume_id)
     return [ChatMessageOut.model_validate(m) for m in msgs]
 
 
@@ -287,24 +284,12 @@ async def append_chat_messages(
     db: Session = Depends(get_db),
 ):
     """用于批量保存一次对话往返中的聊天记录。"""
-    _check_resume_access(resume_id, current_user["id"], db)
-    from app.models.resume import ResumeChatMessage
-
-    saved = []
-    for msg in messages:
-        if msg.role not in ("user", "assistant"):
-            continue
-        row = ResumeChatMessage(
-            resume_id=resume_id,
-            role=msg.role,
-            content=msg.content,
-            stream_events=msg.stream_events,
-        )
-        db.add(row)
-        saved.append(row)
-    db.commit()
-    for row in saved:
-        db.refresh(row)
+    resume_service = ResumeService(db)
+    _check_resume_access(resume_id, current_user["id"], resume_service)
+    saved = resume_service.append_chat_messages(
+        resume_id,
+        [message.model_dump() for message in messages],
+    )
     return [ChatMessageOut.model_validate(m) for m in saved]
 
 
@@ -315,11 +300,7 @@ async def clear_chat_messages(
     db: Session = Depends(get_db),
 ):
     """用于清空某份简历下的全部聊天记录。"""
-    _check_resume_access(resume_id, current_user["id"], db)
-    from app.models.resume import ResumeChatMessage
-
-    db.query(ResumeChatMessage).filter(
-        ResumeChatMessage.resume_id == resume_id
-    ).delete()
-    db.commit()
+    resume_service = ResumeService(db)
+    _check_resume_access(resume_id, current_user["id"], resume_service)
+    resume_service.clear_chat_messages(resume_id)
     return {"message": "cleared"}

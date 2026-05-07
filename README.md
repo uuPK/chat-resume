@@ -55,6 +55,7 @@ chat-resume/
 │   ├── e2e/
 │   ├── scripts/
 │   └── src/
+├── restart.sh
 ├── backend.sh
 ├── frontend.sh
 └── railway.json
@@ -75,26 +76,30 @@ chat-resume/
 - Node.js 18+
 - `uv`
 
-启动后端：
+一键重启前后端：
 
 ```bash
-./backend.sh
+./restart.sh
+```
+
+终端默认显示精简日志，完整日志会写入 `backend.log` 和 `frontend.log`。需要看完整输出时：
+
+```bash
+VERBOSE=1 ./restart.sh
 ```
 
 默认地址：
 
 - API: `http://localhost:8000`
 - Docs: `http://localhost:8000/docs`
+- Web: `http://localhost:3000`
 
-启动前端：
+也可以单独启动某一端：
 
 ```bash
+./backend.sh
 ./frontend.sh
 ```
-
-默认地址：
-
-- Web: `http://localhost:3000`
 
 ## 生产模式本地运行
 
@@ -132,6 +137,9 @@ npm run start
   - `OPENROUTER_MODEL`
   - `MINIMAX_*`
   - `VOLCENGINE_*`
+  - `DIGITAL_HUMAN_PROVIDER=volcengine`
+  - `VOLCENGINE_DIALOGUE_APP_KEY`
+  - `VOLCENGINE_DIALOGUE_ACCESS_KEY`
 - 前端
   - `NEXT_PUBLIC_API_URL`
 

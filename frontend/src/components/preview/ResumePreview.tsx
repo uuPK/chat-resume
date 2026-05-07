@@ -2,8 +2,9 @@
 
 import { useEffect } from 'react'
 import React from 'react'
-import PaginatedResumePreview, { ModuleConfig } from './PaginatedResumePreview'
+import PaginatedResumePreview from './PaginatedResumePreview'
 import type { ResumeContent } from '@/types/resume'
+import type { ModuleConfig } from '@/types/resumeLayout'
 
 interface ResumePreviewProps {
   content: ResumeContent

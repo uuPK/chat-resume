@@ -1,17 +1,17 @@
 """
 简历业务逻辑服务模块
 
-提供简历相关的核心业务逻辑，包括简历的创建、更新、查询、删除等操作。
+提供简历相关的核心业务逻辑，包括简历的创建、更新、查询、删除和聊天记录读写。
 处理简历数据验证和业务规则。
 """
 
 import logging
-from typing import List
+from typing import Any, List
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.models.resume import OptimizationRecord, Resume
+from app.models.resume import OptimizationRecord, Resume, ResumeChatMessage
 from app.schemas.resume import (
     ResumeContent,
     ResumeCreate,
@@ -98,3 +98,43 @@ class ResumeService:
         except Exception:
             self.db.rollback()
             return False
+
+    def list_chat_messages(self, resume_id: int) -> list[ResumeChatMessage]:
+        """用于读取一份简历下的全部聊天记录。"""
+        return (
+            self.db.query(ResumeChatMessage)
+            .filter(ResumeChatMessage.resume_id == resume_id)
+            .order_by(ResumeChatMessage.id.asc())
+            .all()
+        )
+
+    def append_chat_messages(
+        self,
+        resume_id: int,
+        messages: list[dict[str, Any]],
+    ) -> list[ResumeChatMessage]:
+        """用于批量追加一次往返中的聊天记录。"""
+        saved: list[ResumeChatMessage] = []
+        for message in messages:
+            role = str(message.get("role") or "")
+            if role not in {"user", "assistant"}:
+                continue
+            row = ResumeChatMessage(
+                resume_id=resume_id,
+                role=role,
+                content=str(message.get("content") or ""),
+                stream_events=message.get("stream_events"),
+            )
+            self.db.add(row)
+            saved.append(row)
+        self.db.commit()
+        for row in saved:
+            self.db.refresh(row)
+        return saved
+
+    def clear_chat_messages(self, resume_id: int) -> None:
+        """用于清空一份简历下的全部聊天记录。"""
+        self.db.query(ResumeChatMessage).filter(
+            ResumeChatMessage.resume_id == resume_id
+        ).delete()
+        self.db.commit()
