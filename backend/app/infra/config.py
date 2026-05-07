@@ -128,6 +128,52 @@ class Settings(BaseSettings):
     VOLCENGINE_TTS_API_KEY: str = os.getenv("VOLCENGINE_TTS_API_KEY", "")
     VOLCENGINE_TTS_APP_ID: str = os.getenv("VOLCENGINE_TTS_APP_ID", "")
 
+    # 火山引擎端到端实时语音大模型
+    VOLCENGINE_DIALOGUE_APP_ID: str = os.getenv("VOLCENGINE_DIALOGUE_APP_ID", "")
+    VOLCENGINE_DIALOGUE_APP_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_APP_KEY", "")
+    VOLCENGINE_DIALOGUE_ACCESS_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_ACCESS_KEY", "")
+    VOLCENGINE_DIALOGUE_RESOURCE_ID: str = os.getenv(
+        "VOLCENGINE_DIALOGUE_RESOURCE_ID", "volc.speech.dialog"
+    )
+    VOLCENGINE_DIALOGUE_SPEAKER_ID: str = os.getenv(
+        "VOLCENGINE_DIALOGUE_SPEAKER_ID", ""
+    )
+    VOLCENGINE_DIALOGUE_WS_URL: str = os.getenv(
+        "VOLCENGINE_DIALOGUE_WS_URL",
+        "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
+    )
+
+    # Tavus 数字人会话 API
+    TAVUS_API_KEY: str = os.getenv("TAVUS_API_KEY", "")
+    TAVUS_API_BASE: str = os.getenv("TAVUS_API_BASE", "https://tavusapi.com/v2")
+    TAVUS_REPLICA_ID: str = os.getenv("TAVUS_REPLICA_ID", "")
+    TAVUS_PERSONA_ID: str = os.getenv("TAVUS_PERSONA_ID", "")
+    TAVUS_REQUIRE_AUTH: bool = (
+        os.getenv("TAVUS_REQUIRE_AUTH", "false").strip().lower() == "true"
+    )
+    TAVUS_TEST_MODE: bool = (
+        os.getenv("TAVUS_TEST_MODE", "false").strip().lower() == "true"
+    )
+    DIGITAL_HUMAN_PROVIDER: str = os.getenv("DIGITAL_HUMAN_PROVIDER", "volcengine")
+
+    # HeyGen LiveAvatar 实时数字人 API
+    LIVEAVATAR_API_KEY: str = os.getenv("LIVEAVATAR_API_KEY", "")
+    LIVEAVATAR_API_BASE: str = os.getenv(
+        "LIVEAVATAR_API_BASE", "https://api.liveavatar.com/v1"
+    )
+    LIVEAVATAR_AVATAR_ID: str = os.getenv("LIVEAVATAR_AVATAR_ID", "")
+    LIVEAVATAR_VOICE_ID: str = os.getenv("LIVEAVATAR_VOICE_ID", "")
+    LIVEAVATAR_CONTEXT_ID: str = os.getenv("LIVEAVATAR_CONTEXT_ID", "")
+    LIVEAVATAR_LLM_CONFIGURATION_ID: str = os.getenv(
+        "LIVEAVATAR_LLM_CONFIGURATION_ID", ""
+    )
+    LIVEAVATAR_SANDBOX: bool = (
+        os.getenv("LIVEAVATAR_SANDBOX", "false").strip().lower() == "true"
+    )
+    LIVEAVATAR_MAX_SESSION_DURATION: int = int(
+        os.getenv("LIVEAVATAR_MAX_SESSION_DURATION", "1200")
+    )
+
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     USER_MEMORY_DIR: str = os.getenv("USER_MEMORY_DIR", "data/memory/users")

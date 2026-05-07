@@ -35,6 +35,7 @@ interface StructuredInterviewPanelProps {
   onInputChange: (value: string) => void
   onSendAnswer: () => void
   onRequestHint?: () => void
+  voiceOnly?: boolean
   className?: string
 }
 
@@ -105,6 +106,7 @@ export default function StructuredInterviewPanel({
   onInputChange,
   onSendAnswer,
   onRequestHint,
+  voiceOnly = false,
   className = '',
 }: StructuredInterviewPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -230,7 +232,7 @@ export default function StructuredInterviewPanel({
                 </div>
               )}
 
-              {isActive && !isComplete && (
+              {isActive && !isComplete && !voiceOnly && (
                 <div
                   className="px-6 pb-6 pt-2"
                   style={{ borderTop: '1px solid rgba(91, 97, 110, 0.12)' }}

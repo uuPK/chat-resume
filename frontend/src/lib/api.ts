@@ -151,6 +151,17 @@ interface InterviewStreamDoneEvent extends InterviewActionResponse {
   type: 'done'
 }
 
+interface DigitalHumanConversation {
+  provider: 'tavus' | 'liveavatar' | 'volcengine'
+  conversation_id?: string
+  conversation_url?: string
+  join_url?: string
+  session_id?: string
+  session_token?: string
+  status: string
+  meeting_token?: string | null
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -160,6 +171,21 @@ function apiFetch(path: string, init: RequestInit = {}) {
     ...init,
     credentials: 'include',
   })
+}
+
+// 给外部供应商代理请求设置前端超时，避免 UI 长时间停在连接中。
+async function fetchWithTimeout(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 45000,
+) {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await apiFetch(path, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 }
 
 // 处理API响应
@@ -400,6 +426,36 @@ class ResumeAPI {
   }
 }
 
+class DigitalHumanAPI {
+  /**
+   * 为结构化面试创建真实数字人视频会话。
+   */
+  static async createConversation(interviewSessionId: number): Promise<DigitalHumanConversation> {
+    const response = await fetchWithTimeout('/api/digital-human/conversations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ interview_session_id: interviewSessionId }),
+    })
+    return handleApiResponse<DigitalHumanConversation>(response)
+  }
+
+  /**
+   * 结束供应商侧数字人会话，避免持续占用分钟数。
+   */
+  static async endConversation(conversationId: string): Promise<void> {
+    const response = await apiFetch('/api/digital-human/conversations/end', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    })
+    await handleApiResponse<{ message: string }>(response)
+  }
+}
+
 // ── 聊天记录 API ──────────────────────────────────────────────────────────────
 
 export interface ChatMessageRecord {
@@ -438,9 +494,11 @@ export class ChatHistoryAPI {
 // 导出API实例
 export const resumeApi = ResumeAPI
 export const chatHistoryApi = ChatHistoryAPI
+export const digitalHumanApi = DigitalHumanAPI
 
 // 导出类型
 export type {
+  DigitalHumanConversation,
   ResumeContent,
   InterviewActionResponse,
   InterviewHintResponse,
