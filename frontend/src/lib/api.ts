@@ -331,6 +331,20 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  static async recordInterviewMessage(
+    sessionId: number,
+    data: { role: 'candidate' | 'interviewer'; text: string },
+  ): Promise<InterviewActionResponse> {
+    const response = await apiFetch(`/api/interviews/${sessionId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
   static async endInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await apiFetch(`/api/interviews/${sessionId}/end`, {
       method: 'POST',

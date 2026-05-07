@@ -25,7 +25,10 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "text")
+    LOG_FORMAT: str = os.getenv(
+        "LOG_FORMAT",
+        "text" if APP_ENV.strip().lower() == "development" else "json",
+    )
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")

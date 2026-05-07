@@ -10,7 +10,7 @@ import logging
 import math
 import struct
 import uuid
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 import websockets
 
@@ -404,16 +404,21 @@ async def _synthesize_greeting_pcm(text: str, speaker_id: str = "") -> Optional[
                 headers=headers,
             )
             logger.info(
-                "Greeting TTS response: status=%s content_type=%s body=%s",
-                resp.status_code,
-                resp.headers.get("content-type", ""),
-                resp.text[:500],
+                "volcengine.greeting_tts.response",
+                extra={
+                    "http_status": resp.status_code,
+                    "content_type": resp.headers.get("content-type", ""),
+                    "response_chars": len(resp.text or ""),
+                },
             )
             resp.raise_for_status()
             body = resp.json()
             code = body.get("code")
             if code != 3000:
-                logger.warning("Volcengine TTS error: code=%s message=%s", code, body.get("message"))
+                logger.warning(
+                    "volcengine.greeting_tts.error",
+                    extra={"provider_code": code},
+                )
                 return None
             audio_b64 = body.get("data")
             if not audio_b64:
@@ -424,9 +429,8 @@ async def _synthesize_greeting_pcm(text: str, speaker_id: str = "") -> Optional[
             return pcm
     except httpx.HTTPStatusError as exc:
         logger.warning(
-            "Greeting TTS HTTP %s: %s",
-            exc.response.status_code,
-            exc.response.text[:500],
+            "volcengine.greeting_tts.http_error",
+            extra={"http_status": exc.response.status_code},
         )
     except Exception as exc:
         logger.warning("Greeting TTS failed: %s", exc)
@@ -477,7 +481,10 @@ async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
         "Authorization": f"Bearer;{token}",
         "Content-Type": "application/json",
     }
-    logger.info("Trigger TTS request: app_id=%s cluster=%s voice=%s", app_id, cluster, speaker_id)
+    logger.info(
+        "volcengine.trigger_tts.request",
+        extra={"cluster": cluster, "voice_configured": bool(speaker_id)},
+    )
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
@@ -486,15 +493,17 @@ async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
                 headers=headers,
             )
             logger.info(
-                "Trigger TTS response: status=%s body=%s",
-                resp.status_code,
-                resp.text[:400],
+                "volcengine.trigger_tts.response",
+                extra={"http_status": resp.status_code, "response_chars": len(resp.text or "")},
             )
             resp.raise_for_status()
             body = resp.json()
             code = body.get("code")
             if code != 3000:
-                logger.warning("Trigger TTS error: code=%s message=%s", code, body.get("message"))
+                logger.warning(
+                    "volcengine.trigger_tts.error",
+                    extra={"provider_code": code},
+                )
                 return None
             audio_b64 = body.get("data")
             if not audio_b64:
@@ -503,7 +512,10 @@ async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
             logger.info("Trigger TTS success: %d PCM bytes @ 16kHz", len(pcm))
             return pcm
     except httpx.HTTPStatusError as exc:
-        logger.warning("Trigger TTS HTTP %s: %s", exc.response.status_code, exc.response.text[:400])
+        logger.warning(
+            "volcengine.trigger_tts.http_error",
+            extra={"http_status": exc.response.status_code},
+        )
     except Exception as exc:
         logger.warning("Trigger TTS failed: %s", exc)
     return None
@@ -552,6 +564,7 @@ class VolcengineVoiceService:
         system_role: str = "",
         greeting: str = "",
         bot_name: str = "面试官",
+        on_text_message: Callable[[str, str], None] | None = None,
     ) -> None:
         """在前端 WebSocket 和火山引擎之间双向代理音视数据。
 
@@ -586,9 +599,11 @@ class VolcengineVoiceService:
                         headers=headers,
                     )
                     logger.error(
-                        "Volcengine probe: status=%s body=%s",
-                        probe_resp.status_code,
-                        probe_resp.text[:500],
+                        "volcengine.probe.failed",
+                        extra={
+                            "http_status": probe_resp.status_code,
+                            "response_chars": len(probe_resp.text or ""),
+                        },
                     )
             except Exception as probe_exc:
                 logger.error("Volcengine probe also failed: %s", probe_exc)
@@ -599,9 +614,15 @@ class VolcengineVoiceService:
             await volc_ws.send(_build_start_connection())
             resp = await volc_ws.recv()
             parsed = _parse_server_message(resp)
-            logger.info("Volcengine start_connection response: %s", parsed)
+            logger.info(
+                "volcengine.connection.started",
+                extra={"provider_event": parsed.get("event") if parsed else None},
+            )
             if not parsed or parsed.get("event") != EVENT_CONNECTION_STARTED:
-                logger.error("Volcengine connection failed: %s", parsed)
+                logger.error(
+                    "volcengine.connection.failed",
+                    extra={"provider_event": parsed.get("event") if parsed else None},
+                )
                 await client_ws.send_json({"type": "error", "message": "连接火山引擎失败"})
                 return
 
@@ -614,9 +635,15 @@ class VolcengineVoiceService:
             ))
             resp = await volc_ws.recv()
             parsed = _parse_server_message(resp)
-            logger.info("Volcengine start_session response: %s", parsed)
+            logger.info(
+                "volcengine.session.started",
+                extra={"provider_event": parsed.get("event") if parsed else None},
+            )
             if not parsed or parsed.get("event") != EVENT_SESSION_STARTED:
-                logger.error("Volcengine session failed: %s", parsed)
+                logger.error(
+                    "volcengine.session.failed",
+                    extra={"provider_event": parsed.get("event") if parsed else None},
+                )
                 await client_ws.send_json({"type": "error", "message": "启动语音会话失败"})
                 await volc_ws.send(_build_finish_connection())
                 return
@@ -626,7 +653,17 @@ class VolcengineVoiceService:
             # Event 300 SayHello：直接让豆包用自己的声音说开场白，无需外部 TTS
             if greeting:
                 await volc_ws.send(_build_say_hello_frame(session_id, greeting))
-                logger.info("SayHello sent: %s", greeting[:60])
+                if on_text_message:
+                    on_text_message("interviewer", greeting)
+                await client_ws.send_json({
+                    "type": "greeting",
+                    "role": "interviewer",
+                    "text": greeting,
+                })
+                logger.info(
+                    "volcengine.greeting.sent",
+                    extra={"greeting_chars": len(greeting)},
+                )
 
             # 3) 双向转发
             import asyncio
@@ -650,8 +687,10 @@ class VolcengineVoiceService:
                                     _build_audio_frame(session_id, msg["bytes"])
                                 )
                                 chunk_count += 1
-                                if chunk_count <= 3 or chunk_count % 100 == 0:
-                                    logger.info(
+                                if logger.isEnabledFor(logging.DEBUG) and (
+                                    chunk_count <= 3 or chunk_count % 100 == 0
+                                ):
+                                    logger.debug(
                                         (
                                             "Sent audio chunk #%d (%d bytes) to Volcengine "
                                             "pcm=%s voiced_chunks=%d"
@@ -698,8 +737,8 @@ class VolcengineVoiceService:
 
                             event = parsed.get("event")
 
-                            if msg_count <= 10:
-                                logger.info(
+                            if logger.isEnabledFor(logging.DEBUG) and msg_count <= 10:
+                                logger.debug(
                                     "Volcengine msg #%d: event=%s data=%s raw_bytes=%d audio_bytes=%d",
                                     msg_count,
                                     event,
@@ -720,13 +759,28 @@ class VolcengineVoiceService:
                                 EVENT_CHAT_ENDED,
                             ):
                                 event_data = parsed.get("data", {})
+                                text = _extract_realtime_text(event_data)
+                                is_final = _extract_is_final(event_data) or event in (
+                                    EVENT_ASR_ENDED,
+                                    EVENT_CHAT_ENDED,
+                                )
+                                if on_text_message and text and is_final:
+                                    role = (
+                                        "candidate"
+                                        if event in (
+                                            EVENT_ASR_RESPONSE,
+                                            EVENT_ASR_INFO,
+                                            EVENT_ASR_ENDED,
+                                        )
+                                        else "interviewer"
+                                    )
+                                    on_text_message(role, text)
                                 await client_ws.send_json({
                                     "type": "event",
                                     "event": event,
                                     "data": event_data,
-                                    "text": _extract_realtime_text(event_data),
-                                    "is_final": _extract_is_final(event_data)
-                                    or event in (EVENT_ASR_ENDED, EVENT_CHAT_ENDED),
+                                    "text": text,
+                                    "is_final": is_final,
                                     "turn_id": event_data.get("reqid")
                                     or event_data.get("trace_id")
                                     or f"{event}-{msg_count}",

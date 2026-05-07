@@ -17,6 +17,7 @@ from app.services.interview.session_service import (
     end_interview_session,
     get_session_or_404,
     list_interview_sessions,
+    record_voice_interview_message,
 )
 
 router = APIRouter()
@@ -42,6 +43,13 @@ class InterviewActionResponse(BaseModel):
     message: Optional[str] = None
     evaluation: Optional[str] = None
     next_action: Optional[str] = None
+
+
+class InterviewMessageRecordRequest(BaseModel):
+    """用于持久化实时语音面试中已经展示的最终文本。"""
+
+    role: str
+    text: str
 
 
 @router.post("/", response_model=InterviewActionResponse)
@@ -86,6 +94,25 @@ async def get_interview(
     return InterviewActionResponse(session=serialize_session(session))
 
 
+@router.post("/{session_id}/messages", response_model=InterviewActionResponse)
+async def record_interview_message(
+    session_id: int,
+    request: InterviewMessageRecordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于把实时语音面试中已经展示的最终文本持久化。"""
+    session = get_session_or_404(db, session_id, current_user["id"])
+    record_voice_interview_message(
+        db=db,
+        session_id=session_id,
+        role=request.role,
+        text=request.text,
+    )
+    db.refresh(session)
+    return InterviewActionResponse(session=serialize_session(session))
+
+
 @router.delete("/{session_id}", response_model=Dict[str, str])
 async def delete_interview(
     session_id: int,
@@ -110,4 +137,3 @@ async def end_interview(
     return InterviewActionResponse(
         session=serialize_session(session), next_action="completed"
     )
-

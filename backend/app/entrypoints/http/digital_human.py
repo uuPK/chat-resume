@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
-from app.models.interview import InterviewSession
+from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
 from app.services.digital_human import (
     LiveAvatarConfigurationError,
@@ -29,6 +29,7 @@ from app.services.digital_human import (
     VolcengineVoiceService,
 )
 from app.services.interview.session_service import get_session_or_404
+from app.services.interview.session_service import record_voice_interview_message
 
 router = APIRouter()
 
@@ -300,6 +301,7 @@ def _build_volcengine_system_role(
     difficulty: str,
     jd_text: str,
     resume_text: str = "",
+    interview_history: str = "",
 ) -> str:
     """用于构建火山引擎 O 版本的 system_role。"""
     if _prefers_chinese(language):
@@ -315,6 +317,12 @@ def _build_volcengine_system_role(
             role += f"\n\n候选人简历信息：\n{resume_text[:2000]}"
         if jd_text:
             role += f"\n\n岗位 JD 信息：\n{jd_text[:2000]}"
+        if interview_history:
+            role += (
+                "\n\n本场面试已经进行过以下对话，请基于这些上下文继续，"
+                "不要重复开场白或重复已经问过的问题：\n"
+                f"{interview_history[:3000]}"
+            )
         return role
 
     role = (
@@ -328,7 +336,26 @@ def _build_volcengine_system_role(
         role += f"\n\nCandidate resume:\n{resume_text[:2000]}"
     if jd_text:
         role += f"\n\nJob description context:\n{jd_text[:2000]}"
+    if interview_history:
+        role += (
+            "\n\nThe interview already has this transcript. Continue from it; "
+            "do not repeat the greeting or previously asked questions:\n"
+            f"{interview_history[:3000]}"
+        )
     return role
+
+
+def _build_interview_history(turns: list[InterviewTurn]) -> str:
+    """把已有语音面试轮次整理成给实时模型续聊的短 transcript。"""
+    lines: list[str] = []
+    for turn in turns[-12:]:
+        question = (turn.question or "").strip()
+        answer = (turn.answer or "").strip()
+        if question:
+            lines.append(f"面试官：{question}")
+        if answer:
+            lines.append(f"候选人：{answer}")
+    return "\n".join(lines)
 
 
 @router.websocket("/voice-session/{session_id}")
@@ -352,6 +379,12 @@ async def voice_session_ws(
     greeting = ""
     interview_session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     if interview_session:
+        existing_turns = (
+            db.query(InterviewTurn)
+            .filter(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.turn_index)
+            .all()
+        )
         # 加载对应简历内容
         resume_text = ""
         if interview_session.resume_id:
@@ -368,15 +401,30 @@ async def voice_session_ws(
             difficulty=interview_session.difficulty,
             jd_text=interview_session.jd_text or "",
             resume_text=resume_text,
+            interview_history=_build_interview_history(existing_turns),
         )
-        greeting = _build_greeting(
-            target_title=interview_session.target_title or "",
-            target_company=interview_session.target_company or "",
-            language=interview_session.language,
-        )
+        if not existing_turns:
+            greeting = _build_greeting(
+                target_title=interview_session.target_title or "",
+                target_company=interview_session.target_company or "",
+                language=interview_session.language,
+            )
 
     try:
-        await service.proxy_session(client_ws=websocket, system_role=system_role, greeting=greeting)
+        def persist_message(role: str, text: str) -> None:
+            record_voice_interview_message(
+                db=db,
+                session_id=session_id,
+                role=role,
+                text=text,
+            )
+
+        await service.proxy_session(
+            client_ws=websocket,
+            system_role=system_role,
+            greeting=greeting,
+            on_text_message=persist_message,
+        )
     except WebSocketDisconnect:
         pass
     except Exception as exc:

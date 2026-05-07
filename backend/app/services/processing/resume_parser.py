@@ -151,21 +151,20 @@ class AIResumeParser:
                     )
 
                 logger.debug(f"HTTP状态码: {response.status_code}")
-                logger.debug(f"响应头: {dict(response.headers)}")
+                logger.debug("OpenRouter响应头数量: %d", len(response.headers))
 
                 if response.status_code == 200:
                     result = response.json()
                     ai_content = result["choices"][0]["message"]["content"]
                     logger.debug(f"AI响应长度: {len(ai_content)}")
-                    logger.debug(f"AI完整响应: {ai_content}")
 
                     # 解析AI返回的JSON
                     try:
                         parsed_data = self._parse_ai_response(ai_content)
-                        logger.debug(f"JSON解析成功，解析的数据: {parsed_data}")
+                        logger.debug("JSON解析成功，字段数: %d", len(parsed_data))
                     except Exception as e:
                         logger.error(f"JSON解析失败: {e}")
-                        logger.debug(f"原始AI响应: {ai_content}")
+                        logger.debug("原始AI响应长度: %d", len(ai_content))
                         raise e
 
                     # 验证和增强数据
@@ -190,7 +189,7 @@ class AIResumeParser:
                 await asyncio.sleep(2)
             except httpx.HTTPStatusError as e:
                 logger.error(f"第 {attempt + 1} 次HTTP错误: {e.response.status_code}")
-                logger.debug(f"响应内容: {e.response.text[:500]}")
+                logger.debug("HTTP错误响应长度: %d", len(e.response.text or ""))
                 if attempt == self.max_retries - 1:
                     raise Exception(f"API返回错误状态码: {e.response.status_code}")
                 await asyncio.sleep(1)

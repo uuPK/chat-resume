@@ -179,9 +179,15 @@ async def chat_with_resume_stream(
             status_code=status.HTTP_410_GONE,
             detail="面试聊天入口已下线，请使用 /api/interviews 结构化面试链路。",
         )
-    logger.info("=== 流式聊天API被调用 ===")
-    logger.info("收到请求 - agent_type: %s", agent_type)
-    logger.info("用户消息: %s", chat_request.message)
+    logger.info(
+        "resume_agent.stream.requested",
+        extra={
+            "agent_type": agent_type,
+            "resume_id": chat_request.resume_id,
+            "user_id": current_user["id"],
+            "message_chars": len(chat_request.message or ""),
+        },
+    )
 
     agent = ResumeAgent()
     session_id = uuid4().hex

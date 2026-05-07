@@ -58,19 +58,6 @@ function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resum
   }
 }
 
-const INTERVIEW_MODE_OPTIONS = [
-  {
-    value: 'practice',
-    label: '练习模式',
-    description: '题后即时反馈，可随时获取答题提示。',
-  },
-  {
-    value: 'simulation',
-    label: '拟真模式',
-    description: '不展示题后反馈和提示，更接近真实面试节奏。',
-  },
-] as const
-
 /**
  * 面试中心页组件
  *
@@ -87,7 +74,6 @@ export default function InterviewsPage() {
   const [sessions, setSessions] = useState<InterviewSessionSummary[]>([])
   const [resumes, setResumes] = useState<ResumeListItem[]>([])
   const [showCreateInterviewPanel, setShowCreateInterviewPanel] = useState(false)
-  const [interviewMode, setInterviewMode] = useState<'practice' | 'simulation'>('practice')
   const [selectedResumeId, setSelectedResumeId] = useState('')
   const [selectedResumeLoading, setSelectedResumeLoading] = useState(false)
   const [creatingSession, setCreatingSession] = useState(false)
@@ -223,7 +209,7 @@ export default function InterviewsPage() {
         interview_type: 'general',
         difficulty: 'medium',
         language: 'zh-CN',
-        mode: interviewMode,
+        mode: 'practice',
       })
       router.push(`/resume/${resumeId}/interview?session=${result.session.id}`)
     } catch (error) {
@@ -408,41 +394,6 @@ export default function InterviewsPage() {
                   </div>
                 ) : (
                   <div className="grid gap-7">
-                    <div>
-                      <label className="label">面试模式</label>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {INTERVIEW_MODE_OPTIONS.map((option) => {
-                          const isSelected = interviewMode === option.value
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setInterviewMode(option.value)}
-                              className="text-left transition-colors"
-                              style={{
-                                borderRadius: '32px',
-                                border: isSelected ? '1px solid #0052ff' : '1px solid rgba(91,97,110,0.2)',
-                                backgroundColor: isSelected ? '#eef0f3' : '#ffffff',
-                                boxShadow: isSelected ? '0 0 0 2px rgba(0,82,255,0.08)' : 'none',
-                                padding: '24px',
-                              }}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-[18px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.33' }}>
-                                    {option.label}
-                                  </p>
-                                  <p className="mt-2 text-sm" style={{ color: '#5b616e', lineHeight: '1.5' }}>
-                                    {option.description}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
                     <div className="grid gap-5 md:grid-cols-3">
                       <div>
                         <label className="label">选择简历</label>

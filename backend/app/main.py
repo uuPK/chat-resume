@@ -123,7 +123,13 @@ async def log_requests(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or uuid4().hex
     request.state.request_id = request_id
     context_tokens = bind_log_context(request_id=request_id)
-    logger.info(f"Request: {request.method} {request.url}")
+    logger.info(
+        "request.started",
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+        },
+    )
     request_started_at = perf_counter()
     metrics_token = start_request_metrics()
     response = None
@@ -137,37 +143,38 @@ async def log_requests(request: Request, call_next):
         status_code = response.status_code if response is not None else 500
         if metrics is None:
             logger.info(
-                "Response: %s request_ms=%.2f",
-                status_code,
-                request_elapsed_ms,
+                "request.completed",
+                extra={
+                    "http_status": status_code,
+                    "request_ms": round(request_elapsed_ms, 2),
+                },
             )
         else:
             logger.info(
-                (
-                    "Response: %s request_ms=%.2f db_checkout_count=%s "
-                    "db_checkout_ms=%.2f db_query_count=%s db_query_ms=%.2f "
-                    "db_longest_query_ms=%.2f db_longest_query_sql=%s"
-                ),
-                status_code,
-                request_elapsed_ms,
-                metrics.checkout_count,
-                metrics.checkout_ms_total,
-                metrics.query_count,
-                metrics.query_ms_total,
-                metrics.longest_query_ms,
-                _truncate_log_value(metrics.longest_query_statement),
+                "request.completed",
+                extra={
+                    "http_status": status_code,
+                    "request_ms": round(request_elapsed_ms, 2),
+                    "db_checkout_count": metrics.checkout_count,
+                    "db_checkout_ms": round(metrics.checkout_ms_total, 2),
+                    "db_query_count": metrics.query_count,
+                    "db_query_ms": round(metrics.query_ms_total, 2),
+                    "db_longest_query_ms": round(metrics.longest_query_ms, 2),
+                    "db_longest_query_sql": _truncate_log_value(
+                        metrics.longest_query_statement
+                    ),
+                },
             )
         reset_request_metrics(metrics_token)
         reset_log_context(context_tokens)
 
 
 # 数据库迁移由 Railway 的 startCommand 处理
-logger.info("应用启动中...")
+logger.info("app.starting")
 
 # 从环境变量获取CORS配置
 cors_origins = settings.BACKEND_CORS_ORIGINS
-logger.info(f"CORS Origins from settings: {cors_origins}")
-logger.info(f"CORS Origins type: {type(cors_origins)}")
+logger.info("cors.config.loaded", extra={"cors_origin_count": len(cors_origins)})
 
 # Cookie 鉴权要求显式 origin，避免浏览器在跨域时丢掉凭证。
 configured_origins = [
@@ -181,7 +188,10 @@ effective_origins = list(
         or [settings.FRONTEND_URL, "http://localhost:3000", "https://localhost:3000"]
     )
 )
-logger.info("Using credentialed CORS origins: %s", effective_origins)
+logger.info(
+    "cors.config.effective",
+    extra={"cors_origin_count": len(effective_origins)},
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=effective_origins,

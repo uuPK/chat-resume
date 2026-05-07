@@ -145,3 +145,84 @@ def end_interview_session(
     db.commit()
     db.refresh(session)
     return session
+
+
+def record_voice_interview_message(
+    *,
+    db: Session,
+    session_id: int,
+    role: str,
+    text: str,
+) -> InterviewTurn | None:
+    """把实时语音面试文本落到 interview_turns。
+
+    面试官消息作为 question，候选人消息作为最近一轮 question 的 answer。
+    """
+    content = text.strip()
+    if not content:
+        return None
+
+    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    if not session:
+        return None
+
+    latest = (
+        db.query(InterviewTurn)
+        .filter(InterviewTurn.session_id == session_id)
+        .order_by(InterviewTurn.turn_index.desc())
+        .first()
+    )
+
+    if role == "interviewer":
+        if latest and latest.question.strip() == content:
+            return latest
+
+        next_turn_index = (latest.turn_index + 1) if latest else 0
+        turn = InterviewTurn(
+            session_id=session_id,
+            turn_index=next_turn_index,
+            round_index=session.current_round_index,
+            question=content,
+            question_type="voice",
+            status="waiting_user_answer",
+            asked_at=now(),
+        )
+        session.status = "waiting_user_answer"
+        session.current_turn_index = next_turn_index
+        if not session.started_at:
+            session.started_at = now()
+        db.add(turn)
+        db.commit()
+        db.refresh(turn)
+        return turn
+
+    if role == "candidate":
+        if latest is None:
+            latest = InterviewTurn(
+                session_id=session_id,
+                turn_index=0,
+                round_index=session.current_round_index,
+                question="语音面试回答",
+                question_type="voice",
+                status="answered",
+                asked_at=now(),
+            )
+            db.add(latest)
+
+        existing_answer = (latest.answer or "").strip()
+        if existing_answer and content in existing_answer:
+            return latest
+
+        latest.answer = (
+            f"{existing_answer}\n{content}" if existing_answer else content
+        )
+        latest.status = "answered"
+        latest.answered_at = now()
+        session.status = "in_progress"
+        if not session.started_at:
+            session.started_at = now()
+        db.commit()
+        db.refresh(latest)
+        return latest
+
+    return None

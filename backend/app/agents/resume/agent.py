@@ -29,7 +29,10 @@ def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
-        logger.warning("json.loads 失败，尝试修复: %s, raw=%r", exc, raw)
+        logger.warning(
+            "tool_args.json_parse_failed",
+            extra={"error_type": type(exc).__name__, "raw_chars": len(raw)},
+        )
         import re
 
         match = re.search(r"\{.*\}", raw, re.DOTALL)
