@@ -222,13 +222,6 @@ export function useResumeChatPanel({
   }, [dispatchMessage, inputMessage])
 
   /**
-   * 发送一条预设快捷消息，避免按钮动作覆盖用户手写草稿。
-   */
-  const sendPresetMessage = useCallback(async (messageContent: string) => {
-    await dispatchMessage(messageContent)
-  }, [dispatchMessage])
-
-  /**
    * 清空当前聊天历史，并同步删除服务端已保存的消息。
    */
   const handleClearMessages = useCallback(async () => {
@@ -276,6 +269,5 @@ export function useResumeChatPanel({
     handleClearMessages,
     handleKeyPress,
     sendMessage,
-    sendPresetMessage,
   }
 }

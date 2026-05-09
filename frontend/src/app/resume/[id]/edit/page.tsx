@@ -281,7 +281,7 @@ export default function ResumeEditPage() {
               </div>
             ) : (
             <div
-              className="relative p-4 flex-1 overflow-hidden flex flex-col"
+              className="relative p-4 flex-1 overflow-visible flex flex-col"
               style={{
                 backgroundColor: '#ffffff',
                 border: '1px solid rgba(91,97,110,0.2)',
@@ -442,12 +442,13 @@ export default function ResumeEditPage() {
                 onClick={handleClearMessages}
                 disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
                 aria-label={isClearingMessages ? '清空中' : '清空消息'}
-                className="absolute right-4 top-4 z-10 inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
+                className="absolute right-2 top-3 z-20 inline-flex h-10 w-10 items-center justify-center transition-colors disabled:opacity-50"
                 style={{
-                  borderRadius: '8px',
+                  borderRadius: '12px',
                   border: '1px solid rgba(91,97,110,0.2)',
                   backgroundColor: '#ffffff',
                   color: '#5b616e',
+                  boxShadow: '0 8px 20px rgba(15,23,42,0.08)',
                 }}
               >
                 <TrashIcon className="w-3.5 h-3.5" />

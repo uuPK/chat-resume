@@ -4,7 +4,6 @@ Lightweight request/session/tool correlation context for logs and events.
 
 from __future__ import annotations
 
-import logging
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Iterator
@@ -63,12 +62,3 @@ def log_context(
         yield
     finally:
         reset_log_context(tokens)
-
-
-class RequestContextFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        context = get_log_context()
-        record.request_id = context["request_id"] or "-"
-        record.session_id = context["session_id"] or "-"
-        record.tool_call_id = context["tool_call_id"] or "-"
-        return True

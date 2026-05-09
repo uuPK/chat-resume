@@ -2,8 +2,11 @@ import json
 import logging
 import sys
 import unittest
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+
+from loguru import logger as loguru_logger
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -12,7 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.infra.config import settings  # noqa: E402
 from app.infra.langfuse_observer import LangfuseRunObserver  # noqa: E402
 from app.infra.langfuse_setup import configure_langfuse  # noqa: E402
-from app.infra.logging_setup import JsonFormatter  # noqa: E402
+from app.infra.logging_setup import JsonFormatter, configure_logging  # noqa: E402
 from app.infra.request_context import log_context  # noqa: E402
 from app.infra.sentry_setup import _before_send  # noqa: E402
 
@@ -37,6 +40,50 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["request_id"], "req_123")
         self.assertEqual(payload["session_id"], "sess_123")
         self.assertEqual(payload["tool_call_id"], "tool_123")
+
+    def test_loguru_json_sink_includes_context_and_redacts_sensitive_extra(self):
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "json"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+        ):
+            configure_logging()
+            with log_context(
+                request_id="req_loguru",
+                session_id="sess_loguru",
+                tool_call_id="tool_loguru",
+            ):
+                loguru_logger.bind(api_key="secret", answer=42).info("hello loguru")
+
+        payload = json.loads(stream.getvalue().strip().splitlines()[-1])
+        self.assertEqual(payload["message"], "hello loguru")
+        self.assertEqual(payload["request_id"], "req_loguru")
+        self.assertEqual(payload["session_id"], "sess_loguru")
+        self.assertEqual(payload["tool_call_id"], "tool_loguru")
+        self.assertEqual(payload["api_key"], "[REDACTED]")
+        self.assertEqual(payload["answer"], 42)
+
+    def test_standard_logging_is_intercepted_by_loguru(self):
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "json"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+        ):
+            configure_logging()
+            with log_context(request_id="req_std"):
+                logging.getLogger("test.std").info(
+                    "hello stdlib",
+                    extra={"session_id": "sess_extra", "safe_value": "ok"},
+                )
+
+        payload = json.loads(stream.getvalue().strip().splitlines()[-1])
+        self.assertEqual(payload["message"], "hello stdlib")
+        self.assertEqual(payload["logger"], "test.std")
+        self.assertEqual(payload["request_id"], "req_std")
+        self.assertEqual(payload["session_id"], "sess_extra")
+        self.assertEqual(payload["safe_value"], "ok")
 
     def test_before_send_enriches_event_with_request_context(self):
         with log_context(
