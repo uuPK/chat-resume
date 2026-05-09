@@ -37,6 +37,12 @@ _NOISY_LOGGERS = (
     "urllib3",
     "websockets",
 )
+_INTERCEPTED_LOGGERS = (
+    "",
+    "uvicorn",
+    "uvicorn.error",
+    "uvicorn.access",
+)
 
 
 def _sanitize(value: Any) -> Any:
@@ -188,7 +194,7 @@ def configure_logging() -> None:
             format=(
                 "{time:YYYY-MM-DD HH:mm:ss} - {extra[logger_name]} - {level} - "
                 "[req={extra[request_id]} ses={extra[session_id]} "
-                "tool={extra[tool_call_id]}] {message}\n{exception}"
+                "tool={extra[tool_call_id]}] {message}{exception}"
             ),
             backtrace=False,
             diagnose=False,
@@ -196,10 +202,12 @@ def configure_logging() -> None:
         )
 
     intercept_handler = InterceptHandler()
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.setLevel(log_level)
-    root_logger.addHandler(intercept_handler)
+    for logger_name in _INTERCEPTED_LOGGERS:
+        intercepted_logger = logging.getLogger(logger_name)
+        intercepted_logger.handlers.clear()
+        intercepted_logger.setLevel(log_level)
+        intercepted_logger.addHandler(intercept_handler)
+        intercepted_logger.propagate = False
 
     for logger_name in _NOISY_LOGGERS:
         library_logger = logging.getLogger(logger_name)

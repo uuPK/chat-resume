@@ -85,6 +85,40 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["session_id"], "sess_extra")
         self.assertEqual(payload["safe_value"], "ok")
 
+    def test_uvicorn_access_logging_is_intercepted_by_loguru(self):
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "json"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+        ):
+            configure_logging()
+            logging.getLogger("uvicorn.access").info(
+                '127.0.0.1:52839 - "POST /api/ai/chat/stream HTTP/1.1" 200 OK'
+            )
+
+        payload = json.loads(stream.getvalue().strip().splitlines()[-1])
+        self.assertEqual(payload["logger"], "uvicorn.access")
+        self.assertEqual(
+            payload["message"],
+            '127.0.0.1:52839 - "POST /api/ai/chat/stream HTTP/1.1" 200 OK',
+        )
+
+    def test_text_logging_does_not_emit_extra_blank_line(self):
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "text"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+        ):
+            configure_logging()
+            logging.getLogger("test.text").info("single line")
+
+        lines = stream.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertIn("test.text - INFO", lines[0])
+        self.assertTrue(lines[0].endswith("single line"))
+
     def test_before_send_enriches_event_with_request_context(self):
         with log_context(
             request_id="req_ctx",
