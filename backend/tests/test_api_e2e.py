@@ -25,8 +25,11 @@ from sqlalchemy.pool import StaticPool
 
 from app.infra.database import Base, get_db
 from app.main import app
+from app.models.interview import InterviewSession, InterviewTurn
+from app.models.resume import ResumeChatMessage
 from app.models.user import User
 from app.runtime.permissions import confirmation_manager
+from app.state.models import AgentEvent, AgentSession
 from app.state.store import AgentSessionStore
 
 # ── 测试数据库 ──────────────────────────────────────────────────────────────
@@ -560,6 +563,88 @@ class TestResumeCRUD:
         get_resp = self.client.get(f"/api/resumes/{resume_id}", headers=self.headers)
         assert get_resp.status_code == 404
 
+    def test_delete_resume_removes_related_history(self):
+        created = self._create_resume("带历史数据的简历")
+        resume_id = created["id"]
+        user_id = created["owner_id"]
+
+        db = _TestingSession()
+        try:
+            db.add(
+                ResumeChatMessage(
+                    resume_id=resume_id,
+                    role="assistant",
+                    content="历史聊天",
+                )
+            )
+            interview = InterviewSession(
+                user_id=user_id,
+                resume_id=resume_id,
+                target_title="Agent 工程师",
+            )
+            db.add(interview)
+            db.flush()
+            db.add(
+                InterviewTurn(
+                    session_id=interview.id,
+                    turn_index=0,
+                    question="介绍一下项目经历",
+                )
+            )
+            agent_session = AgentSession(
+                id="delete_resume_agent_session",
+                user_id=user_id,
+                resume_id=resume_id,
+                task_type="resume_optimization",
+                status="completed",
+            )
+            db.add(agent_session)
+            db.flush()
+            db.add(
+                AgentEvent(
+                    session_id=agent_session.id,
+                    sequence=1,
+                    event_type="message",
+                    source="resume_agent",
+                    payload={"content": "done"},
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        del_resp = self.client.delete(f"/api/resumes/{resume_id}", headers=self.headers)
+        assert del_resp.status_code == 200
+
+        db = _TestingSession()
+        try:
+            assert (
+                db.query(ResumeChatMessage)
+                .filter(ResumeChatMessage.resume_id == resume_id)
+                .count()
+                == 0
+            )
+            assert (
+                db.query(InterviewSession)
+                .filter(InterviewSession.resume_id == resume_id)
+                .count()
+                == 0
+            )
+            assert (
+                db.query(AgentSession)
+                .filter(AgentSession.resume_id == resume_id)
+                .count()
+                == 0
+            )
+            assert (
+                db.query(AgentEvent)
+                .filter(AgentEvent.session_id == "delete_resume_agent_session")
+                .count()
+                == 0
+            )
+        finally:
+            db.close()
+
 
 class TestInterviewSessions:
     @pytest.fixture(autouse=True)
@@ -993,6 +1078,20 @@ class TestAgentConfirmation:
             assert resp.status_code == 200
             assert resp.json() == {"ok": True}
             assert queue.get_nowait() is False
+
+            duplicate_resp = self.client.post(
+                "/api/ai/chat/confirm-tool",
+                json={
+                    "session_id": session_id,
+                    "call_id": "call_1",
+                    "confirmed": False,
+                },
+                headers=self.headers,
+            )
+
+            assert duplicate_resp.status_code == 200
+            assert duplicate_resp.json()["duplicate"] is True
+            assert queue.empty()
         finally:
             confirmation_manager.remove(session_id)
 

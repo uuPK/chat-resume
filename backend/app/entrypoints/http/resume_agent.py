@@ -360,14 +360,18 @@ async def confirm_tool(
             if latest_pending and isinstance(latest_pending.payload, dict)
             else None
         )
-        if (
-            session.status != "waiting_confirmation"
-            or pending_call_id != request.call_id
-        ):
+        if pending_call_id != request.call_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="当前 session 没有匹配的待确认工具调用",
             )
+
+        if session.status != "waiting_confirmation":
+            return {
+                "ok": True,
+                "duplicate": True,
+                "message": "该工具确认已处理",
+            }
 
         queue = confirmation_manager.get(request.session_id)
         if queue is None:
@@ -395,6 +399,11 @@ async def confirm_tool(
                 ),
             }
 
+        store.update_status(
+            request.session_id,
+            "running",
+            clear_current_step=True,
+        )
         await queue.put(request.confirmed)
         logger.info(
             "Resume agent tool confirmation received confirmed=%s", request.confirmed

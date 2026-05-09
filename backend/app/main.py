@@ -182,11 +182,17 @@ configured_origins = [
     for origin in cors_origins
     if origin and origin != "http://localhost:3000,https://localhost:3000"
 ]
+dev_origins = [
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://127.0.0.1:3000",
+]
+origin_candidates = configured_origins or [settings.FRONTEND_URL, *dev_origins]
+if settings.APP_ENV.strip().lower() == "development":
+    origin_candidates = [*origin_candidates, settings.FRONTEND_URL, *dev_origins]
 effective_origins = list(
-    dict.fromkeys(
-        configured_origins
-        or [settings.FRONTEND_URL, "http://localhost:3000", "https://localhost:3000"]
-    )
+    dict.fromkeys(origin for origin in origin_candidates if origin)
 )
 logger.info(
     "cors.config.effective",

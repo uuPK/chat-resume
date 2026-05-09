@@ -24,7 +24,7 @@ dependencies = [
     "httpx>=0.26.0",
     "python-dotenv>=1.0.1",
     "reportlab==4.0.7",
-    "websockets==12.0",
+    "websockets>=13.0.0",
     "volcengine-python-sdk==1.0.95",
     "ty>=0.0.1a24",
     "pycryptodome>=3.23.0",
@@ -33,8 +33,10 @@ dependencies = [
     "rich>=14.2.0",
     "sentry-sdk[fastapi]>=2.44.0",
     "langfuse>=4.2.0",
+    "deepagents>=0.5.8",
+    "langchain-openai>=1.2.1",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 
 [project.optional-dependencies]

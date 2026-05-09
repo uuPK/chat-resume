@@ -11,12 +11,14 @@ from typing import Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import OptimizationRecord, Resume, ResumeChatMessage
 from app.schemas.resume import (
     ResumeContent,
     ResumeCreate,
     dump_resume_content_for_frontend,
 )
+from app.state.models import AgentEvent, AgentSession
 
 from .file_service import FileService
 
@@ -84,9 +86,40 @@ class ResumeService:
             return False
 
         try:
+            agent_session_ids = [
+                session_id
+                for (session_id,) in self.db.query(AgentSession.id)
+                .filter(AgentSession.resume_id == resume_id)
+                .all()
+            ]
+            if agent_session_ids:
+                self.db.query(AgentEvent).filter(
+                    AgentEvent.session_id.in_(agent_session_ids)
+                ).delete(synchronize_session=False)
+                self.db.query(AgentSession).filter(
+                    AgentSession.id.in_(agent_session_ids)
+                ).delete(synchronize_session=False)
+
+            interview_session_ids = [
+                session_id
+                for (session_id,) in self.db.query(InterviewSession.id)
+                .filter(InterviewSession.resume_id == resume_id)
+                .all()
+            ]
+            if interview_session_ids:
+                self.db.query(InterviewTurn).filter(
+                    InterviewTurn.session_id.in_(interview_session_ids)
+                ).delete(synchronize_session=False)
+                self.db.query(InterviewSession).filter(
+                    InterviewSession.id.in_(interview_session_ids)
+                ).delete(synchronize_session=False)
+
+            self.db.query(ResumeChatMessage).filter(
+                ResumeChatMessage.resume_id == resume_id
+            ).delete(synchronize_session=False)
             self.db.query(OptimizationRecord).filter(
                 OptimizationRecord.resume_id == resume_id
-            ).delete()
+            ).delete(synchronize_session=False)
 
             if resume.file_path is not None:
                 file_service = FileService()
@@ -97,6 +130,7 @@ class ResumeService:
             return True
         except Exception:
             self.db.rollback()
+            logger.exception("简历删除失败 resume_id=%s", resume_id)
             return False
 
     def list_chat_messages(self, resume_id: int) -> list[ResumeChatMessage]:

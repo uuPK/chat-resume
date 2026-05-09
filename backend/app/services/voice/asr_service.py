@@ -293,7 +293,7 @@ class ASRService:
         try:
             async with websockets.connect(
                 self.ws_url,
-                extra_headers=headers,
+                additional_headers=headers,
                 ping_interval=None,
                 close_timeout=30,
             ) as ws:

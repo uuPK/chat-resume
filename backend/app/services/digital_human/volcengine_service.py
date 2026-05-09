@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import json
 import logging
 import math
 import struct
 import uuid
-from typing import Any, AsyncIterator, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
+import httpx
 import websockets
 
 from app.infra.config import settings
@@ -251,13 +254,19 @@ def _parse_server_message(data: bytes) -> Optional[Dict[str, Any]]:
         sid_len = struct.unpack(">I", data[offset : offset + 4])[0]
         offset += 4
         if offset + sid_len <= len(data):
-            session_id = data[offset : offset + sid_len].decode("utf-8", errors="replace")
+            session_id = data[offset : offset + sid_len].decode(
+                "utf-8",
+                errors="replace",
+            )
             offset += sid_len
     elif _event_has_connect_id(event_id) and offset + 4 <= len(data):
         connect_id_len = struct.unpack(">I", data[offset : offset + 4])[0]
         offset += 4
         if offset + connect_id_len <= len(data):
-            session_id = data[offset : offset + connect_id_len].decode("utf-8", errors="replace")
+            session_id = data[offset : offset + connect_id_len].decode(
+                "utf-8",
+                errors="replace",
+            )
             offset += connect_id_len
 
     # payload
@@ -289,6 +298,13 @@ def _parse_server_message(data: bytes) -> Optional[Dict[str, Any]]:
             pass
 
     return {"event": event_id, "session_id": session_id, "raw": payload_data}
+
+
+def _coerce_ws_bytes(data: str | bytes) -> bytes:
+    """Normalize WebSocket frames before binary protocol parsing."""
+    if isinstance(data, bytes):
+        return data
+    return data.encode("utf-8")
 
 
 def _event_has_session_id(event_id: int) -> bool:
@@ -354,9 +370,6 @@ async def _synthesize_greeting_pcm(text: str, speaker_id: str = "") -> Optional[
 
     使用与实时对话相同的 speaker_id，确保声音一致。
     """
-    import base64
-    import httpx
-
     tts_api_key = settings.VOLCENGINE_TTS_API_KEY
     tts_app_id  = settings.VOLCENGINE_TTS_APP_ID
     if not (tts_api_key and tts_app_id):
@@ -443,9 +456,6 @@ async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
     大模型语音合成使用 X-Api-* 头部认证，与实时对话同一套 APP 凭证。
     输出 16kHz s16le mono PCM，可直接作为音频帧发给实时对话 session。
     """
-    import base64
-    import httpx
-
     app_id = settings.VOLCENGINE_DIALOGUE_APP_ID
     # app.token 用通用 Access Token（控制台"服务接口认证信息"里的 Access Token）
     token = settings.VOLCENGINE_ACCESS_TOKEN
@@ -494,7 +504,10 @@ async def _synthesize_trigger_pcm_with_dialogue_creds() -> Optional[bytes]:
             )
             logger.info(
                 "volcengine.trigger_tts.response",
-                extra={"http_status": resp.status_code, "response_chars": len(resp.text or "")},
+                extra={
+                    "http_status": resp.status_code,
+                    "response_chars": len(resp.text or ""),
+                },
             )
             resp.raise_for_status()
             body = resp.json()
@@ -580,7 +593,7 @@ class VolcengineVoiceService:
         try:
             ws_ctx = websockets.connect(
                 self.ws_url,
-                extra_headers=headers,
+                additional_headers=headers,
                 max_size=None,
             )
             volc_ws = await ws_ctx.__aenter__()
@@ -613,7 +626,7 @@ class VolcengineVoiceService:
             # 1) Start connection
             await volc_ws.send(_build_start_connection())
             resp = await volc_ws.recv()
-            parsed = _parse_server_message(resp)
+            parsed = _parse_server_message(_coerce_ws_bytes(resp))
             logger.info(
                 "volcengine.connection.started",
                 extra={"provider_event": parsed.get("event") if parsed else None},
@@ -623,18 +636,22 @@ class VolcengineVoiceService:
                     "volcengine.connection.failed",
                     extra={"provider_event": parsed.get("event") if parsed else None},
                 )
-                await client_ws.send_json({"type": "error", "message": "连接火山引擎失败"})
+                await client_ws.send_json(
+                    {"type": "error", "message": "连接火山引擎失败"}
+                )
                 return
 
             # 2) Start session
-            await volc_ws.send(_build_start_session(
-                session_id,
-                bot_name=bot_name,
-                system_role=system_role,
-                speaker_id=self.speaker_id,
-            ))
+            await volc_ws.send(
+                _build_start_session(
+                    session_id,
+                    bot_name=bot_name,
+                    system_role=system_role,
+                    speaker_id=self.speaker_id,
+                )
+            )
             resp = await volc_ws.recv()
-            parsed = _parse_server_message(resp)
+            parsed = _parse_server_message(_coerce_ws_bytes(resp))
             logger.info(
                 "volcengine.session.started",
                 extra={"provider_event": parsed.get("event") if parsed else None},
@@ -644,7 +661,9 @@ class VolcengineVoiceService:
                     "volcengine.session.failed",
                     extra={"provider_event": parsed.get("event") if parsed else None},
                 )
-                await client_ws.send_json({"type": "error", "message": "启动语音会话失败"})
+                await client_ws.send_json(
+                    {"type": "error", "message": "启动语音会话失败"}
+                )
                 await volc_ws.send(_build_finish_connection())
                 return
 
@@ -655,18 +674,17 @@ class VolcengineVoiceService:
                 await volc_ws.send(_build_say_hello_frame(session_id, greeting))
                 if on_text_message:
                     on_text_message("interviewer", greeting)
-                await client_ws.send_json({
-                    "type": "greeting",
-                    "role": "interviewer",
-                    "text": greeting,
-                })
+                await client_ws.send_json(
+                    {
+                        "type": "greeting",
+                        "role": "interviewer",
+                        "text": greeting,
+                    }
+                )
                 logger.info(
                     "volcengine.greeting.sent",
                     extra={"greeting_chars": len(greeting)},
                 )
-
-            # 3) 双向转发
-            import asyncio
 
             closing = asyncio.Event()
 
@@ -692,8 +710,8 @@ class VolcengineVoiceService:
                                 ):
                                     logger.debug(
                                         (
-                                            "Sent audio chunk #%d (%d bytes) to Volcengine "
-                                            "pcm=%s voiced_chunks=%d"
+                                            "Sent audio chunk #%d (%d bytes) "
+                                            "to Volcengine pcm=%s voiced_chunks=%d"
                                         ),
                                         chunk_count,
                                         len(msg["bytes"]),
@@ -737,9 +755,15 @@ class VolcengineVoiceService:
 
                             event = parsed.get("event")
 
-                            if logger.isEnabledFor(logging.DEBUG) and msg_count <= 10:
+                            if (
+                                logger.isEnabledFor(logging.DEBUG)
+                                and msg_count <= 10
+                            ):
                                 logger.debug(
-                                    "Volcengine msg #%d: event=%s data=%s raw_bytes=%d audio_bytes=%d",
+                                    (
+                                        "Volcengine msg #%d: event=%s data=%s "
+                                        "raw_bytes=%d audio_bytes=%d"
+                                    ),
                                     msg_count,
                                     event,
                                     parsed.get("data", {}),
@@ -775,30 +799,37 @@ class VolcengineVoiceService:
                                         else "interviewer"
                                     )
                                     on_text_message(role, text)
-                                await client_ws.send_json({
-                                    "type": "event",
-                                    "event": event,
-                                    "data": event_data,
-                                    "text": text,
-                                    "is_final": is_final,
-                                    "turn_id": event_data.get("reqid")
-                                    or event_data.get("trace_id")
-                                    or f"{event}-{msg_count}",
-                                })
+                                await client_ws.send_json(
+                                    {
+                                        "type": "event",
+                                        "event": event,
+                                        "data": event_data,
+                                        "text": text,
+                                        "is_final": is_final,
+                                        "turn_id": event_data.get("reqid")
+                                        or event_data.get("trace_id")
+                                        or f"{event}-{msg_count}",
+                                    }
+                                )
                             elif event in (
                                 EVENT_SESSION_FINISHED,
                                 EVENT_CONNECTION_FINISHED,
                                 EVENT_SESSION_FAILED,
                             ):
-                                await client_ws.send_json({
-                                    "type": "event",
-                                    "event": event,
-                                })
+                                await client_ws.send_json(
+                                    {
+                                        "type": "event",
+                                        "event": event,
+                                    }
+                                )
                                 return
                 except Exception as exc:
                     logger.warning("forward_to_client error: %s", exc)
                 finally:
-                    logger.info("Downstream done, received %d messages total", msg_count)
+                    logger.info(
+                        "Downstream done, received %d messages total",
+                        msg_count,
+                    )
                     closing.set()
 
             await asyncio.gather(

@@ -37,6 +37,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const sessionIdRef = useRef<string | null>(null)
   // tool_pending 超时计时器：key=callId, value=timerId
   const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const confirmingToolCallsRef = useRef<Set<string>>(new Set())
 
   const {
     onMessage,
@@ -239,6 +240,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       // 清理所有 tool_pending 超时计时器
       Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
       pendingToolTimersRef.current = {}
+      confirmingToolCallsRef.current.clear()
       // 释放锁
       isStreamingLockRef.current = false
       setIsStreaming(false)
@@ -262,8 +264,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       console.warn('[confirmTool] 没有活跃 session')
       return
     }
+    if (confirmingToolCallsRef.current.has(callId)) {
+      return
+    }
+    confirmingToolCallsRef.current.add(callId)
     const apiBaseUrl = options.apiBaseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    await fetch(`${apiBaseUrl}/api/ai/chat/confirm-tool`, {
+    const response = await fetch(`${apiBaseUrl}/api/ai/chat/confirm-tool`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -271,6 +277,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       },
       body: JSON.stringify({ session_id: sid, call_id: callId, confirmed }),
     })
+    if (response.status === 409) {
+      console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', { callId })
+      return
+    }
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || `工具确认失败: ${response.status}`)
+    }
   }
 
   return {

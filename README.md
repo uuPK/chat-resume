@@ -72,7 +72,7 @@ chat-resume/
 
 环境要求：
 
-- Python 3.10+
+- Python 3.11+
 - Node.js 18+
 - `uv`
 

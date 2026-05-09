@@ -4,12 +4,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.infra.config import settings  # noqa: E402
+from app.runtime.deepagents_runtime import DeepAgentRuntime  # noqa: E402
 from app.runtime.loop import AgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
@@ -48,6 +52,12 @@ class FakeChatService:
         self.stream_calls += 1
         for delta in deltas:
             yield delta
+
+
+class FakeDeepAgentChatModel(FakeMessagesListChatModel):
+    def bind_tools(self, tools, *, tool_choice=None, **kwargs):
+        del tools, tool_choice, kwargs
+        return self
 
 
 class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
@@ -739,6 +749,74 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
             "我已读取你的长期记忆，并会按既有偏好继续优化。",
+        )
+
+
+class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    def _sample_resume(self):
+        return {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "company": "某科技公司",
+                    "position": "Python 开发工程师",
+                    "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+                }
+            ]
+        }
+
+    async def test_resume_agent_uses_deep_agent_runtime_by_default(self):
+        agent = ResumeAgent()
+
+        self.assertIsInstance(agent.runtime, DeepAgentRuntime)
+
+    async def test_deep_agent_runtime_stream_preserves_confirmation_flow(self):
+        model = FakeDeepAgentChatModel(
+            responses=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "update_highlight",
+                            "args": {
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "highlight_id": "hl_1",
+                                "text": "维护多个后台服务，支撑日活 10 万用户",
+                                "reason": "补充业务规模",
+                            },
+                            "id": "call_deep_1",
+                        }
+                    ],
+                ),
+                AIMessage(content="已完成优化。"),
+            ]
+        )
+        agent = ResumeAgent()
+        agent.runtime = DeepAgentRuntime(model=model)
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化这段工作经历",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"work_experience"},
+        ):
+            events.append(event)
+
+        self.assertTrue(any(event.get("tool_pending") for event in events))
+        self.assertTrue(any(event.get("tool_confirmed") for event in events))
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][0]["text"],
+            "维护多个后台服务，支撑日活 10 万用户",
+        )
+        self.assertEqual(
+            "".join(event.get("content", "") for event in events),
+            "已完成优化。",
         )
 
 

@@ -134,9 +134,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // 统一通过 HttpOnly Cookie 发起带登录态的请求。
 function apiFetch(path: string, init: RequestInit = {}) {
-  return fetch(`${API_BASE_URL}${path}`, {
+  const url = `${API_BASE_URL}${path}`
+  return fetch(url, {
     ...init,
     credentials: 'include',
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`API请求失败: ${url} (${message})`)
   })
 }
 

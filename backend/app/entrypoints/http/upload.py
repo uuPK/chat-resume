@@ -80,7 +80,7 @@ async def upload_resume(
         text = file_service.extract_text_from_file(file_path, file.filename or "")
         logger.info(
             "resume_upload.text_extracted",
-            extra={"text_chars": len(text), "filename": file.filename or ""},
+            extra={"text_chars": len(text), "upload_filename": file.filename or ""},
         )
 
         # 解析简历

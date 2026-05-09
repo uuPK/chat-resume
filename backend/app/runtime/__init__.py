@@ -5,6 +5,7 @@ __all__ = [
     "AgentHarness",
     "AgentRuntime",
     "ConfirmationSessionManager",
+    "DeepAgentRuntime",
     "confirmation_manager",
 ]
 
@@ -22,6 +23,10 @@ def __getattr__(name: str):
         from .harness import AgentHarness
 
         return AgentHarness
+    if name == "DeepAgentRuntime":
+        from .deepagents_runtime import DeepAgentRuntime
+
+        return DeepAgentRuntime
     if name in {"ConfirmationSessionManager", "confirmation_manager"}:
         from .permissions import ConfirmationSessionManager, confirmation_manager
 

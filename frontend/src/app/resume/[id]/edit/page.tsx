@@ -42,12 +42,6 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
   error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
 }
 
-const JD_MATCH_ANALYSIS_PROMPT = [
-  '请基于我当前简历和已填写的 JD，做一份 JD 匹配度分析。',
-  '请按以下结构输出：1. 总体匹配判断；2. 已覆盖的 JD 要求；3. 关键缺口与风险；4. 建议补强的关键词和经历表达。',
-  '如果你判断有值得直接优化的内容，请先说明原因，再按需发起工具修改。',
-].join('\n')
-
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
 export default function ResumeEditPage() {
   const params = useParams()
@@ -111,7 +105,6 @@ export default function ResumeEditPage() {
     handleClearMessages,
     handleKeyPress,
     sendMessage,
-    sendPresetMessage,
   } = useResumeChatPanel({
     resumeId,
     visibleModules: Array.from(layoutConfig.visibleModules),
@@ -140,8 +133,6 @@ export default function ResumeEditPage() {
       void fetchResume()
     }
   }, [fetchResume, mounted, isAuthenticated])
-
-  const hasJobDescription = Boolean(resume?.content.job_application?.jd_text?.trim())
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -440,47 +431,27 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${editorOpen ? agentFlex : collapsedAgentFlex}% - 8px)` }}
           >
             <div
-              className="p-4 flex-1 overflow-hidden flex flex-col"
+              className="relative p-4 flex-1 overflow-hidden flex flex-col"
               style={{
                 backgroundColor: '#ffffff',
                 border: '1px solid rgba(91,97,110,0.2)',
                 borderRadius: '16px',
               }}
             >
-              <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                {(resume.content.job_application?.target_company || resume.content.job_application?.target_title) ? (
-                  <button
-                    onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
-                    title="点击编辑目标岗位"
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 transition-colors truncate max-w-[60%]"
-                    style={{
-                      borderRadius: '100000px',
-                      backgroundColor: '#eef0f3',
-                      color: '#0052ff',
-                      border: '1px solid rgba(0,82,255,0.15)',
-                    }}
-                  >
-                    <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12zm1-9a1 1 0 10-2 0v3.586l-1.707 1.707a1 1 0 101.414 1.414l2-2A1 1 0 0011 11V7z" clipRule="evenodd"/></svg>
-                    <span className="truncate">
-                      {[resume.content.job_application?.target_company, resume.content.job_application?.target_title].filter(Boolean).join(' · ')}
-                    </span>
-                  </button>
-                ) : <div />}
-                <button
-                  onClick={handleClearMessages}
-                  disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
-                  aria-label={isClearingMessages ? '清空中' : '清空消息'}
-                  className="inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
-                  style={{
-                    borderRadius: '8px',
-                    border: '1px solid rgba(91,97,110,0.2)',
-                    backgroundColor: '#ffffff',
-                    color: '#5b616e',
-                  }}
-                >
-                  <TrashIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <button
+                onClick={handleClearMessages}
+                disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
+                aria-label={isClearingMessages ? '清空中' : '清空消息'}
+                className="absolute right-4 top-4 z-10 inline-flex items-center justify-center p-2 transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '8px',
+                  border: '1px solid rgba(91,97,110,0.2)',
+                  backgroundColor: '#ffffff',
+                  color: '#5b616e',
+                }}
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+              </button>
               <AnimatePresence mode="wait">
               {/* ── 简历 AGENT 模式 ── */}
               <motion.div
@@ -655,7 +626,7 @@ export default function ResumeEditPage() {
                         })}
                         {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
-                            <span className="inline-block animate-pulse">Planning next moves</span>
+                            <span className="inline-block animate-pulse">思考中</span>
                           </div>
                         )}
                       </div>
@@ -673,7 +644,7 @@ export default function ResumeEditPage() {
                           color: '#5b616e',
                         }}
                       >
-                        <span className="inline-block animate-pulse">Planning next moves</span>
+                        <span className="inline-block animate-pulse">思考中</span>
                       </div>
                     </div>
                   )}
@@ -682,36 +653,6 @@ export default function ResumeEditPage() {
 
                 {/* Input Area */}
                 <div className="pt-3 flex-shrink-0">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void sendPresetMessage(JD_MATCH_ANALYSIS_PROMPT)}
-                      disabled={!hasJobDescription || isSending || isStreaming}
-                      title={hasJobDescription ? '让 Agent 直接分析当前简历与 JD 的匹配度' : '请先在岗位信息里填写 JD'}
-                      className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{
-                        borderRadius: '999px',
-                        border: '1px solid rgba(0,82,255,0.18)',
-                        backgroundColor: hasJobDescription ? '#eef4ff' : '#f8fafc',
-                        color: hasJobDescription ? '#0052ff' : '#94a3b8',
-                      }}
-                    >
-                      <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 2a.75.75 0 01.75.75v5.69l4.72-2.726a.75.75 0 11.75 1.3L11.5 9.75l4.72 2.725a.75.75 0 11-.75 1.3l-4.72-2.725v5.7a.75.75 0 01-1.5 0v-5.7l-4.72 2.725a.75.75 0 11-.75-1.3L8.5 9.75 3.78 7.014a.75.75 0 01.75-1.3L9.25 8.44V2.75A.75.75 0 0110 2z" clipRule="evenodd" />
-                      </svg>
-                      <span>JD 匹配度分析</span>
-                    </button>
-                    {!hasJobDescription && (
-                      <button
-                        type="button"
-                        onClick={() => { setEditorOpen(true); setActiveSection('job_application') }}
-                        className="text-xs font-medium transition-colors"
-                        style={{ color: '#5b616e' }}
-                      >
-                        先补充 JD
-                      </button>
-                    )}
-                  </div>
                   <div className="relative">
                     <textarea
                       value={inputMessage}
