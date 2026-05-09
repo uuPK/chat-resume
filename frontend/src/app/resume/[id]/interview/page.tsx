@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeftIcon,
@@ -49,7 +49,6 @@ function VoicePanel({
   onStatusChange,
 }: VoicePanelProps) {
   const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [transcript, setTranscript] = useState('')
   const [inputLevel, setInputLevel] = useState(0)
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState('')
@@ -147,7 +146,7 @@ function VoicePanel({
 
     liveTextRef.current[role] = nextText
     setLiveMessage({ id: `${role}-live`, role, content: nextText })
-    setTurnStatus(role)
+    setTurnStatus(role === 'candidate' ? 'user' : 'interviewer')
 
     if (isFinal) {
       appendMessage(role, liveTextRef.current[role])
@@ -348,7 +347,6 @@ function VoicePanel({
     window.__chatResumeVoiceCleanup = () => stopAll(true)
     userStoppedRef.current = false
     updateStatus('connecting')
-    setTranscript('')
     setMessages((current) => (current.length ? current : []))
     setLiveMessage(null)
     setTurnStatus('idle')
@@ -391,7 +389,6 @@ function VoicePanel({
           const msg = JSON.parse(ev.data)
           if (msg.type === 'ready') {
             updateStatus('connected')
-            setTranscript('语音已连接，请开始说话')
             setTurnStatus('user')
           } else if (msg.type === 'greeting') {
             const text = msg.text || msg.content || ''
@@ -403,7 +400,6 @@ function VoicePanel({
               const results: Array<{ text: string }> = msg.data?.results || []
               const text = msg.text || results.map((r) => r.text).join('')
               if (text) {
-                setTranscript(`你: ${text}`)
                 handleCandidateText(text, msg.is_final)
               }
             } else if (msg.event === 459) {
@@ -416,7 +412,6 @@ function VoicePanel({
             } else if (msg.event === 550) {
               const text = msg.text || msg.data?.content || msg.data?.text || ''
               if (text) {
-                setTranscript(`面试官: ${text}`)
                 handleStreamingText('interviewer', text, msg.is_final)
               }
             } else if (msg.event === 559) {
@@ -431,7 +426,6 @@ function VoicePanel({
             }
           } else if (msg.type === 'error') {
             userStoppedRef.current = true
-            setTranscript(`错误: ${msg.message}`)
             updateStatus('error')
           }
         } catch { /* ignore non-JSON */ }
@@ -440,7 +434,6 @@ function VoicePanel({
       ws.onerror = () => {
         userStoppedRef.current = true
         updateStatus('error')
-        setTranscript('WebSocket 连接失败')
       }
 
       ws.onclose = () => {
@@ -484,10 +477,9 @@ function VoicePanel({
       source.connect(processor)
       processor.connect(gain)
       gain.connect(ctx.destination)
-    } catch (err) {
+    } catch {
       userStoppedRef.current = true
       updateStatus('error')
-      setTranscript(err instanceof Error ? err.message : '启动语音失败')
     }
   }, [
     enqueueInputAudio,
@@ -808,6 +800,7 @@ function VoicePanel({
 
 export default function InterviewPage() {
   const params = useParams()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const resumeId = Number(params?.id as string)
   const requestedSessionId = Number(searchParams?.get('session') || 0)

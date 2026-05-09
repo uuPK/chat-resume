@@ -3,13 +3,13 @@ export interface ResumeHighlight {
   text: string
 }
 
-export interface ResumeLink {
+interface ResumeLink {
   id?: string
   label: string
   url: string
 }
 
-export interface ResumeMeta {
+interface ResumeMeta {
   schema_version?: string
   language?: string
   target_role?: string
@@ -36,7 +36,7 @@ export interface PersonalInfo {
   links?: ResumeLink[]
 }
 
-export interface Summary {
+interface Summary {
   text?: string
 }
 
@@ -92,13 +92,13 @@ export interface Project {
   links?: ResumeLink[]
 }
 
-export interface Language {
+interface Language {
   id?: string
   name: string
   level: string
 }
 
-export interface CustomSection {
+interface CustomSection {
   id?: string
   title: string
   content: string

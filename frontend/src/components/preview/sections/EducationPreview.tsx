@@ -8,7 +8,7 @@ interface EducationPreviewProps {
 }
 
 // 单个教育项组件
-export function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: number }) {
+function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: number }) {
   const highlights = edu.highlights && edu.highlights.length > 0
     ? edu.highlights.map(item => item.text)
     : []

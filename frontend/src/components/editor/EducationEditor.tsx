@@ -22,7 +22,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
 
   const commit = (next: Education[]) => {
     setEducationList(next)
-    onChange(next.map(({ description, ...education }) => education))
+    onChange(next.map(({ description: _description, ...education }) => education))
   }
 
   const addEducation = () => {

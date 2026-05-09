@@ -8,7 +8,7 @@ interface WorkExperiencePreviewProps {
 }
 
 // 单个工作经验项组件
-export function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; lineIndex: number }) {
+function WorkExperienceItem({ work, lineIndex }: { work: WorkExperience; lineIndex: number }) {
   const highlights = work.highlights && work.highlights.length > 0
     ? work.highlights.map(item => item.text)
     : []

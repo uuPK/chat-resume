@@ -36,12 +36,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @event.listens_for(engine, "before_cursor_execute")
-def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+def before_cursor_execute(
+    _conn, _cursor, _statement, _parameters, context, _executemany
+):
     context._query_started_at = perf_counter()
 
 
 @event.listens_for(engine, "after_cursor_execute")
-def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+def after_cursor_execute(_conn, _cursor, statement, _parameters, context, _executemany):
     query_started_at = getattr(context, "_query_started_at", None)
     if query_started_at is None:
         return

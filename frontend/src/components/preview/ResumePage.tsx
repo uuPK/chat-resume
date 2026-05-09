@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react'
-import { A4_WIDTH, PAGE_MARGIN, PAGE_PADDING } from './hooks/useResumePagination'
+import { A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 
 interface ResumePageProps {
   pageNumber: number

@@ -1,11 +1,4 @@
-import type {
-  Education,
-  PersonalInfo,
-  Project,
-  ResumeContent,
-  Skill,
-  WorkExperience,
-} from '@/types/resume'
+import type { ResumeContent } from '@/types/resume'
 
 // 简历内容接口定义
 export interface Resume {
@@ -385,14 +378,14 @@ class DigitalHumanAPI {
 
 // ── 聊天记录 API ──────────────────────────────────────────────────────────────
 
-export interface ChatMessageRecord {
+interface ChatMessageRecord {
   id: number
   role: 'user' | 'assistant'
   content: string
   stream_events?: Array<{ type: string; [key: string]: unknown }> | null
 }
 
-export class ChatHistoryAPI {
+class ChatHistoryAPI {
   static async getMessages(resumeId: number): Promise<ChatMessageRecord[]> {
     const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`)
     return handleApiResponse<ChatMessageRecord[]>(res)
@@ -427,15 +420,6 @@ export const digitalHumanApi = DigitalHumanAPI
 export type {
   DigitalHumanConversation,
   ResumeContent,
-  InterviewActionResponse,
   InterviewSession,
   InterviewSessionSummary,
-  InterviewTurn,
-  PersonalInfo,
-  Education,
-  WorkExperience,
-  Skill,
-  Project,
-  CreateResumeData,
-  UpdateResumeData,
 }

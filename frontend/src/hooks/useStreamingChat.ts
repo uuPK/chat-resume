@@ -217,7 +217,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   }
                   setStreamEvents([...eventsBuffer])
                 }
-              } catch (error) {
+              } catch {
                 console.warn('Failed to parse SSE data:', line)
               }
             }

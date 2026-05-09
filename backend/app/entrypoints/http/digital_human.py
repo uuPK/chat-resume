@@ -25,7 +25,6 @@ from app.services.digital_human import (
     LiveAvatarService,
     TavusConfigurationError,
     TavusService,
-    VolcengineConfigurationError,
     VolcengineVoiceService,
 )
 from app.services.interview.session_service import get_session_or_404

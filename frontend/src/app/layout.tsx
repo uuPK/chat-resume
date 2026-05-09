@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import Providers from './providers'
 import './globals.css'
@@ -15,6 +15,12 @@ export const metadata: Metadata = {
   description: '使用AI技术优化简历，提供模拟面试训练，帮助您获得理想工作',
   keywords: '简历优化, AI简历, 模拟面试, 求职, 简历制作',
   authors: [{ name: 'Chat Resume Team' }],
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#2563eb',
 }
 
 export default function RootLayout({

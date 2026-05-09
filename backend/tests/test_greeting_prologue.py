@@ -62,7 +62,6 @@ def test_build_say_hello_frame_content():
 
 def test_build_start_session_no_prologue_field():
     """StartSession 帧不应包含 prologue 字段（官方文档无此参数）。"""
-    offset = 4
     frame = _build_start_session("sess-003", system_role="你是面试官")
     event_id, payload = _decode_session_frame(frame)
     assert event_id == EVENT_START_SESSION

@@ -32,20 +32,3 @@ export async function registerUser(page: Page, email: string, password = DEFAULT
   }
   await page.click('button[type="submit"]')
 }
-
-/** 通过 UI 登录，等待跳转到 dashboard */
-export async function loginUser(page: Page, email: string, password = DEFAULT_PASSWORD) {
-  await page.goto('/login')
-  await page.fill('input[type="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL('**/dashboard', { timeout: 10_000 })
-}
-
-/** 注册 → 等待跳转 → 返回 email */
-export async function registerAndLogin(page: Page, prefix = 'e2e'): Promise<string> {
-  const email = uniqueEmail(prefix)
-  await registerUser(page, email)
-  await page.waitForURL('**/dashboard', { timeout: 10_000 })
-  return email
-}

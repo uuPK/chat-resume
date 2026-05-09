@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 注册函数
   const register = async (email: string, password: string, fullName: string): Promise<boolean> => {
     try {
-      const user = await AuthAPI.register({
+      await AuthAPI.register({
         email,
         password,
         full_name: fullName,

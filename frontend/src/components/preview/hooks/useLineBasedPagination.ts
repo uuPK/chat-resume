@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 // A4纸张尺寸常量
 export const A4_WIDTH = 816
 export const A4_HEIGHT = Math.round(A4_WIDTH * 297 / 210) // 1154px，按210:297比例
-export const PAGE_MARGIN = 0
 export const PAGE_PADDING = 40
 export const SAFETY_MARGIN = 20 // 容错余量，防止累计误差导致内容被切
 
@@ -204,7 +203,7 @@ export function useLineBasedPagination({
         clearTimeout(calculationTimeoutRef.current)
       }
     }
-  }, [recalculatePagination])
+  }, [contentRef, recalculatePagination])
 
   // 监听窗口大小变化
   useEffect(() => {
@@ -225,7 +224,6 @@ export function useLineBasedPagination({
     measureLines,
     pageHeight: effectivePageHeight,
     A4_WIDTH,
-    PAGE_MARGIN,
     PAGE_PADDING
   }
 }

@@ -207,7 +207,7 @@ export function useResumeChatPanel({
     setApiError(null)
     try {
       await sendStreamingMessage(trimmedMessage, messages)
-    } catch (error) {
+    } catch {
       setApiError('流式聊天发送失败，请重试')
     } finally {
       setIsSending(false)

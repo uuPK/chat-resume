@@ -36,7 +36,7 @@ const DemoIcon = () => (
 )
 
 // 单个项目项组件
-export function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
+function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []

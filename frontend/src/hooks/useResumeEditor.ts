@@ -102,7 +102,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
       const serverConfig = deserializeLayoutConfig(data.layout_config as Record<string, unknown> | null)
       setLayoutConfig(serverConfig)
       saveLayoutConfig(parseInt(resumeId, 10), serverConfig)
-    } catch (error) {
+    } catch {
       toast.error('获取简历失败')
       router.push('/dashboard')
     } finally {

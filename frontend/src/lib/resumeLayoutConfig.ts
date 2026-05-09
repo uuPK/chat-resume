@@ -20,63 +20,9 @@ export const DENSITY_SPACING_SCALE: Record<Exclude<LayoutDensity, 'custom'>, num
 }
 
 /**
- * 布局密度配置
- */
-export const DENSITY_CONFIG = {
-  comfortable: {
-    sectionMargin: 'mb-8',
-    titleMargin: 'mb-4',
-    itemSpacing: 'space-y-6',
-    fontSize: {
-      name: 'text-3xl',
-      position: 'text-xl',
-      sectionTitle: 'text-xl',
-      itemTitle: 'text-base',
-      body: 'text-sm'
-    },
-    padding: {
-      page: 48,
-      section: 'py-2'
-    }
-  },
-  normal: {
-    sectionMargin: 'mb-6',
-    titleMargin: 'mb-3',
-    itemSpacing: 'space-y-4',
-    fontSize: {
-      name: 'text-2xl',
-      position: 'text-lg',
-      sectionTitle: 'text-lg',
-      itemTitle: 'text-base',
-      body: 'text-sm'
-    },
-    padding: {
-      page: 40,
-      section: 'py-1.5'
-    }
-  },
-  compact: {
-    sectionMargin: 'mb-4',
-    titleMargin: 'mb-2',
-    itemSpacing: 'space-y-3',
-    fontSize: {
-      name: 'text-xl',
-      position: 'text-base',
-      sectionTitle: 'text-base',
-      itemTitle: 'text-sm',
-      body: 'text-xs'
-    },
-    padding: {
-      page: 32,
-      section: 'py-1'
-    }
-  }
-} as const
-
-/**
  * 默认模块顺序
  */
-export const DEFAULT_MODULE_ORDER: ResumeModule[] = [
+const DEFAULT_MODULE_ORDER: ResumeModule[] = [
   'personal',
   'education',
   'work',
@@ -136,14 +82,6 @@ export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   moduleOrder: DEFAULT_MODULE_ORDER,
   visibleModules: new Set(DEFAULT_MODULE_ORDER),
   spacingScale: 1.0
-}
-
-/**
- * 获取密度配置（'custom' 密度回退到 'normal'）
- */
-export function getDensityConfig(density: LayoutDensity) {
-  if (density === 'custom') return DENSITY_CONFIG['normal']
-  return DENSITY_CONFIG[density]
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'

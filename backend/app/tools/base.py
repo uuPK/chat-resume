@@ -13,7 +13,7 @@ class BaseTool(ABC):
     description: str
 
     @abstractmethod
-    def execute(self, input: dict[str, Any]) -> dict[str, Any]:
+    def execute(self, tool_input: dict[str, Any]) -> dict[str, Any]:
         """用于执行单个工具的核心逻辑。"""
         raise NotImplementedError
 
