@@ -1,0 +1,9 @@
+{
+  "thresholds": {
+    "successRate": 0.8,
+    "averageToolF1": 0.6,
+    "forbiddenContentFailures": 2,
+    "optimizeFirstPassRate": 0.8,
+    "fallbackRate": 0.2
+  }
+}
