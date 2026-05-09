@@ -10,12 +10,15 @@ from time import perf_counter
 from typing import Any, AsyncGenerator, cast
 from uuid import uuid4
 
-from deepagents import create_deep_agent
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.infra.config import settings
+from app.infra.warnings_setup import suppress_noisy_dependency_warnings
 from app.runtime.loop import AgentDefinition, RuntimeEventCallback
+
+suppress_noisy_dependency_warnings()
+from deepagents import create_deep_agent  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +41,26 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None = None,
     ) -> dict[str, Any]:
         """Execute one full Deep Agents turn and return the final assistant text."""
+        run_id = uuid4().hex
+        started_at = perf_counter()
+        self._trace(
+            "agent.trace.run.started",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            mode="sync",
+            user_message_preview=self._preview_text(user_message),
+            history_count=len(conversation_history or []),
+            tool_names=self._tool_names(agent),
+        )
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
+        self._trace(
+            "agent.trace.prompt.rendered",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            prompt_chars=len(system_prompt),
+            prompt_context_keys=sorted(prompt_context.keys()),
+        )
         self._emit_prompt_rendered(
             agent=agent,
             system_prompt=system_prompt,
@@ -53,6 +74,7 @@ class DeepAgentRuntime:
             confirmation_queue=None,
             event_queue=None,
             event_callback=event_callback,
+            run_id=run_id,
         )
         deep_agent = create_deep_agent(
             model=self._build_model(agent),
@@ -60,7 +82,24 @@ class DeepAgentRuntime:
             system_prompt=system_prompt,
             name=agent.prompt_spec.name,
         )
-        started_at = perf_counter()
+        self._trace(
+            "agent.trace.llm.request",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            model=self._chat_model_name(),
+            message_count=len(conversation_history or []) + 1,
+            tool_names=self._tool_names(agent),
+            params={
+                "temperature": agent.prompt_spec.model_defaults.get(
+                    "temperature",
+                    0.3,
+                ),
+                "max_tokens": agent.prompt_spec.model_defaults.get(
+                    "max_tokens",
+                    1500,
+                ),
+            },
+        )
         result = await deep_agent.ainvoke(
             cast(
                 Any,
@@ -74,6 +113,16 @@ class DeepAgentRuntime:
             )
         )
         final_text = self._last_assistant_text(result.get("messages", []))
+        latency_ms = round((perf_counter() - started_at) * 1000, 2)
+        self._trace(
+            "agent.trace.run.completed",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            mode="sync",
+            response_preview=self._preview_text(final_text),
+            response_chars=len(final_text),
+            latency_ms=latency_ms,
+        )
         self._emit_event(
             event_callback,
             {
@@ -82,7 +131,7 @@ class DeepAgentRuntime:
                 "model": self._chat_model_name(),
                 "content": final_text,
                 "tool_calls": [],
-                "latency_ms": round((perf_counter() - started_at) * 1000, 2),
+                "latency_ms": latency_ms,
             },
         )
         return {"content": final_text, "tool_calls": [], "context": context}
@@ -97,8 +146,26 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream Deep Agents model output and custom business tool events."""
+        run_id = uuid4().hex
+        run_started_at = perf_counter()
+        self._trace(
+            "agent.trace.run.started",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            mode="stream",
+            user_message_preview=self._preview_text(user_message),
+            history_count=len(conversation_history or []),
+            tool_names=self._tool_names(agent),
+        )
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
+        self._trace(
+            "agent.trace.prompt.rendered",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            prompt_chars=len(system_prompt),
+            prompt_context_keys=sorted(prompt_context.keys()),
+        )
         prompt_event = self._prompt_rendered_event(
             agent=agent,
             system_prompt=system_prompt,
@@ -135,6 +202,15 @@ class DeepAgentRuntime:
             ],
             "done": False,
         }
+        self._trace(
+            "agent.trace.llm.request",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            model=self._chat_model_name(),
+            message_count=len(request_event["messages"]),
+            tool_names=request_event["tool_names"],
+            params=request_event["params"],
+        )
         self._emit_event(event_callback, request_event)
         yield request_event
 
@@ -145,6 +221,7 @@ class DeepAgentRuntime:
             confirmation_queue=confirmation_queue,
             event_queue=event_queue,
             event_callback=event_callback,
+            run_id=run_id,
         )
         deep_agent = create_deep_agent(
             model=self._build_model(agent),
@@ -165,6 +242,7 @@ class DeepAgentRuntime:
                 event_queue=event_queue,
                 agent_name=agent.prompt_spec.name,
                 event_callback=event_callback,
+                run_id=run_id,
             )
         )
 
@@ -175,6 +253,13 @@ class DeepAgentRuntime:
             yield event
 
         await producer
+        self._trace(
+            "agent.trace.run.completed",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            mode="stream",
+            latency_ms=round((perf_counter() - run_started_at) * 1000, 2),
+        )
 
     async def _produce_stream_events(
         self,
@@ -185,23 +270,72 @@ class DeepAgentRuntime:
         event_queue: asyncio.Queue[Any],
         agent_name: str,
         event_callback: RuntimeEventCallback | None,
+        run_id: str,
     ) -> None:
         """Forward Deep Agents message stream into the local event queue."""
         started_at = perf_counter()
         response_parts: list[str] = []
+        chunk_index = 0
+        tool_call_detected = False
         try:
             async for message, metadata in deep_agent.astream(
                 cast(Any, {"messages": messages}),
                 stream_mode="messages",
             ):
                 if metadata.get("langgraph_node") != "model":
+                    logger.debug(
+                        "agent.trace.intermediate.skipped",
+                        extra={
+                            "agent_trace": True,
+                            "run_id": run_id,
+                            "agent_name": agent_name,
+                            "langgraph_node": metadata.get("langgraph_node"),
+                            "reason": "non_model_node",
+                        },
+                    )
                     continue
                 if self._message_has_tool_calls(message):
+                    if not tool_call_detected:
+                        tool_call_detected = True
+                        tool_calls = getattr(message, "tool_calls", []) or []
+                        tool_call_chunks = (
+                            getattr(message, "tool_call_chunks", []) or []
+                        )
+                        self._trace(
+                            "agent.trace.reasoning.tool_call_detected",
+                            run_id=run_id,
+                            agent_name=agent_name,
+                            tool_call_count=len(tool_calls),
+                            tool_call_chunk_count=len(tool_call_chunks),
+                            tool_names=[
+                                call.get("name")
+                                for call in tool_calls
+                                if isinstance(call, dict)
+                            ],
+                        )
                     continue
                 content = self._coerce_content_text(getattr(message, "content", ""))
                 if not content:
+                    logger.debug(
+                        "agent.trace.intermediate.skipped",
+                        extra={
+                            "agent_trace": True,
+                            "run_id": run_id,
+                            "agent_name": agent_name,
+                            "reason": "empty_content",
+                        },
+                    )
                     continue
+                chunk_index += 1
                 response_parts.append(content)
+                self._trace(
+                    "agent.trace.intermediate.chunk",
+                    run_id=run_id,
+                    agent_name=agent_name,
+                    chunk_index=chunk_index,
+                    content_preview=self._preview_text(content),
+                    content_chars=len(content),
+                )
                 await event_queue.put(
                     {
                         "content": content,
@@ -212,6 +346,17 @@ class DeepAgentRuntime:
                 )
         finally:
             response_text = "".join(response_parts)
+            latency_ms = round((perf_counter() - started_at) * 1000, 2)
+            self._trace(
+                "agent.trace.llm.response",
+                run_id=run_id,
+                agent_name=agent_name,
+                model=self._chat_model_name(),
+                response_preview=self._preview_text(response_text),
+                response_chars=len(response_text),
+                chunk_count=chunk_index,
+                latency_ms=latency_ms,
+            )
             response_event = {
                 "internal_only": True,
                 "llm_response": True,
@@ -219,7 +364,7 @@ class DeepAgentRuntime:
                 "model": self._chat_model_name(),
                 "response_content": response_text,
                 "tool_call_count": 0,
-                "latency_ms": round((perf_counter() - started_at) * 1000, 2),
+                "latency_ms": latency_ms,
                 "done": False,
             }
             self._emit_event(event_callback, response_event)
@@ -234,6 +379,7 @@ class DeepAgentRuntime:
         confirmation_queue: asyncio.Queue | None,
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
+        run_id: str,
     ) -> list[StructuredTool]:
         """Convert OpenAI-style tool schemas into LangChain structured tools."""
         tools: list[StructuredTool] = []
@@ -251,6 +397,7 @@ class DeepAgentRuntime:
             ) -> str:
                 return await self._execute_tool(
                     agent=agent,
+                    run_id=run_id,
                     tool_name=__tool_name,
                     tool_input=kwargs,
                     context=context,
@@ -279,6 +426,7 @@ class DeepAgentRuntime:
         self,
         *,
         agent: AgentDefinition,
+        run_id: str,
         tool_name: str,
         tool_input: dict[str, Any],
         context: dict[str, Any],
@@ -289,11 +437,24 @@ class DeepAgentRuntime:
     ) -> str:
         """Run a business tool, preserving existing preview and confirmation events."""
         call_id = uuid4().hex
+        tool_started_at = perf_counter()
         tool_call = {
             "id": call_id,
             "type": "function",
             "function": {"name": tool_name, "arguments": tool_input},
         }
+        self._trace(
+            "agent.trace.tool.requested",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_input=self._safe_tool_input(tool_input),
+            requires_confirmation=(
+                confirmation_queue is not None
+                and tool_name not in agent.auto_execute_tool_names
+            ),
+        )
 
         if (
             confirmation_queue is not None
@@ -305,6 +466,17 @@ class DeepAgentRuntime:
             preview_result = agent.tool_executor(tool_call, preview_context)
             diff_summary = preview_result.get("display_message") or "执行完成"
             diff_items = preview_result.get("result", {}).get("diff_items", [])
+            self._trace(
+                "agent.trace.tool.preview",
+                run_id=run_id,
+                agent_name=agent.prompt_spec.name,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_display_name=preview_result["tool_name"],
+                diff_summary=self._preview_text(diff_summary),
+                diff_item_count=len(diff_items),
+                result_success=self._tool_success(preview_result),
+            )
             pending_event = {
                 "content": "",
                 "tool_pending": True,
@@ -330,9 +502,27 @@ class DeepAgentRuntime:
                 )
             except asyncio.TimeoutError:
                 confirmed = False
+            self._trace(
+                "agent.trace.tool.confirmation",
+                run_id=run_id,
+                agent_name=agent.prompt_spec.name,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_display_name=preview_result["tool_name"],
+                confirmed=confirmed,
+            )
 
             if not confirmed:
                 rejected_result = {"success": False, "error": "用户拒绝了此修改"}
+                self._trace(
+                    "agent.trace.tool.rejected",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    call_id=call_id,
+                    tool_name=tool_name,
+                    tool_display_name=preview_result["tool_name"],
+                    latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
+                )
                 rejected_event = {
                     "content": "",
                     "tool_rejected": True,
@@ -354,6 +544,18 @@ class DeepAgentRuntime:
         tool_result = agent.tool_executor(tool_call, context)
         display_message = tool_result.get("display_message")
         result = tool_result.get("result", {})
+        self._trace(
+            "agent.trace.tool.executed",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_display_name=tool_result["tool_name"],
+            result_success=self._tool_success(tool_result),
+            display_message=self._preview_text(display_message),
+            result_summary=self._result_summary(result),
+            latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
+        )
         executed_tools.append(
             {
                 "name": tool_result["tool_name"],
@@ -549,6 +751,79 @@ class DeepAgentRuntime:
     def _is_tool_failure(tool_result: dict[str, Any]) -> bool:
         result = tool_result.get("result")
         return isinstance(result, dict) and result.get("success") is False
+
+    @staticmethod
+    def _trace(message: str, **fields: Any) -> None:
+        logger.info(message, extra={"agent_trace": True, **fields})
+
+    @staticmethod
+    def _tool_names(agent: AgentDefinition) -> list[str]:
+        names: list[str] = []
+        for schema in agent.tools_schema:
+            name = schema.get("function", {}).get("name")
+            if isinstance(name, str) and name:
+                names.append(name)
+        return names
+
+    @classmethod
+    def _safe_tool_input(cls, tool_input: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: cls._summarize_value(value)
+            for key, value in tool_input.items()
+            if key not in {"resume_content", "content"}
+        }
+
+    @classmethod
+    def _result_summary(cls, result: Any) -> dict[str, Any]:
+        if not isinstance(result, dict):
+            return {"type": type(result).__name__, "preview": cls._preview_text(result)}
+        summary: dict[str, Any] = {
+            "keys": sorted(str(key) for key in result.keys()),
+        }
+        if "success" in result:
+            summary["success"] = result.get("success")
+        if "diff_summary" in result:
+            summary["diff_summary"] = cls._preview_text(result.get("diff_summary"))
+        if isinstance(result.get("diff_items"), list):
+            summary["diff_item_count"] = len(result["diff_items"])
+        if "error" in result:
+            summary["error"] = cls._preview_text(result.get("error"))
+        return summary
+
+    @staticmethod
+    def _tool_success(tool_result: dict[str, Any]) -> bool | None:
+        result = tool_result.get("result")
+        if isinstance(result, dict) and "success" in result:
+            return bool(result["success"])
+        return None
+
+    @classmethod
+    def _summarize_value(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return cls._preview_text(value)
+        if isinstance(value, (int, float, bool)) or value is None:
+            return value
+        if isinstance(value, list):
+            return {
+                "type": "list",
+                "count": len(value),
+                "sample": [cls._summarize_value(item) for item in value[:3]],
+            }
+        if isinstance(value, dict):
+            return {
+                "type": "dict",
+                "keys": sorted(str(key) for key in value.keys())[:20],
+            }
+        return {"type": type(value).__name__, "preview": cls._preview_text(value)}
+
+    @staticmethod
+    def _preview_text(value: Any, limit: int = 240) -> str:
+        if value is None:
+            return ""
+        text = " ".join(str(value).split())
+        if len(text) <= limit:
+            return text
+        return f"{text[:limit]}..."
 
     def _chat_model_name(self) -> str:
         model = self.model

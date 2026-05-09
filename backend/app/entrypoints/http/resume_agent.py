@@ -19,6 +19,7 @@ from app.agents.resume.agent import ResumeAgent
 from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.infra.langfuse_observer import LangfuseRunObserver
+from app.infra.langsmith_observer import LangSmithRunObserver
 from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
@@ -198,7 +199,7 @@ async def chat_with_resume_stream(
     async def generate_stream():
         with log_context(request_id=request_id, session_id=session_id):
             final_content_parts: list[str] = []
-            observer = LangfuseRunObserver(
+            langfuse_observer = LangfuseRunObserver(
                 run_id=run_id,
                 agent_type="resume",
                 run_kind="chat_stream",
@@ -210,6 +211,23 @@ async def chat_with_resume_stream(
                     "request_id": request_id,
                 },
             )
+            langsmith_observer = LangSmithRunObserver(
+                run_id=run_id,
+                agent_type="resume",
+                run_kind="chat_stream",
+                user_id=current_user["id"],
+                input_text=chat_request.message,
+                metadata={
+                    "session_id": session_id,
+                    "resume_id": chat_request.resume_id,
+                    "request_id": request_id,
+                },
+            )
+
+            def observe_runtime_event(event: dict[str, Any]) -> None:
+                langfuse_observer.on_runtime_event(event)
+                langsmith_observer.on_runtime_event(event)
+
             logger.info(
                 "Resume agent stream started resume_id=%s user_id=%s",
                 chat_request.resume_id,
@@ -264,7 +282,7 @@ async def chat_with_resume_stream(
                     user_message=chat_request.message,
                     visible_modules=chat_request.visible_modules,
                 )
-                with observer:
+                with langfuse_observer, langsmith_observer:
                     event_stream = harness.run_resume_stream(
                         session_id=session_id,
                         agent=agent,
@@ -273,7 +291,7 @@ async def chat_with_resume_stream(
                         conversation_history=conversation_history,
                         confirmation_queue=confirmation_queue,
                         allowed_sections=set(resume_dict.keys()),
-                        event_callback=observer.on_runtime_event,
+                        event_callback=observe_runtime_event,
                         user_id=current_user["id"],
                     )
 
@@ -288,7 +306,12 @@ async def chat_with_resume_stream(
                         payload = {k: v for k, v in event.items() if v is not None}
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-                    observer.finish("".join(final_content_parts))
+                    final_content = "".join(final_content_parts)
+                    langfuse_observer.finish(final_content)
+                    langsmith_observer.finish(
+                        final_content,
+                        metadata={"event_count": len(final_content_parts)},
+                    )
 
                 _persist_resume_if_changed(
                     resume_service,
@@ -311,7 +334,8 @@ async def chat_with_resume_stream(
 
             except Exception as e:
                 logger.exception("Resume agent stream failed")
-                observer.fail(str(e))
+                langfuse_observer.fail(str(e))
+                langsmith_observer.fail(str(e))
                 error_data = {"error": f"AI服务暂时不可用: {str(e)}", "done": True}
                 yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
             finally:

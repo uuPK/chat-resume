@@ -24,6 +24,7 @@ from app.infra.db_observability import (
     start_request_metrics,
 )
 from app.infra.langfuse_setup import configure_langfuse, shutdown_langfuse
+from app.infra.langsmith_setup import configure_langsmith, shutdown_langsmith
 from app.infra.logging_setup import configure_logging
 from app.infra.request_context import bind_log_context, reset_log_context
 from app.infra.sentry_setup import configure_sentry
@@ -32,6 +33,7 @@ configure_logging()
 logger = logging.getLogger(__name__)
 configure_sentry()
 configure_langfuse()
+configure_langsmith()
 
 
 def _truncate_log_value(value: str | None, limit: int = 240) -> str:
@@ -240,6 +242,7 @@ async def test_endpoint():
 @app.on_event("shutdown")
 async def shutdown_observability_clients():
     shutdown_langfuse()
+    shutdown_langsmith()
 
 
 # 移除手动OPTIONS处理，让CORS中间件自动处理

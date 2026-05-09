@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume", "read_user_memory"}
 _AUTO_EXECUTE_TOOL_NAMES = {"read_user_memory", "write_user_memory"}
+_LOG_VALUE_LIMIT = 64
 
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
@@ -43,6 +44,22 @@ def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
             except json.JSONDecodeError:
                 pass
         raise
+
+
+def _summarize_log_value(value: Any) -> Any:
+    if isinstance(value, str):
+        normalized = " ".join(value.split())
+        if len(normalized) <= _LOG_VALUE_LIMIT:
+            return normalized
+        return f"{normalized[:_LOG_VALUE_LIMIT]}..."
+    if isinstance(value, dict):
+        return {
+            str(key): _summarize_log_value(item)
+            for key, item in list(value.items())[:8]
+        }
+    if isinstance(value, list):
+        return [_summarize_log_value(item) for item in value[:5]]
+    return value
 
 
 class ResumeAgent:
@@ -217,7 +234,11 @@ class ResumeAgent:
         """用于把一次工具调用转交给简历工具执行器。"""
         tool_name = tool_call["function"]["name"]
         raw_args = tool_call["function"]["arguments"]
-        logger.debug("[tool_call] %s raw_args=%r", tool_name, raw_args)
+        logger.debug(
+            "[tool_call] %s args=%r",
+            tool_name,
+            _summarize_log_value(raw_args),
+        )
         tool_args, error_result = self._prepare_tool_args(tool_name, raw_args)
         if error_result is not None:
             return error_result

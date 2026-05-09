@@ -136,7 +136,9 @@ class Settings(BaseSettings):
     # 火山引擎端到端实时语音大模型
     VOLCENGINE_DIALOGUE_APP_ID: str = os.getenv("VOLCENGINE_DIALOGUE_APP_ID", "")
     VOLCENGINE_DIALOGUE_APP_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_APP_KEY", "")
-    VOLCENGINE_DIALOGUE_ACCESS_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_ACCESS_KEY", "")
+    VOLCENGINE_DIALOGUE_ACCESS_KEY: str = os.getenv(
+        "VOLCENGINE_DIALOGUE_ACCESS_KEY", ""
+    )
     VOLCENGINE_DIALOGUE_RESOURCE_ID: str = os.getenv(
         "VOLCENGINE_DIALOGUE_RESOURCE_ID", "volc.speech.dialog"
     )
@@ -211,6 +213,25 @@ class Settings(BaseSettings):
     LANGFUSE_DEBUG: bool = (
         os.getenv("LANGFUSE_DEBUG", "false").strip().lower() == "true"
     )
+    LANGSMITH_TRACING: bool = (
+        os.getenv("LANGSMITH_TRACING", os.getenv("LANGCHAIN_TRACING_V2", "false"))
+        .strip()
+        .lower()
+        == "true"
+    )
+    LANGSMITH_API_KEY: str = os.getenv(
+        "LANGSMITH_API_KEY",
+        os.getenv("LANGCHAIN_API_KEY", ""),
+    )
+    LANGSMITH_ENDPOINT: str = os.getenv(
+        "LANGSMITH_ENDPOINT",
+        os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"),
+    )
+    LANGSMITH_PROJECT: str = os.getenv(
+        "LANGSMITH_PROJECT",
+        os.getenv("LANGCHAIN_PROJECT", "chat-resume-dev"),
+    )
+    LANGSMITH_WORKSPACE_ID: str = os.getenv("LANGSMITH_WORKSPACE_ID", "")
 
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 

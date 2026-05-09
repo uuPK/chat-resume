@@ -43,6 +43,23 @@ _INTERCEPTED_LOGGERS = (
     "uvicorn.error",
     "uvicorn.access",
 )
+_TRACE_VALUE_LIMIT = 48
+_TRACE_KEY_LABELS = {
+    "agent_name": "agent",
+    "call_id": "call",
+    "confirmed": "confirmed",
+    "diff_item_count": "diffs",
+    "diff_summary": "diff",
+    "display_message": "msg",
+    "latency_ms": "ms",
+    "requires_confirmation": "confirm",
+    "result_success": "ok",
+    "result_summary": "result",
+    "run_id": "run",
+    "tool_display_name": "display",
+    "tool_input": "input",
+    "tool_name": "tool",
+}
 
 
 def _sanitize(value: Any) -> Any:
@@ -136,9 +153,128 @@ class InterceptHandler(logging.Handler):
 
 
 def _patch_loguru_record(record: Any) -> None:
-    record["extra"].setdefault("logger_name", record["name"])
+    extra = record["extra"]
+    extra.setdefault("logger_name", record["name"])
     for key, value in _context_defaults().items():
-        record["extra"].setdefault(key, value)
+        extra.setdefault(key, value)
+    extra["logger_label"] = _logger_label(str(extra["logger_name"]))
+    extra["request_id_short"] = _short_identifier(extra["request_id"])
+    extra["session_id_short"] = _short_identifier(extra["session_id"])
+    extra["tool_call_id_short"] = _short_identifier(extra["tool_call_id"])
+    extra["message_label"] = _message_label(record["message"], extra)
+    extra["agent_trace_suffix"] = _agent_trace_suffix(extra)
+
+
+def _logger_label(logger_name: str) -> str:
+    if logger_name == "app.runtime.deepagents_runtime":
+        return "deepagent"
+    if logger_name.startswith("app."):
+        parts = logger_name.split(".")
+        return ".".join(parts[-2:])
+    return logger_name
+
+
+def _short_identifier(value: Any, limit: int = 6) -> str:
+    text = str(value or "-")
+    if text == "-" or len(text) <= limit:
+        return text
+    return text[:limit]
+
+
+def _message_label(message: str, extra: dict[str, Any]) -> str:
+    if extra.get("agent_trace") and message.startswith("agent.trace."):
+        return message.removeprefix("agent.")
+    return message
+
+
+def _agent_trace_suffix(extra: dict[str, Any]) -> str:
+    if not extra.get("agent_trace"):
+        return ""
+    trace_fields = {
+        key: value
+        for key, value in extra.items()
+        if key
+        not in {
+            "agent_trace",
+            "agent_trace_suffix",
+            "logger_name",
+            "logger_label",
+            "message_label",
+            "request_id",
+            "request_id_short",
+            "session_id",
+            "session_id_short",
+            "tool_call_id",
+            "tool_call_id_short",
+        }
+    }
+    if not trace_fields:
+        return ""
+    ordered_keys = [
+        "run_id",
+        "agent_name",
+        "mode",
+        "model",
+        "tool_name",
+        "tool_display_name",
+        "call_id",
+        "confirmed",
+        "requires_confirmation",
+        "result_success",
+        "reason",
+        "chunk_index",
+        "chunk_count",
+        "latency_ms",
+    ]
+    parts: list[str] = []
+    for key in ordered_keys:
+        if key in trace_fields:
+            parts.append(_format_trace_pair(key, trace_fields.pop(key)))
+    for key in sorted(trace_fields):
+        parts.append(_format_trace_pair(key, trace_fields[key]))
+    return " | " + " ".join(parts)
+
+
+def _format_trace_pair(key: str, value: Any) -> str:
+    label = _TRACE_KEY_LABELS.get(key, key)
+    return f"{label}={_format_trace_value(key, value)}"
+
+
+def _format_trace_value(key: str, value: Any) -> str:
+    sanitized = _compact_trace_value(_sanitize(value))
+    if key.endswith("_id") and isinstance(sanitized, str):
+        sanitized = _short_identifier(sanitized, limit=8)
+    if isinstance(sanitized, str):
+        if re.fullmatch(r"[\w.\-:/]+", sanitized):
+            return sanitized
+        return json.dumps(sanitized, ensure_ascii=False, default=str)
+    if isinstance(sanitized, bool):
+        return str(sanitized).lower()
+    if isinstance(sanitized, (int, float)) or sanitized is None:
+        return json.dumps(sanitized, ensure_ascii=False, default=str)
+    return json.dumps(
+        sanitized,
+        ensure_ascii=False,
+        default=str,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _compact_trace_value(value: Any) -> Any:
+    if isinstance(value, str):
+        normalized = " ".join(value.split())
+        if len(normalized) <= _TRACE_VALUE_LIMIT:
+            return normalized
+        return f"{normalized[:_TRACE_VALUE_LIMIT]}..."
+    if isinstance(value, dict):
+        return {
+            str(key): _compact_trace_value(item)
+            for key, item in list(value.items())[:8]
+        }
+    if isinstance(value, list):
+        return [_compact_trace_value(item) for item in value[:5]]
+    return value
 
 
 def _json_sink(message: Any) -> None:
@@ -192,9 +328,11 @@ def configure_logging() -> None:
             sys.stderr,
             level=log_level_name,
             format=(
-                "{time:YYYY-MM-DD HH:mm:ss} - {extra[logger_name]} - {level} - "
-                "[req={extra[request_id]} ses={extra[session_id]} "
-                "tool={extra[tool_call_id]}] {message}{exception}"
+                "{time:HH:mm:ss} {level} {extra[logger_label]} "
+                "[req={extra[request_id_short]} ses={extra[session_id_short]} "
+                "tool={extra[tool_call_id_short]}] "
+                "{extra[message_label]}{extra[agent_trace_suffix]}"
+                "{exception}"
             ),
             backtrace=False,
             diagnose=False,

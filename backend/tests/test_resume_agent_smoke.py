@@ -819,6 +819,104 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "已完成优化。",
         )
 
+    async def test_deep_agent_runtime_stream_emits_agent_trace_logs(self):
+        model = FakeDeepAgentChatModel(
+            responses=[
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "update_highlight",
+                            "args": {
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "highlight_id": "hl_1",
+                                "text": "维护多个后台服务，支撑日活 10 万用户",
+                                "reason": "补充业务规模",
+                            },
+                            "id": "call_deep_trace",
+                        }
+                    ],
+                ),
+                AIMessage(content="已完成优化。"),
+            ]
+        )
+        agent = ResumeAgent()
+        agent.runtime = DeepAgentRuntime(model=model)
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        with self.assertLogs("app.runtime.deepagents_runtime", level="INFO") as logs:
+            events = []
+            async for event in agent.optimize_stream(
+                user_message="优化这段工作经历",
+                resume_content=resume,
+                conversation_history=[],
+                confirmation_queue=confirmation_queue,
+                allowed_sections={"work_experience"},
+            ):
+                events.append(event)
+
+        trace_records = [
+            record for record in logs.records if getattr(record, "agent_trace", False)
+        ]
+        trace_messages = [record.getMessage() for record in trace_records]
+
+        self.assertTrue(any(event.get("tool_confirmed") for event in events))
+        self.assertEqual(
+            "".join(event.get("content", "") for event in events),
+            "已完成优化。",
+        )
+        self.assertEqual(len(trace_records), len(logs.records))
+        self.assertIn("agent.trace.run.started", trace_messages)
+        self.assertIn("agent.trace.prompt.rendered", trace_messages)
+        self.assertIn("agent.trace.llm.request", trace_messages)
+        self.assertIn("agent.trace.reasoning.tool_call_detected", trace_messages)
+        self.assertEqual(
+            trace_messages.count("agent.trace.reasoning.tool_call_detected"),
+            1,
+        )
+        self.assertNotIn("agent.trace.intermediate.skipped", trace_messages)
+        self.assertIn("agent.trace.tool.requested", trace_messages)
+        self.assertIn("agent.trace.tool.preview", trace_messages)
+        self.assertIn("agent.trace.tool.confirmation", trace_messages)
+        self.assertIn("agent.trace.tool.executed", trace_messages)
+        self.assertIn("agent.trace.intermediate.chunk", trace_messages)
+        self.assertIn("agent.trace.llm.response", trace_messages)
+        self.assertIn("agent.trace.run.completed", trace_messages)
+
+        run_ids = {getattr(record, "run_id", None) for record in trace_records}
+        self.assertEqual(len(run_ids), 1)
+        self.assertNotIn(None, run_ids)
+
+        requested = next(
+            record
+            for record in trace_records
+            if record.getMessage() == "agent.trace.tool.requested"
+        )
+        self.assertEqual(requested.tool_name, "update_highlight")
+        self.assertNotIn("resume_content", requested.tool_input)
+        self.assertNotIn("content", requested.tool_input)
+        self.assertIn("text", requested.tool_input)
+
+        executed = next(
+            record
+            for record in trace_records
+            if record.getMessage() == "agent.trace.tool.executed"
+        )
+        self.assertEqual(executed.tool_name, "update_highlight")
+        self.assertIs(executed.result_success, True)
+        self.assertEqual(executed.result_summary["diff_item_count"], 1)
+
+        response = next(
+            record
+            for record in trace_records
+            if record.getMessage() == "agent.trace.llm.response"
+        )
+        self.assertEqual(response.response_preview, "已完成优化。")
+        self.assertEqual(response.chunk_count, 1)
+
 
 class ChatServiceChunkParsingTests(unittest.TestCase):
     def test_extract_sse_data_accepts_data_prefix_without_space(self):
