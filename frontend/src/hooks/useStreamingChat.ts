@@ -1,11 +1,35 @@
 import { useState, useRef } from 'react'
 
+export type DiffItem = {
+  before?: string
+  after?: string
+  reason?: string
+}
+
 export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
-  | { type: 'tool_pending'; callId: string; toolName: string; diffSummary: string }
-  | { type: 'tool_confirmed'; callId: string; toolName: string; diffSummary: string }
-  | { type: 'tool_rejected'; callId: string; toolName: string; diffSummary: string }
+  | {
+      type: 'tool_pending'
+      callId: string
+      toolName: string
+      diffSummary: string
+      diffItems?: DiffItem[]
+    }
+  | {
+      type: 'tool_confirmed'
+      callId: string
+      toolName: string
+      diffSummary: string
+      diffItems?: DiffItem[]
+    }
+  | {
+      type: 'tool_rejected'
+      callId: string
+      toolName: string
+      diffSummary: string
+      diffItems?: DiffItem[]
+    }
 
 export interface ChatMessage {
   id: string
@@ -23,6 +47,25 @@ interface StreamingChatOptions {
   onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
   visibleModules?: string[]
   agentType?: 'resume'
+}
+
+function normalizeDiffItems(value: unknown): DiffItem[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const diffItem: DiffItem = {}
+    if (record.before !== undefined && record.before !== null) {
+      diffItem.before = String(record.before)
+    }
+    if (record.after !== undefined && record.after !== null) {
+      diffItem.after = String(record.after)
+    }
+    if (record.reason !== undefined && record.reason !== null) {
+      diffItem.reason = String(record.reason)
+    }
+    return Object.keys(diffItem).length > 0 ? [diffItem] : []
+  })
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
@@ -167,8 +210,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_pending',
                     callId,
-                    toolName: data.tool_name || '',
+                    toolName: data.tool_display_name || data.tool_name || '',
                     diffSummary: data.diff_summary || '',
+                    diffItems: normalizeDiffItems(data.diff_items),
                   }]
                   setStreamEvents([...eventsBuffer])
 
@@ -176,7 +220,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   pendingToolTimersRef.current[callId] = setTimeout(() => {
                     eventsBuffer = eventsBuffer.map(e =>
                       e.type === 'tool_pending' && e.callId === callId
-                        ? { type: 'tool_rejected' as const, callId: e.callId, toolName: e.toolName, diffSummary: e.diffSummary }
+                        ? {
+                            type: 'tool_rejected' as const,
+                            callId: e.callId,
+                            toolName: e.toolName,
+                            diffSummary: e.diffSummary,
+                            diffItems: e.diffItems,
+                          }
                         : e
                     )
                     setStreamEvents([...eventsBuffer])
@@ -191,10 +241,18 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     clearTimeout(pendingToolTimersRef.current[callId])
                     delete pendingToolTimersRef.current[callId]
                   }
-                  const newType = data.tool_confirmed ? 'tool_confirmed' : 'tool_rejected'
+                  const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
+                    ? 'tool_confirmed'
+                    : 'tool_rejected'
                   eventsBuffer = eventsBuffer.map(e => {
                     if (e.type === 'tool_pending' && e.callId === callId) {
-                      return { type: newType, callId: e.callId, toolName: e.toolName, diffSummary: e.diffSummary }
+                      return {
+                        type: newType,
+                        callId: e.callId,
+                        toolName: e.toolName,
+                        diffSummary: e.diffSummary,
+                        diffItems: e.diffItems,
+                      }
                     }
                     return e
                   })

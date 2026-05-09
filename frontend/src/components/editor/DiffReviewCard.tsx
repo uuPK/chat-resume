@@ -6,6 +6,8 @@
 
 import React from 'react'
 
+import type { DiffItem } from '@/hooks/useStreamingChat'
+
 type DiffLine = { type: 'remove' | 'add' | 'reason' | 'meta'; text: string }
 type DiffGroup = { remove?: string; add?: string; reason?: string }
 
@@ -56,6 +58,18 @@ function groupDiffLines(lines: DiffLine[]): DiffGroup[] {
   return groups
 }
 
+function groupDiffItems(items: DiffItem[]): DiffGroup[] {
+  return items
+    .map((item) => {
+      const group: DiffGroup = {}
+      if (item.before) group.remove = `- ${item.before}`
+      if (item.after) group.add = `+ ${item.after}`
+      if (item.reason) group.reason = item.reason
+      return group
+    })
+    .filter((group) => group.remove || group.add || group.reason)
+}
+
 const NUMBER_SPLIT_RE = /(\d[\d,，]*(?:\.\d+)?(?:%|％|万|亿|千|百|倍|x|X|次|人|个|项|天|月|年|ms|GB|MB|TB|KB)?)/
 
 /**
@@ -82,8 +96,19 @@ function HighlightNumbers({ text, active }: { text: string; active: boolean }) {
 /**
  * 渲染一组改动卡片，供 Agent tool pending/confirmed/rejected 复用。
  */
-export function DiffGroupCards({ diffSummary, isConfirmed }: { diffSummary: string; isConfirmed?: boolean }) {
-  const groups = groupDiffLines(parseDiffSummary(diffSummary))
+export function DiffGroupCards({
+  diffSummary,
+  diffItems = [],
+  isConfirmed,
+}: {
+  diffSummary: string
+  diffItems?: DiffItem[]
+  isConfirmed?: boolean
+}) {
+  const groups =
+    diffItems.length > 0
+      ? groupDiffItems(diffItems)
+      : groupDiffLines(parseDiffSummary(diffSummary))
   if (groups.length === 0) return null
   const addActive = isConfirmed !== false
 

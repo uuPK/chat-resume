@@ -125,7 +125,15 @@ async function installResumeAgentMock(page: Page) {
               tool_pending: true,
               call_id: 'call_e2e',
               tool_name: '优化项目经历',
+              tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
+              diff_items: [
+                {
+                  before: '负责前端开发',
+                  after: '主导前端重构，首屏加载提速 35%',
+                  reason: '补充量化结果',
+                },
+              ],
               done: false,
             })
 
@@ -135,7 +143,15 @@ async function installResumeAgentMock(page: Page) {
               [confirmed ? 'tool_confirmed' : 'tool_rejected']: true,
               call_id: 'call_e2e',
               tool_name: '优化项目经历',
+              tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
+              diff_items: [
+                {
+                  before: '负责前端开发',
+                  after: '主导前端重构，首屏加载提速 35%',
+                  reason: '补充量化结果',
+                },
+              ],
               done: false,
             })
             await sleep(50)

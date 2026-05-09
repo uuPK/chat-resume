@@ -3,14 +3,16 @@
 from .agent import AgentDefinition
 from .events import AGENT_EVENT_TYPES
 from .session import LatestSummary, PendingAction, ResumableStep, SessionSnapshot
-from .stream import ResumeStreamEvent
+from .stream import DiffItem, ResumeStreamEvent, ResumeStreamEventType
 
 __all__ = [
     "AGENT_EVENT_TYPES",
     "AgentDefinition",
+    "DiffItem",
     "LatestSummary",
     "PendingAction",
     "ResumableStep",
     "ResumeStreamEvent",
+    "ResumeStreamEventType",
     "SessionSnapshot",
 ]

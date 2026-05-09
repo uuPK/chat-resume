@@ -9,6 +9,10 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.agents.resume.stream_events import (  # noqa: E402
+    normalize_resume_stream_payload,
+    tool_pending_event,
+)
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 
@@ -76,6 +80,55 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("改动理由：补充量化结果", result["diff_summary"])
         self.assertEqual(result["diff_items"][0]["reason"], "补充量化结果")
         self.assertIn("35%", result["diff_items"][0]["after"])
+
+    def test_resume_stream_event_contract_keeps_structured_diff(self):
+        event = tool_pending_event(
+            call_id="call_1",
+            tool_id="update_highlight",
+            tool_call={
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "update_highlight", "arguments": {}},
+            },
+            tool_display_name="优化成果",
+            tool_input={"section": "projects"},
+            diff_summary="旧文本 diff",
+            diff_items=[
+                {
+                    "before": "负责前端开发",
+                    "after": "主导前端重构，首屏加载提速 35%",
+                    "reason": "补充量化结果",
+                }
+            ],
+            tool_calls=[],
+        )
+
+        self.assertEqual(event["event_type"], "tool_pending")
+        self.assertTrue(event["tool_pending"])
+        self.assertEqual(event["tool_id"], "update_highlight")
+        self.assertEqual(event["tool_display_name"], "优化成果")
+        self.assertEqual(event["tool_name"], "优化成果")
+        self.assertEqual(event["diff_items"][0]["reason"], "补充量化结果")
+
+    def test_resume_stream_event_normalizes_legacy_payload(self):
+        event = normalize_resume_stream_payload(
+            {
+                "tool_pending": True,
+                "call_id": "call_1",
+                "tool_call": {
+                    "function": {
+                        "name": "update_highlight",
+                    }
+                },
+                "tool_name": "优化成果",
+                "diff_items": [{"before": "A", "after": "B", "reason": 123}],
+            }
+        )
+
+        self.assertEqual(event["event_type"], "tool_pending")
+        self.assertEqual(event["tool_id"], "update_highlight")
+        self.assertEqual(event["tool_display_name"], "优化成果")
+        self.assertEqual(event["diff_items"][0]["reason"], "123")
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"

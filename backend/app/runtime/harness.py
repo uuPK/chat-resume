@@ -202,7 +202,9 @@ class AgentHarness:
                 source="resume_agent",
                 payload={
                     "call_id": event.get("call_id"),
+                    "tool_id": event.get("tool_id"),
                     "tool_name": event.get("tool_name"),
+                    "tool_display_name": event.get("tool_display_name"),
                     "tool_input": event.get("tool_input"),
                     "tool_call": event.get("tool_call"),
                     "diff_summary": event.get("diff_summary"),

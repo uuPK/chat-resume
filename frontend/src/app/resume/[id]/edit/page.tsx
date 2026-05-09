@@ -521,7 +521,11 @@ export default function ResumeEditPage() {
                                           <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                         )}
                                       </div>
-                                      <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={isConfirmed} />
+                                      <DiffGroupCards
+                                        diffSummary={event.diffSummary}
+                                        diffItems={event.diffItems}
+                                        isConfirmed={isConfirmed}
+                                      />
                                     </div>
                                   )
                                 }
@@ -564,7 +568,11 @@ export default function ResumeEditPage() {
                                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                                 </div>
                                 {/* diff 内容区 */}
-                                <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={true} />
+                                <DiffGroupCards
+                                  diffSummary={event.diffSummary}
+                                  diffItems={event.diffItems}
+                                  isConfirmed={true}
+                                />
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
@@ -605,7 +613,11 @@ export default function ResumeEditPage() {
                                   )}
                                 </div>
                                 {/* diff 内容 */}
-                                <DiffGroupCards diffSummary={event.diffSummary} isConfirmed={isConfirmed} />
+                                <DiffGroupCards
+                                  diffSummary={event.diffSummary}
+                                  diffItems={event.diffItems}
+                                  isConfirmed={isConfirmed}
+                                />
                               </div>
                             )
                           }

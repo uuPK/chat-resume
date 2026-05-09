@@ -13,6 +13,17 @@ from uuid import uuid4
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
+from app.agents.resume.stream_events import (
+    llm_request_event,
+    llm_response_event,
+    prompt_rendered_event,
+    text_delta_event,
+    tool_call_failed_event,
+    tool_confirmed_event,
+    tool_pending_event,
+    tool_rejected_event,
+    tool_result_event,
+)
 from app.infra.config import settings
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
 from app.runtime.loop import AgentDefinition, RuntimeEventCallback
@@ -174,12 +185,10 @@ class DeepAgentRuntime:
         self._emit_event(event_callback, prompt_event)
         yield prompt_event
 
-        request_event = {
-            "internal_only": True,
-            "llm_request": True,
-            "agent_name": agent.prompt_spec.name,
-            "model": self._chat_model_name(),
-            "messages": [
+        request_event = llm_request_event(
+            agent_name=agent.prompt_spec.name,
+            model=self._chat_model_name(),
+            messages=[
                 {"role": "system", "content": system_prompt},
                 *self._build_messages(
                     user_message=user_message,
@@ -187,7 +196,7 @@ class DeepAgentRuntime:
                     max_history_messages=agent.max_history_messages,
                 ),
             ],
-            "params": {
+            params={
                 "temperature": agent.prompt_spec.model_defaults.get(
                     "temperature",
                     0.3,
@@ -197,11 +206,10 @@ class DeepAgentRuntime:
                     1500,
                 ),
             },
-            "tool_names": [
+            tool_names=[
                 tool.get("function", {}).get("name") for tool in agent.tools_schema
             ],
-            "done": False,
-        }
+        )
         self._trace(
             "agent.trace.llm.request",
             run_id=run_id,
@@ -336,14 +344,7 @@ class DeepAgentRuntime:
                     content_preview=self._preview_text(content),
                     content_chars=len(content),
                 )
-                await event_queue.put(
-                    {
-                        "content": content,
-                        "tool_calls": [],
-                        "context": None,
-                        "done": False,
-                    }
-                )
+                await event_queue.put(text_delta_event(content=content))
         finally:
             response_text = "".join(response_parts)
             latency_ms = round((perf_counter() - started_at) * 1000, 2)
@@ -357,16 +358,13 @@ class DeepAgentRuntime:
                 chunk_count=chunk_index,
                 latency_ms=latency_ms,
             )
-            response_event = {
-                "internal_only": True,
-                "llm_response": True,
-                "agent_name": agent_name,
-                "model": self._chat_model_name(),
-                "response_content": response_text,
-                "tool_call_count": 0,
-                "latency_ms": latency_ms,
-                "done": False,
-            }
+            response_event = llm_response_event(
+                agent_name=agent_name,
+                model=self._chat_model_name(),
+                response_content=response_text,
+                tool_call_count=0,
+                latency_ms=latency_ms,
+            )
             self._emit_event(event_callback, response_event)
             await event_queue.put(response_event)
             await event_queue.put(_SENTINEL)
@@ -477,18 +475,16 @@ class DeepAgentRuntime:
                 diff_item_count=len(diff_items),
                 result_success=self._tool_success(preview_result),
             )
-            pending_event = {
-                "content": "",
-                "tool_pending": True,
-                "call_id": call_id,
-                "tool_call": tool_call,
-                "tool_name": preview_result["tool_name"],
-                "tool_input": tool_input,
-                "diff_summary": diff_summary,
-                "diff_items": diff_items,
-                "tool_calls": executed_tools,
-                "done": False,
-            }
+            pending_event = tool_pending_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_call=tool_call,
+                tool_display_name=preview_result["tool_name"],
+                tool_input=tool_input,
+                diff_summary=diff_summary,
+                diff_items=diff_items,
+                tool_calls=executed_tools,
+            )
             await self._publish_event(
                 event_queue=event_queue,
                 event_callback=event_callback,
@@ -523,17 +519,15 @@ class DeepAgentRuntime:
                     tool_display_name=preview_result["tool_name"],
                     latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
                 )
-                rejected_event = {
-                    "content": "",
-                    "tool_rejected": True,
-                    "call_id": call_id,
-                    "tool_name": preview_result["tool_name"],
-                    "diff_summary": diff_summary,
-                    "diff_items": diff_items,
-                    "result": rejected_result,
-                    "tool_calls": executed_tools,
-                    "done": False,
-                }
+                rejected_event = tool_rejected_event(
+                    call_id=call_id,
+                    tool_id=tool_name,
+                    tool_display_name=preview_result["tool_name"],
+                    diff_summary=diff_summary,
+                    diff_items=diff_items,
+                    result=rejected_result,
+                    tool_calls=executed_tools,
+                )
                 await self._publish_event(
                     event_queue=event_queue,
                     event_callback=event_callback,
@@ -568,16 +562,14 @@ class DeepAgentRuntime:
         )
 
         if self._is_tool_failure(tool_result):
-            failed_event = {
-                "content": "",
-                "tool_call_failed": True,
-                "call_id": call_id,
-                "tool_name": tool_result["tool_name"],
-                "tool_calls": executed_tools,
-                "result": result,
-                "display_message": display_message,
-                "done": False,
-            }
+            failed_event = tool_call_failed_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_display_name=tool_result["tool_name"],
+                tool_calls=executed_tools,
+                result=result,
+                display_message=display_message,
+            )
             await self._publish_event(
                 event_queue=event_queue,
                 event_callback=event_callback,
@@ -592,35 +584,31 @@ class DeepAgentRuntime:
             else None
         )
         if event_key:
-            result_event = {
-                "content": "",
-                event_key: True,
-                "call_id": call_id,
-                "tool_name": tool_result["tool_name"],
-                "tool_calls": executed_tools,
-                "qr_images": (
+            result_event = tool_confirmed_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_display_name=tool_result["tool_name"],
+                tool_calls=executed_tools,
+                qr_images=(
                     [tool_result["qr_image"]] if tool_result.get("qr_image") else []
                 ),
-                "result": result,
-                "display_message": display_message,
-                "diff_summary": result.get("diff_summary")
+                result=result,
+                display_message=display_message,
+                diff_summary=result.get("diff_summary")
                 if isinstance(result, dict)
                 else None,
-                "diff_items": result.get("diff_items", [])
+                diff_items=result.get("diff_items", [])
                 if isinstance(result, dict)
                 else [],
-                "context": context,
-                "done": False,
-            }
+                context=context,
+            )
         else:
-            result_event = {
-                "content": "",
-                "tool_calls": executed_tools,
-                "result": result,
-                "display_message": display_message,
-                "context": context,
-                "done": False,
-            }
+            result_event = tool_result_event(
+                tool_calls=executed_tools,
+                result=result,
+                display_message=display_message,
+                context=context,
+            )
         await self._publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
@@ -685,14 +673,11 @@ class DeepAgentRuntime:
         system_prompt: str,
         user_message: str,
     ) -> dict[str, Any]:
-        return {
-            "internal_only": True,
-            "prompt_rendered": True,
-            "agent_name": agent.prompt_spec.name,
-            "system_prompt": system_prompt,
-            "user_message_preview": str(user_message)[:1500],
-            "done": False,
-        }
+        return prompt_rendered_event(
+            agent_name=agent.prompt_spec.name,
+            system_prompt=system_prompt,
+            user_message_preview=str(user_message)[:1500],
+        )
 
     async def _publish_event(
         self,

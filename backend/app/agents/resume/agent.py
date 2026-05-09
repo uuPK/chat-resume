@@ -14,6 +14,7 @@ from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 
 from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
+from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
 
@@ -129,41 +130,12 @@ class ResumeAgent:
             confirmation_queue=confirmation_queue,
             event_callback=event_callback,
         ):
-            yield {
-                "content": event.get("content", ""),
-                "qr_images": event.get("qr_images", []),
-                "tool_calls": event.get("tool_calls", []),
-                "resume_content": context.get("resume_content")
+            yield normalize_resume_stream_payload(
+                event,
+                resume_content=context.get("resume_content")
                 if event.get("context") is not None
                 else None,
-                "tool_pending": event.get("tool_pending"),
-                "tool_confirmed": event.get("tool_confirmed"),
-                "tool_rejected": event.get("tool_rejected"),
-                "tool_call_failed": event.get("tool_call_failed"),
-                "call_id": event.get("call_id"),
-                "tool_call": event.get("tool_call"),
-                "tool_name": event.get("tool_name"),
-                "tool_input": event.get("tool_input"),
-                "diff_summary": event.get("diff_summary"),
-                "diff_items": event.get("diff_items"),
-                "result": event.get("result"),
-                "display_message": event.get("display_message"),
-                "internal_only": event.get("internal_only"),
-                "prompt_rendered": event.get("prompt_rendered"),
-                "llm_request": event.get("llm_request"),
-                "llm_response": event.get("llm_response"),
-                "agent_name": event.get("agent_name"),
-                "system_prompt": event.get("system_prompt"),
-                "user_message_preview": event.get("user_message_preview"),
-                "model": event.get("model"),
-                "messages": event.get("messages"),
-                "params": event.get("params"),
-                "tool_names": event.get("tool_names"),
-                "response_content": event.get("response_content"),
-                "latency_ms": event.get("latency_ms"),
-                "tool_call_count": event.get("tool_call_count"),
-                "done": event.get("done", False),
-            }
+            )
 
     @staticmethod
     def _strip_redundant_fields(resume_content: Dict[str, Any]) -> Dict[str, Any]:

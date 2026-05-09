@@ -4,13 +4,15 @@ from app.tools.base import BaseTool, ToolExecutor
 from app.types.agent import AgentDefinition
 from app.types.events import AGENT_EVENT_TYPES
 from app.types.session import SessionSnapshot
-from app.types.stream import ResumeStreamEvent
+from app.types.stream import DiffItem, ResumeStreamEvent, ResumeStreamEventType
 
 __all__ = [
     "AGENT_EVENT_TYPES",
     "AgentDefinition",
     "BaseTool",
+    "DiffItem",
     "ResumeStreamEvent",
+    "ResumeStreamEventType",
     "SessionSnapshot",
     "ToolExecutor",
 ]
