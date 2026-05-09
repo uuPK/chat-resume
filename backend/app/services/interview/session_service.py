@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import HTTPException, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, noload
 
 from app.models import InterviewSession, InterviewTurn
 from app.services.domain import ResumeService
+from app.services.errors import ServiceNotFoundError, ServicePermissionError
 from app.services.interview.serializer import serialize_session_summary
 
 
@@ -23,25 +23,21 @@ def get_resume_for_user(db: Session, resume_id: int, user_id: int):
     """校验用户对目标简历的访问权限。"""
     resume = ResumeService(db).get_by_id(resume_id)
     if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
+        raise ServiceNotFoundError("Resume not found")
     if resume.owner_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
+        raise ServicePermissionError("Not enough permissions")
     return resume
 
 
-def get_session_or_404(db: Session, session_id: int, user_id: int) -> InterviewSession:
+def get_session_for_user(
+    db: Session, session_id: int, user_id: int
+) -> InterviewSession:
     """读取并校验当前用户拥有的面试 session。"""
     session = (
         db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     )
     if not session or session.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found"
-        )
+        raise ServiceNotFoundError("Interview session not found")
     return session
 
 
@@ -130,7 +126,7 @@ def list_interview_sessions(*, db: Session, user_id: int) -> list[dict[str, Any]
 
 def delete_interview_session(*, db: Session, user_id: int, session_id: int) -> None:
     """删除当前用户的一场面试记录及其关联轮次。"""
-    session = get_session_or_404(db, session_id, user_id)
+    session = get_session_for_user(db, session_id, user_id)
     db.delete(session)
     db.commit()
 
@@ -139,7 +135,7 @@ def end_interview_session(
     *, db: Session, user_id: int, session_id: int
 ) -> InterviewSession:
     """主动结束当前实时语音面试。"""
-    session = get_session_or_404(db, session_id, user_id)
+    session = get_session_for_user(db, session_id, user_id)
     session.status = "completed"
     session.ended_at = now()
     db.commit()
@@ -162,7 +158,9 @@ def record_voice_interview_message(
     if not content:
         return None
 
-    session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    session = (
+        db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    )
     if not session:
         return None
 

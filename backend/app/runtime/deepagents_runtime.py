@@ -79,6 +79,7 @@ class DeepAgentRuntime:
             event_callback=event_callback,
         )
 
+        executed_tools: list[dict[str, Any]] = []
         tools = self._build_tools(
             agent=agent,
             context=context,
@@ -86,6 +87,7 @@ class DeepAgentRuntime:
             event_queue=None,
             event_callback=event_callback,
             run_id=run_id,
+            executed_tools=executed_tools,
         )
         deep_agent = create_deep_agent(
             model=self._build_model(agent),
@@ -145,7 +147,7 @@ class DeepAgentRuntime:
                 "latency_ms": latency_ms,
             },
         )
-        return {"content": final_text, "tool_calls": [], "context": context}
+        return {"content": final_text, "tool_calls": executed_tools, "context": context}
 
     async def run_stream(
         self,
@@ -378,10 +380,11 @@ class DeepAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         run_id: str,
+        executed_tools: list[dict[str, Any]] | None = None,
     ) -> list[StructuredTool]:
         """Convert OpenAI-style tool schemas into LangChain structured tools."""
         tools: list[StructuredTool] = []
-        executed_tools: list[dict[str, Any]] = []
+        tool_results = executed_tools if executed_tools is not None else []
 
         for schema in agent.tools_schema:
             function = schema.get("function", {})
@@ -402,7 +405,7 @@ class DeepAgentRuntime:
                     confirmation_queue=confirmation_queue,
                     event_queue=event_queue,
                     event_callback=event_callback,
-                    executed_tools=executed_tools,
+                    executed_tools=tool_results,
                 )
 
             tools.append(

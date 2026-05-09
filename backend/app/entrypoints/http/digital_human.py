@@ -6,14 +6,19 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NoReturn, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
-logger = logging.getLogger(__name__)
 
 from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
@@ -27,8 +32,17 @@ from app.services.digital_human import (
     TavusService,
     VolcengineVoiceService,
 )
-from app.services.interview.session_service import get_session_or_404
-from app.services.interview.session_service import record_voice_interview_message
+from app.services.errors import (
+    ServiceError,
+    ServiceNotFoundError,
+    ServicePermissionError,
+)
+from app.services.interview.session_service import (
+    get_session_for_user,
+    record_voice_interview_message,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -58,6 +72,23 @@ class DigitalHumanConversationResponse(BaseModel):
     meeting_token: Optional[str] = None
 
 
+def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    if isinstance(exc, ServicePermissionError):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    if isinstance(exc, ServiceNotFoundError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=str(exc),
+    ) from exc
+
+
 @router.post("/conversations", response_model=DigitalHumanConversationResponse)
 async def create_digital_human_conversation(
     request: DigitalHumanCreateRequest,
@@ -65,7 +96,12 @@ async def create_digital_human_conversation(
     db: Session = Depends(get_db),
 ):
     """用于为一场面试创建真实 Tavus 数字人视频会话。"""
-    session = get_session_or_404(db, request.interview_session_id, current_user["id"])
+    try:
+        session = get_session_for_user(
+            db, request.interview_session_id, current_user["id"]
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
     target_title = session.target_title or "目标岗位"
     target_company = session.target_company or "目标公司"
     conversation_name = f"Interview #{session.id}: {target_title}"
@@ -157,7 +193,9 @@ async def end_digital_human_conversation(
     """用于主动关闭 Tavus 数字人会话，释放供应商侧资源。"""
     provider = settings.DIGITAL_HUMAN_PROVIDER.strip().lower()
     if provider == "volcengine":
-        return {"message": "Volcengine voice sessions are closed by the WebSocket proxy"}
+        return {
+            "message": "Volcengine voice sessions are closed by the WebSocket proxy"
+        }
 
     if provider in {"heygen", "liveavatar", "heygen-liveavatar"}:
         return {"message": "LiveAvatar sessions are closed by the browser SDK"}
@@ -376,7 +414,9 @@ async def voice_session_ws(
     # 加载面试上下文构建 system_role 和开场白
     system_role = ""
     greeting = ""
-    interview_session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    interview_session = (
+        db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+    )
     if interview_session:
         existing_turns = (
             db.query(InterviewTurn)
@@ -387,7 +427,11 @@ async def voice_session_ws(
         # 加载对应简历内容
         resume_text = ""
         if interview_session.resume_id:
-            resume = db.query(Resume).filter(Resume.id == interview_session.resume_id).first()
+            resume = (
+                db.query(Resume)
+                .filter(Resume.id == interview_session.resume_id)
+                .first()
+            )
             if resume and resume.content:
                 resume_text = _extract_resume_text(
                     resume.content if isinstance(resume.content, dict) else {}

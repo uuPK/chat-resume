@@ -18,46 +18,19 @@ from app.runtime.loop import AgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
 
-class FakeChatService:
-    def __init__(self, responses=None, stream_rounds=None):
-        self.responses = responses or []
-        self.stream_rounds = stream_rounds or []
-        self.chat_calls = 0
-        self.stream_calls = 0
-
-    async def chat_completion(
-        self,
-        messages,
-        temperature=0.7,
-        max_tokens=None,
-        stream=False,
-        tools=None,
-        system_prompt=None,
-    ):
-        del messages, temperature, max_tokens, stream, tools, system_prompt
-        response = self.responses[self.chat_calls]
-        self.chat_calls += 1
-        return response
-
-    async def chat_completion_stream_deltas(
-        self,
-        messages,
-        temperature=0.7,
-        max_tokens=None,
-        tools=None,
-        system_prompt=None,
-    ):
-        del messages, temperature, max_tokens, tools, system_prompt
-        deltas = self.stream_rounds[self.stream_calls]
-        self.stream_calls += 1
-        for delta in deltas:
-            yield delta
-
-
 class FakeDeepAgentChatModel(FakeMessagesListChatModel):
     def bind_tools(self, tools, *, tool_choice=None, **kwargs):
         del tools, tool_choice, kwargs
         return self
+
+
+def fake_tool_call(
+    *,
+    name: str,
+    args: dict,
+    call_id: str,
+) -> dict:
+    return {"name": name, "args": args, "id": call_id}
 
 
 class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
@@ -70,9 +43,11 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         settings.USER_MEMORY_DIR = self.original_user_memory_dir
         self.temp_dir.cleanup()
 
-    def _build_agent(self, chat_service):
+    def _build_agent(self, responses):
         agent = ResumeAgent()
-        agent.runtime = AgentRuntime(chat_service=chat_service)
+        agent.runtime = DeepAgentRuntime(
+            model=FakeDeepAgentChatModel(responses=responses)
+        )
         return agent
 
     def _sample_resume(self):
@@ -314,20 +289,9 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resume["projects"][0]["highlights"], [])
 
     async def test_optimize_returns_plain_text_without_mutation(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "我建议优先强化项目结果和量化指标。",
-                            }
-                        }
-                    ]
-                }
-            ]
+        agent = self._build_agent(
+            [AIMessage(content="我建议优先强化项目结果和量化指标。")]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
 
         result = await agent.optimize("帮我看看这份简历怎么优化", resume)
@@ -337,44 +301,26 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resume["summary"]["text"], "3年 Python 后端开发经验")
 
     async def test_optimize_updates_resume_via_tool_call(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": "call_1",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "update_highlight",
-                                            "arguments": (
-                                                '{"section":"work_experience",'
-                                                '"item_id":"work_1",'
-                                                '"highlight_id":"hl_1",'
-                                                '"text":"维护多个后台服务，并推动核心接口响应时间下降 30%"}'
-                                            ),
-                                        },
-                                    }
-                                ],
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "我已经把工作经历改成结果导向表达，并补了量化成果。",
-                            }
-                        }
-                    ]
-                },
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_highlight",
+                            call_id="call_1",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "highlight_id": "hl_1",
+                                "text": "维护多个后台服务，并推动核心接口响应时间下降 30%",
+                            },
+                        )
+                    ],
+                ),
+                AIMessage(content="我已经把工作经历改成结果导向表达，并补了量化成果。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
 
         result = await agent.optimize("优化我的工作经历", resume)
@@ -386,196 +332,110 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
-    async def test_optimize_executes_only_first_tool_call_per_round(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": "call_first",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "update_overview",
-                                            "arguments": (
-                                                '{"section":"projects",'
-                                                '"item_id":"proj_1",'
-                                                '"overview":"新的项目简介"}'
-                                            ),
-                                        },
-                                    },
-                                    {
-                                        "id": "call_second",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "add_highlight",
-                                            "arguments": (
-                                                '{"section":"projects",'
-                                                '"item_id":"proj_1",'
-                                                '"text":"这条不应在同一轮被执行"}'
-                                            ),
-                                        },
-                                    },
-                                ],
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "已先完成第一步修改。",
-                            }
-                        }
-                    ]
-                },
+    async def test_optimize_executes_all_deep_agent_tool_calls(self):
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_first",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "新的项目简介",
+                            },
+                        ),
+                        fake_tool_call(
+                            name="add_highlight",
+                            call_id="call_second",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "text": "这条不应在同一轮被执行",
+                            },
+                        ),
+                    ],
+                ),
+                AIMessage(content="已先完成第一步修改。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
 
         result = await agent.optimize("优化项目内容", resume)
 
         self.assertEqual(result["content"], "已先完成第一步修改。")
-        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(len(result["tool_calls"]), 2)
         self.assertEqual(resume["projects"][0]["overview"], "新的项目简介")
-        self.assertEqual(len(resume["projects"][0]["highlights"]), 1)
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-1]["text"],
+            "这条不应在同一轮被执行",
+        )
 
     async def test_optimize_retries_recoverable_tool_error(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": "call_bad",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "update_overview",
-                                            "arguments": (
-                                                '{"section":"projects",'
-                                                '"overview":"缺少 item_id"}'
-                                            ),
-                                        },
-                                    }
-                                ],
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": "call_fixed",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "update_overview",
-                                            "arguments": (
-                                                '{"section":"projects",'
-                                                '"item_id":"proj_1",'
-                                                '"overview":"重试后写入的简介"}'
-                                            ),
-                                        },
-                                    }
-                                ],
-                            }
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "已根据工具错误修正参数并完成修改。",
-                            }
-                        }
-                    ]
-                },
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_bad",
+                            args={"section": "projects", "overview": "缺少 item_id"},
+                        )
+                    ],
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_fixed",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "重试后写入的简介",
+                            },
+                        )
+                    ],
+                ),
+                AIMessage(content="已根据工具错误修正参数并完成修改。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
 
         result = await agent.optimize("优化项目简介", resume)
 
-        self.assertEqual(chat_service.chat_calls, 3)
+        self.assertEqual(len(result["tool_calls"]), 2)
         self.assertEqual(resume["projects"][0]["overview"], "重试后写入的简介")
         self.assertIn("修正参数", result["content"])
 
-    async def test_optimize_stops_after_recoverable_tool_error_limit(self):
-        responses = []
-        for idx in range(3):
-            responses.append(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": "",
-                                "tool_calls": [
-                                    {
-                                        "id": f"call_bad_{idx}",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "update_overview",
-                                            "arguments": '{"section":"projects","overview":"仍然缺少 item_id"}',
-                                        },
-                                    }
-                                ],
-                            }
-                        }
-                    ]
-                }
-            )
-        chat_service = FakeChatService(responses=responses)
-        agent = self._build_agent(chat_service)
-        resume = self._sample_resume()
-
-        result = await agent.optimize("优化项目简介", resume)
-
-        self.assertEqual(chat_service.chat_calls, 3)
-        self.assertIn("已停止自动重试", result["content"])
-        self.assertEqual(resume["projects"][0]["overview"], "AI 求职辅导平台")
-
     async def test_optimize_stream_applies_change_after_confirmation(self):
-        chat_service = FakeChatService(
-            stream_rounds=[
-                [
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_stream_1",
-                                "function": {
-                                    "name": "update_highlight",
-                                    "arguments": (
-                                        '{"section":"work_experience",'
-                                        '"item_id":"work_1",'
-                                        '"highlight_id":"hl_1",'
-                                        '"text":"维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化"}'
-                                    ),
-                                },
-                            }
-                        ]
-                    }
-                ],
-                [
-                    {"content": "已完成优化，"},
-                    {"content": "重点突出系统规模和性能成果。"},
-                ],
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_highlight",
+                            call_id="call_stream_1",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "highlight_id": "hl_1",
+                                "text": (
+                                    "维护多个后台服务，支撑日活 10 万用户，"
+                                    "并完成接口性能优化"
+                                ),
+                            },
+                        )
+                    ],
+                ),
+                AIMessage(content="已完成优化，重点突出系统规模和性能成果。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
         confirmation_queue = asyncio.Queue()
         confirmation_queue.put_nowait(True)
@@ -601,33 +461,26 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_stream_reject_keeps_resume_unchanged(self):
-        chat_service = FakeChatService(
-            stream_rounds=[
-                [
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_stream_2",
-                                "function": {
-                                    "name": "update_highlight",
-                                    "arguments": (
-                                        '{"section":"work_experience",'
-                                        '"item_id":"work_1",'
-                                        '"highlight_id":"hl_1",'
-                                        '"text":"这是一个不应被应用的修改"}'
-                                    ),
-                                },
-                            }
-                        ]
-                    }
-                ],
-                [
-                    {"content": "我保留了原内容，等待你提供更具体的目标岗位。"},
-                ],
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_highlight",
+                            call_id="call_stream_2",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "highlight_id": "hl_1",
+                                "text": "这是一个不应被应用的修改",
+                            },
+                        )
+                    ],
+                ),
+                AIMessage(content="我保留了原内容，等待你提供更具体的目标岗位。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
         confirmation_queue = asyncio.Queue()
         confirmation_queue.put_nowait(False)
@@ -648,46 +501,35 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_stream_emits_tool_call_failed_then_recovers(self):
-        chat_service = FakeChatService(
-            stream_rounds=[
-                [
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_stream_bad",
-                                "function": {
-                                    "name": "update_overview",
-                                    "arguments": '{"section":"projects","overview":"缺少 item_id"}',
-                                },
-                            }
-                        ]
-                    }
-                ],
-                [
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_stream_fixed",
-                                "function": {
-                                    "name": "update_overview",
-                                    "arguments": (
-                                        '{"section":"projects",'
-                                        '"item_id":"proj_1",'
-                                        '"overview":"流式重试后的简介"}'
-                                    ),
-                                },
-                            }
-                        ]
-                    }
-                ],
-                [
-                    {"content": "已完成流式重试。"},
-                ],
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_stream_bad",
+                            args={"section": "projects", "overview": "缺少 item_id"},
+                        )
+                    ],
+                ),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_stream_fixed",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "流式重试后的简介",
+                            },
+                        )
+                    ],
+                ),
+                AIMessage(content="已完成流式重试。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
 
         events = []
@@ -709,28 +551,21 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
     async def test_optimize_stream_auto_executes_read_user_memory_without_confirmation(
         self,
     ):
-        chat_service = FakeChatService(
-            stream_rounds=[
-                [
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_read_memory_1",
-                                "function": {
-                                    "name": "read_user_memory",
-                                    "arguments": "{}",
-                                },
-                            }
-                        ]
-                    }
-                ],
-                [
-                    {"content": "我已读取你的长期记忆，并会按既有偏好继续优化。"},
-                ],
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="read_user_memory",
+                            call_id="call_read_memory_1",
+                            args={},
+                        )
+                    ],
+                ),
+                AIMessage(content="我已读取你的长期记忆，并会按既有偏好继续优化。"),
             ]
         )
-        agent = self._build_agent(chat_service)
         resume = self._sample_resume()
         confirmation_queue = asyncio.Queue()
 
@@ -971,137 +806,21 @@ class ChatServiceChunkParsingTests(unittest.TestCase):
         )
 
 
-class AgentRuntimeResponseHandlingTests(unittest.IsolatedAsyncioTestCase):
-    async def test_next_message_retries_when_length_truncated_and_content_empty(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "finish_reason": "length",
-                            "message": {
-                                "content": "",
-                            },
-                        }
-                    ]
-                },
-                {
-                    "choices": [
-                        {
-                            "finish_reason": "stop",
-                            "message": {
-                                "content": '{"question":"请介绍你主导的项目","question_type":"experience","intent":"评估项目 ownership"}',
-                            },
-                        }
-                    ]
-                },
-            ]
+class AgentRuntimeCompatibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_agent_runtime_delegates_to_deep_agent_runtime(self):
+        runtime = AgentRuntime(
+            model=FakeDeepAgentChatModel(
+                responses=[AIMessage(content="兼容入口仍使用 Deep Agents。")]
+            )
         )
-        runtime = AgentRuntime(chat_service=chat_service)
-        agent = ResumeAgent().definition
-
-        message = await runtime._next_message(
-            agent=agent,
-            messages=[{"role": "user", "content": "test"}],
+        result = await runtime.run(
+            agent=ResumeAgent().definition,
+            user_message="test",
             context={"resume_content": {}},
         )
 
-        self.assertEqual(chat_service.chat_calls, 2)
-        self.assertEqual(
-            message["content"],
-            '{"question":"请介绍你主导的项目","question_type":"experience","intent":"评估项目 ownership"}',
-        )
-
-    async def test_next_message_normalizes_non_stream_content_parts(self):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "finish_reason": "stop",
-                            "message": {
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": '{"question":"请介绍你的系统设计思路",',
-                                    },
-                                    {
-                                        "type": "text",
-                                        "text": '"question_type":"technical","intent":"评估架构能力"}',
-                                    },
-                                ]
-                            },
-                        }
-                    ]
-                }
-            ]
-        )
-        runtime = AgentRuntime(chat_service=chat_service)
-        agent = ResumeAgent().definition
-
-        message = await runtime._next_message(
-            agent=agent,
-            messages=[{"role": "user", "content": "test"}],
-            context={"resume_content": {}},
-        )
-
-        self.assertEqual(
-            message["content"],
-            '{"question":"请介绍你的系统设计思路","question_type":"technical","intent":"评估架构能力"}',
-        )
-
-    async def test_next_message_falls_back_to_stream_when_non_stream_provider_returns_empty_packet(
-        self,
-    ):
-        chat_service = FakeChatService(
-            responses=[
-                {
-                    "choices": [
-                        {
-                            "finish_reason": None,
-                            "message": {
-                                "content": None,
-                            },
-                        }
-                    ],
-                    "usage": {"total_tokens": 0},
-                }
-            ],
-            stream_rounds=[
-                [
-                    {
-                        "content": "我来直接帮你改写这条亮点。",
-                    },
-                    {
-                        "tool_calls": [
-                            {
-                                "index": 0,
-                                "id": "call_1",
-                                "function": {
-                                    "name": "update_highlight",
-                                    "arguments": '{"section":"projects","item_id":"proj_1","highlight_id":"proj_hl_1","text":"突出结果导向表达","reason":"强化结果表达"}',
-                                },
-                            }
-                        ]
-                    },
-                ]
-            ],
-        )
-        runtime = AgentRuntime(chat_service=chat_service)
-        agent = ResumeAgent().definition
-
-        message = await runtime._next_message(
-            agent=agent,
-            messages=[{"role": "user", "content": "test"}],
-            context={"resume_content": {}},
-        )
-
-        self.assertEqual(chat_service.chat_calls, 1)
-        self.assertEqual(chat_service.stream_calls, 1)
-        self.assertEqual(message["content"], "我来直接帮你改写这条亮点。")
-        self.assertEqual(
-            message["tool_calls"][0]["function"]["name"], "update_highlight"
-        )
+        self.assertEqual(result["content"], "兼容入口仍使用 Deep Agents。")
+        self.assertIsInstance(runtime._runtime, DeepAgentRuntime)
 
 
 if __name__ == "__main__":

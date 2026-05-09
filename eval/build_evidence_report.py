@@ -169,6 +169,100 @@ def summarize_eval(eval_scores: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def summarize_eval_analysis(eval_analysis: dict[str, Any]) -> dict[str, Any]:
+    """用于汇总新版确定性 eval analysis 输出。"""
+    summary = eval_analysis.get("summary", {})
+    cases = eval_analysis.get("cases", [])
+    total_cases = int(summary.get("totalCases", len(cases)))
+    ok_cases = int(summary.get("okCases", 0))
+    elapsed_values = [
+        float(case.get("elapsedSeconds", 0.0))
+        for case in cases
+        if case.get("elapsedSeconds") is not None
+    ]
+    tool_scores = [
+        float(case["expectations"]["toolCalls"].get("f1", 0.0))
+        for case in cases
+        if case.get("expectations", {}).get("toolCalls")
+    ]
+    tool_exact_match_count = sum(1 for score in tool_scores if score >= 1.0)
+    decision_scores = [
+        case["expectations"]["decisionRule"]
+        for case in cases
+        if case.get("expectations", {}).get("decisionRule")
+    ]
+    decision_passed_count = sum(
+        1 for score in decision_scores if score.get("passed")
+    )
+    fallback_count = sum(
+        1
+        for case in cases
+        if case.get("expectations", {})
+        .get("runtimeStability", {})
+        .get("fallbackTriggered")
+    )
+    taxonomy = summary.get("failureTaxonomy", {})
+    failure_taxonomy = [
+        {
+            "category": category,
+            "count": int(item.get("count", 0)),
+            "caseIds": [str(case_id) for case_id in item.get("caseIds", [])],
+        }
+        for category, item in taxonomy.items()
+    ]
+    gate_summary = eval_analysis.get("gateSummary", {})
+    gates = gate_summary.get("gates", [])
+    failed_gates = [
+        str(gate.get("name"))
+        for gate in gates
+        if gate.get("passed") is False
+    ]
+
+    return {
+        "totalCases": total_cases,
+        "okCases": ok_cases,
+        "successRate": percent(ok_cases, total_cases),
+        "averageLatencySeconds": mean(elapsed_values),
+        "p95LatencySeconds": percentile(elapsed_values, 95),
+        "fallbackCount": fallback_count,
+        "fallbackRate": percent(fallback_count, total_cases),
+        "coverage": {
+            "resumeFixtures": 0,
+            "jdFixtures": 0,
+        },
+        "keywordImprovement": {
+            "caseCount": 0,
+            "averageDeltaRatio": 0.0,
+            "improvedCount": 0,
+            "improvedRate": 0.0,
+        },
+        "toolCorrectness": {
+            "caseCount": len(tool_scores),
+            "averageF1": mean(tool_scores),
+            "exactMatchCount": tool_exact_match_count,
+            "exactMatchRate": percent(tool_exact_match_count, len(tool_scores)),
+        },
+        "llmJudge": {
+            "caseCount": 0,
+            "averageOverall": 0.0,
+            "averageInstructionFollow": 0.0,
+            "averageQuality": 0.0,
+            "averageNoHallucination": 0.0,
+        },
+        "decisionRule": {
+            "caseCount": len(decision_scores),
+            "averageScore": percent(decision_passed_count, len(decision_scores)) / 100,
+            "passedCount": decision_passed_count,
+            "passedRate": percent(decision_passed_count, len(decision_scores)),
+        },
+        "gate": {
+            "passed": bool(gate_summary.get("passed", False)),
+            "failedGates": failed_gates,
+        },
+        "failureTaxonomy": failure_taxonomy,
+    }
+
+
 def summarize_perf(perf_report: dict[str, Any]) -> dict[str, Any]:
     """用于汇总生产模式性能测速结果。"""
     api_results = perf_report.get("apiResults", [])
@@ -333,6 +427,17 @@ def build_markdown(summary: dict[str, Any]) -> str:
             eval_summary["keywordImprovement"]["averageDeltaRatio"]
         )
         decision_rate = format_percent(eval_summary["decisionRule"]["passedRate"])
+        gate = eval_summary.get("gate")
+        if gate:
+            gate_status = "pass" if gate.get("passed") else "fail"
+            lines.append(f"- Gate 状态：{gate_status}。")
+        for failure in eval_summary.get("failureTaxonomy", []):
+            case_ids = "、".join(failure["caseIds"])
+            lines.append(
+                "- 失败分类："
+                f"{failure['category']} {failure['count']} 个 case"
+                f"（{case_ids}）。"
+            )
         lines.append(
             "- Resume Agent 离线评测覆盖 "
             f"{eval_summary['totalCases']} 条用例，成功 "
@@ -473,6 +578,19 @@ def build_markdown(summary: dict[str, Any]) -> str:
             f"平均完成耗时 {format_seconds(eval_summary['averageLatencySeconds'])}，"
             f"P95 {format_seconds(eval_summary['p95LatencySeconds'])}。"
         )
+        if eval_summary.get("gate"):
+            failed_gates = eval_summary["gate"].get("failedGates", [])
+            lines.append(
+                "- Gate："
+                f"{'pass' if eval_summary['gate'].get('passed') else 'fail'}，"
+                f"失败项 {', '.join(failed_gates) if failed_gates else '无'}。"
+            )
+        if eval_summary.get("failureTaxonomy"):
+            failure_text = "；".join(
+                f"{failure['category']}={failure['count']}"
+                for failure in eval_summary["failureTaxonomy"]
+            )
+            lines.append(f"- 失败分类概览：{failure_text}。")
         if eval_summary["llmJudge"]["caseCount"] > 0:
             lines.append(
                 "- LLM Judge："
@@ -555,6 +673,7 @@ def build_summary(
     perf_report: dict[str, Any] | None,
     interview_report: dict[str, Any] | None,
     manual_metrics: dict[str, Any] | None,
+    eval_analysis: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """用于汇总所有输入源，生成统一摘要结构。"""
     sources: list[str] = []
@@ -567,7 +686,10 @@ def build_summary(
         "manualMetrics": [],
     }
 
-    if eval_scores is not None:
+    if eval_analysis is not None:
+        summary["eval"] = summarize_eval_analysis(eval_analysis)
+        sources.append("eval_analysis.json")
+    elif eval_scores is not None:
         summary["eval"] = summarize_eval(eval_scores)
         sources.append("eval_scores.json")
     if perf_report is not None:
@@ -590,6 +712,10 @@ def parse_args() -> argparse.Namespace:
         description="把 Agent 评测结果整理成求职证据包摘要"
     )
     parser.add_argument("--eval-scores", help="eval/score.py 生成的评分文件路径")
+    parser.add_argument(
+        "--eval-analysis",
+        help="eval/analyze_results.py 生成的分析文件路径",
+    )
     parser.add_argument(
         "--perf-report",
         help="measure-production.mjs 生成的性能报告路径",
@@ -614,6 +740,7 @@ def main() -> None:
     if not any(
         (
             args.eval_scores,
+            args.eval_analysis,
             args.perf_report,
             args.interview_report,
             args.manual_metrics,
@@ -621,11 +748,15 @@ def main() -> None:
     ):
         raise SystemExit(
             "至少需要提供一个输入：--eval-scores / --perf-report / "
+            "--eval-analysis / "
             "--interview-report / "
             "--manual-metrics"
         )
 
     eval_scores = load_json(Path(args.eval_scores)) if args.eval_scores else None
+    eval_analysis = (
+        load_json(Path(args.eval_analysis)) if args.eval_analysis else None
+    )
     perf_report = load_json(Path(args.perf_report)) if args.perf_report else None
     interview_report = (
         load_json(Path(args.interview_report)) if args.interview_report else None
@@ -635,10 +766,11 @@ def main() -> None:
     )
 
     summary = build_summary(
-        eval_scores,
-        perf_report,
-        interview_report,
-        manual_metrics,
+        eval_scores=eval_scores,
+        perf_report=perf_report,
+        interview_report=interview_report,
+        manual_metrics=manual_metrics,
+        eval_analysis=eval_analysis,
     )
     markdown = build_markdown(summary)
 

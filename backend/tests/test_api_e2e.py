@@ -29,6 +29,7 @@ from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import ResumeChatMessage
 from app.models.user import User
 from app.runtime.permissions import confirmation_manager
+from app.services.errors import ServicePayloadTooLargeError
 from app.state.models import AgentEvent, AgentSession
 from app.state.store import AgentSessionStore
 
@@ -392,6 +393,7 @@ class TestResumeUpload:
         async def _fake_save_uploaded_file(self, file):
             """模拟保存上传文件，并验证接口确实收到了真实文件名。"""
             assert file.filename == "sample_resume_upload.txt"
+            assert file.content == fixture_path.read_bytes()
             return saved_file_path
 
         def _fake_extract_text_from_file(self, file_path: str, filename: str) -> str:
@@ -463,6 +465,27 @@ class TestResumeUpload:
         assert body["content"]["personal_info"]["name"] == "测试用户"
         assert body["content"]["job_application"]["target_company"] == "OpenAI"
         assert deleted_paths == [saved_file_path]
+
+    def test_upload_resume_maps_file_service_size_error(self, monkeypatch):
+        """服务层文件错误应由 HTTP 入口映射状态码，而不是泄漏 FastAPI 异常。"""
+
+        async def _fake_save_uploaded_file(self, file):
+            assert file.filename == "sample_resume_upload.txt"
+            raise ServicePayloadTooLargeError("File too large")
+
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.save_uploaded_file",
+            _fake_save_uploaded_file,
+        )
+
+        response = self.client.post(
+            "/api/upload/resume",
+            files={"file": ("sample_resume_upload.txt", b"content", "text/plain")},
+            headers=self.headers,
+        )
+
+        assert response.status_code == 413
+        assert response.json()["detail"] == "File too large"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

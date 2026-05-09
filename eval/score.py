@@ -315,7 +315,7 @@ async def llm_judge_single(chat_service: ChatService, result: dict) -> dict:
 # 主流程
 # ─────────────────────────────────────────────────────────────
 
-async def score_all(results: list[dict], enable_llm_judge: bool = True) -> list[dict]:
+async def score_all(results: list[dict], enable_llm_judge: bool = False) -> list[dict]:
     chat_service = ChatService() if enable_llm_judge else None
     scored = []
 
@@ -446,14 +446,16 @@ def main():
     parser = argparse.ArgumentParser(description="Agent 评测评分器")
     parser.add_argument("--input", default="eval_results.json", help="run_eval.py 的输出文件")
     parser.add_argument("--output", default="eval_scores.json", help="评分结果输出文件")
-    parser.add_argument("--no-llm-judge", action="store_true", help="跳过 LLM-as-Judge 评分（节省费用）")
+    parser.add_argument("--llm-judge", action="store_true", help="启用 LLM-as-Judge 评分")
+    parser.add_argument("--no-llm-judge", action="store_true", help="兼容旧命令；默认已跳过 LLM-as-Judge")
     args = parser.parse_args()
 
     with open(args.input, encoding="utf-8") as f:
         data = json.load(f)
     results = data["results"]
 
-    scored = asyncio.run(score_all(results, enable_llm_judge=not args.no_llm_judge))
+    enable_llm_judge = args.llm_judge and not args.no_llm_judge
+    scored = asyncio.run(score_all(results, enable_llm_judge=enable_llm_judge))
     print_summary(scored)
 
     with open(args.output, "w", encoding="utf-8") as f:

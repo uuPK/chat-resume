@@ -23,6 +23,11 @@ from app.infra.langsmith_observer import LangSmithRunObserver
 from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
+from app.services.agent import (
+    ResumeAgentConfirmationConflict,
+    ResumeAgentSessionNotFound,
+    ResumeAgentSessionService,
+)
 from app.services.domain import ResumeService
 from app.services.llm import ChatService
 from app.state import AgentSessionStore
@@ -368,71 +373,34 @@ async def confirm_tool(
         tool_call_id=request.call_id,
     ):
         store = AgentSessionStore(db)
-        session = store.get_session(request.session_id)
-        if not session or session.user_id != current_user["id"]:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Session {request.session_id} 不存在",
-            )
-
-        latest_pending = store.get_latest_event(
-            request.session_id,
-            event_type="tool_call_previewed",
+        service = ResumeAgentSessionService(
+            store,
+            confirmation_sessions=confirmation_manager,
         )
-        pending_call_id = (
-            latest_pending.payload.get("call_id")
-            if latest_pending and isinstance(latest_pending.payload, dict)
-            else None
-        )
-        if pending_call_id != request.call_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="当前 session 没有匹配的待确认工具调用",
-            )
-
-        if session.status != "waiting_confirmation":
-            return {
-                "ok": True,
-                "duplicate": True,
-                "message": "该工具确认已处理",
-            }
-
-        queue = confirmation_manager.get(request.session_id)
-        if queue is None:
-            store.append_confirmation_event(
+        try:
+            result = await service.confirm_tool(
                 session_id=request.session_id,
                 call_id=request.call_id,
                 confirmed=request.confirmed,
-                tool_name=(
-                    latest_pending.payload.get("tool_name")
-                    if latest_pending and isinstance(latest_pending.payload, dict)
-                    else None
-                ),
-                active_stream=False,
+                user_id=current_user["id"],
             )
-            store.update_status(
-                request.session_id,
-                "paused",
-                current_step=request.call_id,
-            )
-            return {
-                "ok": False,
-                "resumable": True,
-                "message": (
-                    "确认结果已记录，但当前流式连接已结束，需要恢复 session 后继续执行"
-                ),
-            }
+        except ResumeAgentSessionNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(exc),
+            ) from exc
+        except ResumeAgentConfirmationConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(exc),
+            ) from exc
 
-        store.update_status(
-            request.session_id,
-            "running",
-            clear_current_step=True,
-        )
-        await queue.put(request.confirmed)
-        logger.info(
-            "Resume agent tool confirmation received confirmed=%s", request.confirmed
-        )
-        return {"ok": True}
+        if result.ok and not result.duplicate:
+            logger.info(
+                "Resume agent tool confirmation received confirmed=%s",
+                request.confirmed,
+            )
+        return result.to_response()
 
 
 @router.post("/chat/resume-session")

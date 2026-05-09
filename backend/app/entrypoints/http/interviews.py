@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NoReturn, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
+from app.services.errors import (
+    ServiceError,
+    ServiceNotFoundError,
+    ServicePermissionError,
+)
 from app.services.interview.serializer import serialize_session
 from app.services.interview.session_service import (
     create_interview_session,
     delete_interview_session,
     end_interview_session,
-    get_session_or_404,
+    get_session_for_user,
     list_interview_sessions,
     record_voice_interview_message,
 )
@@ -52,6 +57,20 @@ class InterviewMessageRecordRequest(BaseModel):
     text: str
 
 
+def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    if isinstance(exc, ServicePermissionError):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    if isinstance(exc, ServiceNotFoundError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+    ) from exc
+
+
 @router.post("/", response_model=InterviewActionResponse)
 async def create_interview(
     request: InterviewCreateRequest,
@@ -59,19 +78,24 @@ async def create_interview(
     db: Session = Depends(get_db),
 ):
     """用于创建一场新的实时语音面试。"""
-    session = create_interview_session(
-        db=db,
-        user_id=current_user["id"],
-        resume_id=request.resume_id,
-        target_title=request.target_title,
-        target_company=request.target_company,
-        jd_text=request.jd_text,
-        interview_type=request.interview_type,
-        difficulty=request.difficulty,
-        language=request.language,
-        mode=request.mode,
+    try:
+        session = create_interview_session(
+            db=db,
+            user_id=current_user["id"],
+            resume_id=request.resume_id,
+            target_title=request.target_title,
+            target_company=request.target_company,
+            jd_text=request.jd_text,
+            interview_type=request.interview_type,
+            difficulty=request.difficulty,
+            language=request.language,
+            mode=request.mode,
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
+    return InterviewActionResponse(
+        session=serialize_session(session), next_action="voice"
     )
-    return InterviewActionResponse(session=serialize_session(session), next_action="voice")
 
 
 @router.get("/", response_model=List[Dict[str, Any]])
@@ -90,7 +114,10 @@ async def get_interview(
     db: Session = Depends(get_db),
 ):
     """用于返回单场面试的完整状态。"""
-    session = get_session_or_404(db, session_id, current_user["id"])
+    try:
+        session = get_session_for_user(db, session_id, current_user["id"])
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
     return InterviewActionResponse(session=serialize_session(session))
 
 
@@ -102,7 +129,10 @@ async def record_interview_message(
     db: Session = Depends(get_db),
 ):
     """用于把实时语音面试中已经展示的最终文本持久化。"""
-    session = get_session_or_404(db, session_id, current_user["id"])
+    try:
+        session = get_session_for_user(db, session_id, current_user["id"])
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
     record_voice_interview_message(
         db=db,
         session_id=session_id,
@@ -120,7 +150,12 @@ async def delete_interview(
     db: Session = Depends(get_db),
 ):
     """用于删除当前用户的一场面试记录及其关联轮次。"""
-    delete_interview_session(db=db, user_id=current_user["id"], session_id=session_id)
+    try:
+        delete_interview_session(
+            db=db, user_id=current_user["id"], session_id=session_id
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
     return {"message": "Interview session deleted"}
 
 
@@ -131,9 +166,12 @@ async def end_interview(
     db: Session = Depends(get_db),
 ):
     """用于让用户主动结束当前面试。"""
-    session = end_interview_session(
-        db=db, user_id=current_user["id"], session_id=session_id
-    )
+    try:
+        session = end_interview_session(
+            db=db, user_id=current_user["id"], session_id=session_id
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
     return InterviewActionResponse(
         session=serialize_session(session), next_action="completed"
     )

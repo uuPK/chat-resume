@@ -6,6 +6,7 @@
 """
 
 import logging
+from typing import NoReturn
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -15,7 +16,12 @@ from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.schemas.resume import ResumeCreate, ResumeResponse
-from app.services.domain import FileService, ResumeService
+from app.services.domain import FileService, ResumeService, UploadedFileContent
+from app.services.errors import (
+    ServiceError,
+    ServicePayloadTooLargeError,
+    ServiceValidationError,
+)
 from app.services.processing import JDOcrService, ResumeParser
 
 logger = logging.getLogger(__name__)
@@ -29,6 +35,23 @@ class JDOcrResponse(BaseModel):
     """用于承载 JD 图片 OCR 的识别结果。"""
 
     text: str
+
+
+def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    if isinstance(exc, ServicePayloadTooLargeError):
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=str(exc),
+        ) from exc
+    if isinstance(exc, ServiceValidationError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=str(exc),
+    ) from exc
 
 
 def _validate_jd_image(file: UploadFile) -> None:
@@ -59,7 +82,8 @@ async def upload_resume(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No filename provided.",
         )
-    file_extension = file.filename.split(".")[-1].lower()
+    filename = file.filename
+    file_extension = filename.split(".")[-1].lower()
     if f".{file_extension}" not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,13 +98,20 @@ async def upload_resume(
     try:
         # 保存文件
         file_service = FileService()
-        file_path = await file_service.save_uploaded_file(file)
+        file_content = await file.read()
+        file_path = await file_service.save_uploaded_file(
+            UploadedFileContent(
+                filename=filename,
+                content=file_content,
+                content_type=file.content_type,
+            )
+        )
 
         # 提取文本
-        text = file_service.extract_text_from_file(file_path, file.filename or "")
+        text = file_service.extract_text_from_file(file_path, filename)
         logger.info(
             "resume_upload.text_extracted",
-            extra={"text_chars": len(text), "upload_filename": file.filename or ""},
+            extra={"text_chars": len(text), "upload_filename": filename},
         )
 
         # 解析简历
@@ -98,9 +129,9 @@ async def upload_resume(
         # 保存到数据库
         resume_service = ResumeService(db)
         resume_create_data = {
-            "title": (file.filename or "").split(".")[0],
+            "title": filename.split(".")[0],
             "content": resume_data,
-            "original_filename": file.filename,
+            "original_filename": filename,
         }
         resume_create = ResumeCreate.model_validate(resume_create_data)
         logger.info("resume_upload.save.started")
@@ -112,6 +143,11 @@ async def upload_resume(
 
         return ResumeResponse.model_validate(resume, from_attributes=True)
 
+    except ServiceError as e:
+        # 清理临时文件
+        if file_service and file_path:
+            file_service.delete_file(file_path)
+        _raise_service_http_error(e)
     except Exception as e:
         # 清理临时文件
         if file_service and file_path:
@@ -151,7 +187,7 @@ async def upload_jd_image_for_ocr(
         )
     if len(image_bytes) > settings.JD_OCR_MAX_FILE_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="JD image is too large.",
         )
 
