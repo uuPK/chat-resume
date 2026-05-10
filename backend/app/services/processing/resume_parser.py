@@ -169,16 +169,15 @@ class AIResumeParser:
                     validated_data = self._validate_and_enhance(parsed_data, text)
 
                     logger.info(
-                        "resume_parser.ai.completed",
-                        extra={
-                            "model": self.model,
-                            "attempt": attempt + 1,
-                            "elapsed_ms": round(
-                                (perf_counter() - attempt_started_at) * 1000, 2
-                            ),
-                            "prompt_chars": len(prompt),
-                            "response_chars": len(ai_content),
-                        },
+                        (
+                            "resume_parser.ai.completed model=%s attempt=%s "
+                            "elapsed_ms=%.2f prompt_chars=%s response_chars=%s"
+                        ),
+                        self.model,
+                        attempt + 1,
+                        (perf_counter() - attempt_started_at) * 1000,
+                        len(prompt),
+                        len(ai_content),
                     )
                     return validated_data
                 else:

@@ -121,13 +121,8 @@ async def upload_resume(
         stage = "parse_resume"
         parser = ResumeParser()
         logger.info(
-            "resume_upload.parse.started",
-            extra={
-                "upload_filename": filename,
-                "file_bytes": len(file_content),
-                "text_chars": len(text),
-                "model": parser.model,
-            },
+            "resume_upload.parse.started model=%s",
+            parser.model,
         )
         parse_started_at = perf_counter()
         resume_data = await parser.parse_resume_text_async(text)
@@ -147,18 +142,18 @@ async def upload_resume(
         save_elapsed_ms = (perf_counter() - save_started_at) * 1000
         total_elapsed_ms = (perf_counter() - request_started_at) * 1000
         logger.info(
-            "resume_upload.completed",
-            extra={
-                "resume_id": resume.id,
-                "upload_filename": filename,
-                "model": parser.model,
-                "parsing_method": resume_data.get("parsing_method", "unknown"),
-                "parsing_quality": resume_data.get("parsing_quality", 0),
-                "extract_ms": round(extract_elapsed_ms, 2),
-                "parse_ms": round(parse_elapsed_ms, 2),
-                "save_ms": round(save_elapsed_ms, 2),
-                "total_ms": round(total_elapsed_ms, 2),
-            },
+            (
+                "resume_upload.completed model=%s resume_id=%s method=%s "
+                "quality=%s extract_ms=%.2f parse_ms=%.2f save_ms=%.2f total_ms=%.2f"
+            ),
+            parser.model,
+            resume.id,
+            resume_data.get("parsing_method", "unknown"),
+            resume_data.get("parsing_quality", 0),
+            extract_elapsed_ms,
+            parse_elapsed_ms,
+            save_elapsed_ms,
+            total_elapsed_ms,
         )
 
         # 清理临时文件

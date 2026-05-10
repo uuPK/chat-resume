@@ -780,7 +780,7 @@ class TestResumeUpload:
         self.headers = _auth_headers(self.token)
         self.client = client
 
-    def test_upload_resume_parses_and_persists_uploaded_file(self, monkeypatch):
+    def test_upload_resume_parses_and_persists_uploaded_file(self, monkeypatch, caplog):
         """通过真实 multipart 上传验证简历上传接口会走解析和入库链路。"""
         fixture_path = (
             Path(__file__).resolve().parent / "fixtures" / "sample_resume_upload.txt"
@@ -845,17 +845,18 @@ class TestResumeUpload:
             _fake_parse_resume_text_async,
         )
 
-        response = self.client.post(
-            "/api/upload/resume",
-            files={
-                "file": (
-                    "sample_resume_upload.txt",
-                    fixture_path.read_bytes(),
-                    "text/plain",
-                )
-            },
-            headers=self.headers,
-        )
+        with caplog.at_level("INFO", logger="app.entrypoints.http.upload"):
+            response = self.client.post(
+                "/api/upload/resume",
+                files={
+                    "file": (
+                        "sample_resume_upload.txt",
+                        fixture_path.read_bytes(),
+                        "text/plain",
+                    )
+                },
+                headers=self.headers,
+            )
 
         assert response.status_code == 200
         body = response.json()
@@ -866,6 +867,10 @@ class TestResumeUpload:
         assert body["content"]["personal_info"]["name"] == "测试用户"
         assert body["content"]["job_application"]["target_company"] == "OpenAI"
         assert deleted_paths == [saved_file_path]
+        assert "resume_upload.parse.started model=" in caplog.text
+        assert "file_bytes=" not in caplog.text
+        assert "text_chars=" not in caplog.text
+        assert "resume_upload.completed model=" in caplog.text
 
     def test_upload_resume_maps_file_service_size_error(self, monkeypatch):
         """服务层文件错误应由 HTTP 入口映射状态码，而不是泄漏 FastAPI 异常。"""
