@@ -64,6 +64,7 @@ _PROTECTED_API_PREFIXES = (
 _AUTH_EXEMPT_PATHS = {
     f"{settings.API_STR}/resumes/download",
 }
+_SLOW_REQUEST_LOG_MS = 1000.0
 
 
 def _is_protected_api_path(path: str) -> bool:
@@ -125,13 +126,6 @@ async def log_requests(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or uuid4().hex
     request.state.request_id = request_id
     context_tokens = bind_log_context(request_id=request_id)
-    logger.info(
-        "request.started",
-        extra={
-            "http_method": request.method,
-            "http_path": request.url.path,
-        },
-    )
     request_started_at = perf_counter()
     metrics_token = start_request_metrics()
     response = None
@@ -143,18 +137,25 @@ async def log_requests(request: Request, call_next):
         request_elapsed_ms = (perf_counter() - request_started_at) * 1000
         metrics = get_request_metrics()
         status_code = response.status_code if response is not None else 500
-        if metrics is None:
+        should_log_request = (
+            status_code >= 400 or request_elapsed_ms >= _SLOW_REQUEST_LOG_MS
+        )
+        if should_log_request and metrics is None:
             logger.info(
-                "request.completed",
+                "request.finished",
                 extra={
+                    "http_method": request.method,
+                    "http_path": request.url.path,
                     "http_status": status_code,
                     "request_ms": round(request_elapsed_ms, 2),
                 },
             )
-        else:
+        elif should_log_request:
             logger.info(
-                "request.completed",
+                "request.finished",
                 extra={
+                    "http_method": request.method,
+                    "http_path": request.url.path,
                     "http_status": status_code,
                     "request_ms": round(request_elapsed_ms, 2),
                     "db_checkout_count": metrics.checkout_count,
@@ -172,11 +173,11 @@ async def log_requests(request: Request, call_next):
 
 
 # 数据库迁移由 Railway 的 startCommand 处理
-logger.info("app.starting")
+logger.debug("app.starting")
 
 # 从环境变量获取CORS配置
 cors_origins = settings.BACKEND_CORS_ORIGINS
-logger.info("cors.config.loaded", extra={"cors_origin_count": len(cors_origins)})
+logger.debug("cors.config.loaded", extra={"cors_origin_count": len(cors_origins)})
 
 # Cookie 鉴权要求显式 origin，避免浏览器在跨域时丢掉凭证。
 configured_origins = [
@@ -196,7 +197,7 @@ if settings.APP_ENV.strip().lower() == "development":
 effective_origins = list(
     dict.fromkeys(origin for origin in origin_candidates if origin)
 )
-logger.info(
+logger.debug(
     "cors.config.effective",
     extra={"cors_origin_count": len(effective_origins)},
 )
@@ -237,6 +238,11 @@ async def health_check(response: Response):
 @app.get("/api/test")
 async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
+
+
+@app.on_event("startup")
+async def log_application_ready():
+    logger.info("app.ready")
 
 
 @app.on_event("shutdown")

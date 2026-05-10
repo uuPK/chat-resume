@@ -24,7 +24,7 @@ def configure_langsmith() -> bool:
         not settings.LANGSMITH_TRACING
         or not settings.LANGSMITH_API_KEY.strip()
     ):
-        logger.info("LangSmith disabled: tracing or API key is not configured")
+        logger.debug("LangSmith disabled: tracing or API key is not configured")
         return False
 
     os.environ["LANGSMITH_TRACING"] = "true"

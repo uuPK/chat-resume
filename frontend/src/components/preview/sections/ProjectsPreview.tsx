@@ -1,10 +1,12 @@
 'use client'
 
 import type { Project } from '@/types/resume'
+import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface ProjectsPreviewProps {
   data: Project[]
   renderLines?: number[]
+  templateStyle?: ResumeTemplateStyle
 }
 
 /* 链接图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
@@ -36,10 +38,42 @@ const DemoIcon = () => (
 )
 
 // 单个项目项组件
-function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: number }) {
+function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { project: Project; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []
+  const isFormal = templateStyle === 'formal'
+
+  if (isFormal) {
+    return (
+      <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
+        <div className="text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          {[project.name, project.role, project.duration].filter(Boolean).join(' | ')}
+        </div>
+
+        {(project.demo_url || project.github_url) && (
+          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18, marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
+            {project.demo_url && <li>Demo: {project.demo_url}</li>}
+            {project.github_url && <li>GitHub: {project.github_url}</li>}
+          </ul>
+        )}
+
+        {project.overview && (
+          <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: '1.72' }}>
+            {project.overview}
+          </p>
+        )}
+
+        {highlights.length > 0 && (
+          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
+            {highlights.map((achievement, achIndex) => (
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
@@ -122,7 +156,8 @@ function ProjectItem({ project, lineIndex }: { project: Project; lineIndex: numb
 
 export default function ProjectsPreview({
   data,
-  renderLines
+  renderLines,
+  templateStyle = 'classic',
 }: ProjectsPreviewProps) {
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
@@ -137,7 +172,7 @@ export default function ProjectsPreview({
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-          项目经验
+          {templateStyle === 'formal' ? '项目经历' : '项目经验'}
         </h2>
       )}
 
@@ -145,7 +180,7 @@ export default function ProjectsPreview({
       {data.map((project, index) => {
         const lineIndex = index + 1
         return shouldRenderLine(lineIndex) ? (
-          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} />
+          <ProjectItem key={project.id || index} project={project} lineIndex={lineIndex} templateStyle={templateStyle} />
         ) : null
       })}
     </div>

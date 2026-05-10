@@ -26,7 +26,7 @@ function decodePayload(data?: string) {
 }
 
 function normalizeTemplateStyle(template?: string): ResumeTemplateStyle {
-  return template === 'modern' ? 'modern' : 'classic'
+  return template === 'modern' || template === 'formal' ? template : 'classic'
 }
 
 export default function ResumePrintPage({ searchParams }: PageProps) {

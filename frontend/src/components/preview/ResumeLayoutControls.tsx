@@ -158,8 +158,9 @@ export default function ResumeLayoutControls({
             <div className="p-4">
               {activeTab === 'template' && (
                 <div className="space-y-3">
-                  {(['classic', 'modern'] as ResumeTemplateStyle[]).map((templateStyle) => {
+                  {(['classic', 'modern', 'formal'] as ResumeTemplateStyle[]).map((templateStyle) => {
                     const active = config.templateStyle === templateStyle
+                    const isFormal = templateStyle === 'formal'
                     return (
                       <button
                         key={templateStyle}
@@ -180,7 +181,7 @@ export default function ResumeLayoutControls({
                             className="h-8 w-6 rounded-sm border"
                             style={{
                               backgroundColor: templateStyle === 'modern' ? '#f8fbff' : '#ffffff',
-                              borderColor: templateStyle === 'modern' ? '#1d4ed8' : '#d1d5db',
+                              borderColor: templateStyle === 'modern' ? '#1d4ed8' : isFormal ? '#111827' : '#d1d5db',
                             }}
                           />
                           <span className="flex-1 space-y-1">

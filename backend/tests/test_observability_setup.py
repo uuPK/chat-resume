@@ -105,7 +105,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["session_id"], "sess_extra")
         self.assertEqual(payload["safe_value"], "ok")
 
-    def test_uvicorn_access_logging_is_intercepted_by_loguru(self):
+    def test_uvicorn_access_info_logging_is_suppressed(self):
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -117,12 +117,19 @@ class ObservabilitySetupTests(unittest.TestCase):
                 '127.0.0.1:52839 - "POST /api/ai/chat/stream HTTP/1.1" 200 OK'
             )
 
-        payload = json.loads(stream.getvalue().strip().splitlines()[-1])
-        self.assertEqual(payload["logger"], "uvicorn.access")
-        self.assertEqual(
-            payload["message"],
-            '127.0.0.1:52839 - "POST /api/ai/chat/stream HTTP/1.1" 200 OK',
-        )
+        self.assertEqual(stream.getvalue(), "")
+
+    def test_uvicorn_error_info_logging_is_suppressed(self):
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "json"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+        ):
+            configure_logging()
+            logging.getLogger("uvicorn.error").info("Application startup complete.")
+
+        self.assertEqual(stream.getvalue(), "")
 
     def test_text_logging_does_not_emit_extra_blank_line(self):
         stream = StringIO()
@@ -137,7 +144,9 @@ class ObservabilitySetupTests(unittest.TestCase):
         lines = stream.getvalue().splitlines()
         self.assertEqual(len(lines), 1)
         self.assertIn("INFO test.text", lines[0])
-        self.assertIn("[req=- ses=- tool=-]", lines[0])
+        self.assertNotIn("[req=", lines[0])
+        self.assertNotIn(" ses=", lines[0])
+        self.assertNotIn(" tool=", lines[0])
         self.assertTrue(lines[0].endswith("single line"))
 
     def test_text_logging_appends_agent_trace_fields(self):
@@ -165,7 +174,9 @@ class ObservabilitySetupTests(unittest.TestCase):
 
         line = stream.getvalue().strip()
         self.assertIn("INFO deepagent", line)
-        self.assertIn("[req=req_12 ses=sess_1 tool=-]", line)
+        self.assertNotIn("[req=", line)
+        self.assertNotIn(" ses=", line)
+        self.assertNotIn(" tool=-]", line)
         self.assertIn("trace.tool.requested", line)
         self.assertIn(" | ", line)
         self.assertIn("run=run_trac", line)

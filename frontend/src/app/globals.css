@@ -260,6 +260,11 @@
     background-color: var(--resume-accent-soft) !important;
     color: var(--resume-accent) !important;
   }
+
+  .resume-page.resume-template-formal {
+    border-color: #d4d4d4 !important;
+    color: #050505;
+  }
 }
 
 @layer utilities {
@@ -332,4 +337,50 @@
 
 .resume-template-modern a {
   color: var(--resume-accent) !important;
+}
+
+.resume-template-formal {
+  --resume-formal-text: #050505;
+  --resume-formal-rule: #111111;
+  color: var(--resume-formal-text);
+  font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.resume-template-formal h1 {
+  color: var(--resume-formal-text) !important;
+  font-size: 28px !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-align: left !important;
+}
+
+.resume-template-formal h2 {
+  color: var(--resume-formal-text) !important;
+  font-size: 21px !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  border-bottom-color: var(--resume-formal-rule) !important;
+  border-bottom-width: 1px !important;
+  padding-bottom: 12px !important;
+}
+
+.resume-template-formal h3,
+.resume-template-formal p,
+.resume-template-formal li,
+.resume-template-formal span,
+.resume-template-formal div {
+  color: var(--resume-formal-text);
+}
+
+.resume-template-formal a {
+  color: var(--resume-formal-text) !important;
+  text-decoration: underline;
+}
+
+.resume-template-formal .resume-formal-contact {
+  line-height: 1.65;
+}
+
+.resume-template-formal .resume-formal-item {
+  line-height: 1.65;
 }

@@ -13,6 +13,7 @@ export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
 export const TEMPLATE_STYLE_LABELS: Record<ResumeTemplateStyle, string> = {
   classic: '经典',
   modern: '现代',
+  formal: '正式黑白',
 }
 
 /**
@@ -99,7 +100,11 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 export function deserializeLayoutConfig(raw: Record<string, unknown> | null | undefined): ResumeLayoutConfig {
   if (!raw) return DEFAULT_LAYOUT_CONFIG
   try {
-    const templateStyle = raw.templateStyle === 'modern' ? 'modern' : 'classic'
+    const rawTemplateStyle = raw.templateStyle
+    const templateStyle: ResumeTemplateStyle =
+      rawTemplateStyle === 'modern' || rawTemplateStyle === 'formal'
+        ? rawTemplateStyle
+        : 'classic'
     return {
       density: (raw.density as LayoutDensity) || 'normal',
       moduleOrder: (raw.moduleOrder as ResumeModule[]) || DEFAULT_MODULE_ORDER,

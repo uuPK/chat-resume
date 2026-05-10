@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+from time import perf_counter
 from typing import Any, Dict
 
 import httpx
@@ -78,11 +79,13 @@ class AIResumeParser:
     async def parse_resume_text_async(self, text: str) -> Dict[str, Any]:
         """异步解析简历文本 - 用于FastAPI异步接口"""
         try:
-            logger.debug("开始异步AI解析")
             result = await self._parse_with_ai(text)
             return result
         except Exception as e:
-            logger.error(f"异步AI解析失败: {e}")
+            logger.warning(
+                "resume_parser.fallback",
+                extra={"model": self.model, "error_type": type(e).__name__},
+            )
             # 如果AI解析失败，返回基础结构
             return self._create_fallback_result(text)
 
@@ -97,11 +100,7 @@ class AIResumeParser:
 
         for attempt in range(self.max_retries):
             try:
-                logger.debug(f"AI解析尝试 {attempt + 1}/{self.max_retries}")
-                logger.debug(f"API Base: {self.api_base}")
-                logger.debug(f"Model: {self.model}")
-                logger.debug(f"API Key长度: {len(self.api_key) if self.api_key else 0}")
-                logger.debug(f"Prompt长度: {len(prompt)}")
+                attempt_started_at = perf_counter()
 
                 # 配置更详细的超时和连接设置
                 # 根据prompt长度动态调整读取超时
@@ -118,12 +117,6 @@ class AIResumeParser:
                     read=read_timeout,  # 动态读取超时
                     write=15.0,  # 写入超时增加到15秒
                     pool=read_timeout,  # 连接池超时与读取超时一致
-                )
-
-                logger.debug(
-                    "动态超时配置: 连接%ss, 读取%ss",
-                    timeout_config.connect,
-                    timeout_config.read,
                 )
 
                 async with httpx.AsyncClient(timeout=timeout_config) as client:
@@ -153,53 +146,91 @@ class AIResumeParser:
                         },
                     )
 
-                logger.debug(f"HTTP状态码: {response.status_code}")
-                logger.debug("OpenRouter响应头数量: %d", len(response.headers))
-
                 if response.status_code == 200:
                     result = response.json()
                     ai_content = result["choices"][0]["message"]["content"]
-                    logger.debug(f"AI响应长度: {len(ai_content)}")
 
                     # 解析AI返回的JSON
                     try:
                         parsed_data = self._parse_ai_response(ai_content)
-                        logger.debug("JSON解析成功，字段数: %d", len(parsed_data))
                     except Exception as e:
-                        logger.error(f"JSON解析失败: {e}")
-                        logger.debug("原始AI响应长度: %d", len(ai_content))
+                        logger.warning(
+                            "resume_parser.json_failed",
+                            extra={
+                                "model": self.model,
+                                "attempt": attempt + 1,
+                                "error_type": type(e).__name__,
+                                "response_chars": len(ai_content),
+                            },
+                        )
                         raise e
 
                     # 验证和增强数据
                     validated_data = self._validate_and_enhance(parsed_data, text)
 
-                    logger.info("AI解析成功")
+                    logger.info(
+                        "resume_parser.ai.completed",
+                        extra={
+                            "model": self.model,
+                            "attempt": attempt + 1,
+                            "elapsed_ms": round(
+                                (perf_counter() - attempt_started_at) * 1000, 2
+                            ),
+                            "prompt_chars": len(prompt),
+                            "response_chars": len(ai_content),
+                        },
+                    )
                     return validated_data
                 else:
-                    logger.error(
-                        f"API请求失败: {response.status_code} - {response.text[:500]}"
+                    logger.warning(
+                        "resume_parser.ai.http_failed",
+                        extra={
+                            "model": self.model,
+                            "attempt": attempt + 1,
+                            "http_status": response.status_code,
+                            "elapsed_ms": round(
+                                (perf_counter() - attempt_started_at) * 1000, 2
+                            ),
+                        },
                     )
 
-            except httpx.TimeoutException as e:
-                logger.warning(f"第 {attempt + 1} 次尝试超时: {e}")
+            except httpx.TimeoutException:
+                logger.warning(
+                    "resume_parser.ai.timeout",
+                    extra={"model": self.model, "attempt": attempt + 1},
+                )
                 if attempt == self.max_retries - 1:
                     raise Exception(f"API请求超时，已重试{self.max_retries}次")
                 await asyncio.sleep(2)  # 超时后等待更长时间
             except httpx.ConnectError as e:
-                logger.warning(f"第 {attempt + 1} 次连接失败: {e}")
+                logger.warning(
+                    "resume_parser.ai.connect_failed",
+                    extra={"model": self.model, "attempt": attempt + 1},
+                )
                 if attempt == self.max_retries - 1:
                     raise Exception(f"无法连接到OpenRouter API服务器: {e}")
                 await asyncio.sleep(2)
             except httpx.HTTPStatusError as e:
-                logger.error(f"第 {attempt + 1} 次HTTP错误: {e.response.status_code}")
-                logger.debug("HTTP错误响应长度: %d", len(e.response.text or ""))
+                logger.warning(
+                    "resume_parser.ai.http_error",
+                    extra={
+                        "model": self.model,
+                        "attempt": attempt + 1,
+                        "http_status": e.response.status_code,
+                    },
+                )
                 if attempt == self.max_retries - 1:
                     raise Exception(f"API返回错误状态码: {e.response.status_code}")
                 await asyncio.sleep(1)
             except Exception as e:
-                logger.error(f"第 {attempt + 1} 次尝试失败: {type(e).__name__}: {e}")
-
-                logger.debug("详细错误信息", exc_info=True)
+                logger.warning(
+                    "resume_parser.ai.failed",
+                    extra={
+                        "model": self.model,
+                        "attempt": attempt + 1,
+                        "error_type": type(e).__name__,
+                    },
+                )
                 if attempt == self.max_retries - 1:
                     raise Exception(f"解析失败: {type(e).__name__}: {e}")
                 await asyncio.sleep(1)  # 等待后重试

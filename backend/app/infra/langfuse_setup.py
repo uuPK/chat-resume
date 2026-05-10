@@ -23,7 +23,7 @@ def configure_langfuse() -> bool:
         not settings.LANGFUSE_PUBLIC_KEY.strip()
         or not settings.LANGFUSE_SECRET_KEY.strip()
     ):
-        logger.info("Langfuse disabled: credentials are not configured")
+        logger.debug("Langfuse disabled: credentials are not configured")
         return False
 
     try:

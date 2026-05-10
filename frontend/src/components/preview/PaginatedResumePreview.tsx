@@ -169,23 +169,23 @@ export default function PaginatedResumePreview({
     switch (moduleType) {
       case 'personal':
         return content.personal_info
-          ? renderSection(sectionId, <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} />)
+          ? renderSection(sectionId, <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       case 'education':
         return content.education && content.education.length > 0
-          ? renderSection(sectionId, <EducationPreview data={content.education} renderLines={renderLines} />)
+          ? renderSection(sectionId, <EducationPreview data={content.education} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       case 'work':
         return content.work_experience && content.work_experience.length > 0
-          ? renderSection(sectionId, <WorkExperiencePreview data={content.work_experience} renderLines={renderLines} />)
+          ? renderSection(sectionId, <WorkExperiencePreview data={content.work_experience} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       case 'skills':
         return content.skills && content.skills.length > 0
-          ? renderSection(sectionId, <SkillsPreview data={content.skills} renderLines={renderLines} />)
+          ? renderSection(sectionId, <SkillsPreview data={content.skills} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       case 'projects':
         return content.projects && content.projects.length > 0
-          ? renderSection(sectionId, <ProjectsPreview data={content.projects} renderLines={renderLines} />)
+          ? renderSection(sectionId, <ProjectsPreview data={content.projects} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
       default:
         return null

@@ -324,7 +324,7 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     started_at = perf_counter()
     response = UserResponse.model_validate(current_user)
     total_elapsed_ms = (perf_counter() - started_at) * 1000
-    logger.info(
+    logger.debug(
         "auth.me timings user_id=%s model_validate_ms=%.2f",
         current_user["id"],
         total_elapsed_ms,

@@ -6,6 +6,7 @@
 """
 
 import logging
+from time import perf_counter
 from typing import NoReturn
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -94,9 +95,12 @@ async def upload_resume(
 
     file_service = None
     file_path = None
+    request_started_at = perf_counter()
+    stage = "validate"
 
     try:
         # 保存文件
+        stage = "save_file"
         file_service = FileService()
         file_content = await file.read()
         file_path = await file_service.save_uploaded_file(
@@ -108,25 +112,30 @@ async def upload_resume(
         )
 
         # 提取文本
+        stage = "extract_text"
+        extract_started_at = perf_counter()
         text = file_service.extract_text_from_file(file_path, filename)
-        logger.info(
-            "resume_upload.text_extracted",
-            extra={"text_chars": len(text), "upload_filename": filename},
-        )
+        extract_elapsed_ms = (perf_counter() - extract_started_at) * 1000
 
         # 解析简历
+        stage = "parse_resume"
         parser = ResumeParser()
-        logger.info("resume_upload.parse.started")
-        resume_data = await parser.parse_resume_text_async(text)
         logger.info(
-            "resume_upload.parse.completed",
+            "resume_upload.parse.started",
             extra={
-                "parsing_quality": resume_data.get("parsing_quality", 0),
-                "parsing_method": resume_data.get("parsing_method", "unknown"),
+                "upload_filename": filename,
+                "file_bytes": len(file_content),
+                "text_chars": len(text),
+                "model": parser.model,
             },
         )
+        parse_started_at = perf_counter()
+        resume_data = await parser.parse_resume_text_async(text)
+        parse_elapsed_ms = (perf_counter() - parse_started_at) * 1000
 
         # 保存到数据库
+        stage = "save_resume"
+        save_started_at = perf_counter()
         resume_service = ResumeService(db)
         resume_create_data = {
             "title": filename.split(".")[0],
@@ -134,11 +143,26 @@ async def upload_resume(
             "original_filename": filename,
         }
         resume_create = ResumeCreate.model_validate(resume_create_data)
-        logger.info("resume_upload.save.started")
         resume = resume_service.create(resume_create, current_user["id"])
-        logger.info("resume_upload.save.completed", extra={"resume_id": resume.id})
+        save_elapsed_ms = (perf_counter() - save_started_at) * 1000
+        total_elapsed_ms = (perf_counter() - request_started_at) * 1000
+        logger.info(
+            "resume_upload.completed",
+            extra={
+                "resume_id": resume.id,
+                "upload_filename": filename,
+                "model": parser.model,
+                "parsing_method": resume_data.get("parsing_method", "unknown"),
+                "parsing_quality": resume_data.get("parsing_quality", 0),
+                "extract_ms": round(extract_elapsed_ms, 2),
+                "parse_ms": round(parse_elapsed_ms, 2),
+                "save_ms": round(save_elapsed_ms, 2),
+                "total_ms": round(total_elapsed_ms, 2),
+            },
+        )
 
         # 清理临时文件
+        stage = "cleanup_file"
         file_service.delete_file(file_path)
 
         return ResumeResponse.model_validate(resume, from_attributes=True)
@@ -147,6 +171,15 @@ async def upload_resume(
         # 清理临时文件
         if file_service and file_path:
             file_service.delete_file(file_path)
+        logger.warning(
+            "resume_upload.failed",
+            extra={
+                "upload_filename": filename,
+                "stage": stage,
+                "error_type": type(e).__name__,
+                "total_ms": round((perf_counter() - request_started_at) * 1000, 2),
+            },
+        )
         _raise_service_http_error(e)
     except Exception as e:
         # 清理临时文件
@@ -154,8 +187,15 @@ async def upload_resume(
             file_service.delete_file(file_path)
 
         # 记录详细错误信息
-        logger.error(f"简历上传处理失败: {str(e)}")
-        logger.error(f"错误类型: {type(e).__name__}")
+        logger.exception(
+            "resume_upload.failed",
+            extra={
+                "upload_filename": filename,
+                "stage": stage,
+                "error_type": type(e).__name__,
+                "total_ms": round((perf_counter() - request_started_at) * 1000, 2),
+            },
+        )
 
         # 根据错误类型返回不同的错误信息
         if "数据库" in str(e) or "database" in str(e).lower():

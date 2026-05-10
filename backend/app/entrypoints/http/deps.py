@@ -104,7 +104,7 @@ async def get_current_user_claims(
     request.state.current_user_claims = claims
     decode_elapsed_ms = (perf_counter() - decode_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
-    logger.info(
+    logger.debug(
         "get_current_user_claims timings user_id=%s decode_ms=%.2f total_ms=%.2f",
         claims["id"],
         decode_elapsed_ms,
@@ -147,7 +147,7 @@ async def get_current_user(
     request.state.current_user = current_user
 
     total_elapsed_ms = (perf_counter() - started_at) * 1000
-    logger.info(
+    logger.debug(
         (
             "get_current_user timings user_id=%s decode_ms=%.2f "
             "query_ms=%.2f total_ms=%.2f"

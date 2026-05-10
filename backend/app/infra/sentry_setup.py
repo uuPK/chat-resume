@@ -33,7 +33,7 @@ def _before_send(event: Event, hint: Hint) -> Event | None:
 
 def configure_sentry() -> bool:
     if not settings.SENTRY_DSN.strip():
-        logger.info("Sentry disabled: SENTRY_DSN is not configured")
+        logger.debug("Sentry disabled: SENTRY_DSN is not configured")
         return False
 
     sentry_logging = LoggingIntegration(

@@ -1,17 +1,41 @@
 'use client'
 
 import type { Education } from '@/types/resume'
+import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface EducationPreviewProps {
   data: Education[]
   renderLines?: number[] // 指定渲染哪些行
+  templateStyle?: ResumeTemplateStyle
 }
 
 // 单个教育项组件
-function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: number }) {
+function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Education; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
   const highlights = edu.highlights && edu.highlights.length > 0
     ? edu.highlights.map(item => item.text)
     : []
+  const isFormal = templateStyle === 'formal'
+
+  if (isFormal) {
+    return (
+      <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+        <div className="text-sm text-gray-900">
+          <span className="font-semibold">{edu.school}</span>
+          {[edu.degree, edu.major, edu.duration].filter(Boolean).map((item) => (
+            <span key={item}> | {item}</span>
+          ))}
+        </div>
+
+        {highlights.length > 0 && (
+          <ul className="list-disc text-sm text-gray-900" style={{ marginTop: 'calc(var(--spacing-scale, 1) * 6px)', paddingLeft: 18 }}>
+            {highlights.map((item, index) => (
+              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}>{item}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
@@ -51,7 +75,8 @@ function EducationItem({ edu, lineIndex }: { edu: Education; lineIndex: number }
 
 export default function EducationPreview({
   data,
-  renderLines
+  renderLines,
+  templateStyle = 'classic',
 }: EducationPreviewProps) {
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
@@ -66,7 +91,7 @@ export default function EducationPreview({
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-          教育背景
+          {templateStyle === 'formal' ? '教育经历' : '教育背景'}
         </h2>
       )}
 
@@ -74,7 +99,7 @@ export default function EducationPreview({
       {data.map((edu, index) => {
         const lineIndex = index + 1 // 标题占第0行，项从第1行开始
         return shouldRenderLine(lineIndex) ? (
-          <EducationItem key={edu.id || index} edu={edu} lineIndex={lineIndex} />
+          <EducationItem key={edu.id || index} edu={edu} lineIndex={lineIndex} templateStyle={templateStyle} />
         ) : null
       })}
     </div>

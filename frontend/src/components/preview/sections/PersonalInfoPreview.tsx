@@ -1,10 +1,12 @@
 'use client'
 
 import type { PersonalInfo } from '@/types/resume'
+import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
   renderLines?: number[]
+  templateStyle?: ResumeTemplateStyle
 }
 
 /* 图标包装器：使用 flex 对齐，避免导出时基线计算偏差 */
@@ -70,7 +72,7 @@ const WebsiteIcon = () => (
   </span>
 )
 
-export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoPreviewProps) {
+export default function PersonalInfoPreview({ data, renderLines, templateStyle = 'classic' }: PersonalInfoPreviewProps) {
   if (!data || (!data.name && !data.email && !data.phone)) {
     return null
   }
@@ -80,6 +82,48 @@ export default function PersonalInfoPreview({ data, renderLines }: PersonalInfoP
   }
 
   const itemClassName = 'inline-flex items-center'
+  const isFormal = templateStyle === 'formal'
+
+  if (isFormal) {
+    const contactItems = [data.phone, data.email].filter(Boolean)
+    const linkItems = [
+      data.github ? `GitHub: ${data.github}` : null,
+      data.linkedin ? `LinkedIn: ${data.linkedin}` : null,
+      data.website ? `个人网站: ${data.website}` : null,
+    ].filter(Boolean)
+
+    return (
+      <div className="resume-formal-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 22px)' }}>
+        {shouldRenderLine(0) && (
+          <div data-line-index={0} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
+            <h1 className="text-2xl font-bold text-gray-900 mb-3">
+              {data.name || '姓名'}
+            </h1>
+            {data.position && (
+              <p className="text-base text-gray-900 font-semibold">
+                求职意向：{data.position}
+              </p>
+            )}
+          </div>
+        )}
+
+        {shouldRenderLine(1) && (
+          <div data-line-index={1} className="resume-formal-contact text-sm text-gray-900">
+            {contactItems.length > 0 && (
+              <div>{contactItems.join(' | ')}</div>
+            )}
+            {linkItems.length > 0 && (
+              <div>{linkItems.join(' | ')}</div>
+            )}
+          </div>
+        )}
+
+        {(data.github || data.linkedin || data.website) && shouldRenderLine(2) && (
+          <div data-line-index={2} className="hidden" />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 20px)' }}>

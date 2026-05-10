@@ -330,8 +330,6 @@ def configure_logging() -> None:
             level=log_level_name,
             format=(
                 "{time:HH:mm:ss} {level} {extra[logger_label]} "
-                "[req={extra[request_id_short]} ses={extra[session_id_short]} "
-                "tool={extra[tool_call_id_short]}] "
                 "{extra[message_label]}{extra[agent_trace_suffix]}"
                 "{exception}"
             ),
@@ -344,7 +342,9 @@ def configure_logging() -> None:
     for logger_name in _INTERCEPTED_LOGGERS:
         intercepted_logger = logging.getLogger(logger_name)
         intercepted_logger.handlers.clear()
-        intercepted_logger.setLevel(log_level)
+        intercepted_logger.setLevel(
+            logging.WARNING if logger_name.startswith("uvicorn") else log_level
+        )
         intercepted_logger.addHandler(intercept_handler)
         intercepted_logger.propagate = False
 
