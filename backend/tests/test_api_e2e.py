@@ -861,6 +861,8 @@ class TestResumeUpload:
         body = response.json()
         assert body["title"] == "sample_resume_upload"
         assert body["original_filename"] == "sample_resume_upload.txt"
+        assert body["content"]["parsing_quality"] == 0.92
+        assert body["content"]["parsing_method"] == "ai"
         assert body["content"]["personal_info"]["name"] == "测试用户"
         assert body["content"]["job_application"]["target_company"] == "OpenAI"
         assert deleted_paths == [saved_file_path]

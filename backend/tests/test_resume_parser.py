@@ -12,6 +12,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -24,6 +25,41 @@ def _parser() -> AIResumeParser:
     """返回一个不需要 API Key 的解析器实例（仅测试纯函数）。"""
     p = AIResumeParser.__new__(AIResumeParser)
     return p
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 0. model configuration
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestParserModelConfig(unittest.TestCase):
+    def test_resume_parser_model_overrides_global_openrouter_model(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "test-key",
+                "OPENROUTER_MODEL": "deepseek/deepseek-v4-pro",
+                "OPENROUTER_RESUME_PARSER_MODEL": "deepseek/deepseek-v4-flash",
+            },
+            clear=False,
+        ):
+            parser = AIResumeParser()
+
+        self.assertEqual(parser.model, "deepseek/deepseek-v4-flash")
+
+    def test_resume_parser_model_falls_back_to_global_openrouter_model(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENROUTER_API_KEY": "test-key",
+                "OPENROUTER_MODEL": "deepseek/deepseek-v4-pro",
+            },
+            clear=False,
+        ):
+            with patch.dict("os.environ", {"OPENROUTER_RESUME_PARSER_MODEL": ""}):
+                parser = AIResumeParser()
+
+        self.assertEqual(parser.model, "deepseek/deepseek-v4-pro")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

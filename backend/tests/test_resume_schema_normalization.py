@@ -116,6 +116,8 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         content = dump_resume_content_for_frontend(
             {
                 "meta": {"language": "zh-CN"},
+                "parsing_quality": 0.92,
+                "parsing_method": "ai",
                 "job_application": {"target_title": "AI Agent 开发工程师"},
                 "personal_info": {"name": "彭世雄", "email": "test@example.com"},
                 "summary": {"text": "这段内容不应再暴露给前端或 Agent"},
@@ -136,6 +138,8 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(
             content,
             {
+                "parsing_quality": 0.92,
+                "parsing_method": "ai",
                 "job_application": {"target_title": "AI Agent 开发工程师"},
                 "personal_info": {"name": "彭世雄", "email": "test@example.com"},
                 "projects": [

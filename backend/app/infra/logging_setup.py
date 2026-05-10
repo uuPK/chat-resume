@@ -34,6 +34,7 @@ _NOISY_LOGGERS = (
     "deepagents",
     "multipart",
     "passlib",
+    "pdfminer",
     "urllib3",
     "websockets",
 )

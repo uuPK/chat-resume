@@ -421,6 +421,8 @@ class ResumeContent(ResumeBaseModel):
 
 
 _FRONTEND_RESUME_CONTENT_INCLUDE = {
+    "parsing_quality": True,
+    "parsing_method": True,
     "job_application": True,
     "personal_info": True,
     "education": True,

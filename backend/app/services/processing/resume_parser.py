@@ -24,13 +24,16 @@ load_dotenv()
 
 
 class AIResumeParser:
-    """基于OpenRouter Gemini-2.5-flash模型的智能简历解析器"""
+    """基于 OpenRouter 的智能简历解析器。"""
 
     def __init__(self):
         self.file_service = FileService()
         self.api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.api_base = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
-        self.model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+        self.model = (
+            os.getenv("OPENROUTER_RESUME_PARSER_MODEL", "").strip()
+            or os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+        )
         self.max_retries = 3
         self.timeout = 30
 
