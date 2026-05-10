@@ -12,7 +12,7 @@ import { uniqueEmail, DEFAULT_PASSWORD, registerUser } from './helpers'
 test.describe('注册', () => {
   test('页面包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
     await page.goto('/register')
-    const googleLink = page.getByRole('link', { name: '使用 Google 继续' })
+    const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
 
@@ -71,7 +71,7 @@ test.describe('注册', () => {
 test.describe('Google OAuth 入口', () => {
   test('登录页包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
     await page.goto('/login')
-    const googleLink = page.getByRole('link', { name: '使用 Google 继续' })
+    const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
 
