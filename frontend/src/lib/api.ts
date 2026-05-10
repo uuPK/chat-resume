@@ -129,6 +129,27 @@ interface DigitalHumanConversation {
   meeting_token?: string | null
 }
 
+interface PayPalSubscriptionCheckout {
+  provider: 'paypal'
+  subscription_id: string
+  status: string
+  approval_url: string
+}
+
+interface BillingStatus {
+  provider: 'paypal' | null
+  subscription_id: string | null
+  status: string
+  is_active: boolean
+}
+
+interface PayPalPlan {
+  id: string
+  name: string
+  price: string
+  currency_code: string
+}
+
 // API基础URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -380,6 +401,45 @@ class DigitalHumanAPI {
   }
 }
 
+class BillingAPI {
+  static async getStatus(): Promise<BillingStatus> {
+    const response = await apiFetch('/api/billing/status')
+    return handleApiResponse<BillingStatus>(response)
+  }
+
+  static async getPayPalPlan(): Promise<PayPalPlan> {
+    const response = await apiFetch('/api/billing/paypal/plan')
+    return handleApiResponse<PayPalPlan>(response)
+  }
+
+  static async createPayPalSubscription(): Promise<PayPalSubscriptionCheckout> {
+    const response = await apiFetch('/api/billing/paypal/subscriptions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    return handleApiResponse<PayPalSubscriptionCheckout>(response)
+  }
+
+  static async syncPayPalSubscription(subscriptionId: string): Promise<BillingStatus> {
+    const response = await apiFetch(`/api/billing/paypal/subscriptions/${subscriptionId}/sync`)
+    return handleApiResponse<BillingStatus>(response)
+  }
+
+  static async cancelPayPalSubscription(subscriptionId: string): Promise<BillingStatus> {
+    const response = await apiFetch(`/api/billing/paypal/subscriptions/${subscriptionId}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    })
+    return handleApiResponse<BillingStatus>(response)
+  }
+}
+
 // ── 聊天记录 API ──────────────────────────────────────────────────────────────
 
 interface ChatMessageRecord {
@@ -419,10 +479,14 @@ class ChatHistoryAPI {
 export const resumeApi = ResumeAPI
 export const chatHistoryApi = ChatHistoryAPI
 export const digitalHumanApi = DigitalHumanAPI
+export const billingApi = BillingAPI
 
 // 导出类型
 export type {
+  BillingStatus,
   DigitalHumanConversation,
+  PayPalPlan,
+  PayPalSubscriptionCheckout,
   ResumeContent,
   InterviewSession,
   InterviewSessionSummary,

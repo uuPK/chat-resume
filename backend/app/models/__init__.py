@@ -5,6 +5,8 @@ from app.state.models import (
     AgentSession as AgentSession,
 )
 
+from .billing import BillingSubscription as BillingSubscription
+from .billing import BillingWebhookEvent as BillingWebhookEvent
 from .interview import (
     InterviewSession as InterviewSession,
 )

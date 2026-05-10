@@ -60,9 +60,11 @@ _PROTECTED_API_PREFIXES = (
     f"{settings.API_STR}/tts",
     f"{settings.API_STR}/asr",
     f"{settings.API_STR}/digital-human",
+    f"{settings.API_STR}/billing",
 )
 _AUTH_EXEMPT_PATHS = {
     f"{settings.API_STR}/resumes/download",
+    f"{settings.API_STR}/billing/paypal/webhook",
 }
 _SLOW_REQUEST_LOG_MS = 1000.0
 

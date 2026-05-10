@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.infra.security import decode_access_token
+from app.models.billing import BillingSubscription
 from app.services.domain import UserService
 
 # 这里关闭自动报错，方便中间件和依赖统一复用同一套鉴权逻辑。
@@ -158,4 +159,25 @@ async def get_current_user(
         total_elapsed_ms,
     )
 
+    return current_user
+
+
+async def require_active_subscription(
+    current_user: dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """用于保护只对 Plus 用户开放的高成本功能入口。"""
+    subscription = (
+        db.query(BillingSubscription.id)
+        .filter(
+            BillingSubscription.user_id == current_user["id"],
+            BillingSubscription.status == "ACTIVE",
+        )
+        .first()
+    )
+    if subscription is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="active_subscription_required",
+        )
     return current_user

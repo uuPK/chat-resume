@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     GOOGLE_OAUTH_CLIENT_SECRET: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
     GOOGLE_OAUTH_REDIRECT_URI: str = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
 
+    # PayPal Billing
+    PAYPAL_CLIENT_ID: str = os.getenv("PAYPAL_CLIENT_ID", "")
+    PAYPAL_CLIENT_SECRET: str = os.getenv("PAYPAL_CLIENT_SECRET", "")
+    PAYPAL_PLAN_ID: str = os.getenv("PAYPAL_PLAN_ID", "")
+    PAYPAL_WEBHOOK_ID: str = os.getenv("PAYPAL_WEBHOOK_ID", "")
+    PAYPAL_API_BASE: str = os.getenv(
+        "PAYPAL_API_BASE", "https://api-m.sandbox.paypal.com"
+    )
+
     # CORS
     BACKEND_CORS_ORIGINS: Union[str, List[str]] = (
         "http://localhost:3000,https://localhost:3000"

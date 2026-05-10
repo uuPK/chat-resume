@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.entrypoints.http.deps import get_current_user
+from app.entrypoints.http.deps import get_current_user, require_active_subscription
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.schemas.resume import ResumeCreate, ResumeResponse
@@ -208,7 +208,7 @@ async def upload_resume(
 @router.post("/jd-ocr", response_model=JDOcrResponse)
 async def upload_jd_image_for_ocr(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_active_subscription),
 ):
     """用于接收 JD 图片并调用视觉模型识别文字。"""
     del current_user

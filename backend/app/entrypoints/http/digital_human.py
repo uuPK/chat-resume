@@ -20,7 +20,7 @@ from fastapi import (
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.entrypoints.http.deps import get_current_user
+from app.entrypoints.http.deps import get_current_user, require_active_subscription
 from app.infra.config import settings
 from app.infra.database import get_db
 from app.models.interview import InterviewSession, InterviewTurn
@@ -92,7 +92,7 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
 @router.post("/conversations", response_model=DigitalHumanConversationResponse)
 async def create_digital_human_conversation(
     request: DigitalHumanCreateRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_active_subscription),
     db: Session = Depends(get_db),
 ):
     """用于为一场面试创建真实 Tavus 数字人视频会话。"""

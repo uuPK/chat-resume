@@ -27,6 +27,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.infra.database import Base, get_db
 from app.main import app
+from app.models.billing import BillingSubscription
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import ResumeChatMessage
 from app.models.user import ProviderIdentity, User
@@ -110,6 +111,38 @@ def _auth_headers(token: str) -> dict:
 def _anonymous_client() -> TestClient:
     """返回一个不带登录 Cookie 的独立测试客户端。"""
     return TestClient(app)
+
+
+def _grant_active_subscription(email: str, subscription_id: str = "I-PLUS") -> None:
+    """在测试库中为用户授予一条活动订阅。"""
+    db = _TestingSession()
+    try:
+        user = db.query(User).filter(User.email == email).one()
+        existing = (
+            db.query(BillingSubscription)
+            .filter(
+                BillingSubscription.provider == "paypal",
+                BillingSubscription.provider_subscription_id == subscription_id,
+            )
+            .first()
+        )
+        if existing is not None:
+            existing.status = "ACTIVE"
+            db.add(existing)
+            db.commit()
+            return
+        db.add(
+            BillingSubscription(
+                user_id=user.id,
+                provider="paypal",
+                provider_subscription_id=subscription_id,
+                status="ACTIVE",
+                raw_payload={"id": subscription_id, "status": "ACTIVE"},
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
 
 
 def _configure_google_oauth(monkeypatch):
@@ -725,6 +758,974 @@ class TestAuthenticationMiddleware:
         assert resp.json()["detail"] == "Could not validate credentials"
 
 
+class TestBilling:
+    def test_create_paypal_subscription_requires_login(self, client):
+        resp = _anonymous_client().post("/api/billing/paypal/subscriptions", json={})
+
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Could not validate credentials"
+
+    def test_create_paypal_subscription_returns_approval_url(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                assert user_id > 0
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-TESTSUB123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-TESTSUB123",
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+            raising=False,
+        )
+        _register(client, "billing_create@example.com", full_name="Billing User")
+        token = _login(client, "billing_create@example.com")
+
+        resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=_auth_headers(token),
+            json={},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-TESTSUB123",
+            "status": "APPROVAL_PENDING",
+            "approval_url": "https://www.paypal.com/checkoutnow?token=I-TESTSUB123",
+        }
+
+    def test_create_paypal_subscription_persists_checkout_status(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                assert user_id > 0
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-PERSIST123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-PERSIST123",
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        _register(client, "billing_status@example.com", full_name="Billing Status")
+        token = _login(client, "billing_status@example.com")
+        headers = _auth_headers(token)
+
+        create_resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert create_resp.status_code == 200
+        assert status_resp.status_code == 200
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-PERSIST123",
+            "status": "APPROVAL_PENDING",
+            "is_active": False,
+        }
+
+    def test_billing_status_prefers_active_subscription_over_latest_history(
+        self, client
+    ):
+        email = "billing_priority@example.com"
+        _register(client, email, full_name="Billing Priority")
+        token = _login(client, email)
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).one()
+            db.add(
+                BillingSubscription(
+                    user_id=user.id,
+                    provider="paypal",
+                    provider_subscription_id="I-STILL-ACTIVE",
+                    status="ACTIVE",
+                    raw_payload={"id": "I-STILL-ACTIVE", "status": "ACTIVE"},
+                )
+            )
+            db.add(
+                BillingSubscription(
+                    user_id=user.id,
+                    provider="paypal",
+                    provider_subscription_id="I-OLD-CANCELLED",
+                    status="CANCELLED",
+                    raw_payload={"id": "I-OLD-CANCELLED", "status": "CANCELLED"},
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.get("/api/billing/status", headers=_auth_headers(token))
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-STILL-ACTIVE",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+    def test_create_paypal_subscription_reuses_pending_checkout(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            calls = 0
+
+            async def create_subscription(self, *, user_id: int):
+                self.__class__.calls += 1
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-REUSE123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-REUSE123",
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        _register(client, "billing_reuse@example.com", full_name="Billing Reuse")
+        token = _login(client, "billing_reuse@example.com")
+        headers = _auth_headers(token)
+
+        first_resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+        second_resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+
+        assert first_resp.status_code == 200
+        assert second_resp.status_code == 200
+        assert second_resp.json() == first_resp.json()
+        assert FakePayPalBillingService.calls == 1
+
+    def test_create_paypal_subscription_recovers_from_concurrent_insert(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-RACE123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-RACE123",
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(
+            billing_routes,
+            "_open_paypal_subscription",
+            lambda db, user_id: None,
+        )
+        email = "billing_race@example.com"
+        _register(client, email, full_name="Billing Race")
+        token = _login(client, email)
+        headers = _auth_headers(token)
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).one()
+            db.add(
+                BillingSubscription(
+                    user_id=user.id,
+                    provider="paypal",
+                    provider_subscription_id="I-RACE123",
+                    status="APPROVAL_PENDING",
+                    raw_payload={
+                        "provider": "paypal",
+                        "subscription_id": "I-RACE123",
+                        "status": "APPROVAL_PENDING",
+                        "approval_url": "https://www.paypal.com/checkoutnow?token=I-RACE123",
+                    },
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-RACE123",
+            "status": "APPROVAL_PENDING",
+            "approval_url": "https://www.paypal.com/checkoutnow?token=I-RACE123",
+        }
+
+    def test_get_paypal_plan_returns_current_provider_price(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def get_plan(self):
+                return {
+                    "id": "P-TESTPLAN",
+                    "name": "Chat Resume Plus",
+                    "price": "10.00",
+                    "currency_code": "USD",
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        _register(client, "billing_plan@example.com", full_name="Billing Plan")
+        token = _login(client, "billing_plan@example.com")
+
+        resp = client.get(
+            "/api/billing/paypal/plan",
+            headers=_auth_headers(token),
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "id": "P-TESTPLAN",
+            "name": "Chat Resume Plus",
+            "price": "10.00",
+            "currency_code": "USD",
+        }
+
+    def test_paypal_webhook_rejects_invalid_signature_without_login(self, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+        from app.services.paypal_billing_service import PayPalBillingError
+
+        class FakePayPalBillingService:
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                assert event["event_type"] == "BILLING.SUBSCRIPTION.ACTIVATED"
+                raise PayPalBillingError("paypal_webhook_signature_invalid")
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+
+        resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "transmission-id",
+                "PAYPAL-TRANSMISSION-TIME": "2026-05-10T14:00:00Z",
+                "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                "PAYPAL-TRANSMISSION-SIG": "bad-signature",
+            },
+            json={
+                "id": "WH-TEST",
+                "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+                "resource": {"id": "I-TESTSUB123", "status": "ACTIVE"},
+            },
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "paypal_webhook_signature_invalid"
+
+    def test_paypal_subscription_activated_webhook_updates_billing_status(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-ACTIVE123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-ACTIVE123",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                assert headers["paypal-transmission-id"] == "transmission-id"
+                assert event["event_type"] == "BILLING.SUBSCRIPTION.ACTIVATED"
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_active@example.com", full_name="Billing Active")
+        token = _login(client, "billing_active@example.com")
+        headers = _auth_headers(token)
+        create_resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+        assert create_resp.status_code == 200
+
+        webhook_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "transmission-id",
+                "PAYPAL-TRANSMISSION-TIME": "2026-05-10T14:00:00Z",
+                "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+            },
+            json={
+                "id": "WH-ACTIVE",
+                "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+                "resource": {
+                    "id": "I-ACTIVE123",
+                    "status": "ACTIVE",
+                    "plan_id": "P-TESTPLAN",
+                },
+            },
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert webhook_resp.status_code == 200
+        assert webhook_resp.json() == {"received": True}
+        assert status_resp.status_code == 200
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-ACTIVE123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+    def test_paypal_webhook_before_local_subscription_can_be_replayed(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-EARLY123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-EARLY123",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                return None
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        event = {
+            "id": "WH-EARLY",
+            "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+            "create_time": "2026-05-10T15:00:00Z",
+            "resource": {
+                "id": "I-EARLY123",
+                "status": "ACTIVE",
+                "plan_id": "P-TESTPLAN",
+            },
+        }
+        webhook_headers = {
+            "PAYPAL-TRANSMISSION-ID": "transmission-early",
+            "PAYPAL-TRANSMISSION-TIME": "2026-05-10T15:00:00Z",
+            "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+            "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+            "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+        }
+
+        early_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers=webhook_headers,
+            json=event,
+        )
+        assert early_resp.status_code == 409
+        assert early_resp.json()["detail"] == "paypal_subscription_not_found"
+
+        _register(client, "billing_early@example.com", full_name="Billing Early")
+        token = _login(client, "billing_early@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        replay_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers=webhook_headers,
+            json=event,
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert replay_resp.status_code == 200, replay_resp.text
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-EARLY123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+    def test_sync_paypal_subscription_updates_status_from_provider(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-SYNC123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-SYNC123",
+                }
+
+            async def get_subscription(self, *, subscription_id: str):
+                assert subscription_id == "I-SYNC123"
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-SYNC123",
+                    "status": "ACTIVE",
+                    "raw_payload": {
+                        "id": "I-SYNC123",
+                        "status": "ACTIVE",
+                        "plan_id": "P-TESTPLAN",
+                    },
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_sync@example.com", full_name="Billing Sync")
+        token = _login(client, "billing_sync@example.com")
+        headers = _auth_headers(token)
+        create_resp = client.post(
+            "/api/billing/paypal/subscriptions",
+            headers=headers,
+            json={},
+        )
+        assert create_resp.status_code == 200
+
+        sync_resp = client.get(
+            "/api/billing/paypal/subscriptions/I-SYNC123/sync",
+            headers=headers,
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert sync_resp.status_code == 200, sync_resp.text
+        assert sync_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-SYNC123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+        assert status_resp.json() == sync_resp.json()
+
+    def test_sync_paypal_subscription_rejects_unexpected_plan_id(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-WRONGPLAN",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-WRONGPLAN",
+                }
+
+            async def get_subscription(self, *, subscription_id: str):
+                assert subscription_id == "I-WRONGPLAN"
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-WRONGPLAN",
+                    "status": "ACTIVE",
+                    "raw_payload": {
+                        "id": "I-WRONGPLAN",
+                        "status": "ACTIVE",
+                        "plan_id": "P-OTHERPLAN",
+                    },
+                }
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_wrong_plan@example.com", full_name="Wrong Plan")
+        token = _login(client, "billing_wrong_plan@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        sync_resp = client.get(
+            "/api/billing/paypal/subscriptions/I-WRONGPLAN/sync",
+            headers=headers,
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert sync_resp.status_code == 400
+        assert sync_resp.json()["detail"] == "paypal_subscription_plan_mismatch"
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-WRONGPLAN",
+            "status": "APPROVAL_PENDING",
+            "is_active": False,
+        }
+
+    def test_paypal_webhook_rejects_unexpected_plan_id(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-WEBHOOK-WRONGPLAN",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-WEBHOOK-WRONGPLAN",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                return None
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_webhook_wrong_plan@example.com")
+        token = _login(client, "billing_webhook_wrong_plan@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        webhook_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "transmission-wrong-plan",
+                "PAYPAL-TRANSMISSION-TIME": "2026-05-10T15:00:00Z",
+                "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+            },
+            json={
+                "id": "WH-WEBHOOK-WRONGPLAN",
+                "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+                "create_time": "2026-05-10T15:00:00Z",
+                "resource": {
+                    "id": "I-WEBHOOK-WRONGPLAN",
+                    "status": "ACTIVE",
+                    "plan_id": "P-OTHERPLAN",
+                },
+            },
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert webhook_resp.status_code == 400
+        assert webhook_resp.json()["detail"] == "paypal_subscription_plan_mismatch"
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-WEBHOOK-WRONGPLAN",
+            "status": "APPROVAL_PENDING",
+            "is_active": False,
+        }
+
+    def test_sync_does_not_erase_webhook_event_ordering(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-SYNCORDER123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-SYNCORDER123",
+                }
+
+            async def get_subscription(self, *, subscription_id: str):
+                assert subscription_id == "I-SYNCORDER123"
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-SYNCORDER123",
+                    "status": "ACTIVE",
+                    "raw_payload": {
+                        "id": "I-SYNCORDER123",
+                        "status": "ACTIVE",
+                        "plan_id": "P-TESTPLAN",
+                    },
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                return None
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_sync_order@example.com", full_name="Sync Order")
+        token = _login(client, "billing_sync_order@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        active_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "transmission-sync-order-active",
+                "PAYPAL-TRANSMISSION-TIME": "2026-05-10T15:00:00Z",
+                "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+            },
+            json={
+                "id": "WH-SYNC-ORDER-ACTIVE",
+                "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",
+                "create_time": "2026-05-10T15:00:00Z",
+                "resource": {
+                    "id": "I-SYNCORDER123",
+                    "status": "ACTIVE",
+                    "plan_id": "P-TESTPLAN",
+                },
+            },
+        )
+        assert active_resp.status_code == 200, active_resp.text
+        sync_resp = client.get(
+            "/api/billing/paypal/subscriptions/I-SYNCORDER123/sync",
+            headers=headers,
+        )
+        assert sync_resp.status_code == 200, sync_resp.text
+
+        stale_resp = _anonymous_client().post(
+            "/api/billing/paypal/webhook",
+            headers={
+                "PAYPAL-TRANSMISSION-ID": "transmission-sync-order-stale",
+                "PAYPAL-TRANSMISSION-TIME": "2026-05-10T14:00:00Z",
+                "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+            },
+            json={
+                "id": "WH-SYNC-ORDER-STALE",
+                "event_type": "BILLING.SUBSCRIPTION.SUSPENDED",
+                "create_time": "2026-05-10T14:00:00Z",
+                "resource": {
+                    "id": "I-SYNCORDER123",
+                    "status": "SUSPENDED",
+                    "plan_id": "P-TESTPLAN",
+                },
+            },
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert stale_resp.status_code == 200, stale_resp.text
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-SYNCORDER123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+    def test_cancel_paypal_subscription_updates_local_status(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def cancel_subscription(self, *, subscription_id: str):
+                assert subscription_id == "I-CANCEL-ENDPOINT"
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        email = "billing_cancel_endpoint@example.com"
+        _register(client, email)
+        token = _login(client, email)
+        headers = _auth_headers(token)
+        _grant_active_subscription(email, "I-CANCEL-ENDPOINT")
+
+        cancel_resp = client.post(
+            "/api/billing/paypal/subscriptions/I-CANCEL-ENDPOINT/cancel",
+            headers=headers,
+            json={},
+        )
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert cancel_resp.status_code == 200, cancel_resp.text
+        assert cancel_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-CANCEL-ENDPOINT",
+            "status": "CANCELLED",
+            "is_active": False,
+        }
+        assert status_resp.json() == cancel_resp.json()
+
+    def test_paypal_subscription_cancelled_webhook_deactivates_billing_status(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-CANCEL123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-CANCEL123",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                assert event["event_type"] == "BILLING.SUBSCRIPTION.CANCELLED"
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_cancel@example.com", full_name="Billing Cancel")
+        token = _login(client, "billing_cancel@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+        assert (
+            _anonymous_client()
+            .post(
+                "/api/billing/paypal/webhook",
+                headers={
+                    "PAYPAL-TRANSMISSION-ID": "transmission-id",
+                    "PAYPAL-TRANSMISSION-TIME": "2026-05-10T14:00:00Z",
+                    "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                    "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                    "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+                },
+                json={
+                    "id": "WH-CANCEL",
+                    "event_type": "BILLING.SUBSCRIPTION.CANCELLED",
+                    "resource": {
+                        "id": "I-CANCEL123",
+                        "status": "CANCELLED",
+                        "plan_id": "P-TESTPLAN",
+                    },
+                },
+            )
+            .status_code
+            == 200
+        )
+
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert status_resp.status_code == 200
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-CANCEL123",
+            "status": "CANCELLED",
+            "is_active": False,
+        }
+
+    def test_paypal_older_webhook_event_does_not_overwrite_newer_status(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-ORDER123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-ORDER123",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                return None
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_order@example.com", full_name="Billing Order")
+        token = _login(client, "billing_order@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        for event_type, event_time, status_value in [
+            ("BILLING.SUBSCRIPTION.ACTIVATED", "2026-05-10T15:00:00Z", "ACTIVE"),
+            ("BILLING.SUBSCRIPTION.SUSPENDED", "2026-05-10T14:00:00Z", "SUSPENDED"),
+        ]:
+            webhook_resp = _anonymous_client().post(
+                "/api/billing/paypal/webhook",
+                headers={
+                    "PAYPAL-TRANSMISSION-ID": f"transmission-{status_value}",
+                    "PAYPAL-TRANSMISSION-TIME": event_time,
+                    "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                    "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                    "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+                },
+                json={
+                    "id": f"WH-ORDER-{status_value}",
+                    "event_type": event_type,
+                    "create_time": event_time,
+                    "resource": {
+                        "id": "I-ORDER123",
+                        "status": status_value,
+                        "plan_id": "P-TESTPLAN",
+                    },
+                },
+            )
+            assert webhook_resp.status_code == 200, webhook_resp.text
+
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert status_resp.status_code == 200
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-ORDER123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+    def test_paypal_duplicate_webhook_event_id_is_ignored(self, client, monkeypatch):
+        from app.entrypoints.http import billing as billing_routes
+
+        class FakePayPalBillingService:
+            async def create_subscription(self, *, user_id: int):
+                return {
+                    "provider": "paypal",
+                    "subscription_id": "I-DUPE123",
+                    "status": "APPROVAL_PENDING",
+                    "approval_url": "https://www.paypal.com/checkoutnow?token=I-DUPE123",
+                }
+
+            async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                return None
+
+        monkeypatch.setattr(
+            billing_routes,
+            "PayPalBillingService",
+            FakePayPalBillingService,
+        )
+        monkeypatch.setattr(billing_routes.settings, "PAYPAL_PLAN_ID", "P-TESTPLAN")
+        _register(client, "billing_dupe@example.com", full_name="Billing Dupe")
+        token = _login(client, "billing_dupe@example.com")
+        headers = _auth_headers(token)
+        assert (
+            client.post(
+                "/api/billing/paypal/subscriptions",
+                headers=headers,
+                json={},
+            ).status_code
+            == 200
+        )
+
+        for event_type, event_time, status_value in [
+            ("BILLING.SUBSCRIPTION.ACTIVATED", "2026-05-10T15:00:00Z", "ACTIVE"),
+            ("BILLING.SUBSCRIPTION.CANCELLED", "2026-05-10T16:00:00Z", "CANCELLED"),
+        ]:
+            webhook_resp = _anonymous_client().post(
+                "/api/billing/paypal/webhook",
+                headers={
+                    "PAYPAL-TRANSMISSION-ID": f"transmission-dupe-{status_value}",
+                    "PAYPAL-TRANSMISSION-TIME": event_time,
+                    "PAYPAL-CERT-URL": "https://api-m.sandbox.paypal.com/certs/test",
+                    "PAYPAL-AUTH-ALGO": "SHA256withRSA",
+                    "PAYPAL-TRANSMISSION-SIG": "valid-signature",
+                },
+                json={
+                    "id": "WH-DUPE",
+                    "event_type": event_type,
+                    "create_time": event_time,
+                    "resource": {
+                        "id": "I-DUPE123",
+                        "status": status_value,
+                        "plan_id": "P-TESTPLAN",
+                    },
+                },
+            )
+            assert webhook_resp.status_code == 200, webhook_resp.text
+
+        status_resp = client.get("/api/billing/status", headers=headers)
+
+        assert status_resp.status_code == 200
+        assert status_resp.json() == {
+            "provider": "paypal",
+            "subscription_id": "I-DUPE123",
+            "status": "ACTIVE",
+            "is_active": True,
+        }
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 1.5 JD OCR 上传
 # ═══════════════════════════════════════════════════════════════════════════
@@ -737,6 +1738,7 @@ class TestJDOcrUpload:
         self.token = _login(client, "jd_ocr_user@example.com")
         self.headers = _auth_headers(self.token)
         self.client = client
+        _grant_active_subscription("jd_ocr_user@example.com", "I-JDOCRPLUS")
 
     def test_upload_jd_image_returns_ocr_text(self, monkeypatch):
         async def _fake_extract_text_from_image(
@@ -1082,6 +2084,7 @@ class TestInterviewSessions:
         self.token = _login(client, "interview_user@example.com")
         self.headers = _auth_headers(self.token)
         self.client = client
+        _grant_active_subscription("interview_user@example.com", "I-INTERVIEWPLUS")
 
         create_resp = self.client.post(
             "/api/resumes/",
@@ -1145,6 +2148,7 @@ class TestInterviewSessions:
         _register(client, other_email)
         other_token = _login(client, other_email)
         other_headers = _auth_headers(other_token)
+        _grant_active_subscription(other_email, "I-OTHERINTERVIEWPLUS")
 
         other_resume_resp = client.post(
             "/api/resumes/",
@@ -1209,31 +2213,182 @@ class TestInterviewSessions:
         assert create_resp.status_code == 200, create_resp.text
         session_id = create_resp.json()["session"]["id"]
 
-        assert self.client.post(
-            f"/api/interviews/{session_id}/start", headers=self.headers
-        ).status_code == 404
-        assert self.client.post(
-            f"/api/interviews/{session_id}/answer",
-            json={"answer": "旧文本回答"},
-            headers=self.headers,
-        ).status_code == 404
-        assert self.client.post(
-            f"/api/interviews/{session_id}/answer/stream",
-            json={"answer": "旧文本回答"},
-            headers=self.headers,
-        ).status_code == 404
-        assert self.client.post(
-            f"/api/interviews/{session_id}/hint",
-            headers=self.headers,
-        ).status_code == 404
-        assert self.client.get(
-            f"/api/interviews/{session_id}/report",
-            headers=self.headers,
-        ).status_code == 404
+        assert (
+            self.client.post(
+                f"/api/interviews/{session_id}/start", headers=self.headers
+            ).status_code
+            == 404
+        )
+        assert (
+            self.client.post(
+                f"/api/interviews/{session_id}/answer",
+                json={"answer": "旧文本回答"},
+                headers=self.headers,
+            ).status_code
+            == 404
+        )
+        assert (
+            self.client.post(
+                f"/api/interviews/{session_id}/answer/stream",
+                json={"answer": "旧文本回答"},
+                headers=self.headers,
+            ).status_code
+            == 404
+        )
+        assert (
+            self.client.post(
+                f"/api/interviews/{session_id}/hint",
+                headers=self.headers,
+            ).status_code
+            == 404
+        )
+        assert (
+            self.client.get(
+                f"/api/interviews/{session_id}/report",
+                headers=self.headers,
+            ).status_code
+            == 404
+        )
 
     def test_list_resumes_without_auth_returns_401(self):
         resp = _anonymous_client().get("/api/resumes/")
         assert resp.status_code == 401
+
+
+class TestPlusFeatureAccess:
+    def test_free_user_cannot_create_interview_session(self, client):
+        _register(client, "interview_free@example.com")
+        token = _login(client, "interview_free@example.com")
+        headers = _auth_headers(token)
+        resume_resp = client.post(
+            "/api/resumes/",
+            json={"title": "免费用户面试简历", "content": _empty_resume_content()},
+            headers=headers,
+        )
+        assert resume_resp.status_code == 200, resume_resp.text
+
+        resp = client.post(
+            "/api/interviews/",
+            json={"resume_id": resume_resp.json()["id"], "mode": "practice"},
+            headers=headers,
+        )
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "active_subscription_required"
+
+    def test_free_user_cannot_upload_jd_ocr_image(self, client):
+        _register(client, "jd_ocr_free@example.com")
+        token = _login(client, "jd_ocr_free@example.com")
+
+        resp = client.post(
+            "/api/upload/jd-ocr",
+            headers=_auth_headers(token),
+            files={"file": ("jd.png", b"fake-image-bytes", "image/png")},
+        )
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "active_subscription_required"
+
+
+class TestDigitalHumanBillingAccess:
+    def _create_interview_session(self, client, headers: dict, email: str) -> int:
+        resume_resp = client.post(
+            "/api/resumes/",
+            json={"title": "数字人权限简历", "content": _empty_resume_content()},
+            headers=headers,
+        )
+        assert resume_resp.status_code == 200, resume_resp.text
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).one()
+            session = InterviewSession(
+                user_id=user.id,
+                resume_id=resume_resp.json()["id"],
+                status="interview_ready",
+                mode="practice",
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+            return session.id
+        finally:
+            db.close()
+
+    def test_free_user_cannot_create_digital_human_conversation(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes.settings,
+            "DIGITAL_HUMAN_PROVIDER",
+            "volcengine",
+        )
+        _register(client, "digital_human_free@example.com")
+        token = _login(client, "digital_human_free@example.com")
+        headers = _auth_headers(token)
+        session_id = self._create_interview_session(
+            client, headers, "digital_human_free@example.com"
+        )
+
+        resp = client.post(
+            "/api/digital-human/conversations",
+            json={"interview_session_id": session_id},
+            headers=headers,
+        )
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "active_subscription_required"
+
+    def test_active_subscriber_can_create_digital_human_conversation(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes.settings,
+            "DIGITAL_HUMAN_PROVIDER",
+            "volcengine",
+        )
+        email = "digital_human_plus@example.com"
+        _register(client, email)
+        token = _login(client, email)
+        headers = _auth_headers(token)
+        session_id = self._create_interview_session(client, headers, email)
+
+        db = _TestingSession()
+        try:
+            user = db.query(User).filter(User.email == email).one()
+            db.add(
+                BillingSubscription(
+                    user_id=user.id,
+                    provider="paypal",
+                    provider_subscription_id="I-DIGITALHUMANPLUS",
+                    status="ACTIVE",
+                    raw_payload={"id": "I-DIGITALHUMANPLUS", "status": "ACTIVE"},
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.post(
+            "/api/digital-human/conversations",
+            json={"interview_session_id": session_id},
+            headers=headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {
+            "provider": "volcengine",
+            "conversation_id": "",
+            "conversation_url": "",
+            "join_url": "",
+            "session_id": str(session_id),
+            "session_token": "",
+            "status": "ready",
+            "meeting_token": None,
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
