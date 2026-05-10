@@ -1,22 +1,24 @@
 import React, { forwardRef } from 'react'
 import { A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
+import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface ResumePageProps {
   pageNumber: number
   totalPages: number
   children: React.ReactNode
   className?: string
+  templateStyle?: ResumeTemplateStyle
 }
 
 const ResumePage = forwardRef<HTMLDivElement, ResumePageProps>(
-  ({ pageNumber, totalPages, children, className = '' }, ref) => {
+  ({ pageNumber, totalPages, children, className = '', templateStyle = 'classic' }, ref) => {
     // A4纸张比例: 210mm x 297mm = 0.7070
     const A4_RATIO = 210 / 297
     
     return (
       <div
         ref={ref}
-        className={`resume-page relative bg-white border border-gray-200 mx-auto mb-6 ${className}`}
+        className={`resume-page resume-template-${templateStyle} relative bg-white border border-gray-200 mx-auto mb-6 ${className}`}
         style={{
           width: `${A4_WIDTH}px`, // 基础宽度，会被transform scale缩放
           aspectRatio: `${A4_RATIO}`, // 保持A4比例

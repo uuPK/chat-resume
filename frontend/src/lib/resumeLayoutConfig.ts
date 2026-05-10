@@ -4,11 +4,16 @@
  * 管理简历的视觉密度、间距、模块顺序等配置
  */
 
-import type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 
-export type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 
 export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
+
+export const TEMPLATE_STYLE_LABELS: Record<ResumeTemplateStyle, string> = {
+  classic: '经典',
+  modern: '现代',
+}
 
 /**
  * 三档预设对应的 spacingScale 值
@@ -72,6 +77,7 @@ export interface ResumeLayoutConfig {
   moduleOrder: ResumeModule[]
   visibleModules: Set<ResumeModule>
   spacingScale: number  // 连续间距缩放，范围 0.5–1.5，默认 1.0
+  templateStyle: ResumeTemplateStyle
 }
 
 /**
@@ -81,7 +87,8 @@ export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   density: 'normal',
   moduleOrder: DEFAULT_MODULE_ORDER,
   visibleModules: new Set(DEFAULT_MODULE_ORDER),
-  spacingScale: 1.0
+  spacingScale: 1.0,
+  templateStyle: 'classic',
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -92,11 +99,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 export function deserializeLayoutConfig(raw: Record<string, unknown> | null | undefined): ResumeLayoutConfig {
   if (!raw) return DEFAULT_LAYOUT_CONFIG
   try {
+    const templateStyle = raw.templateStyle === 'modern' ? 'modern' : 'classic'
     return {
       density: (raw.density as LayoutDensity) || 'normal',
       moduleOrder: (raw.moduleOrder as ResumeModule[]) || DEFAULT_MODULE_ORDER,
       spacingScale: typeof raw.spacingScale === 'number' ? raw.spacingScale : 1.0,
       visibleModules: new Set((raw.visibleModules as ResumeModule[]) || DEFAULT_MODULE_ORDER),
+      templateStyle,
     }
   } catch {
     return DEFAULT_LAYOUT_CONFIG
@@ -112,6 +121,7 @@ function serializeLayoutConfig(config: ResumeLayoutConfig) {
     moduleOrder: config.moduleOrder,
     visibleModules: Array.from(config.visibleModules),
     spacingScale: config.spacingScale,
+    templateStyle: config.templateStyle,
   }
 }
 

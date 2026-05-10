@@ -1745,6 +1745,28 @@ class TestNegativeCases:
         )
         assert resp.status_code == 404
 
+    def test_update_layout_persists_template_style(self):
+        resp = self.client.put(
+            f"/api/resumes/{self.resume_id}/layout",
+            json={
+                "density": "normal",
+                "moduleOrder": ["personal", "education", "work", "projects", "skills"],
+                "visibleModules": [
+                    "personal",
+                    "education",
+                    "work",
+                    "projects",
+                    "skills",
+                ],
+                "spacingScale": 1.0,
+                "templateStyle": "modern",
+            },
+            headers=_auth_headers(self.token),
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["layout_config"]["templateStyle"] == "modern"
+
     # ── 无效输入 ──────────────────────────────────────────────────────────
 
     def test_update_resume_with_empty_body_returns_400(self):

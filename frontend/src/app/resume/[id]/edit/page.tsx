@@ -400,10 +400,11 @@ export default function ResumeEditPage() {
           >
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
-                key={JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}
+                key={`${layoutConfig.templateStyle}-${JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}`}
                 content={resume.content}
                 moduleOrder={moduleOrder}
                 spacingScale={layoutConfig.spacingScale}
+                templateStyle={layoutConfig.templateStyle}
                 onSpacingScaleChange={(scale) =>
                   handleLayoutConfigChange({ ...layoutConfig, spacingScale: scale, density: 'custom' })
                 }

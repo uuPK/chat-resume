@@ -6,6 +6,8 @@
 
 export type ResumeModule = 'personal' | 'education' | 'work' | 'skills' | 'projects'
 
+export type ResumeTemplateStyle = 'classic' | 'modern'
+
 export interface ModuleConfig {
   type: ResumeModule
   visible: boolean

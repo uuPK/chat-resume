@@ -1,4 +1,5 @@
 import ResumePreview from '@/components/preview/ResumePreview'
+import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,15 +18,21 @@ function decodePayload(data?: string) {
     const json = Buffer.from(data, 'base64url').toString('utf-8')
     return JSON.parse(json) as {
       content?: Record<string, unknown>
+      template?: string
     }
   } catch {
     return null
   }
 }
 
+function normalizeTemplateStyle(template?: string): ResumeTemplateStyle {
+  return template === 'modern' ? 'modern' : 'classic'
+}
+
 export default function ResumePrintPage({ searchParams }: PageProps) {
   const payload = decodePayload(searchParams?.data)
   const content = payload?.content
+  const templateStyle = normalizeTemplateStyle(payload?.template)
 
   if (!content) {
     return (
@@ -37,7 +44,7 @@ export default function ResumePrintPage({ searchParams }: PageProps) {
 
   return (
     <main className="bg-white">
-      <ResumePreview content={content} />
+      <ResumePreview content={content} templateStyle={templateStyle} />
     </main>
   )
 }

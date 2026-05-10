@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes']
-const PUBLIC_PATHS = new Set(['/login', '/register', '/'])
+const PUBLIC_PATHS = new Set(['/login', '/register', '/', '/resume/print'])
 
 // 这里通过后端 /auth/me 校验 token 真伪，避免只凭 cookie 存在就放行受保护页面。
 async function hasValidSession(accessToken: string): Promise<boolean> {

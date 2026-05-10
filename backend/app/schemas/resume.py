@@ -506,6 +506,7 @@ class LayoutConfigUpdate(BaseModel):
     moduleOrder: list[str]
     visibleModules: list[str]
     spacingScale: float
+    templateStyle: str = "classic"
 
 
 class ResumeResponse(BaseModel):

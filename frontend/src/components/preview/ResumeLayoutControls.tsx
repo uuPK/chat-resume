@@ -9,7 +9,9 @@ import {
   ResumeModule,
   MODULE_LABELS,
   ResumeLayoutConfig,
-  DENSITY_SPACING_SCALE
+  DENSITY_SPACING_SCALE,
+  ResumeTemplateStyle,
+  TEMPLATE_STYLE_LABELS
 } from '@/lib/resumeLayoutConfig'
 
 interface ResumeLayoutControlsProps {
@@ -24,7 +26,17 @@ export default function ResumeLayoutControls({
   className = ''
 }: ResumeLayoutControlsProps) {
   const [showControls, setShowControls] = useState(false)
-  const [activeTab, setActiveTab] = useState<'density' | 'modules'>('density')
+  const [activeTab, setActiveTab] = useState<'template' | 'density' | 'modules'>('template')
+
+  const handleTemplateStyleChange = (templateStyle: ResumeTemplateStyle) => {
+    onConfigChange({
+      density: config.density,
+      moduleOrder: [...config.moduleOrder],
+      visibleModules: new Set(config.visibleModules),
+      spacingScale: config.spacingScale,
+      templateStyle,
+    })
+  }
 
   const handleDensityChange = (density: LayoutDensity) => {
     const spacingScale = DENSITY_SPACING_SCALE[density as Exclude<LayoutDensity, 'custom'>] ?? config.spacingScale
@@ -32,7 +44,8 @@ export default function ResumeLayoutControls({
       density,
       moduleOrder: [...config.moduleOrder],
       visibleModules: new Set(config.visibleModules),
-      spacingScale
+      spacingScale,
+      templateStyle: config.templateStyle,
     })
   }
 
@@ -41,7 +54,8 @@ export default function ResumeLayoutControls({
       density: 'custom',
       moduleOrder: [...config.moduleOrder],
       visibleModules: new Set(config.visibleModules),
-      spacingScale: value
+      spacingScale: value,
+      templateStyle: config.templateStyle,
     })
   }
 
@@ -50,7 +64,8 @@ export default function ResumeLayoutControls({
       density: 'normal',
       moduleOrder: [...config.moduleOrder],
       visibleModules: new Set(config.visibleModules),
-      spacingScale: 1.0
+      spacingScale: 1.0,
+      templateStyle: config.templateStyle,
     })
   }
 
@@ -65,7 +80,8 @@ export default function ResumeLayoutControls({
       density: config.density,
       moduleOrder: [...config.moduleOrder],
       visibleModules: newVisible,
-      spacingScale: config.spacingScale
+      spacingScale: config.spacingScale,
+      templateStyle: config.templateStyle,
     })
   }
 
@@ -85,7 +101,8 @@ export default function ResumeLayoutControls({
       density: config.density,
       moduleOrder: newOrder,
       visibleModules: new Set(config.visibleModules),
-      spacingScale: config.spacingScale
+      spacingScale: config.spacingScale,
+      templateStyle: config.templateStyle,
     })
   }
 
@@ -123,14 +140,14 @@ export default function ResumeLayoutControls({
           >
             {/* 标签页 */}
             <div className="flex" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
-              {(['density', 'modules'] as const).map(tab => (
+              {(['template', 'density', 'modules'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className="flex-1 px-4 py-3 text-sm font-semibold transition-colors relative"
                   style={{ color: activeTab === tab ? '#0052ff' : '#5b616e' }}
                 >
-                  {tab === 'density' ? '密度' : '显示'}
+                  {tab === 'template' ? '样式' : tab === 'density' ? '密度' : '显示'}
                   {activeTab === tab && (
                     <div className="absolute bottom-0 left-4 right-4 h-0.5" style={{ backgroundColor: '#0052ff', borderRadius: '2px 2px 0 0' }} />
                   )}
@@ -139,6 +156,48 @@ export default function ResumeLayoutControls({
             </div>
 
             <div className="p-4">
+              {activeTab === 'template' && (
+                <div className="space-y-3">
+                  {(['classic', 'modern'] as ResumeTemplateStyle[]).map((templateStyle) => {
+                    const active = config.templateStyle === templateStyle
+                    return (
+                      <button
+                        key={templateStyle}
+                        type="button"
+                        onClick={() => handleTemplateStyleChange(templateStyle)}
+                        className="w-full p-3 text-left transition-colors"
+                        style={{
+                          borderRadius: '12px',
+                          border: `1px solid ${active ? '#0052ff' : 'rgba(91,97,110,0.18)'}`,
+                          backgroundColor: active ? 'rgba(0,82,255,0.05)' : '#ffffff',
+                        }}
+                      >
+                        <span className="block text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                          {TEMPLATE_STYLE_LABELS[templateStyle]}
+                        </span>
+                        <span className="mt-2 flex h-10 items-center gap-2">
+                          <span
+                            className="h-8 w-6 rounded-sm border"
+                            style={{
+                              backgroundColor: templateStyle === 'modern' ? '#f8fbff' : '#ffffff',
+                              borderColor: templateStyle === 'modern' ? '#1d4ed8' : '#d1d5db',
+                            }}
+                          />
+                          <span className="flex-1 space-y-1">
+                            <span
+                              className="block h-1.5 rounded-full"
+                              style={{ backgroundColor: templateStyle === 'modern' ? '#1d4ed8' : '#111827' }}
+                            />
+                            <span className="block h-1 rounded-full bg-gray-200" />
+                            <span className="block h-1 rounded-full bg-gray-200" />
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               {activeTab === 'density' && (
                 <div className="space-y-4">
                   <div className="space-y-2">

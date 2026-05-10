@@ -10,7 +10,7 @@ import WorkExperiencePreview from './sections/WorkExperiencePreview'
 import SkillsPreview from './sections/SkillsPreview'
 import ProjectsPreview from './sections/ProjectsPreview'
 import type { ResumeContent } from '@/types/resume'
-import type { ModuleConfig, ResumeModule } from '@/types/resumeLayout'
+import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
 
 const SECTION_ID_MAP: Record<ResumeModule, string> = {
@@ -33,6 +33,7 @@ interface PaginatedResumePreviewProps {
   content: ResumeContent
   moduleOrder?: ModuleConfig[]
   spacingScale?: number
+  templateStyle?: ResumeTemplateStyle
   onSpacingScaleChange?: (scale: number) => void
   onTotalPagesChange?: (n: number) => void
   smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
@@ -42,6 +43,7 @@ export default function PaginatedResumePreview({
   content,
   moduleOrder = DEFAULT_MODULE_CONFIG,
   spacingScale = 1,
+  templateStyle = 'classic',
   onSpacingScaleChange,
   onTotalPagesChange,
   smartFitTriggerRef
@@ -194,7 +196,7 @@ export default function PaginatedResumePreview({
   const paginationMeasurementContent = useMemo(() => (
     <div
       ref={contentRef}
-      className="invisible absolute -top-[9999px] left-0 pointer-events-none"
+      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
         width: `${A4_WIDTH}px`,
         paddingTop: `${PAGE_PADDING * spacingScale}px`,
@@ -214,13 +216,13 @@ export default function PaginatedResumePreview({
       })}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [content, visibleModules, moduleOrderKey, spacingScale])
+  ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle])
 
   // 智能一页试算专用测量容器；二分搜索时会频繁切换 scale，不参与正式分页。
   const smartFitMeasurementContent = useMemo(() => (
     <div
       ref={smartFitContentRef}
-      className="invisible absolute -top-[9999px] left-0 pointer-events-none"
+      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
         width: `${A4_WIDTH}px`,
         paddingTop: `${PAGE_PADDING * measureScale}px`,
@@ -240,7 +242,7 @@ export default function PaginatedResumePreview({
       })}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [content, visibleModules, moduleOrderKey, measureScale])
+  ), [content, visibleModules, moduleOrderKey, measureScale, templateStyle])
 
   // 根据分页信息渲染页面内容
   const renderPageContent = (pageIndex: number) => {
@@ -340,6 +342,7 @@ export default function PaginatedResumePreview({
                   pageNumber={pageIndex + 1}
                   totalPages={totalPages}
                   className="print:break-after-page"
+                  templateStyle={templateStyle}
                 >
                   {renderPageContent(pageIndex)}
                 </ResumePage>
@@ -361,7 +364,7 @@ export default function PaginatedResumePreview({
                 ['--spacing-scale' as string]: String(spacingScale)
               }}
             >
-              <ResumePage pageNumber={1} totalPages={1}>
+              <ResumePage pageNumber={1} totalPages={1} templateStyle={templateStyle}>
                 <div className="space-y-6">
                   {visibleModules.map((module) => (
                     <React.Fragment key={module.type}>

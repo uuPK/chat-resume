@@ -159,7 +159,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     try {
       setExporting(true)
       const toastId = toast.loading('正在生成PDF...')
-      const result = await resumeApi.exportResume(resume.id, 'pdf')
+      const result = await resumeApi.exportResume(resume.id, 'pdf', layoutConfig.templateStyle)
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const downloadUrl = `${apiBaseUrl}${result.download_url}`
       const link = document.createElement('a')
@@ -174,7 +174,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     } finally {
       setExporting(false)
     }
-  }, [resume])
+  }, [layoutConfig.templateStyle, resume])
 
   /**
    * 更新指定简历模块内容，并交给自动保存 Hook 处理脏数据状态。

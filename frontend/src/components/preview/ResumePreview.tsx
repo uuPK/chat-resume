@@ -4,18 +4,19 @@ import { useEffect } from 'react'
 import React from 'react'
 import PaginatedResumePreview from './PaginatedResumePreview'
 import type { ResumeContent } from '@/types/resume'
-import type { ModuleConfig } from '@/types/resumeLayout'
+import type { ModuleConfig, ResumeTemplateStyle } from '@/types/resumeLayout'
 
 interface ResumePreviewProps {
   content: ResumeContent
   moduleOrder?: ModuleConfig[]
   spacingScale?: number
+  templateStyle?: ResumeTemplateStyle
   onSpacingScaleChange?: (scale: number) => void
   onTotalPagesChange?: (n: number) => void
   smartFitTriggerRef?: React.MutableRefObject<any>
 }
 
-export default function ResumePreview({ content, moduleOrder, spacingScale, onSpacingScaleChange, onTotalPagesChange, smartFitTriggerRef }: ResumePreviewProps) {
+export default function ResumePreview({ content, moduleOrder, spacingScale, templateStyle = 'classic', onSpacingScaleChange, onTotalPagesChange, smartFitTriggerRef }: ResumePreviewProps) {
   // 加载打印样式
   useEffect(() => {
     // 动态加载打印样式
@@ -41,6 +42,7 @@ export default function ResumePreview({ content, moduleOrder, spacingScale, onSp
         content={content}
         moduleOrder={moduleOrder}
         spacingScale={spacingScale}
+        templateStyle={templateStyle}
         onSpacingScaleChange={onSpacingScaleChange}
         onTotalPagesChange={onTotalPagesChange}
         smartFitTriggerRef={smartFitTriggerRef}
