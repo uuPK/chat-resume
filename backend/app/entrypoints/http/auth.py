@@ -11,6 +11,7 @@ from time import perf_counter
 from typing import Literal, TypedDict, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -27,12 +28,25 @@ from app.schemas.auth import (
     UserResponse,
     UserUpdate,
 )
+from app.services.auth import OAuthStateService
+from app.services.auth.google_identity_link_service import (
+    GoogleIdentityLinkError,
+    GoogleIdentityLinkService,
+)
+from app.services.auth.google_oauth_client import (
+    GoogleOAuthAuthenticationError,
+    GoogleOAuthClient,
+    GoogleOAuthConfig,
+    GoogleOAuthConfigurationError,
+)
+from app.services.auth.oauth_state_service import OAuthStateError
 from app.services.domain import RefreshSessionService, UserService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
+oauth_state_service = OAuthStateService()
 
 
 class CookieKwargs(TypedDict, total=False):
@@ -141,6 +155,14 @@ def _get_refresh_token_from_request(
     return None
 
 
+def _oauth_error_redirect(error_code: str) -> RedirectResponse:
+    """用于把 OAuth 失败统一带回前端登录页。"""
+    return RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/login?oauth_error={error_code}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
     """用于创建新用户账号并阻止重复邮箱注册。"""
@@ -178,6 +200,60 @@ async def login(
         )
 
     return _issue_auth_session(response, user=user, db=db)
+
+
+@router.get("/google/login")
+async def google_login():
+    """用于启动 Google OAuth 授权码流程。"""
+    try:
+        config = GoogleOAuthConfig.from_settings(settings)
+    except GoogleOAuthConfigurationError as exc:
+        return _oauth_error_redirect(exc.error_code)
+
+    state_issue = oauth_state_service.issue_state()
+    authorization_url = GoogleOAuthClient(config).authorization_url(
+        state=state_issue.value
+    )
+    return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/google/callback")
+async def google_callback(
+    state: str | None = None,
+    code: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """用于处理 Google OAuth 回调并签发现有 Cookie 会话。"""
+    try:
+        oauth_state_service.consume_state(state)
+    except OAuthStateError as exc:
+        return _oauth_error_redirect(exc.error_code)
+
+    if error:
+        return _oauth_error_redirect("cancelled")
+    if not code:
+        return _oauth_error_redirect("google_exchange_failed")
+
+    try:
+        config = GoogleOAuthConfig.from_settings(settings)
+        google_client = GoogleOAuthClient(config)
+        tokens = await google_client.exchange_code(code)
+        identity = await google_client.fetch_identity(tokens.access_token)
+        user = GoogleIdentityLinkService(db).resolve_user(identity)
+    except GoogleOAuthConfigurationError as exc:
+        return _oauth_error_redirect(exc.error_code)
+    except GoogleOAuthAuthenticationError as exc:
+        return _oauth_error_redirect(exc.error_code)
+    except GoogleIdentityLinkError as exc:
+        return _oauth_error_redirect(exc.error_code)
+
+    response = RedirectResponse(
+        url=f"{settings.FRONTEND_URL}/dashboard",
+        status_code=status.HTTP_302_FOUND,
+    )
+    _issue_auth_session(response, user=user, db=db)
+    return response
 
 
 @router.post("/refresh", response_model=AuthSessionResponse)

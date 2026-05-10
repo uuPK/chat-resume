@@ -10,6 +10,16 @@ import { uniqueEmail, DEFAULT_PASSWORD, registerUser } from './helpers'
 // ── 注册 ──────────────────────────────────────────────────────────────────
 
 test.describe('注册', () => {
+  test('页面包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
+    await page.goto('/register')
+    const googleLink = page.getByRole('link', { name: '使用 Google 继续' })
+    await expect(googleLink).toBeVisible()
+    await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
+
+    await googleLink.click()
+    await page.waitForURL('http://localhost:8000/api/auth/google/login', { timeout: 10_000 })
+  })
+
   test('新用户注册成功后跳转到 dashboard', async ({ page }) => {
     const email = uniqueEmail('reg')
     await registerUser(page, email)
@@ -56,6 +66,25 @@ test.describe('注册', () => {
   })
 })
 
+// ── Google OAuth 入口 ─────────────────────────────────────────────────────
+
+test.describe('Google OAuth 入口', () => {
+  test('登录页包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
+    await page.goto('/login')
+    const googleLink = page.getByRole('link', { name: '使用 Google 继续' })
+    await expect(googleLink).toBeVisible()
+    await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
+
+    await googleLink.click()
+    await page.waitForURL('http://localhost:8000/api/auth/google/login', { timeout: 10_000 })
+  })
+
+  test('URL 中包含 oauth_error 时展示 Google 登录失败提示', async ({ page }) => {
+    await page.goto('/login?oauth_error=invalid_state')
+    await expect(page.getByText('登录状态已失效，请重试')).toBeVisible()
+  })
+})
+
 // ── 登录 ──────────────────────────────────────────────────────────────────
 
 test.describe('登录', () => {
@@ -65,7 +94,7 @@ test.describe('登录', () => {
     testEmail = uniqueEmail('login')
     const page = await browser.newPage()
     await registerUser(page, testEmail)
-    await page.waitForURL('**/dashboard', { timeout: 12_000 })
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 12_000 })
     await page.close()
   })
 
@@ -101,8 +130,7 @@ test.describe('登录', () => {
     await page.goto('/login')
     await page.evaluate(() => localStorage.clear())
     await page.goto('/dashboard')
-    await page.waitForURL(/\/(login|register)/, { timeout: 10_000 })
-    expect(page.url()).toMatch(/\/(login|register)/)
+    await expect(page).toHaveURL(/\/(login|register)/, { timeout: 10_000 })
   })
 
   test('未登录访问所有受保护页面都会被服务端重定向', async ({ page }) => {
@@ -112,8 +140,7 @@ test.describe('登录', () => {
 
     for (const protectedPath of ['/dashboard', '/resume/1/edit', '/interviews', '/resumes']) {
       await page.goto(protectedPath)
-      await page.waitForURL(/\/login/, { timeout: 10_000 })
-      expect(page.url()).toMatch(/\/login/)
+      await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
     }
   })
 
@@ -130,8 +157,7 @@ test.describe('登录', () => {
       },
     ])
     await page.goto('/dashboard')
-    await page.waitForURL(/\/login/, { timeout: 10_000 })
-    expect(page.url()).toMatch(/\/login/)
+    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
   })
 
   test('页面包含跳转到注册页的链接', async ({ page }) => {

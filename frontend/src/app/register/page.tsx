@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Logo from '@/components/ui/Logo'
+import GoogleContinueLink from '@/components/auth/GoogleContinueLink'
 
 interface RegisterForm {
   fullName: string
@@ -68,6 +69,14 @@ export default function RegisterPage() {
               borderRadius: '24px',
             }}
           >
+            <GoogleContinueLink />
+
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(91,97,110,0.2)' }} />
+              <span className="text-sm" style={{ color: '#5b616e' }}>或</span>
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(91,97,110,0.2)' }} />
+            </div>
+
             <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
               <div>
                 <label className="label">姓名</label>

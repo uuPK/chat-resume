@@ -254,25 +254,25 @@ export default function ResumesPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center py-24"
+            className="text-center py-16"
           >
             <div
-              className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6"
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
               style={{ backgroundColor: '#eef0f3' }}
             >
-              <DocumentTextIcon className="w-10 h-10" style={{ color: '#0052ff' }} />
+              <DocumentTextIcon className="w-8 h-8" style={{ color: '#0052ff' }} />
             </div>
-            <h3 className="text-2xl font-semibold mb-2" style={{ color: '#0a0b0d' }}>还没有简历</h3>
-            <p className="text-lg mb-8" style={{ color: '#5b616e' }}>
+            <h3 className="text-xl font-semibold mb-2" style={{ color: '#0a0b0d' }}>还没有简历</h3>
+            <p className="text-base mb-6" style={{ color: '#5b616e' }}>
               上传你的第一份简历，开始使用 AI 优化功能
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadLoading}
-              className="btn-primary btn-lg inline-flex items-center gap-2"
+              className="btn-primary inline-flex items-center gap-2 px-7 py-3 text-base"
             >
-              <CloudArrowUpIcon className="w-5 h-5" />
-              <span>上传简历文件</span>
+              <CloudArrowUpIcon className="w-4 h-4" />
+              <span>上传简历</span>
             </button>
           </motion.div>
         ) : (

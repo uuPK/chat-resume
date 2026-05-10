@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -20,6 +21,7 @@ if str(BACKEND_DIR) not in sys.path:
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -27,7 +29,7 @@ from app.infra.database import Base, get_db
 from app.main import app
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import ResumeChatMessage
-from app.models.user import User
+from app.models.user import ProviderIdentity, User
 from app.runtime.permissions import confirmation_manager
 from app.services.errors import ServicePayloadTooLargeError
 from app.state.models import AgentEvent, AgentSession
@@ -110,6 +112,30 @@ def _anonymous_client() -> TestClient:
     return TestClient(app)
 
 
+def _configure_google_oauth(monkeypatch):
+    from app.entrypoints.http import auth as auth_routes
+
+    monkeypatch.setattr(
+        auth_routes.settings, "GOOGLE_OAUTH_CLIENT_ID", "google-client-id"
+    )
+    monkeypatch.setattr(
+        auth_routes.settings, "GOOGLE_OAUTH_CLIENT_SECRET", "google-client-secret"
+    )
+    monkeypatch.setattr(
+        auth_routes.settings,
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "http://localhost:8000/api/auth/google/callback",
+    )
+    monkeypatch.setattr(auth_routes.settings, "FRONTEND_URL", "http://localhost:3000")
+    return auth_routes
+
+
+def _issue_google_state(client: TestClient) -> str:
+    start_resp = client.get("/api/auth/google/login", follow_redirects=False)
+    assert start_resp.status_code == 302
+    return parse_qs(urlparse(start_resp.headers["location"]).query)["state"][0]
+
+
 def _empty_resume_content() -> dict:
     return {
         "job_application": {"target_company": "测试公司", "target_title": "后端工程师"},
@@ -181,6 +207,379 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert resp.status_code == 401
+
+    def test_google_only_user_without_password_cannot_password_login(self, client):
+        db = _TestingSession()
+        try:
+            db.add(
+                User(
+                    email="google_only_login@example.com",
+                    hashed_password=None,
+                    full_name="Google Only",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        resp = client.post(
+            "/api/auth/login",
+            data={
+                "username": "google_only_login@example.com",
+                "password": "password123",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert resp.status_code == 401
+
+    def test_provider_identity_provider_user_id_is_unique_per_provider(self, client):
+        db = _TestingSession()
+        try:
+            user = User(
+                email="provider_identity_owner@example.com",
+                hashed_password=None,
+                full_name="Provider Owner",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            db.add(
+                ProviderIdentity(
+                    provider="google",
+                    provider_user_id="google-sub-123",
+                    user_id=user.id,
+                    provider_email="provider_identity_owner@example.com",
+                    provider_email_verified=True,
+                )
+            )
+            db.commit()
+
+            db.add(
+                ProviderIdentity(
+                    provider="google",
+                    provider_user_id="google-sub-123",
+                    user_id=user.id,
+                    provider_email="provider_identity_owner@example.com",
+                    provider_email_verified=True,
+                )
+            )
+            with pytest.raises(IntegrityError):
+                db.commit()
+        finally:
+            db.close()
+
+    def test_google_login_redirects_to_google_authorization_url(
+        self, client, monkeypatch
+    ):
+        _configure_google_oauth(monkeypatch)
+
+        resp = client.get("/api/auth/google/login", follow_redirects=False)
+
+        assert resp.status_code == 302
+        location = resp.headers["location"]
+        parsed = urlparse(location)
+        params = parse_qs(parsed.query)
+        assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == (
+            "https://accounts.google.com/o/oauth2/v2/auth"
+        )
+        assert params["client_id"] == ["google-client-id"]
+        assert params["redirect_uri"] == [
+            "http://localhost:8000/api/auth/google/callback"
+        ]
+        assert params["response_type"] == ["code"]
+        assert params["scope"] == ["openid email profile"]
+        assert params["state"][0]
+
+    def test_google_callback_success_issues_cookie_session_and_redirects(
+        self, client, monkeypatch
+    ):
+        from app.services.auth.google_oauth_client import (
+            GoogleIdentity,
+            GoogleOAuthTokens,
+        )
+
+        class FakeGoogleOAuthClient:
+            def __init__(self, config):
+                self.config = config
+
+            def authorization_url(self, *, state: str) -> str:
+                return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
+
+            async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                assert code == "valid-code"
+                return GoogleOAuthTokens(
+                    access_token="google-access-token",
+                    token_type="Bearer",
+                )
+
+            async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                assert access_token == "google-access-token"
+                return GoogleIdentity(
+                    sub="callback-google-sub",
+                    email="callback_google@example.com",
+                    email_verified=True,
+                    name="Callback Google",
+                )
+
+        auth_routes = _configure_google_oauth(monkeypatch)
+        monkeypatch.setattr(auth_routes, "GoogleOAuthClient", FakeGoogleOAuthClient)
+
+        state = _issue_google_state(client)
+
+        callback_resp = client.get(
+            f"/api/auth/google/callback?code=valid-code&state={state}",
+            follow_redirects=False,
+        )
+
+        assert callback_resp.status_code == 302
+        assert callback_resp.headers["location"] == "http://localhost:3000/dashboard"
+        assert callback_resp.cookies.get("access_token")
+        assert callback_resp.cookies.get("refresh_token")
+        assert "access_token" not in callback_resp.text
+        assert "refresh_token" not in callback_resp.text
+
+        me_resp = client.get("/api/auth/me")
+        assert me_resp.status_code == 200
+        assert me_resp.json()["email"] == "callback_google@example.com"
+
+    def test_google_callback_invalid_state_redirects_to_login_error(
+        self, client, monkeypatch
+    ):
+        _configure_google_oauth(monkeypatch)
+
+        resp = client.get(
+            "/api/auth/google/callback?code=valid-code&state=bad-state",
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "http://localhost:3000/login?oauth_error=invalid_state"
+        )
+
+    def test_google_callback_google_error_redirects_to_cancelled(
+        self, client, monkeypatch
+    ):
+        _configure_google_oauth(monkeypatch)
+        state = _issue_google_state(client)
+
+        resp = client.get(
+            f"/api/auth/google/callback?error=access_denied&state={state}",
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "http://localhost:3000/login?oauth_error=cancelled"
+        )
+
+    def test_google_callback_exchange_failure_redirects_to_login_error(
+        self, client, monkeypatch
+    ):
+        from app.services.auth.google_oauth_client import GoogleOAuthAuthenticationError
+
+        class FailingGoogleOAuthClient:
+            def __init__(self, config):
+                self.config = config
+
+            def authorization_url(self, *, state: str) -> str:
+                return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
+
+            async def exchange_code(self, code: str):
+                raise GoogleOAuthAuthenticationError("google_exchange_failed")
+
+        auth_routes = _configure_google_oauth(monkeypatch)
+        monkeypatch.setattr(auth_routes, "GoogleOAuthClient", FailingGoogleOAuthClient)
+        state = _issue_google_state(client)
+
+        resp = client.get(
+            f"/api/auth/google/callback?code=bad-code&state={state}",
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "http://localhost:3000/login?oauth_error=google_exchange_failed"
+        )
+
+    def test_google_callback_unverified_email_redirects_to_login_error(
+        self, client, monkeypatch
+    ):
+        from app.services.auth.google_oauth_client import (
+            GoogleIdentity,
+            GoogleOAuthTokens,
+        )
+
+        class UnverifiedEmailGoogleOAuthClient:
+            def __init__(self, config):
+                self.config = config
+
+            def authorization_url(self, *, state: str) -> str:
+                return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
+
+            async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                return GoogleOAuthTokens(
+                    access_token="google-access-token",
+                    token_type="Bearer",
+                )
+
+            async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                return GoogleIdentity(
+                    sub="unverified-google-sub",
+                    email="unverified_google_callback@example.com",
+                    email_verified=False,
+                    name="Unverified Google",
+                )
+
+        auth_routes = _configure_google_oauth(monkeypatch)
+        monkeypatch.setattr(
+            auth_routes, "GoogleOAuthClient", UnverifiedEmailGoogleOAuthClient
+        )
+        state = _issue_google_state(client)
+
+        resp = client.get(
+            f"/api/auth/google/callback?code=valid-code&state={state}",
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "http://localhost:3000/login?oauth_error=unverified_email"
+        )
+        assert not resp.cookies.get("access_token")
+        assert not resp.cookies.get("refresh_token")
+
+    def test_google_callback_account_conflict_redirects_to_login_error(
+        self, client, monkeypatch
+    ):
+        from app.services.auth.google_oauth_client import (
+            GoogleIdentity,
+            GoogleOAuthTokens,
+        )
+
+        db = _TestingSession()
+        try:
+            user = User(
+                email="conflict_google_callback@example.com",
+                hashed_password=None,
+                full_name="Conflict User",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            db.add(
+                ProviderIdentity(
+                    provider="google",
+                    provider_user_id="old-google-sub",
+                    user_id=user.id,
+                    provider_email=user.email,
+                    provider_email_verified=True,
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        class ConflictingGoogleOAuthClient:
+            def __init__(self, config):
+                self.config = config
+
+            def authorization_url(self, *, state: str) -> str:
+                return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
+
+            async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                return GoogleOAuthTokens(
+                    access_token="google-access-token",
+                    token_type="Bearer",
+                )
+
+            async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                return GoogleIdentity(
+                    sub="new-google-sub",
+                    email="conflict_google_callback@example.com",
+                    email_verified=True,
+                    name="Conflict User",
+                )
+
+        auth_routes = _configure_google_oauth(monkeypatch)
+        monkeypatch.setattr(
+            auth_routes, "GoogleOAuthClient", ConflictingGoogleOAuthClient
+        )
+        state = _issue_google_state(client)
+
+        resp = client.get(
+            f"/api/auth/google/callback?code=valid-code&state={state}",
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "http://localhost:3000/login?oauth_error=account_conflict"
+        )
+        assert not resp.cookies.get("access_token")
+        assert not resp.cookies.get("refresh_token")
+
+    def test_google_login_user_can_refresh_and_logout_with_existing_endpoints(
+        self, client, monkeypatch
+    ):
+        from app.services.auth.google_oauth_client import (
+            GoogleIdentity,
+            GoogleOAuthTokens,
+        )
+
+        class RefreshableGoogleOAuthClient:
+            def __init__(self, config):
+                self.config = config
+
+            def authorization_url(self, *, state: str) -> str:
+                return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
+
+            async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                return GoogleOAuthTokens(
+                    access_token="google-access-token",
+                    token_type="Bearer",
+                )
+
+            async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                return GoogleIdentity(
+                    sub="refreshable-google-sub",
+                    email="refreshable_google@example.com",
+                    email_verified=True,
+                    name="Refreshable Google",
+                )
+
+        auth_routes = _configure_google_oauth(monkeypatch)
+        monkeypatch.setattr(
+            auth_routes, "GoogleOAuthClient", RefreshableGoogleOAuthClient
+        )
+        state = _issue_google_state(client)
+
+        callback_resp = client.get(
+            f"/api/auth/google/callback?code=valid-code&state={state}",
+            follow_redirects=False,
+        )
+        assert callback_resp.status_code == 302
+
+        refresh_resp = client.post("/api/auth/refresh")
+        assert refresh_resp.status_code == 200
+        assert refresh_resp.json()["user"]["email"] == "refreshable_google@example.com"
+        assert "access_token" not in refresh_resp.json()
+        assert "refresh_token" not in refresh_resp.json()
+        assert refresh_resp.cookies.get("access_token")
+        assert refresh_resp.cookies.get("refresh_token")
+        refreshed_refresh_cookie = client.cookies.get("refresh_token")
+        assert refreshed_refresh_cookie
+
+        logout_resp = client.post("/api/auth/logout")
+        assert logout_resp.status_code == 200
+        assert client.get("/api/auth/me").status_code == 401
+
+        stale_client = TestClient(app)
+        stale_client.cookies.set("refresh_token", refreshed_refresh_cookie)
+        stale_refresh_resp = stale_client.post("/api/auth/refresh")
+        assert stale_refresh_resp.status_code == 401
+        assert stale_refresh_resp.json()["detail"] == "Invalid refresh token"
 
     def test_get_me_returns_current_user(self, client):
         _register(client, "me_user@example.com", full_name="我")

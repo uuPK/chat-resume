@@ -143,6 +143,73 @@ npm run start
 - 前端
   - `NEXT_PUBLIC_API_URL`
 
+### Google 登录 OAuth 配置
+
+Google 登录采用后端授权码流程。前端只跳转到后端启动端点，不处理或保存 Google token。
+
+本地开发默认值：
+
+```bash
+# backend/.env
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
+FRONTEND_URL=http://localhost:3000
+BACKEND_CORS_ORIGINS=http://localhost:3000,https://localhost:3000
+AUTH_COOKIE_SECURE=false
+AUTH_COOKIE_SAMESITE=lax
+AUTH_COOKIE_DOMAIN=
+
+# frontend/.env.local
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+Google Cloud Console 中创建 OAuth Client 时选择 `Web application`。Authorized redirect URIs 本地填：
+
+```text
+http://localhost:8000/api/auth/google/callback
+```
+
+生产环境填真实后端域名，并且必须与 `GOOGLE_OAUTH_REDIRECT_URI` 完全一致：
+
+```text
+https://<BACKEND_PUBLIC_HOST>/api/auth/google/callback
+```
+
+如果控制台要求 Authorized JavaScript origins，可填前端来源：
+
+```text
+http://localhost:3000
+https://<FRONTEND_PUBLIC_HOST>
+```
+
+生产环境同站点或同父域部署时，Cookie 与 CORS 推荐：
+
+```bash
+FRONTEND_URL=https://<FRONTEND_PUBLIC_HOST>
+NEXT_PUBLIC_API_URL=https://<BACKEND_PUBLIC_HOST>
+BACKEND_CORS_ORIGINS=https://<FRONTEND_PUBLIC_HOST>
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=lax
+AUTH_COOKIE_DOMAIN=<可选父域名>
+```
+
+生产环境前后端跨站点部署时，浏览器要求跨站 Cookie 使用 `Secure` 和 `SameSite=None`：
+
+```bash
+BACKEND_CORS_ORIGINS=https://<FRONTEND_PUBLIC_HOST>
+AUTH_COOKIE_SECURE=true
+AUTH_COOKIE_SAMESITE=none
+AUTH_COOKIE_DOMAIN=<后端 Cookie 可用域名>
+```
+
+常见配置错误：
+
+- Google 回调返回 `redirect_uri_mismatch`：Google Cloud Console 的 Authorized redirect URI 与 `GOOGLE_OAUTH_REDIRECT_URI` 不完全一致，包括协议、域名、端口和路径。
+- 点击“使用 Google 继续”后访问不到后端：检查 `NEXT_PUBLIC_API_URL` 是否指向后端公开地址，本地默认是 `http://localhost:8000`。
+- 登录成功后没有登录态：检查前端 API 请求是否携带 Cookie、`BACKEND_CORS_ORIGINS` 是否包含前端来源，以及生产环境是否设置了正确的 `AUTH_COOKIE_SECURE`、`AUTH_COOKIE_SAMESITE` 和 `AUTH_COOKIE_DOMAIN`。
+- 后端返回 `config_missing`：检查后端是否设置了 `GOOGLE_OAUTH_CLIENT_ID`、`GOOGLE_OAUTH_CLIENT_SECRET` 和 `GOOGLE_OAUTH_REDIRECT_URI`。
+
 ## 测试
 
 后端：

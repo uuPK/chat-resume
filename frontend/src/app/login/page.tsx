@@ -4,13 +4,15 @@ export const dynamic = 'force-dynamic'
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
+import { getOAuthErrorMessage } from '@/lib/oauthErrors'
 import toast from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import Logo from '@/components/ui/Logo'
+import GoogleContinueLink from '@/components/auth/GoogleContinueLink'
 
 interface LoginForm {
   email: string
@@ -32,8 +34,9 @@ export default function LoginPage() {
         toast.success('登录成功！', { id: 'login' })
         router.push('/dashboard')
       }
-    } catch (error: any) {
-      toast.error(error.message || '登录失败，请重试', { id: 'login' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '登录失败，请重试'
+      toast.error(message, { id: 'login' })
     }
   }
 
@@ -69,6 +72,18 @@ export default function LoginPage() {
               borderRadius: '24px',
             }}
           >
+            <Suspense fallback={null}>
+              <OAuthErrorAlert />
+            </Suspense>
+
+            <GoogleContinueLink />
+
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(91,97,110,0.2)' }} />
+              <span className="text-sm" style={{ color: '#5b616e' }}>或</span>
+              <div className="h-px flex-1" style={{ backgroundColor: 'rgba(91,97,110,0.2)' }} />
+            </div>
+
             <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
               <div>
                 <label className="label">邮箱地址</label>
@@ -126,6 +141,23 @@ export default function LoginPage() {
           </div>
         </motion.div>
       </div>
+    </div>
+  )
+}
+
+function OAuthErrorAlert() {
+  const searchParams = useSearchParams()
+  const oauthErrorMessage = getOAuthErrorMessage(searchParams.get('oauth_error'))
+
+  if (!oauthErrorMessage) return null
+
+  return (
+    <div
+      role="alert"
+      className="mb-5 rounded-xl px-4 py-3 text-sm font-medium"
+      style={{ backgroundColor: '#fff4f2', color: '#b42318', border: '1px solid #ffdad5' }}
+    >
+      {oauthErrorMessage}
     </div>
   )
 }

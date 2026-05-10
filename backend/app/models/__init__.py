@@ -21,4 +21,5 @@ from .resume import (
 from .resume import (
     ResumeChatMessage as ResumeChatMessage,
 )
+from .user import ProviderIdentity as ProviderIdentity
 from .user import User as User

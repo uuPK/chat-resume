@@ -58,6 +58,9 @@ class Settings(BaseSettings):
         if os.getenv("AUTH_COOKIE_SECURE") is not None
         else os.getenv("APP_ENV", "development").strip().lower() != "development"
     )
+    GOOGLE_OAUTH_CLIENT_ID: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+    GOOGLE_OAUTH_CLIENT_SECRET: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+    GOOGLE_OAUTH_REDIRECT_URI: str = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
 
     # CORS
     BACKEND_CORS_ORIGINS: Union[str, List[str]] = (
