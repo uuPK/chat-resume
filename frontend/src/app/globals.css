@@ -265,6 +265,13 @@
     border-color: #d4d4d4 !important;
     color: #050505;
   }
+
+  .resume-page.resume-template-emerald {
+    padding: 0 !important;
+    border-color: #d9dee3 !important;
+    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.12);
+    color: #111827;
+  }
 }
 
 @layer utilities {
@@ -383,4 +390,171 @@
 
 .resume-template-formal .resume-formal-item {
   line-height: 1.65;
+}
+
+.resume-template-emerald {
+  --resume-emerald: #059669;
+  --resume-emerald-dark: #047857;
+  --resume-emerald-soft: #ecfdf5;
+  --resume-emerald-rule: #e5e7eb;
+  --resume-emerald-text: #111827;
+  --resume-emerald-muted: #6b7280;
+  color: var(--resume-emerald-text);
+  font-family: Arial, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.resume-page.resume-template-emerald [data-section-id="personal-info-section"] {
+  margin-bottom: 0 !important;
+}
+
+.resume-page.resume-template-emerald [data-section-id]:not([data-section-id="personal-info-section"]) {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.resume-template-emerald .resume-emerald-personal {
+  background-color: var(--resume-emerald);
+  color: #ffffff;
+  padding: 24px 40px 28px;
+}
+
+.resume-template-emerald .resume-emerald-name-block {
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+  margin-bottom: 14px;
+}
+
+.resume-template-emerald h1 {
+  color: #ffffff !important;
+  font-size: 24px !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+}
+
+.resume-template-emerald .resume-emerald-position {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.resume-template-emerald .resume-emerald-contact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.resume-template-emerald .resume-emerald-contact-col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resume-template-emerald .resume-emerald-contact-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.resume-template-emerald .resume-emerald-contact a {
+  color: #ffffff !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.resume-template-emerald h2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom-width: 0 !important;
+  color: var(--resume-emerald-text) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-align: center !important;
+  padding: 0 !important;
+}
+
+.resume-template-emerald h2::before,
+.resume-template-emerald h2::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 0;
+  background: var(--resume-emerald-rule);
+}
+
+.resume-template-emerald h2 {
+  justify-content: center;
+}
+
+.resume-template-emerald .resume-emerald-heading-label {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: var(--resume-emerald-text) !important;
+}
+
+.resume-template-emerald h3,
+.resume-template-emerald p,
+.resume-template-emerald li,
+.resume-template-emerald span,
+.resume-template-emerald div {
+  color: var(--resume-emerald-text);
+}
+
+.resume-template-emerald .resume-emerald-personal,
+.resume-template-emerald .resume-emerald-personal h1,
+.resume-template-emerald .resume-emerald-personal p,
+.resume-template-emerald .resume-emerald-personal span,
+.resume-template-emerald .resume-emerald-personal div {
+  color: #ffffff;
+}
+
+.resume-template-emerald .resume-emerald-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.6;
+}
+
+.resume-template-emerald .resume-emerald-strong {
+  color: var(--resume-emerald-dark) !important;
+  font-weight: 700;
+}
+
+.resume-template-emerald .resume-emerald-subtle {
+  color: var(--resume-emerald-muted) !important;
+}
+
+.resume-template-emerald .resume-emerald-item {
+  line-height: 1.64;
+}
+
+.resume-template-emerald .resume-emerald-list {
+  list-style: disc;
+  padding-left: 18px;
+  line-height: 1.64;
+}
+
+.resume-template-emerald .resume-emerald-list li::marker {
+  color: var(--resume-emerald);
+}
+
+.resume-template-emerald .resume-emerald-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  line-height: 1.55;
+}
+
+.resume-template-emerald a,
+.resume-template-emerald .resume-emerald-links a {
+  color: var(--resume-emerald-dark) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

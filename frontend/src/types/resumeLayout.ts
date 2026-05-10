@@ -6,7 +6,7 @@
 
 export type ResumeModule = 'personal' | 'education' | 'work' | 'skills' | 'projects'
 
-export type ResumeTemplateStyle = 'classic' | 'modern' | 'formal'
+export type ResumeTemplateStyle = 'classic' | 'modern' | 'formal' | 'emerald'
 
 export interface ModuleConfig {
   type: ResumeModule

@@ -14,6 +14,7 @@ export const TEMPLATE_STYLE_LABELS: Record<ResumeTemplateStyle, string> = {
   classic: '经典',
   modern: '现代',
   formal: '正式黑白',
+  emerald: '绿页眉',
 }
 
 /**
@@ -102,7 +103,7 @@ export function deserializeLayoutConfig(raw: Record<string, unknown> | null | un
   try {
     const rawTemplateStyle = raw.templateStyle
     const templateStyle: ResumeTemplateStyle =
-      rawTemplateStyle === 'modern' || rawTemplateStyle === 'formal'
+      rawTemplateStyle === 'modern' || rawTemplateStyle === 'formal' || rawTemplateStyle === 'emerald'
         ? rawTemplateStyle
         : 'classic'
     return {

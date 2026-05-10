@@ -83,6 +83,66 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
 
   const itemClassName = 'inline-flex items-center'
   const isFormal = templateStyle === 'formal'
+  const isEmerald = templateStyle === 'emerald'
+
+  if (isEmerald) {
+    return (
+      <div className="resume-emerald-personal" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 28px)' }}>
+        {shouldRenderLine(0) && (
+          <div data-line-index={0} className="resume-emerald-name-block">
+            <h1 className="text-2xl font-bold">
+              {data.name || '姓名'}
+            </h1>
+            {data.position && (
+              <p className="resume-emerald-position">
+                {data.position}
+              </p>
+            )}
+          </div>
+        )}
+
+        {shouldRenderLine(1) && (
+          <div data-line-index={1} className="resume-emerald-contact">
+            <div className="resume-emerald-contact-col">
+              {data.email && (
+                <span className={itemClassName}><EmailIcon />{data.email}</span>
+              )}
+              {data.github && (
+                <span className={itemClassName}>
+                  <GithubIcon />
+                  <a href={data.github} target="_blank" rel="noopener noreferrer">GitHub</a>
+                </span>
+              )}
+              {data.address && (
+                <span className={itemClassName}><LocationIcon />{data.address}</span>
+              )}
+            </div>
+            <div className="resume-emerald-contact-col resume-emerald-contact-right">
+              {data.phone && (
+                <span className={itemClassName}><PhoneIcon />{data.phone}</span>
+              )}
+              {data.website && (
+                <span className={itemClassName}>
+                  <WebsiteIcon />
+                  <a href={data.website} target="_blank" rel="noopener noreferrer">个人网站</a>
+                </span>
+              )}
+              {data.linkedin && (
+                <span className={itemClassName}>
+                  <LinkedinIcon />
+                  <a href={data.linkedin} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(data.github || data.linkedin || data.website) && shouldRenderLine(2) && (
+          <div data-line-index={2} className="hidden" />
+        )}
+      </div>
+    )
+  }
 
   if (isFormal) {
     const contactItems = [data.phone, data.email].filter(Boolean)

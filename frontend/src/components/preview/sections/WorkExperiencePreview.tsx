@@ -15,6 +15,31 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
     ? work.highlights.map(item => item.text)
     : []
   const isFormal = templateStyle === 'formal'
+  const isEmerald = templateStyle === 'emerald'
+
+  if (isEmerald) {
+    return (
+      <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
+        <div className="text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          {work.position && <span>{work.position}</span>}
+          {work.company && <span className="resume-emerald-strong">　{work.company}</span>}
+        </div>
+        {work.duration && (
+          <div className="resume-emerald-subtle text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 10px)' }}>
+            {work.duration}
+          </div>
+        )}
+
+        {highlights.length > 0 && (
+          <ul className="resume-emerald-list text-sm">
+            {highlights.map((line, itemIndex) => (
+              <li key={itemIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{line}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   if (isFormal) {
     return (
@@ -94,7 +119,9 @@ export default function WorkExperiencePreview({
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-          {templateStyle === 'formal' ? '工作经历' : '工作经验'}
+          {templateStyle === 'emerald' ? (
+            <span className="resume-emerald-heading-label">工作经历</span>
+          ) : templateStyle === 'formal' ? '工作经历' : '工作经验'}
         </h2>
       )}
 

@@ -27,7 +27,9 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
           className="text-lg font-bold text-gray-900 pb-1 border-b border-gray-200"
           style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}
         >
-          {templateStyle === 'formal' ? '专业技能' : '技能专长'}
+          {templateStyle === 'emerald' ? (
+            <span className="resume-emerald-heading-label">专业技能</span>
+          ) : templateStyle === 'formal' ? '专业技能' : '技能专长'}
         </h2>
       )}
 
@@ -35,17 +37,18 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
       {data.map((group, categoryIndex) => {
         const lineIndex = categoryIndex + 1
         const isFormal = templateStyle === 'formal'
+        const isEmerald = templateStyle === 'emerald'
         return shouldRenderLine(lineIndex) ? (
-          isFormal ? (
+          isFormal || isEmerald ? (
             <ul
               key={group.id || `${group.category}-${categoryIndex}`}
               data-line-index={lineIndex}
-              className="list-disc text-sm text-gray-900"
-              style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', paddingLeft: 18, lineHeight: '1.72' }}
+              className={isEmerald ? 'resume-emerald-list text-sm' : 'list-disc text-sm text-gray-900'}
+              style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', paddingLeft: 18, lineHeight: isEmerald ? '1.64' : '1.72' }}
             >
               <li>
                 <span className="font-semibold">{group.category}：</span>
-                {(group.items || []).join('、')}
+                {(group.items || []).join(isEmerald ? '、 ' : '、')}
               </li>
             </ul>
           ) : (

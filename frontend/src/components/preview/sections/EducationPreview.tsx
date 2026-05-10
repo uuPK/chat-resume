@@ -15,6 +15,28 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
     ? edu.highlights.map(item => item.text)
     : []
   const isFormal = templateStyle === 'formal'
+  const isEmerald = templateStyle === 'emerald'
+
+  if (isEmerald) {
+    return (
+      <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 14px)' }}>
+        <div className="text-sm resume-emerald-meta">
+          <span className="resume-emerald-strong">{edu.school}</span>
+          {[edu.degree, edu.major].filter(Boolean).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+          {edu.duration && <span>{edu.duration}</span>}
+        </div>
+        {highlights.length > 0 && (
+          <ul className="resume-emerald-list text-sm" style={{ marginTop: 'calc(var(--spacing-scale, 1) * 6px)' }}>
+            {highlights.map((item, index) => (
+              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}>{item}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   if (isFormal) {
     return (
@@ -91,7 +113,9 @@ export default function EducationPreview({
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-          {templateStyle === 'formal' ? '教育经历' : '教育背景'}
+          {templateStyle === 'emerald' ? (
+            <span className="resume-emerald-heading-label">教育经历</span>
+          ) : templateStyle === 'formal' ? '教育经历' : '教育背景'}
         </h2>
       )}
 

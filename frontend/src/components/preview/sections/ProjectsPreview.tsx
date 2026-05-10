@@ -43,6 +43,48 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
     ? project.highlights.map(item => item.text)
     : []
   const isFormal = templateStyle === 'formal'
+  const isEmerald = templateStyle === 'emerald'
+
+  if (isEmerald) {
+    return (
+      <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
+        <div className="text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          {project.name}
+          {project.role && <span> - {project.role}</span>}
+          {project.duration && <span className="resume-emerald-subtle font-normal">　{project.duration}</span>}
+        </div>
+
+        {(project.github_url || project.demo_url) && (
+          <div className="resume-emerald-links text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
+            {project.demo_url && (
+              <span>
+                Demo: <a href={project.demo_url} target="_blank" rel="noopener noreferrer">{project.demo_url}</a>
+              </span>
+            )}
+            {project.github_url && (
+              <span>
+                GitHub: <a href={project.github_url} target="_blank" rel="noopener noreferrer">{project.github_url}</a>
+              </span>
+            )}
+          </div>
+        )}
+
+        {project.overview && (
+          <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
+            <span className="font-semibold">项目描述：</span>{project.overview}
+          </p>
+        )}
+
+        {highlights.length > 0 && (
+          <ul className="resume-emerald-list text-sm">
+            {highlights.map((achievement, achIndex) => (
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   if (isFormal) {
     return (
@@ -172,7 +214,9 @@ export default function ProjectsPreview({
       {/* 标题作为第0行 */}
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
-          {templateStyle === 'formal' ? '项目经历' : '项目经验'}
+          {templateStyle === 'emerald' ? (
+            <span className="resume-emerald-heading-label">项目经历</span>
+          ) : templateStyle === 'formal' ? '项目经历' : '项目经验'}
         </h2>
       )}
 
