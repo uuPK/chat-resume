@@ -3,9 +3,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -672,6 +673,123 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         model = runtime._build_model(ResumeAgent().definition)
 
         self.assertEqual(model.model_kwargs.get("parallel_tool_calls"), False)
+
+    async def test_deep_agent_runtime_uses_chinese_base_system_prompt(self):
+        from app.runtime.deepagents_profile import (
+            CHINESE_BASE_SYSTEM_PROMPT,
+            EXCLUDED_DEEPAGENTS_TOOLS,
+            DeepAgentsPromptMiddleware,
+        )
+
+        captured = {}
+
+        class FakeGraph:
+            def with_config(self, config):
+                del config
+                return self
+
+        def fake_create_agent(*args, **kwargs):
+            del args
+            captured["system_prompt"] = kwargs["system_prompt"]
+            captured["middleware"] = kwargs["middleware"]
+            return FakeGraph()
+
+        runtime = DeepAgentRuntime()
+        with patch("deepagents.graph.create_agent", fake_create_agent):
+            runtime._create_deep_agent(
+                agent=ResumeAgent().definition,
+                tools=[],
+                system_prompt="业务提示词",
+            )
+
+        prompt = captured["system_prompt"]
+        self.assertIn("业务提示词", prompt)
+        self.assertIn(CHINESE_BASE_SYSTEM_PROMPT, prompt)
+        self.assertIn("## 核心行为", prompt)
+        self.assertNotIn("You are a deep agent", prompt)
+
+        tool_exclusion_middlewares = [
+            middleware
+            for middleware in captured["middleware"]
+            if type(middleware).__name__ == "_ToolExclusionMiddleware"
+        ]
+        self.assertGreaterEqual(len(tool_exclusion_middlewares), 1)
+        self.assertTrue(
+            any(
+                middleware._excluded == EXCLUDED_DEEPAGENTS_TOOLS
+                for middleware in tool_exclusion_middlewares
+            )
+        )
+        self.assertTrue(
+            any(
+                isinstance(middleware, DeepAgentsPromptMiddleware)
+                for middleware in captured["middleware"]
+            )
+        )
+
+    async def test_deep_agent_runtime_localizes_remaining_builtin_prompts(self):
+        from langchain.agents.middleware.types import ModelRequest
+
+        from app.runtime.deepagents_profile import DeepAgentsPromptMiddleware
+
+        middleware = DeepAgentsPromptMiddleware()
+        captured = {}
+        system_message = SystemMessage(
+            content_blocks=[
+                {"type": "text", "text": "业务提示词"},
+                {
+                    "type": "text",
+                    "text": (
+                        "\n\n## `write_todos`\n"
+                        "You have access to the `write_todos` tool to help you manage and plan complex objectives."
+                    ),
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "\n\n## Following Conventions\n"
+                        "## Filesystem Tools `ls`, `read_file`, `write_file`, "
+                        "`edit_file`, `glob`, `grep`\n"
+                        "## Large Tool Results\n"
+                    ),
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "\n\n## `task` (subagent spawner)\n"
+                        "You have access to a `task` tool to launch short-lived subagents that handle isolated tasks.\n\n"
+                        "Available subagent types:\n"
+                        "general-purpose: General-purpose agent for researching complex questions, searching for files and content, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. This agent has access to all tools as the main agent."
+                    ),
+                },
+            ]
+        )
+        request = ModelRequest(
+            model=FakeDeepAgentChatModel(responses=[AIMessage(content="ok")]),
+            messages=[],
+            system_message=system_message,
+            tools=[],
+            state={"messages": []},
+        )
+
+        def handler(next_request):
+            captured["system_text"] = next_request.system_message.text
+            return AIMessage(content="ok")
+
+        middleware.wrap_model_call(request, handler)
+
+        self.assertIn("业务提示词", captured["system_text"])
+        self.assertIn("## `write_todos`", captured["system_text"])
+        self.assertIn("你可以使用 `write_todos` 工具", captured["system_text"])
+        self.assertIn("## `task`（子代理调度器）", captured["system_text"])
+        self.assertIn("可用子代理类型", captured["system_text"])
+        self.assertIn("general-purpose：通用子代理", captured["system_text"])
+        self.assertNotIn("You have access to the `write_todos` tool", captured["system_text"])
+        self.assertNotIn("You have access to a `task` tool", captured["system_text"])
+        self.assertNotIn("Available subagent types", captured["system_text"])
+        self.assertNotIn("## Following Conventions", captured["system_text"])
+        self.assertNotIn("## Filesystem Tools", captured["system_text"])
+        self.assertNotIn("## Large Tool Results", captured["system_text"])
 
     async def test_deep_agent_runtime_stream_preserves_confirmation_flow(self):
         model = FakeDeepAgentChatModel(

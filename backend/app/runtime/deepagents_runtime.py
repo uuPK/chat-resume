@@ -27,9 +27,12 @@ from app.agents.resume.stream_events import (
 from app.infra.config import settings
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
+from app.runtime.deepagents_profile import configure_deepagents_harness_profile
 
 suppress_noisy_dependency_warnings()
 from deepagents import create_deep_agent  # noqa: E402
+
+configure_deepagents_harness_profile()
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +92,10 @@ class DeepAgentRuntime:
             run_id=run_id,
             executed_tools=executed_tools,
         )
-        deep_agent = create_deep_agent(
-            model=self._build_model(agent),
+        deep_agent = self._create_deep_agent(
+            agent=agent,
             tools=tools,
             system_prompt=system_prompt,
-            name=agent.prompt_spec.name,
         )
         self._trace(
             "agent.trace.llm.request",
@@ -233,11 +235,10 @@ class DeepAgentRuntime:
             event_callback=event_callback,
             run_id=run_id,
         )
-        deep_agent = create_deep_agent(
-            model=self._build_model(agent),
+        deep_agent = self._create_deep_agent(
+            agent=agent,
             tools=tools,
             system_prompt=system_prompt,
-            name=agent.prompt_spec.name,
         )
         messages = self._build_messages(
             user_message=user_message,
@@ -687,6 +688,21 @@ class DeepAgentRuntime:
             },
         }
         return ChatOpenAI(**model_config)
+
+    def _create_deep_agent(
+        self,
+        *,
+        agent: AgentDefinition,
+        tools: list[Any],
+        system_prompt: str,
+    ) -> Any:
+        """Build a Deep Agents graph with the project harness profile applied."""
+        return create_deep_agent(
+            model=self._build_model(agent),
+            tools=tools,
+            system_prompt=system_prompt,
+            name=agent.prompt_spec.name,
+        )
 
     @staticmethod
     def _build_messages(
