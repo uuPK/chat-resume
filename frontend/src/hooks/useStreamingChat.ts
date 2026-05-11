@@ -10,6 +10,18 @@ export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
   | {
+      type: 'tool_call'
+      callId: string
+      toolName: string
+      displayMessage?: string
+    }
+  | {
+      type: 'tool_result'
+      callId?: string
+      toolName: string
+      displayMessage?: string
+    }
+  | {
       type: 'tool_pending'
       callId: string
       toolName: string
@@ -66,6 +78,17 @@ function normalizeDiffItems(value: unknown): DiffItem[] {
     }
     return Object.keys(diffItem).length > 0 ? [diffItem] : []
   })
+}
+
+function resolveToolName(data: Record<string, unknown>): string {
+  if (data.tool_display_name) return String(data.tool_display_name)
+  if (data.tool_name) return String(data.tool_name)
+  const calls = Array.isArray(data.tool_calls) ? data.tool_calls : []
+  const lastCall = calls[calls.length - 1]
+  if (lastCall && typeof lastCall === 'object' && 'name' in lastCall) {
+    return String((lastCall as { name?: unknown }).name || '')
+  }
+  return '工具调用'
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
@@ -202,6 +225,27 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 if (data.qr_images && Array.isArray(data.qr_images) && data.qr_images.length > 0) {
                   onQrImages?.(data.qr_images)
+                }
+
+                if (data.event_type === 'tool_call' && data.call_id) {
+                  const callId = data.call_id as string
+                  eventsBuffer = [...eventsBuffer, {
+                    type: 'tool_call',
+                    callId,
+                    toolName: resolveToolName(data),
+                    displayMessage: data.display_message ? String(data.display_message) : undefined,
+                  }]
+                  setStreamEvents([...eventsBuffer])
+                }
+
+                if (data.event_type === 'tool_result') {
+                  eventsBuffer = [...eventsBuffer, {
+                    type: 'tool_result',
+                    callId: data.call_id ? String(data.call_id) : undefined,
+                    toolName: resolveToolName(data),
+                    displayMessage: data.display_message ? String(data.display_message) : undefined,
+                  }]
+                  setStreamEvents([...eventsBuffer])
                 }
 
                 // tool_pending: agent 暂停，等待用户确认

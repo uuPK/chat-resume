@@ -19,6 +19,7 @@ from app.agents.resume.stream_events import (
     llm_response_event,
     prompt_rendered_event,
     text_delta_event,
+    tool_call_event,
     tool_call_failed_event,
     tool_confirmed_event,
     tool_pending_event,
@@ -42,6 +43,13 @@ logger = logging.getLogger(__name__)
 _SENTINEL = object()
 _MEMORY_ROUTE = "/memories/"
 _MEMORY_FILE = f"{_MEMORY_ROUTE}AGENTS.md"
+_INTERNAL_TOOL_DISPLAY_NAMES = {
+    "read_file": "读取记忆",
+    "write_file": "写入记忆",
+    "edit_file": "更新记忆",
+    "write_todos": "更新计划",
+    "task": "调用子代理",
+}
 _DEFAULT_MEMORY_CONTENT = (
     "# AGENTS.md\n\n"
     "## 用户偏好\n"
@@ -304,6 +312,7 @@ class DeepAgentRuntime:
         response_parts: list[str] = []
         chunk_index = 0
         tool_call_detected = False
+        seen_tool_call_keys: set[str] = set()
         try:
             async for message, metadata in deep_agent.astream(
                 cast(Any, {"messages": messages}),
@@ -322,9 +331,9 @@ class DeepAgentRuntime:
                     )
                     continue
                 if self._message_has_tool_calls(message):
+                    tool_calls = self._coerce_tool_calls(message)
                     if not tool_call_detected:
                         tool_call_detected = True
-                        tool_calls = getattr(message, "tool_calls", []) or []
                         tool_call_chunks = (
                             getattr(message, "tool_call_chunks", []) or []
                         )
@@ -339,6 +348,20 @@ class DeepAgentRuntime:
                                 for call in tool_calls
                                 if isinstance(call, dict)
                             ],
+                        )
+                    for tool_call in tool_calls:
+                        tool_call_key = self._tool_call_key(tool_call)
+                        if tool_call_key in seen_tool_call_keys:
+                            continue
+                        seen_tool_call_keys.add(tool_call_key)
+                        if not self._should_surface_model_tool_call(tool_call):
+                            continue
+                        await self._publish_event(
+                            event_queue=event_queue,
+                            event_callback=event_callback,
+                            event=self._visible_tool_call_event(
+                                tool_call=tool_call,
+                            ),
                         )
                     continue
                 content = self._coerce_content_text(getattr(message, "content", ""))
@@ -381,7 +404,7 @@ class DeepAgentRuntime:
                 agent_name=agent_name,
                 model=self._chat_model_name(),
                 response_content=response_text,
-                tool_call_count=0,
+                tool_call_count=len(seen_tool_call_keys),
                 latency_ms=latency_ms,
             )
             self._emit_event(event_callback, response_event)
@@ -672,6 +695,9 @@ class DeepAgentRuntime:
             )
         else:
             result_event = tool_result_event(
+                call_id=call_id,
+                tool_id=tool_name,
+                tool_display_name=tool_result["tool_name"],
                 tool_calls=executed_tools,
                 result=result,
                 display_message=display_message,
@@ -831,6 +857,75 @@ class DeepAgentRuntime:
     def _message_has_tool_calls(message: Any) -> bool:
         return bool(getattr(message, "tool_calls", None)) or bool(
             getattr(message, "tool_call_chunks", None)
+        )
+
+    @staticmethod
+    def _coerce_tool_calls(message: Any) -> list[dict[str, Any]]:
+        """Return complete model tool calls, ignoring partial streamed chunks."""
+        tool_calls = getattr(message, "tool_calls", None) or []
+        return [call for call in tool_calls if isinstance(call, dict)]
+
+    @staticmethod
+    def _tool_call_key(tool_call: dict[str, Any]) -> str:
+        call_id = tool_call.get("id")
+        if isinstance(call_id, str) and call_id:
+            return call_id
+        return json.dumps(tool_call, ensure_ascii=False, sort_keys=True, default=str)
+
+    @staticmethod
+    def _tool_call_name(tool_call: dict[str, Any]) -> str:
+        name = tool_call.get("name")
+        if isinstance(name, str):
+            return name
+        function = tool_call.get("function")
+        if isinstance(function, dict) and isinstance(function.get("name"), str):
+            return function["name"]
+        return ""
+
+    @staticmethod
+    def _tool_call_args(tool_call: dict[str, Any]) -> dict[str, Any]:
+        args = tool_call.get("args")
+        if isinstance(args, dict):
+            return args
+        function = tool_call.get("function")
+        if not isinstance(function, dict):
+            return {}
+        raw_arguments = function.get("arguments")
+        if isinstance(raw_arguments, dict):
+            return raw_arguments
+        if isinstance(raw_arguments, str) and raw_arguments.strip():
+            try:
+                parsed = json.loads(raw_arguments)
+            except json.JSONDecodeError:
+                return {}
+            if isinstance(parsed, dict):
+                return parsed
+        return {}
+
+    @classmethod
+    def _should_surface_model_tool_call(cls, tool_call: dict[str, Any]) -> bool:
+        return bool(cls._tool_call_name(tool_call))
+
+    @classmethod
+    def _visible_tool_call_event(cls, *, tool_call: dict[str, Any]) -> dict[str, Any]:
+        tool_name = cls._tool_call_name(tool_call)
+        tool_input = cls._tool_call_args(tool_call)
+        call_id = tool_call.get("id")
+        if not isinstance(call_id, str) or not call_id:
+            call_id = cls._tool_call_key(tool_call)
+        display_name = _INTERNAL_TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        return tool_call_event(
+            call_id=call_id,
+            tool_id=tool_name,
+            tool_call={
+                "id": call_id,
+                "type": "function",
+                "function": {"name": tool_name, "arguments": tool_input},
+            },
+            tool_display_name=display_name,
+            tool_input=tool_input,
+            display_message=f"正在{display_name}",
+            tool_calls=[],
         )
 
     @classmethod

@@ -42,6 +42,29 @@ const AUTO_SAVE_STATUS_MESSAGE: Record<
   error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
 }
 
+function ToolActivityRow({
+  event,
+  live = false,
+}: {
+  event: Extract<StreamEvent, { type: 'tool_call' | 'tool_result' }>
+  live?: boolean
+}) {
+  const isResult = event.type === 'tool_result'
+  const actionText = isResult || !live ? 'Ran' : 'Running'
+
+  return (
+    <div className="mb-2 flex items-center gap-2 px-1 py-1 text-sm">
+      <span
+        className={`h-2 w-2 flex-shrink-0 rounded-full ${
+          isResult || !live ? 'bg-[#0a0b0d]' : 'bg-[#0a0b0d] animate-pulse'
+        }`}
+      />
+      <span className="font-semibold text-[#0a0b0d]">{actionText}</span>
+      <code className="min-w-0 truncate font-mono text-[#3f4654]">{event.toolName}</code>
+    </div>
+  )
+}
+
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
 export default function ResumeEditPage() {
   const params = useParams()
@@ -535,6 +558,9 @@ export default function ResumeEditPage() {
                                     </div>
                                   )
                                 }
+                                if (event.type === 'tool_call' || event.type === 'tool_result') {
+                                  return <ToolActivityRow key={idx} event={event} />
+                                }
                                 if (event.type === 'text') return (
                                   <div key={idx}>
                                     <MarkdownMessage content={event.content} />
@@ -636,6 +662,9 @@ export default function ResumeEditPage() {
                                 />
                               </div>
                             )
+                          }
+                          if (event.type === 'tool_call' || event.type === 'tool_result') {
+                            return <ToolActivityRow key={idx} event={event} live />
                           }
                           if (event.type === 'tool') {
                             return (

@@ -7,6 +7,7 @@ from typing import Any, Literal, TypedDict
 ResumeStreamEventType = Literal[
     "session_started",
     "text_delta",
+    "tool_call",
     "tool_pending",
     "tool_confirmed",
     "tool_rejected",
@@ -36,6 +37,7 @@ class ResumeStreamEvent(TypedDict, total=False):
     qr_images: list[str]
     tool_calls: list[dict[str, Any]]
     resume_content: dict[str, Any] | None
+    tool_call_started: bool
     tool_pending: bool
     tool_confirmed: bool
     tool_rejected: bool

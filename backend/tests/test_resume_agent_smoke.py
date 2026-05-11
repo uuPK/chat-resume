@@ -451,6 +451,16 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
+        visible_tool_events = [
+            event for event in events if event.get("event_type") == "tool_call"
+        ]
+        self.assertEqual(len(visible_tool_events), 1)
+        self.assertEqual(visible_tool_events[0]["tool_id"], "update_highlight")
+        self.assertEqual(visible_tool_events[0]["call_id"], "call_stream_1")
+        self.assertLess(
+            events.index(visible_tool_events[0]),
+            next(index for index, event in enumerate(events) if event.get("tool_pending")),
+        )
         self.assertEqual(
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
@@ -648,6 +658,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(any(event.get("tool_pending") for event in events))
         self.assertFalse(any(event.get("tool_confirmed") for event in events))
+        visible_tool_calls = [
+            event for event in events if event.get("event_type") == "tool_call"
+        ]
+        self.assertEqual(len(visible_tool_calls), 1)
+        self.assertEqual(visible_tool_calls[0]["tool_id"], "edit_file")
+        self.assertEqual(visible_tool_calls[0]["tool_display_name"], "更新记忆")
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
             "已按你的长期偏好继续优化。",

@@ -11,6 +11,8 @@ def infer_event_type(event: dict[str, Any]) -> ResumeStreamEventType:
     """Return the canonical event type for a legacy-compatible payload."""
     if event.get("tool_pending"):
         return "tool_pending"
+    if event.get("tool_call_started"):
+        return "tool_call"
     if event.get("tool_confirmed"):
         return "tool_confirmed"
     if event.get("tool_rejected"):
@@ -71,6 +73,7 @@ def normalize_resume_stream_payload(
             event.get("tool_calls") if isinstance(event.get("tool_calls"), list) else []
         ),
         "resume_content": resume_content,
+        "tool_call_started": event.get("tool_call_started"),
         "tool_pending": event.get("tool_pending"),
         "tool_confirmed": event.get("tool_confirmed"),
         "tool_rejected": event.get("tool_rejected"),
@@ -206,6 +209,32 @@ def tool_pending_event(
     }
 
 
+def tool_call_event(
+    *,
+    call_id: str,
+    tool_id: str,
+    tool_call: dict[str, Any],
+    tool_display_name: str,
+    tool_input: dict[str, Any],
+    display_message: str,
+    tool_calls: list[dict[str, Any]],
+) -> ResumeStreamEvent:
+    return {
+        "event_type": "tool_call",
+        "content": "",
+        "tool_call_started": True,
+        "call_id": call_id,
+        "tool_id": tool_id,
+        "tool_call": tool_call,
+        "tool_name": tool_display_name,
+        "tool_display_name": tool_display_name,
+        "tool_input": tool_input,
+        "display_message": display_message,
+        "tool_calls": tool_calls,
+        "done": False,
+    }
+
+
 def tool_rejected_event(
     *,
     call_id: str,
@@ -290,6 +319,9 @@ def tool_confirmed_event(
 
 def tool_result_event(
     *,
+    call_id: str | None = None,
+    tool_id: str | None = None,
+    tool_display_name: str | None = None,
     tool_calls: list[dict[str, Any]],
     result: Any,
     display_message: str | None,
@@ -298,6 +330,10 @@ def tool_result_event(
     return {
         "event_type": "tool_result",
         "content": "",
+        "call_id": call_id,
+        "tool_id": tool_id,
+        "tool_name": tool_display_name,
+        "tool_display_name": tool_display_name,
         "tool_calls": tool_calls,
         "result": result,
         "display_message": display_message,
@@ -325,6 +361,7 @@ __all__ = [
     "normalize_resume_stream_payload",
     "prompt_rendered_event",
     "text_delta_event",
+    "tool_call_event",
     "tool_call_failed_event",
     "tool_confirmed_event",
     "tool_pending_event",
