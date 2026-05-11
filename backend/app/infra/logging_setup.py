@@ -29,6 +29,7 @@ _NOISY_LOGGERS = (
     "httpx",
     "openai",
     "langchain",
+    "langchain_openai",
     "langgraph",
     "langsmith",
     "deepagents",

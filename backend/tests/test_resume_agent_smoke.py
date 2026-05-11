@@ -751,16 +751,21 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         confirmation_queue = asyncio.Queue()
         confirmation_queue.put_nowait(True)
 
-        with self.assertLogs("app.runtime.deepagents_runtime", level="INFO") as logs:
-            events = []
-            async for event in agent.optimize_stream(
-                user_message="优化这段工作经历",
-                resume_content=resume,
-                conversation_history=[],
-                confirmation_queue=confirmation_queue,
-                allowed_sections={"work_experience"},
-            ):
-                events.append(event)
+        original_trace_log_enabled = settings.AGENT_TRACE_LOG_ENABLED
+        settings.AGENT_TRACE_LOG_ENABLED = True
+        try:
+            with self.assertLogs("app.runtime.deepagents_runtime", level="INFO") as logs:
+                events = []
+                async for event in agent.optimize_stream(
+                    user_message="优化这段工作经历",
+                    resume_content=resume,
+                    conversation_history=[],
+                    confirmation_queue=confirmation_queue,
+                    allowed_sections={"work_experience"},
+                ):
+                    events.append(event)
+        finally:
+            settings.AGENT_TRACE_LOG_ENABLED = original_trace_log_enabled
 
         trace_records = [
             record for record in logs.records if getattr(record, "agent_trace", False)

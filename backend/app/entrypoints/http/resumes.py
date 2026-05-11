@@ -116,7 +116,7 @@ async def get_resume(
     response = _build_resume_response(resume)
     validate_elapsed_ms = (perf_counter() - validate_started_at) * 1000
     total_elapsed_ms = (perf_counter() - started_at) * 1000
-    logger.info(
+    logger.debug(
         (
             "get_resume timings resume_id=%s user_id=%s query_ms=%.2f "
             "validate_ms=%.2f total_ms=%.2f"

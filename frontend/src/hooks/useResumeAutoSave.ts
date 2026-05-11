@@ -115,7 +115,10 @@ export function useResumeAutoSave({ setResume, saveResume }: UseResumeAutoSaveOp
     }
     setAutoSaveStatus('pending')
     autoSaveTimeoutRef.current = setTimeout(() => {
-      void performAutoSave()
+      void performAutoSave().catch(() => {
+        // 自动保存失败已在 performAutoSave 内更新状态和 toast；这里消费 Promise，
+        // 避免浏览器控制台出现 unhandledRejection。
+      })
     }, AUTO_SAVE_DELAY)
   }, [performAutoSave])
 

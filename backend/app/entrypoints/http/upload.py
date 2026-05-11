@@ -44,6 +44,10 @@ _RESUME_UPLOAD_STATUS_QUEUED = "queued"
 _RESUME_UPLOAD_STATUS_PROCESSING = "processing"
 _RESUME_UPLOAD_STATUS_COMPLETED = "completed"
 _RESUME_UPLOAD_STATUS_FAILED = "failed"
+_JD_OCR_PROVIDER_REJECTION_DETAIL = (
+    "JD 图片识别失败：当前视觉模型请求被供应商拒绝。"
+    "请检查 OPENROUTER_VISION_MODEL 是否配置为支持图片输入的模型。"
+)
 
 
 class JDOcrResponse(BaseModel):
@@ -84,6 +88,27 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail=str(exc),
     ) from exc
+
+
+def _format_jd_ocr_error(exc: Exception) -> str:
+    """用于避免把 OpenRouter/provider 原始错误直接暴露到前端。"""
+    message = str(exc)
+    if (
+        "provider Terms Of Service" in message
+        or "violation of provider Terms Of Service" in message
+        or "AI服务请求失败: 403" in message
+    ):
+        return _JD_OCR_PROVIDER_REJECTION_DETAIL
+    return f"JD 图片识别失败: {message}"
+
+
+def _is_jd_ocr_provider_rejection(exc: Exception) -> bool:
+    message = str(exc)
+    return (
+        "provider Terms Of Service" in message
+        or "violation of provider Terms Of Service" in message
+        or "AI服务请求失败: 403" in message
+    )
 
 
 def _validate_jd_image(file: UploadFile) -> None:
@@ -375,10 +400,13 @@ async def upload_jd_image_for_ocr(
             mime_type=(file.content_type or "image/png").lower(),
         )
     except Exception as exc:
-        logger.exception("JD OCR failed")
+        if _is_jd_ocr_provider_rejection(exc):
+            logger.warning("JD OCR provider rejected all configured vision models")
+        else:
+            logger.exception("JD OCR failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"JD 图片识别失败: {exc}",
+            detail=_format_jd_ocr_error(exc),
         )
 
     return JDOcrResponse(text=text)

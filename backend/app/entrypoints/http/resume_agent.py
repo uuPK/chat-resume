@@ -185,7 +185,7 @@ async def chat_with_resume_stream(
             status_code=status.HTTP_410_GONE,
             detail="面试聊天入口已下线，请使用 /api/interviews 结构化面试链路。",
         )
-    logger.info(
+    logger.debug(
         "resume_agent.stream.requested",
         extra={
             "agent_type": agent_type,
@@ -233,7 +233,7 @@ async def chat_with_resume_stream(
                 langfuse_observer.on_runtime_event(event)
                 langsmith_observer.on_runtime_event(event)
 
-            logger.info(
+            logger.debug(
                 "Resume agent stream started resume_id=%s user_id=%s",
                 chat_request.resume_id,
                 current_user["id"],
@@ -334,7 +334,7 @@ async def chat_with_resume_stream(
                 }
                 if latest_resume_content is not None:
                     end_data["resume_content"] = latest_resume_content
-                logger.info("Resume agent stream completed")
+                logger.debug("Resume agent stream completed")
                 yield f"data: {json.dumps(end_data, ensure_ascii=False)}\n\n"
 
             except Exception as e:

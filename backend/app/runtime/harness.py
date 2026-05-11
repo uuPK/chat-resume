@@ -37,7 +37,7 @@ class AgentHarness:
         visible_modules: list[str],
     ) -> None:
         """用于创建一次新的简历优化 session 并记录首条用户消息。"""
-        logger.info(
+        logger.debug(
             "AgentHarness create_resume_session resume_id=%s user_id=%s",
             resume_id,
             user_id,
@@ -76,7 +76,7 @@ class AgentHarness:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
         latest_resume_content: dict[str, Any] | None = None
-        logger.info("AgentHarness run_resume_stream started")
+        logger.debug("AgentHarness run_resume_stream started")
 
         try:
             async for event in agent.optimize_stream(
@@ -105,7 +105,7 @@ class AgentHarness:
             final_content="".join(final_content_parts),
             latest_resume_content=latest_resume_content,
         )
-        logger.info("AgentHarness run_resume_stream completed")
+        logger.debug("AgentHarness run_resume_stream completed")
 
     def record_failure(self, session_id: str, exc: Exception) -> None:
         """用于在流式执行失败时更新会话状态并记录失败事件。"""
@@ -132,7 +132,7 @@ class AgentHarness:
         latest_resume_content: dict[str, Any] | None,
     ) -> None:
         """用于在流式执行结束后补齐最终回复和完成事件。"""
-        logger.info(
+        logger.debug(
             "AgentHarness complete_resume_session has_checkpoint=%s",
             latest_resume_content is not None,
         )

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import base64
+import logging
 import re
 
 from app.infra.config import settings
 from app.services.llm import ChatService
+
+logger = logging.getLogger(__name__)
 
 
 class JDOcrService:
@@ -38,13 +41,24 @@ class JDOcrService:
             }
         ]
 
-        async with ChatService(model=settings.OPENROUTER_VISION_MODEL) as chat_service:
-            response = await chat_service.chat_completion(
-                messages=messages,
-                temperature=0,
-                max_tokens=4000,
-                stream=False,
-            )
+        last_error: Exception | None = None
+        for model in self._candidate_models():
+            try:
+                async with ChatService(model=model) as chat_service:
+                    response = await chat_service.chat_completion(
+                        messages=messages,
+                        temperature=0,
+                        max_tokens=4000,
+                        stream=False,
+                    )
+                break
+            except Exception as exc:
+                last_error = exc
+                if not self._is_provider_rejection(exc):
+                    raise
+                logger.warning("JD OCR provider rejected vision model=%s", model)
+        else:
+            raise last_error or RuntimeError("No available JD OCR vision model")
 
         content = (
             ChatService._coerce_content_text(
@@ -61,6 +75,28 @@ class JDOcrService:
             r"^```(?:text|markdown)?\s*|\s*```$", "", text.strip(), flags=re.DOTALL
         )
         return normalized.strip()
+
+    @staticmethod
+    def _candidate_models() -> list[str]:
+        models = [
+            settings.OPENROUTER_VISION_MODEL,
+            *settings.OPENROUTER_VISION_FALLBACK_MODELS.split(","),
+        ]
+        candidates: list[str] = []
+        for model in models:
+            model = model.strip()
+            if model and model not in candidates:
+                candidates.append(model)
+        return candidates
+
+    @staticmethod
+    def _is_provider_rejection(exc: Exception) -> bool:
+        message = str(exc)
+        return (
+            "provider Terms Of Service" in message
+            or "violation of provider Terms Of Service" in message
+            or "AI服务请求失败: 403" in message
+        )
 
 
 __all__ = ["JDOcrService"]

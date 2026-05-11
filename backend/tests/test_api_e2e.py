@@ -1763,6 +1763,30 @@ class TestJDOcrUpload:
         assert resp.status_code == 200
         assert resp.json()["text"] == "岗位职责\\n1. 负责后端开发"
 
+    def test_upload_jd_image_sanitizes_provider_403_errors(self, monkeypatch):
+        async def _fake_extract_text_from_image(
+            self, image_bytes: bytes, mime_type: str
+        ) -> str:
+            raise Exception(
+                'AI服务请求失败: 403 - {"error":{"message":"The request is '
+                'prohibited due to a violation of provider Terms Of Service."}}'
+            )
+
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.JDOcrService.extract_text_from_image",
+            _fake_extract_text_from_image,
+        )
+
+        resp = self.client.post(
+            "/api/upload/jd-ocr",
+            files={"file": ("jd.png", b"fake-image-bytes", "image/png")},
+            headers=self.headers,
+        )
+
+        assert resp.status_code == 502
+        assert "视觉模型请求被供应商拒绝" in resp.json()["detail"]
+        assert "provider Terms Of Service" not in resp.json()["detail"]
+
     def test_upload_jd_image_rejects_non_image_files(self):
         resp = self.client.post(
             "/api/upload/jd-ocr",

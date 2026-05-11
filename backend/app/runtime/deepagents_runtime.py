@@ -791,6 +791,8 @@ class DeepAgentRuntime:
 
     @staticmethod
     def _trace(message: str, **fields: Any) -> None:
+        if not settings.AGENT_TRACE_LOG_ENABLED:
+            return
         logger.info(message, extra={"agent_trace": True, **fields})
 
     @staticmethod

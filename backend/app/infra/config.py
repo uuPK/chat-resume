@@ -32,6 +32,9 @@ class Settings(BaseSettings):
         "LOG_FORMAT",
         "text" if APP_ENV.strip().lower() == "development" else "json",
     )
+    AGENT_TRACE_LOG_ENABLED: bool = (
+        os.getenv("AGENT_TRACE_LOG_ENABLED", "false").strip().lower() == "true"
+    )
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")
@@ -106,7 +109,11 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
     OPENROUTER_VISION_MODEL: str = os.getenv(
         "OPENROUTER_VISION_MODEL",
-        os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash"),
+        "qwen/qwen2.5-vl-72b-instruct",
+    )
+    OPENROUTER_VISION_FALLBACK_MODELS: str = os.getenv(
+        "OPENROUTER_VISION_FALLBACK_MODELS",
+        "google/gemini-2.5-flash",
     )
     OPENROUTER_CONNECT_TIMEOUT_SECONDS: float = float(
         os.getenv("OPENROUTER_CONNECT_TIMEOUT_SECONDS", "15")

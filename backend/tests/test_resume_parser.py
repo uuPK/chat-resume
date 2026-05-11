@@ -9,6 +9,7 @@
   - _create_fallback_result     fallback 结构完整性
 """
 
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -60,6 +61,23 @@ class TestParserModelConfig(unittest.TestCase):
                 parser = AIResumeParser()
 
         self.assertEqual(parser.model, "deepseek/deepseek-v4-pro")
+
+    def test_openrouter_vision_model_does_not_inherit_global_chat_model(self):
+        from app.infra.config import Settings
+
+        with patch.dict(
+            "os.environ",
+            {"OPENROUTER_MODEL": "deepseek/deepseek-v4-pro"},
+            clear=False,
+        ):
+            os.environ.pop("OPENROUTER_VISION_MODEL", None)
+            settings = Settings()
+
+        self.assertEqual(settings.OPENROUTER_MODEL, "deepseek/deepseek-v4-pro")
+        self.assertEqual(
+            settings.OPENROUTER_VISION_MODEL,
+            "qwen/qwen2.5-vl-72b-instruct",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
