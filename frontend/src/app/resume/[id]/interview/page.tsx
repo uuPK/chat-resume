@@ -52,7 +52,6 @@ function VoicePanel({
   const [inputLevel, setInputLevel] = useState(0)
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState('')
-  const [activeDeviceLabel, setActiveDeviceLabel] = useState('')
   const [messages, setMessages] = useState<ConversationMessage[]>([])
   const [liveMessage, setLiveMessage] = useState<ConversationMessage | null>(null)
   const [showDeviceMenu, setShowDeviceMenu] = useState(false)
@@ -367,8 +366,6 @@ function VoicePanel({
         },
       })
       streamRef.current = stream
-      const [track] = stream.getAudioTracks()
-      setActiveDeviceLabel(track?.label || '默认麦克风')
       navigator.mediaDevices.enumerateDevices()
         .then((devices) => {
           setAudioDevices(devices.filter((device) => device.kind === 'audioinput'))
@@ -507,7 +504,14 @@ function VoicePanel({
     const threshold = (i + 1) / 12
     return inputLevel * 5 > threshold
   })
-  const hasInterviewHistory = (interviewSession?.turns?.length || 0) > 0
+  const hasVisibleInterviewMessages = messages.length > 0 || Boolean(liveMessage)
+  const hasPersistedInterviewHistory = (interviewSession?.turns?.length || 0) > 0
+  const hasStartedInterviewSession = Boolean(interviewSession?.started_at)
+    || interviewSession?.status === 'in_progress'
+    || interviewSession?.status === 'waiting_user_answer'
+  const shouldContinueInterview = hasVisibleInterviewMessages
+    || hasPersistedInterviewHistory
+    || hasStartedInterviewSession
 
   return (
     <>
@@ -584,34 +588,11 @@ function VoicePanel({
                 return (
                   <div
                     key={msg.id}
-                    className={`msg-enter flex gap-3 ${isInterviewer ? 'items-start' : 'items-start flex-row-reverse'}`}
+                    className={`msg-enter flex ${isInterviewer ? 'justify-start' : 'justify-end'}`}
                     style={{ animationDelay: `${Math.min(idx * 0.03, 0.15)}s` }}
                   >
-                    {/* Avatar */}
-                    {isInterviewer ? (
-                      <div
-                        className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                        style={{ backgroundColor: '#282b31' }}
-                      >
-                        <MicrophoneIcon className="w-5 h-5 text-white" />
-                      </div>
-                    ) : (
-                      <div
-                        className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                        style={{ backgroundColor: '#0052ff' }}
-                      >
-                        我
-                      </div>
-                    )}
-
                     {/* Bubble */}
                     <div className="flex flex-col gap-1 max-w-[72%]">
-                      <span
-                        className={`text-xs font-semibold ${isInterviewer ? 'pl-1' : 'pr-1 text-right'}`}
-                        style={{ color: '#5b616e' }}
-                      >
-                        {isInterviewer ? 'AI 面试官' : '我'}
-                      </span>
                       <div
                         className={`px-4 py-3 text-sm leading-relaxed rounded-2xl ${
                           isInterviewer
@@ -679,11 +660,7 @@ function VoicePanel({
                 />
               ))}
             </div>
-            {status === 'connected' && (
-              <span className="text-xs truncate hidden sm:block ml-1" style={{ color: '#5b616e' }}>{activeDeviceLabel}</span>
-            )}
-
-            {audioDevices.length > 0 && status !== 'connected' && (
+            {audioDevices.length > 0 && (
               <div className="relative">
                 <button
                   type="button"
@@ -747,7 +724,7 @@ function VoicePanel({
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
                 >
                   <MicrophoneIcon className="w-3.5 h-3.5" />
-                  {sessionId ? (hasInterviewHistory ? '继续面试' : '开始面试') : '准备中…'}
+                  {sessionId ? (shouldContinueInterview ? '继续面试' : '开始面试') : '准备中…'}
                 </button>
               )}
 
@@ -884,6 +861,13 @@ export default function InterviewPage() {
     )
   }
 
+  const interviewTitle = [
+    '模拟面试',
+    resume.content.personal_info?.name,
+    resume.content.job_application?.target_company,
+    resume.content.job_application?.target_title,
+  ].filter(Boolean).join(' · ')
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-white">
       {/* Header */}
@@ -903,22 +887,11 @@ export default function InterviewPage() {
           </Link>
           <div className="flex items-center gap-2 min-w-0">
             <span
-              className="text-sm font-semibold leading-tight"
+              className="text-sm font-semibold leading-tight truncate"
               style={{ color: '#0a0b0d', letterSpacing: '0.01em' }}
             >
-              Interview Room
+              {interviewTitle}
             </span>
-            {resume && (
-              <>
-                <span className="text-xs leading-tight" style={{ color: '#d1d5db' }}>·</span>
-                <span
-                  className="text-xs truncate max-w-[180px] leading-tight"
-                  style={{ color: '#5b616e' }}
-                >
-                  {resume.title || resume.original_filename}
-                </span>
-              </>
-            )}
           </div>
         </div>
 
