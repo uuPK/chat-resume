@@ -347,7 +347,13 @@ export default function ResumesPage() {
 
                 {/* Footer */}
                 <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
-                  <div className="flex-1 min-w-0" />
+                  <div className="flex-1 min-w-0">
+                    {(resume.target_company || resume.target_title) && (
+                      <div className="truncate text-sm font-medium text-[#0a0b0d]">
+                        {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
                   <Link
                     href={`/resume/${resume.id}/edit`}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white transition-colors flex-shrink-0"

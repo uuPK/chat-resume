@@ -27,20 +27,8 @@ import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
 import type { ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
-import { AutoSaveStatus } from '@/hooks/useResumeAutoSave'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
-
-const AUTO_SAVE_STATUS_MESSAGE: Record<
-  AutoSaveStatus,
-  { text: string; className: string }
-> = {
-  idle: { text: '', className: 'text-gray-400' },
-  pending: { text: '有未保存的更改…', className: 'text-amber-500' },
-  saving: { text: '自动保存中…', className: 'text-primary-600' },
-  success: { text: '已自动保存', className: 'text-green-600' },
-  error: { text: '自动保存失败，请检查网络或手动保存', className: 'text-red-600' }
-}
 
 function ToolActivityRow({
   event,
@@ -89,7 +77,6 @@ export default function ResumeEditPage() {
     resume,
     resumeLoading,
     exporting,
-    autoSaveStatus,
     activeSection,
     setActiveSection,
     layoutConfig,
@@ -263,18 +250,6 @@ export default function ResumeEditPage() {
                   </>
                 )}
               </button>
-              {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text && (
-                <div
-                  className="text-xs px-3 py-1"
-                  style={{
-                    borderRadius: '100000px',
-                    backgroundColor: autoSaveStatus === 'error' ? '#fef2f2' : autoSaveStatus === 'success' ? '#ecfdf5' : '#eef0f3',
-                    color: autoSaveStatus === 'error' ? '#dc2626' : autoSaveStatus === 'success' ? '#059669' : '#5b616e',
-                  }}
-                >
-                  {AUTO_SAVE_STATUS_MESSAGE[autoSaveStatus].text}
-                </div>
-              )}
             </div>
           </div>
         </div>
