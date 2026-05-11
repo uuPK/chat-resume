@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .add_highlight_tool import add_highlight
+from .add_highlight_tool import add_bullet, add_highlight
 from .read_resume_tool import read_resume_content
-from .remove_highlight_tool import remove_highlight
-from .update_highlight_tool import update_highlight
+from .remove_highlight_tool import remove_bullet, remove_highlight
+from .update_highlight_tool import update_bullet, update_highlight
 from .update_overview_tool import update_overview
 
-_HIGHLIGHT_SECTIONS = ["education", "work_experience", "projects"]
+_BULLET_SECTIONS = ["education", "work_experience", "projects"]
 
 RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
     {
@@ -49,26 +49,26 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "update_highlight",
-            "description": "精准更新某个条目下单条 highlight 的文本。",
+            "name": "update_bullet",
+            "description": "精准更新某个条目下单条 bullet 的文本。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _HIGHLIGHT_SECTIONS,
+                        "enum": _BULLET_SECTIONS,
                     },
                     "item_id": {
                         "type": "string",
                         "description": "经历/项目/教育条目的 id",
                     },
-                    "highlight_id": {
+                    "bullet_id": {
                         "type": "string",
-                        "description": "要修改的亮点 id",
+                        "description": "要修改的 bullet id",
                     },
                     "text": {
                         "type": "string",
-                        "description": "新的亮点文本",
+                        "description": "新的 bullet 文本",
                     },
                     "reason": {
                         "type": "string",
@@ -77,21 +77,21 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
                         ),
                     },
                 },
-                "required": ["section", "item_id", "highlight_id", "text"],
+                "required": ["section", "item_id", "bullet_id", "text"],
             },
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "add_highlight",
-            "description": "向某个条目新增一条 highlight。",
+            "name": "add_bullet",
+            "description": "向某个条目新增一条 bullet。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _HIGHLIGHT_SECTIONS,
+                        "enum": _BULLET_SECTIONS,
                     },
                     "item_id": {
                         "type": "string",
@@ -99,7 +99,7 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
                     },
                     "text": {
                         "type": "string",
-                        "description": "新增的亮点文本",
+                        "description": "新增的 bullet 文本",
                     },
                     "reason": {
                         "type": "string",
@@ -113,29 +113,29 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "remove_highlight",
-            "description": "从某个条目删除一条 highlight。",
+            "name": "remove_bullet",
+            "description": "从某个条目删除一条 bullet。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "section": {
                         "type": "string",
-                        "enum": _HIGHLIGHT_SECTIONS,
+                        "enum": _BULLET_SECTIONS,
                     },
                     "item_id": {
                         "type": "string",
                         "description": "经历/项目/教育条目的 id",
                     },
-                    "highlight_id": {
+                    "bullet_id": {
                         "type": "string",
-                        "description": "要删除的亮点 id",
+                        "description": "要删除的 bullet id",
                     },
                     "reason": {
                         "type": "string",
                         "description": "本次删除的简短理由，供前端展示",
                     },
                 },
-                "required": ["section", "item_id", "highlight_id"],
+                "required": ["section", "item_id", "bullet_id"],
             },
         },
     },
@@ -144,6 +144,9 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
 _RESUME_TOOL_HANDLERS = {
     "read_resume": read_resume_content,
     "update_overview": update_overview,
+    "update_bullet": update_bullet,
+    "add_bullet": add_bullet,
+    "remove_bullet": remove_bullet,
     "update_highlight": update_highlight,
     "add_highlight": add_highlight,
     "remove_highlight": remove_highlight,

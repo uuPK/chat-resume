@@ -49,7 +49,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     commit(newList)
   }
 
-  const addHighlight = (educationId: string) => {
+  const addBullet = (educationId: string) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
     const next = [...(education.highlights || []), { id: `edu_hl_${Date.now()}`, text: '' }]
@@ -58,7 +58,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     )
   }
 
-  const updateHighlight = (educationId: string, index: number, value: string) => {
+  const updateBullet = (educationId: string, index: number, value: string) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
     const next = [...(education.highlights || [])]
@@ -68,7 +68,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     )
   }
 
-  const removeHighlight = (educationId: string, index: number) => {
+  const removeBullet = (educationId: string, index: number) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
     const current = education.highlights || []
@@ -197,14 +197,14 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    教育亮点
+                    教育要点
                   </label>
                   <button
-                    onClick={() => addHighlight(education.id!)}
+                    onClick={() => addBullet(education.id!)}
                     className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                   >
                     <PlusIcon className="w-3 h-3" />
-                    <span>添加亮点</span>
+                    <span>添加要点</span>
                   </button>
                 </div>
                 <div className="space-y-2">
@@ -212,16 +212,16 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                     <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                       <textarea
                         value={highlight.text}
-                        onChange={(e) => updateHighlight(education.id!, highlightIndex, e.target.value)}
+                        onChange={(e) => updateBullet(education.id!, highlightIndex, e.target.value)}
                         placeholder="985高校、主要课程、奖项、研究方向等"
                         rows={1}
                         className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
                       {(education.highlights || []).length > 1 && (
                         <button
-                          onClick={() => removeHighlight(education.id!, highlightIndex)}
+                          onClick={() => removeBullet(education.id!, highlightIndex)}
                           className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                          title="删除此亮点"
+                          title="删除此要点"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>

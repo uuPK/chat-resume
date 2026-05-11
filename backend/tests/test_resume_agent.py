@@ -40,13 +40,23 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_resume_tools_schema_exposes_optional_reason_field(self):
         schema = RESUME_TOOLS_SCHEMA
-        update_highlight = next(
-            tool for tool in schema if tool["function"]["name"] == "update_highlight"
+        update_bullet = next(
+            tool for tool in schema if tool["function"]["name"] == "update_bullet"
         )
 
-        properties = update_highlight["function"]["parameters"]["properties"]
+        properties = update_bullet["function"]["parameters"]["properties"]
         self.assertIn("reason", properties)
         self.assertEqual(properties["reason"]["type"], "string")
+
+    def test_resume_tools_schema_exposes_bullet_tools(self):
+        tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+
+        self.assertIn("update_bullet", tool_names)
+        self.assertIn("add_bullet", tool_names)
+        self.assertIn("remove_bullet", tool_names)
+        self.assertNotIn("update_highlight", tool_names)
+        self.assertNotIn("add_highlight", tool_names)
+        self.assertNotIn("remove_highlight", tool_names)
 
     def test_resume_tools_schema_does_not_expose_custom_memory_tools(self):
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
@@ -81,16 +91,48 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(result["diff_items"][0]["reason"], "补充量化结果")
         self.assertIn("35%", result["diff_items"][0]["after"])
 
+    def test_update_bullet_tool_updates_existing_highlights_storage(self):
+        agent = ResumeAgent()
+        resume_content = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "highlights": [
+                        {"id": "hl_1", "text": "负责后端开发"},
+                    ],
+                }
+            ]
+        }
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_bullet",
+                    "arguments": {
+                        "section": "work_experience",
+                        "item_id": "work_1",
+                        "bullet_id": "hl_1",
+                        "text": "负责后端服务治理，接口错误率下降 20%",
+                    },
+                }
+            },
+            {"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["tool_name"], "优化要点")
+        self.assertIn("下降 20%", resume_content["work_experience"][0]["highlights"][0]["text"])
+
     def test_resume_stream_event_contract_keeps_structured_diff(self):
         event = tool_pending_event(
             call_id="call_1",
-            tool_id="update_highlight",
+            tool_id="update_bullet",
             tool_call={
                 "id": "call_1",
                 "type": "function",
-                "function": {"name": "update_highlight", "arguments": {}},
+                "function": {"name": "update_bullet", "arguments": {}},
             },
-            tool_display_name="优化成果",
+            tool_display_name="优化要点",
             tool_input={"section": "projects"},
             diff_summary="旧文本 diff",
             diff_items=[
@@ -105,9 +147,9 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertEqual(event["event_type"], "tool_pending")
         self.assertTrue(event["tool_pending"])
-        self.assertEqual(event["tool_id"], "update_highlight")
-        self.assertEqual(event["tool_display_name"], "优化成果")
-        self.assertEqual(event["tool_name"], "优化成果")
+        self.assertEqual(event["tool_id"], "update_bullet")
+        self.assertEqual(event["tool_display_name"], "优化要点")
+        self.assertEqual(event["tool_name"], "优化要点")
         self.assertEqual(event["diff_items"][0]["reason"], "补充量化结果")
 
     def test_resume_stream_event_normalizes_legacy_payload(self):
@@ -120,14 +162,14 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                         "name": "update_highlight",
                     }
                 },
-                "tool_name": "优化成果",
+                "tool_name": "update_highlight",
                 "diff_items": [{"before": "A", "after": "B", "reason": 123}],
             }
         )
 
         self.assertEqual(event["event_type"], "tool_pending")
         self.assertEqual(event["tool_id"], "update_highlight")
-        self.assertEqual(event["tool_display_name"], "优化成果")
+        self.assertEqual(event["tool_display_name"], "update_highlight")
         self.assertEqual(event["diff_items"][0]["reason"], "123")
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):

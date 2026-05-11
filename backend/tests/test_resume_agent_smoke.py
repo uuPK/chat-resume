@@ -107,7 +107,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "add_highlight",
+                    "name": "add_bullet",
                     "arguments": {
                         "section": "skills",
                         "item_id": "skill_1",
@@ -203,7 +203,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "update_highlight",
+                    "name": "update_bullet",
                     "arguments": '{"section":"projects",',
                 }
             },
@@ -217,18 +217,18 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(result["result"]["error"]["recoverable"])
 
-    def test_update_highlight_tool_updates_single_highlight(self):
+    def test_update_bullet_tool_updates_single_highlight(self):
         agent = ResumeAgent()
         resume = self._sample_resume()
 
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "update_highlight",
+                    "name": "update_bullet",
                     "arguments": {
                         "section": "work_experience",
                         "item_id": "work_1",
-                        "highlight_id": "hl_1",
+                        "bullet_id": "hl_1",
                         "text": "维护多个后台服务并推动关键接口性能优化",
                     },
                 }
@@ -242,14 +242,14 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "维护多个后台服务并推动关键接口性能优化",
         )
 
-    def test_add_highlight_tool_appends_highlight(self):
+    def test_add_bullet_tool_appends_highlight(self):
         agent = ResumeAgent()
         resume = self._sample_resume()
 
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "add_highlight",
+                    "name": "add_bullet",
                     "arguments": {
                         "section": "projects",
                         "item_id": "proj_1",
@@ -267,18 +267,18 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "支持工具调用后的人机确认流程",
         )
 
-    def test_remove_highlight_tool_deletes_highlight(self):
+    def test_remove_bullet_tool_deletes_highlight(self):
         agent = ResumeAgent()
         resume = self._sample_resume()
 
         result = agent._run_tool(
             {
                 "function": {
-                    "name": "remove_highlight",
+                    "name": "remove_bullet",
                     "arguments": {
                         "section": "projects",
                         "item_id": "proj_1",
-                        "highlight_id": "proj_hl_1",
+                        "bullet_id": "proj_hl_1",
                     },
                 }
             },
@@ -307,12 +307,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         fake_tool_call(
-                            name="update_highlight",
+                            name="update_bullet",
                             call_id="call_1",
                             args={
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "highlight_id": "hl_1",
+                                "bullet_id": "hl_1",
                                 "text": "维护多个后台服务，并推动核心接口响应时间下降 30%",
                             },
                         )
@@ -348,7 +348,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             },
                         ),
                         fake_tool_call(
-                            name="add_highlight",
+                            name="add_bullet",
                             call_id="call_second",
                             args={
                                 "section": "projects",
@@ -419,12 +419,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         fake_tool_call(
-                            name="update_highlight",
+                            name="update_bullet",
                             call_id="call_stream_1",
                             args={
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "highlight_id": "hl_1",
+                                "bullet_id": "hl_1",
                                 "text": (
                                     "维护多个后台服务，支撑日活 10 万用户，"
                                     "并完成接口性能优化"
@@ -455,7 +455,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             event for event in events if event.get("event_type") == "tool_call"
         ]
         self.assertEqual(len(visible_tool_events), 1)
-        self.assertEqual(visible_tool_events[0]["tool_id"], "update_highlight")
+        self.assertEqual(visible_tool_events[0]["tool_id"], "update_bullet")
         self.assertEqual(visible_tool_events[0]["call_id"], "call_stream_1")
         self.assertLess(
             events.index(visible_tool_events[0]),
@@ -488,7 +488,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             },
                         ),
                         fake_tool_call(
-                            name="add_highlight",
+                            name="add_bullet",
                             call_id="call_stream_second",
                             args={
                                 "section": "projects",
@@ -537,12 +537,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         fake_tool_call(
-                            name="update_highlight",
+                            name="update_bullet",
                             call_id="call_stream_2",
                             args={
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "highlight_id": "hl_1",
+                                "bullet_id": "hl_1",
                                 "text": "这是一个不应被应用的修改",
                             },
                         )
@@ -869,11 +869,11 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         {
-                            "name": "update_highlight",
+                            "name": "update_bullet",
                             "args": {
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "highlight_id": "hl_1",
+                                "bullet_id": "hl_1",
                                 "text": "维护多个后台服务，支撑日活 10 万用户",
                                 "reason": "补充业务规模",
                             },
@@ -918,11 +918,11 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         {
-                            "name": "update_highlight",
+                            "name": "update_bullet",
                             "args": {
                                 "section": "work_experience",
                                 "item_id": "work_1",
-                                "highlight_id": "hl_1",
+                                "bullet_id": "hl_1",
                                 "text": "维护多个后台服务，支撑日活 10 万用户",
                                 "reason": "补充业务规模",
                             },
@@ -992,7 +992,7 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             for record in trace_records
             if record.getMessage() == "agent.trace.tool.requested"
         )
-        self.assertEqual(requested.tool_name, "update_highlight")
+        self.assertEqual(requested.tool_name, "update_bullet")
         self.assertNotIn("resume_content", requested.tool_input)
         self.assertNotIn("content", requested.tool_input)
         self.assertIn("text", requested.tool_input)
@@ -1002,7 +1002,7 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             for record in trace_records
             if record.getMessage() == "agent.trace.tool.executed"
         )
-        self.assertEqual(executed.tool_name, "update_highlight")
+        self.assertEqual(executed.tool_name, "update_bullet")
         self.assertIs(executed.result_success, True)
         self.assertEqual(executed.result_summary["diff_item_count"], 1)
 

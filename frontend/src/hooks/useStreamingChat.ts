@@ -80,13 +80,23 @@ function normalizeDiffItems(value: unknown): DiffItem[] {
   })
 }
 
+const TOOL_NAME_ALIASES: Record<string, string> = {
+  update_highlight: 'update_bullet',
+  add_highlight: 'add_bullet',
+  remove_highlight: 'remove_bullet',
+}
+
+function normalizeToolName(name: string): string {
+  return TOOL_NAME_ALIASES[name] || name
+}
+
 function resolveToolName(data: Record<string, unknown>): string {
-  if (data.tool_display_name) return String(data.tool_display_name)
-  if (data.tool_name) return String(data.tool_name)
+  if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
+  if (data.tool_name) return normalizeToolName(String(data.tool_name))
   const calls = Array.isArray(data.tool_calls) ? data.tool_calls : []
   const lastCall = calls[calls.length - 1]
   if (lastCall && typeof lastCall === 'object' && 'name' in lastCall) {
-    return String((lastCall as { name?: unknown }).name || '')
+    return normalizeToolName(String((lastCall as { name?: unknown }).name || ''))
   }
   return '工具调用'
 }

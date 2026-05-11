@@ -57,7 +57,7 @@ def test_analyzer_writes_basic_summary_without_llm_key(tmp_path, monkeypatch):
                         "desc": "成功用例",
                         "status": "ok",
                         "elapsed_s": 1.25,
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                     },
                     {
                         "id": "TC002",
@@ -96,7 +96,7 @@ def test_analyzer_writes_basic_summary_without_llm_key(tmp_path, monkeypatch):
             "id": "TC001",
             "desc": "成功用例",
             "status": "ok",
-            "toolCalls": ["update_highlight"],
+            "toolCalls": ["update_bullet"],
             "elapsedSeconds": 1.25,
             "passed": True,
             "failureReasons": [],
@@ -414,7 +414,7 @@ def test_analyzer_outputs_passing_gate_summary_with_default_thresholds(tmp_path)
                 {
                     "id": "TC001",
                     "desc": "工具匹配",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 },
                 {
                     "id": "TC037",
@@ -436,7 +436,7 @@ def test_analyzer_outputs_passing_gate_summary_with_default_thresholds(tmp_path)
                         "status": "ok",
                         "elapsed_s": 1.0,
                         "fallback_triggered": False,
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                         "agent_reply": "已完成。",
                     },
                     {
@@ -445,7 +445,7 @@ def test_analyzer_outputs_passing_gate_summary_with_default_thresholds(tmp_path)
                         "status": "ok",
                         "elapsed_s": 1.2,
                         "fallback_triggered": False,
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                         "agent_reply": "已直接优化。",
                     },
                 ]
@@ -512,7 +512,7 @@ def test_analyzer_outputs_failing_gate_summary_with_case_evidence(tmp_path):
                 {
                     "id": "TC002",
                     "desc": "工具错误",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 },
                 {
                     "id": "TC003",
@@ -615,7 +615,7 @@ def test_analyzer_marks_gates_skipped_when_thresholds_are_missing(tmp_path):
                 {
                     "id": "TC001",
                     "desc": "宽松本地调试",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -724,7 +724,7 @@ def test_analyzer_loads_gate_thresholds_from_config_file(tmp_path):
                 {
                     "id": "TC001",
                     "desc": "本地宽松工具阈值",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -857,7 +857,7 @@ def test_analyzer_writes_markdown_report_for_passing_gates_with_residual_risk(tm
                 {
                     "id": "TC001",
                     "desc": "通过用例",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -874,7 +874,7 @@ def test_analyzer_writes_markdown_report_for_passing_gates_with_residual_risk(tm
                         "status": "ok",
                         "elapsed_s": 1.0,
                         "fallback_triggered": False,
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                         "agent_reply": "已完成。",
                     }
                 ]
@@ -914,7 +914,7 @@ def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_pa
                     "desc": "显式期望用例",
                     "must_contain_keywords": ["微服务", "高并发", "性能"],
                     "forbidden_content": ["虚构"],
-                    "expected_tool_calls": ["update_highlight", "add_highlight"],
+                    "expected_tool_calls": ["update_bullet", "add_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -930,7 +930,7 @@ def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_pa
                         "desc": "显式期望用例",
                         "status": "ok",
                         "elapsed_s": 2.0,
-                        "tool_calls": ["update_highlight", "read_resume"],
+                        "tool_calls": ["update_bullet", "read_resume"],
                         "agent_reply": "已完成优化，没有虚构经历。",
                         "resume_after": {
                             "projects": [
@@ -958,7 +958,7 @@ def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_pa
     assert case["failureReasons"] == [
         "missing_required_keyword: 性能",
         "forbidden_content: 虚构 in agent_reply",
-        "tool_mismatch: missing add_highlight; unexpected read_resume",
+        "tool_mismatch: missing add_bullet; unexpected read_resume",
     ]
     assert case["expectations"]["keywords"] == {
         "required": ["微服务", "高并发", "性能"],
@@ -972,9 +972,9 @@ def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_pa
         "passed": False,
     }
     assert case["expectations"]["toolCalls"] == {
-        "expected": ["update_highlight", "add_highlight"],
-        "actual": ["update_highlight", "read_resume"],
-        "missing": ["add_highlight"],
+        "expected": ["update_bullet", "add_bullet"],
+        "actual": ["update_bullet", "read_resume"],
+        "missing": ["add_bullet"],
         "unexpected": ["read_resume"],
         "precision": 0.5,
         "recall": 0.5,
@@ -1097,7 +1097,7 @@ def test_analyzer_fails_expected_no_tool_cases_with_unexpected_tools(tmp_path):
                         "id": "TC024",
                         "desc": "只分析不修改",
                         "status": "ok",
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                         "agent_reply": "已直接修改。",
                     }
                 ]
@@ -1112,12 +1112,12 @@ def test_analyzer_fails_expected_no_tool_cases_with_unexpected_tools(tmp_path):
     assert completed.returncode == 0, completed.stderr
     case = json.loads(output_path.read_text(encoding="utf-8"))["cases"][0]
     assert case["passed"] is False
-    assert case["failureReasons"] == ["tool_mismatch: unexpected update_highlight"]
+    assert case["failureReasons"] == ["tool_mismatch: unexpected update_bullet"]
     assert case["expectations"]["toolCalls"] == {
         "expected": [],
-        "actual": ["update_highlight"],
+        "actual": ["update_bullet"],
         "missing": [],
-        "unexpected": ["update_highlight"],
+        "unexpected": ["update_bullet"],
         "precision": 0.0,
         "recall": 0.0,
         "f1": 0.0,
@@ -1136,7 +1136,7 @@ def test_analyzer_deduplicates_tool_calls_for_precision_and_recall(tmp_path):
                 {
                     "id": "TC002",
                     "desc": "重复工具调用",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -1151,7 +1151,7 @@ def test_analyzer_deduplicates_tool_calls_for_precision_and_recall(tmp_path):
                         "id": "TC002",
                         "desc": "重复工具调用",
                         "status": "ok",
-                        "tool_calls": ["update_highlight", "update_highlight"],
+                        "tool_calls": ["update_bullet", "update_bullet"],
                     }
                 ]
             },
@@ -1166,7 +1166,7 @@ def test_analyzer_deduplicates_tool_calls_for_precision_and_recall(tmp_path):
     tool_score = json.loads(output_path.read_text(encoding="utf-8"))["cases"][0][
         "expectations"
     ]["toolCalls"]
-    assert tool_score["actual"] == ["update_highlight", "update_highlight"]
+    assert tool_score["actual"] == ["update_bullet", "update_bullet"]
     assert tool_score["precision"] == 1.0
     assert tool_score["recall"] == 1.0
     assert tool_score["f1"] == 1.0
@@ -1186,7 +1186,7 @@ def test_analyzer_groups_failure_taxonomy_and_case_diagnostics(tmp_path):
                     "desc": "多失败分类用例",
                     "must_contain_keywords": ["微服务", "性能"],
                     "forbidden_content": ["虚构"],
-                    "expected_tool_calls": ["update_highlight", "add_highlight"],
+                    "expected_tool_calls": ["update_bullet", "add_bullet"],
                 }
             ],
             ensure_ascii=False,
@@ -1245,7 +1245,7 @@ def test_analyzer_groups_failure_taxonomy_and_case_diagnostics(tmp_path):
     assert case["failures"][1]["evidence"] == ["虚构 in agent_reply"]
     assert "禁用内容" in case["failures"][1]["diagnostic"]
     assert case["failures"][2]["evidence"] == [
-        "missing update_highlight, add_highlight",
+        "missing update_bullet, add_bullet",
         "unexpected read_resume",
     ]
     assert "工具调用" in case["failures"][2]["diagnostic"]
@@ -1341,7 +1341,7 @@ def test_analyzer_maps_decision_rule_and_fallback_failures(tmp_path):
                         "desc": "应追问",
                         "status": "ok",
                         "elapsed_s": 1.1,
-                        "tool_calls": ["update_highlight"],
+                        "tool_calls": ["update_bullet"],
                         "agent_reply": "已直接修改。",
                     },
                 ]
@@ -1416,7 +1416,7 @@ def test_analyzer_maps_refusal_and_judge_failures_to_taxonomy(tmp_path):
                         "id": "TC017",
                         "desc": "拒绝编造经历",
                         "status": "ok",
-                        "tool_calls": ["add_highlight"],
+                        "tool_calls": ["add_bullet"],
                         "agent_reply": "已加入不存在的经历。",
                     },
                     {

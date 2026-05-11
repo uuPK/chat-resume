@@ -1,4 +1,4 @@
-"""用于实现亮点文本更新工具。"""
+"""用于实现简历 bullet 文本更新工具。"""
 
 from __future__ import annotations
 
@@ -23,9 +23,9 @@ def update_highlight(
     text: Any,
     reason: Any = None,
 ) -> dict[str, Any]:
-    """用于精确更新某条 highlight 的文本内容。"""
+    """用于精确更新某条 resume bullet 的文本内容。"""
     if section not in HIGHLIGHT_SECTIONS:
-        return {"success": False, "message": f"{section} 不支持亮点编辑"}
+        return {"success": False, "message": f"{section} 不支持要点编辑"}
 
     items, idx = find_item(resume_content, section, item_id)
     if items is None:
@@ -35,7 +35,7 @@ def update_highlight(
 
     highlights = items[idx].get("highlights") or []
     if not isinstance(highlights, list):
-        return {"success": False, "message": "highlights 数据格式异常"}
+        return {"success": False, "message": "bullets 数据格式异常"}
 
     next_text = str(text or "").strip()
     for highlight in highlights:
@@ -45,18 +45,37 @@ def update_highlight(
             section_name = SECTION_NAMES.get(section, section)
             item_label = summarize_dict(items[idx])
             diff_payload = build_diff_payload(
-                title=f"{section_name} / {item_label} 修改摘要",
+                title=f"{section_name} / {item_label} 修改要点",
                 before=before,
                 after=highlight,
                 reason=normalize_reason(reason),
             )
             return {
                 "success": True,
-                "message": f"已更新 {section_name} 中的亮点",
+                "message": f"已更新 {section_name} 中的要点",
                 "updated_section": section,
                 **diff_payload,
             }
-    return {"success": False, "message": f"未找到 id={highlight_id} 的亮点"}
+    return {"success": False, "message": f"未找到 id={highlight_id} 的要点"}
 
 
-__all__ = ["update_highlight"]
+def update_bullet(
+    resume_content: dict[str, Any],
+    section: str,
+    item_id: str,
+    bullet_id: str,
+    text: Any,
+    reason: Any = None,
+) -> dict[str, Any]:
+    """用于精确更新某条 resume bullet 的文本内容。"""
+    return update_highlight(
+        resume_content,
+        section=section,
+        item_id=item_id,
+        highlight_id=bullet_id,
+        text=text,
+        reason=reason,
+    )
+
+
+__all__ = ["update_bullet", "update_highlight"]

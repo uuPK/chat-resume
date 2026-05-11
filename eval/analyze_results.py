@@ -20,9 +20,12 @@ DEFAULT_GATE_THRESHOLDS = {
 
 TOOL_NAME_ALIASES = {
     "优化简介": "update_overview",
-    "优化成果": "update_highlight",
-    "新增成果": "add_highlight",
-    "删除成果": "remove_highlight",
+    "优化成果": "update_bullet",
+    "优化要点": "update_bullet",
+    "新增成果": "add_bullet",
+    "新增要点": "add_bullet",
+    "删除成果": "remove_bullet",
+    "删除要点": "remove_bullet",
     "读取简历": "read_resume",
 }
 

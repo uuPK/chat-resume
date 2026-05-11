@@ -5,7 +5,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "请帮我针对这个岗位优化项目经历，让亮点更突出、更量化",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": ["微服务", "高并发", "性能"],
     "forbidden_content": ["瞎编", "无中生有"]
   },
@@ -15,7 +15,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "我的实习经历写得很平淡，帮我改得更专业一些，要符合岗位要求",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -25,7 +25,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "对比这个岗位JD，我的技能栏是否缺少一些关键词？帮我补充",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -35,7 +35,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "请全面优化我的简历，让它更匹配这个高级后端工程师岗位",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -55,7 +55,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "帮我把工作经历里的成果用数字量化，比如性能提升百分比、处理量等",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -65,7 +65,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "这个JD很看重架构设计能力，帮我在简历里更好地体现我的架构经验",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": ["微服务", "分布式"],
     "forbidden_content": []
   },
@@ -75,7 +75,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "我的项目描述太简单了，帮我用STAR法则重写订单中台重构项目",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -85,7 +85,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "JD提到有团队Leader经验者优先，帮我在简历里更突出我的带人经验",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -95,7 +95,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "请全面分析我的简历与该JD的匹配度，并给出优化建议后直接修改",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -105,7 +105,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "Please optimize my work experience highlights to better match this full-stack engineer position",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -115,7 +115,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "My highlights lack quantified results. Please rewrite them with specific metrics and impact",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -125,7 +125,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "Based on the JD, which keywords am I missing? Please add them naturally into my resume",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -135,7 +135,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "Please rewrite my Payment Gateway Integration project to make it sound more impressive and technical",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -145,7 +145,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "I also built an internal dashboard with React and GraphQL but forgot to include it. Can you add a project for that?",
-    "expected_tool_calls": ["add_highlight"],
+    "expected_tool_calls": ["add_bullet"],
     "must_contain_keywords": ["React", "GraphQL"],
     "forbidden_content": []
   },
@@ -176,7 +176,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": null,
     "user_message": "帮我删掉订单中台重构项目里关于系统稳定性提升的那条",
-    "expected_tool_calls": ["remove_highlight"],
+    "expected_tool_calls": ["remove_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -186,7 +186,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_backend.json",
     "user_message": "我想用中文版简历投国内公司，请把我的项目经历翻译并优化成中文",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -196,7 +196,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "帮我优化教育经历部分，突出跟后端开发相关的课程或成绩",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -206,7 +206,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "我的亮点写得太啰嗦了，帮我精简，每条控制在20字以内",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -216,7 +216,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_backend.json",
     "user_message": "我的工作经验很少，能不能从项目入手，让校园项目看起来更有说服力",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -246,7 +246,7 @@
     "resume_file": "resume_junior.json",
     "jd_file": "jd_product.json",
     "user_message": "我想转产品经理，帮我调整简历方向，突出适合产品岗的经历",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -256,7 +256,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": null,
     "user_message": "帮我检查简历语言是否足够专业，只做语气和措辞上的微调",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": [],
     "forbidden_content": []
   },
@@ -266,7 +266,7 @@
     "resume_file": "resume_english.json",
     "jd_file": "jd_fullstack.json",
     "user_message": "The JD emphasizes CI/CD and Kubernetes. I have that experience but haven't mentioned it. Please add it",
-    "expected_tool_calls": ["add_highlight", "update_highlight"],
+    "expected_tool_calls": ["add_bullet", "update_bullet"],
     "must_contain_keywords": ["Kubernetes", "CI/CD"],
     "forbidden_content": []
   },
@@ -310,7 +310,7 @@
     "resume_file": "resume_frontend.json",
     "jd_file": "jd_frontend.json",
     "user_message": "请帮我把前端经历改成更结果导向，尤其是性能优化这类内容，优先写做成了什么、提升了多少；没有数据就强化结果表达，但不要编数字。",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": ["性能优化", "用户体验"],
     "forbidden_content": ["编造", "虚构"]
   },
@@ -320,7 +320,7 @@
     "resume_file": "resume_frontend.json",
     "jd_file": "jd_frontend.json",
     "user_message": "对照这个前端岗位，把我简历里和组件库、埋点、工程化相关的亮点补得更完整一些。",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": ["组件库", "埋点"],
     "forbidden_content": []
   },
@@ -330,7 +330,7 @@
     "resume_file": "resume_product_cn.json",
     "jd_file": "jd_product.json",
     "user_message": "我的产品经历现在更像职责列表，帮我改成结果导向，突出做成了什么、推动了什么变化；没有明确数字时不要乱编。",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": ["需求分析", "跨部门协作"],
     "forbidden_content": ["编造数据", "虚构指标"]
   },
@@ -340,7 +340,7 @@
     "resume_file": "resume_product_cn.json",
     "jd_file": "jd_product.json",
     "user_message": "这个岗位很看重数据分析和增长意识，帮我把相关经历改得更有说服力，并自然补充岗位关键词。",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": ["数据分析", "漏斗分析"],
     "forbidden_content": []
   },
@@ -350,7 +350,7 @@
     "resume_file": "resume_ops.json",
     "jd_file": "jd_operations.json",
     "user_message": "请把我的运营经历改成增长结果导向的表达，比如拉新、留存、转化带来了什么结果；没有数字时不要编造，但要让结果感更强。",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "must_contain_keywords": ["拉新", "留存"],
     "forbidden_content": ["编造", "虚构"]
   },
@@ -360,7 +360,7 @@
     "resume_file": "resume_ops.json",
     "jd_file": "jd_operations.json",
     "user_message": "请整体优化我的简历，让它更匹配用户增长运营岗位，突出活动运营、漏斗分析、用户分层和复盘能力。",
-    "expected_tool_calls": ["update_highlight", "add_highlight"],
+    "expected_tool_calls": ["update_bullet", "add_bullet"],
     "must_contain_keywords": ["漏斗分析", "用户分层", "复盘"],
     "forbidden_content": []
   },
@@ -370,7 +370,7 @@
     "resume_file": "resume_midlevel.json",
     "jd_file": "jd_backend.json",
     "user_message": "帮我优化这份简历，让它更匹配这个后端岗位，直接修改最需要改的地方。",
-    "expected_tool_calls": ["update_highlight"],
+    "expected_tool_calls": ["update_bullet"],
     "expected_decision": "execute",
     "forbidden_reply_substrings": ["是否确认优化", "想怎么改", "要不要我先", "先确认一下"],
     "must_contain_keywords": [],

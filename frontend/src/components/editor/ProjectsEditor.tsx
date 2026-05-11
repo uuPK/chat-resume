@@ -8,14 +8,14 @@ import {
   LinkIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline'
-import type { Project, ResumeHighlight as Highlight } from '@/types/resume'
+import type { Project, ResumeBullet as Bullet } from '@/types/resume'
 
 interface ProjectsEditorProps {
   data: Project[]
   onChange: (data: Project[]) => void
 }
 
-function normalizeHighlights(project: Project): Highlight[] {
+function normalizeBullets(project: Project): Bullet[] {
   if (project.highlights && project.highlights.length > 0) {
     return project.highlights
   }
@@ -31,7 +31,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
           ...project,
           id: project.id || `proj_${Date.now()}_${index}`,
           overview: project.overview || '',
-          highlights: normalizeHighlights(project)
+          highlights: normalizeBullets(project)
         }))
       : []
     setProjectsList(next)
@@ -69,7 +69,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     )))
   }
 
-  const addHighlight = (projectId: string) => {
+  const addBullet = (projectId: string) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return
     updateProject(projectId, 'highlights', [
@@ -78,7 +78,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     ])
   }
 
-  const updateHighlight = (projectId: string, index: number, value: string) => {
+  const updateBullet = (projectId: string, index: number, value: string) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return
     const next = [...(project.highlights || [])]
@@ -86,7 +86,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     updateProject(projectId, 'highlights', next)
   }
 
-  const removeHighlight = (projectId: string, index: number) => {
+  const removeBullet = (projectId: string, index: number) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return
     const current = project.highlights || []
@@ -226,7 +226,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                       主要成果
                     </label>
                     <button
-                      onClick={() => addHighlight(project.id!)}
+                      onClick={() => addBullet(project.id!)}
                       className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                     >
                       <PlusIcon className="w-3 h-3" />
@@ -238,14 +238,14 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                       <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
                           value={highlight.text}
-                          onChange={(e) => updateHighlight(project.id!, highlightIndex, e.target.value)}
+                          onChange={(e) => updateBullet(project.id!, highlightIndex, e.target.value)}
                           placeholder="实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%"
                           rows={1}
                           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(project.highlights || []).length > 1 && (
                           <button
-                            onClick={() => removeHighlight(project.id!, highlightIndex)}
+                            onClick={() => removeBullet(project.id!, highlightIndex)}
                             className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                           >
                             <TrashIcon className="w-4 h-4" />

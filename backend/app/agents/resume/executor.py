@@ -9,6 +9,9 @@ from app.tools.resume.registry import execute_resume_tool
 
 TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_overview": {"section", "item_id", "overview"},
+    "update_bullet": {"section", "item_id", "bullet_id", "text"},
+    "add_bullet": {"section", "item_id", "text"},
+    "remove_bullet": {"section", "item_id", "bullet_id"},
     "update_highlight": {"section", "item_id", "highlight_id", "text"},
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
@@ -16,6 +19,9 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
 
 TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_overview": {"projects"},
+    "update_bullet": {"education", "work_experience", "projects"},
+    "add_bullet": {"education", "work_experience", "projects"},
+    "remove_bullet": {"education", "work_experience", "projects"},
     "update_highlight": {"education", "work_experience", "projects"},
     "add_highlight": {"education", "work_experience", "projects"},
     "remove_highlight": {"education", "work_experience", "projects"},
@@ -23,9 +29,12 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
 
 TOOL_DISPLAY_NAMES = {
     "update_overview": "优化简介",
-    "update_highlight": "优化成果",
-    "add_highlight": "新增成果",
-    "remove_highlight": "删除成果",
+    "update_bullet": "优化要点",
+    "add_bullet": "新增要点",
+    "remove_bullet": "删除要点",
+    "update_highlight": "优化要点",
+    "add_highlight": "新增要点",
+    "remove_highlight": "删除要点",
     "read_resume": "读取简历",
 }
 

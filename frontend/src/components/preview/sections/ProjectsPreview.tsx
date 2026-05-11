@@ -177,7 +177,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
       {highlights.length > 0 && (
         <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <span className="text-sm font-medium text-gray-700">关键亮点:</span>
+          <span className="text-sm font-medium text-gray-700">关键要点:</span>
           <ul
             className="list-disc list-inside text-sm text-gray-600"
             style={{

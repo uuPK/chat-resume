@@ -1,4 +1,4 @@
-"""用于实现新增亮点工具。"""
+"""用于实现新增简历 bullet 工具。"""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ def add_highlight(
     text: Any,
     reason: Any = None,
 ) -> dict[str, Any]:
-    """用于在指定条目下追加一条新的 highlight。"""
+    """用于在指定条目下追加一条新的 resume bullet。"""
     if section not in HIGHLIGHT_SECTIONS:
-        return {"success": False, "message": f"{section} 不支持亮点编辑"}
+        return {"success": False, "message": f"{section} 不支持要点编辑"}
 
     items, idx = find_item(resume_content, section, item_id)
     if items is None:
@@ -34,7 +34,7 @@ def add_highlight(
 
     next_text = str(text or "").strip()
     if not next_text:
-        return {"success": False, "message": "亮点文本不能为空"}
+        return {"success": False, "message": "要点文本不能为空"}
 
     highlight = {
         "id": f"{item_id}_hl_{uuid4().hex[:8]}",
@@ -50,17 +50,34 @@ def add_highlight(
     section_name = SECTION_NAMES.get(section, section)
     item_label = summarize_dict(items[idx])
     diff_payload = build_diff_payload(
-        title=f"{section_name} / {item_label} 新增亮点",
+        title=f"{section_name} / {item_label} 新增要点",
         before="（新增）",
         after=highlight,
         reason=normalize_reason(reason),
     )
     return {
         "success": True,
-        "message": f"已在 {section_name} 中新增亮点",
+        "message": f"已在 {section_name} 中新增要点",
         "updated_section": section,
         **diff_payload,
     }
 
 
-__all__ = ["add_highlight"]
+def add_bullet(
+    resume_content: dict[str, Any],
+    section: str,
+    item_id: str,
+    text: Any,
+    reason: Any = None,
+) -> dict[str, Any]:
+    """用于在指定条目下追加一条新的 resume bullet。"""
+    return add_highlight(
+        resume_content,
+        section=section,
+        item_id=item_id,
+        text=text,
+        reason=reason,
+    )
+
+
+__all__ = ["add_bullet", "add_highlight"]

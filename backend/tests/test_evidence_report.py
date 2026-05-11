@@ -65,7 +65,7 @@ def test_evidence_report_consumes_eval_analysis_with_interview_metrics(tmp_path)
                         "status": "ok",
                         "elapsedSeconds": 1.0,
                         "passed": True,
-                        "toolCalls": ["update_highlight"],
+                        "toolCalls": ["update_bullet"],
                         "expectations": {
                             "toolCalls": {
                                 "f1": 1.0,

@@ -49,6 +49,9 @@ _INTERNAL_TOOL_DISPLAY_NAMES = {
     "edit_file": "更新记忆",
     "write_todos": "更新计划",
     "task": "调用子代理",
+    "update_highlight": "update_bullet",
+    "add_highlight": "add_bullet",
+    "remove_highlight": "remove_bullet",
 }
 _DEFAULT_MEMORY_CONTENT = (
     "# AGENTS.md\n\n"

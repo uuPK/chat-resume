@@ -6,14 +6,14 @@ import {
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
-import type { ResumeHighlight as Highlight, WorkExperience } from '@/types/resume'
+import type { ResumeBullet as Bullet, WorkExperience } from '@/types/resume'
 
 interface WorkExperienceEditorProps {
   data: WorkExperience[]
   onChange: (data: WorkExperience[]) => void
 }
 
-function normalizeHighlights(work: WorkExperience): Highlight[] {
+function normalizeBullets(work: WorkExperience): Bullet[] {
   if (work.highlights && work.highlights.length > 0) {
     return work.highlights
   }
@@ -28,7 +28,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
       ? data.map((work, index) => ({
           ...work,
           id: work.id || `work_${Date.now()}_${index}`,
-          highlights: normalizeHighlights(work)
+          highlights: normalizeBullets(work)
         }))
       : []
     setWorkList(next)
@@ -64,13 +64,13 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
     )))
   }
 
-  const addHighlight = (workId: string) => {
+  const addBullet = (workId: string) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return
     updateWork(workId, 'highlights', [...(work.highlights || []), { id: `hl_${Date.now()}`, text: '' }])
   }
 
-  const updateHighlight = (workId: string, index: number, value: string) => {
+  const updateBullet = (workId: string, index: number, value: string) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return
     const next = [...(work.highlights || [])]
@@ -78,7 +78,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
     updateWork(workId, 'highlights', next)
   }
 
-  const removeHighlight = (workId: string, index: number) => {
+  const removeBullet = (workId: string, index: number) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return
     const current = work.highlights || []
@@ -194,11 +194,11 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       主要成果
                     </label>
                     <button
-                      onClick={() => addHighlight(work.id!)}
+                      onClick={() => addBullet(work.id!)}
                       className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                     >
                       <PlusIcon className="w-3 h-3" />
-                      <span>添加亮点</span>
+                      <span>添加要点</span>
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -206,16 +206,16 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                       <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
                           value={highlight.text}
-                          onChange={(e) => updateHighlight(work.id!, highlightIndex, e.target.value)}
+                          onChange={(e) => updateBullet(work.id!, highlightIndex, e.target.value)}
                           placeholder="负责后端系统重构，接口平均响应时间下降 35%"
                           rows={1}
                           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(work.highlights || []).length > 1 && (
                           <button
-                            onClick={() => removeHighlight(work.id!, highlightIndex)}
+                            onClick={() => removeBullet(work.id!, highlightIndex)}
                             className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                            title="删除此亮点"
+                            title="删除此要点"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>

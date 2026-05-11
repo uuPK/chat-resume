@@ -34,7 +34,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
         executor = ResumeToolExecutor()
 
         result = executor.execute(
-            tool_name="add_highlight",
+            tool_name="add_bullet",
             tool_input={
                 "section": "projects",
                 "item_id": "proj_1",

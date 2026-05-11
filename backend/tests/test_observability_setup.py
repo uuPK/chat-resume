@@ -164,7 +164,7 @@ class ObservabilitySetupTests(unittest.TestCase):
                     "request_id": "req_1234567890",
                     "session_id": "sess_1234567890",
                     "run_id": "run_trace_1234567890",
-                    "tool_name": "update_highlight",
+                    "tool_name": "update_bullet",
                     "tool_input": {
                         "text": "维护多个后台服务" * 20,
                         "api_key": "secret",
@@ -180,7 +180,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertIn("trace.tool.requested", line)
         self.assertIn(" | ", line)
         self.assertIn("run=run_trac", line)
-        self.assertIn("tool=update_highlight", line)
+        self.assertIn("tool=update_bullet", line)
         self.assertIn('"text":"维护多个后台服务维护多个后台服务', line)
         self.assertIn("...", line)
         self.assertIn('"api_key":"[REDACTED]"', line)

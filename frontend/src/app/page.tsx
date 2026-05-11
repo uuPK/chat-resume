@@ -157,7 +157,7 @@ export default function LandingPage() {
               {
                 icon: <DocumentTextIcon className="w-6 h-6" />,
                 title: 'AI 简历优化',
-                desc: '上传现有简历，AI 识别不足，针对目标岗位重写亮点，量化每项成果。',
+                desc: '上传现有简历，AI 识别不足，针对目标岗位重写要点，量化每项成果。',
                 accent: '#0052ff',
               },
               {

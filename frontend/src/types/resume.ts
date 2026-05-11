@@ -1,7 +1,9 @@
-export interface ResumeHighlight {
+export interface ResumeBullet {
   id?: string
   text: string
 }
+
+export type ResumeHighlight = ResumeBullet
 
 interface ResumeLink {
   id?: string
@@ -51,7 +53,7 @@ export interface Education {
   location?: string
   gpa?: string
   description?: string
-  highlights?: ResumeHighlight[]
+  highlights?: ResumeBullet[]
 }
 
 export interface WorkExperience {
@@ -64,7 +66,7 @@ export interface WorkExperience {
   is_current?: boolean
   location?: string
   employment_type?: string
-  highlights?: ResumeHighlight[]
+  highlights?: ResumeBullet[]
   technologies?: string[]
 }
 
@@ -88,7 +90,7 @@ export interface Project {
   github_url?: string
   demo_url?: string
   achievements?: string[]
-  highlights?: ResumeHighlight[]
+  highlights?: ResumeBullet[]
   links?: ResumeLink[]
 }
 

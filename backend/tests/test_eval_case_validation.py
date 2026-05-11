@@ -43,7 +43,7 @@ def test_validator_accepts_valid_cases(tmp_path):
                     "resume_file": "resume.json",
                     "jd_file": "jd.json",
                     "user_message": "请优化简历",
-                    "expected_tool_calls": ["update_highlight"],
+                    "expected_tool_calls": ["update_bullet"],
                     "must_contain_keywords": ["微服务"],
                     "forbidden_content": ["虚构"],
                     "expected_decision": "execute",
