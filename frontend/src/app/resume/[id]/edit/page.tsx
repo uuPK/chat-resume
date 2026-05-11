@@ -134,6 +134,11 @@ export default function ResumeEditPage() {
     }
   }, [fetchResume, mounted, isAuthenticated])
 
+  const latestPendingCallId = streamEvents.reduce<string | null>(
+    (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
+    null
+  )
+
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
@@ -560,13 +565,18 @@ export default function ResumeEditPage() {
                       >
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
+                            const isActivePending = event.callId === latestPendingCallId
                             return (
                               <div key={idx} className="mb-2 rounded-2xl border border-gray-200 bg-white overflow-hidden text-xs shadow-sm">
                                 {/* 标题栏 */}
                                 <div className="px-4 py-3 bg-white flex items-center gap-2 border-b border-gray-200">
                                   <span className="font-medium text-gray-900">{event.toolName}</span>
                                   <span className="ml-auto" />
-                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                                  {isActivePending ? (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                                  ) : (
+                                    <span className="text-[11px] text-gray-400">已失效</span>
+                                  )}
                                 </div>
                                 {/* diff 内容区 */}
                                 <DiffGroupCards
@@ -577,15 +587,20 @@ export default function ResumeEditPage() {
                                 {/* 操作按钮 */}
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
+                                    disabled={!isActivePending}
                                     onClick={() => confirmTool(event.callId, true)}
-                                    className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors"
-                                    style={{ borderRadius: '56px', backgroundColor: '#0052ff' }}
+                                    className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                    style={{
+                                      borderRadius: '56px',
+                                      backgroundColor: isActivePending ? '#0052ff' : '#94a3b8',
+                                    }}
                                   >
                                     确认修改
                                   </button>
                                   <button
+                                    disabled={!isActivePending}
                                     onClick={() => confirmTool(event.callId, false)}
-                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors"
+                                    className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{
                                       borderRadius: '56px',
                                       border: '1px solid rgba(91,97,110,0.2)',

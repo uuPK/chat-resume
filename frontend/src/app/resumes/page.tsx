@@ -168,6 +168,10 @@ export default function ResumesPage() {
     }
   }
 
+  const openResumeEditor = (resumeId: number) => {
+    router.push(`/resume/${resumeId}/edit`)
+  }
+
   if (!mounted || isLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
@@ -309,14 +313,26 @@ export default function ResumesPage() {
               >
                 {/* Preview area */}
                 <div className="relative">
-                  <Link href={`/resume/${resume.id}/edit`} className="block">
+                  <div
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`编辑简历 ${resume.title}`}
+                    onClick={() => openResumeEditor(resume.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        openResumeEditor(resume.id)
+                      }
+                    }}
+                    className="block cursor-pointer"
+                  >
                     <div
                       className="overflow-hidden"
                       style={{ height: '220px', backgroundColor: '#eef0f3', borderBottom: '1px solid rgba(91,97,110,0.1)' }}
                     >
                       <ResumePreviewLoader content={resume.preview_content} />
                     </div>
-                  </Link>
+                  </div>
                   <button
                     onClick={() => handleDeleteResume(resume.id, resume.title)}
                     className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity"

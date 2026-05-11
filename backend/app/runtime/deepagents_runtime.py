@@ -385,6 +385,9 @@ class DeepAgentRuntime:
         """Convert OpenAI-style tool schemas into LangChain structured tools."""
         tools: list[StructuredTool] = []
         tool_results = executed_tools if executed_tools is not None else []
+        confirmation_state: dict[str, Any] = {
+            "business_tool_lock": asyncio.Lock(),
+        }
 
         for schema in agent.tools_schema:
             function = schema.get("function", {})
@@ -406,6 +409,7 @@ class DeepAgentRuntime:
                     event_queue=event_queue,
                     event_callback=event_callback,
                     executed_tools=tool_results,
+                    confirmation_state=confirmation_state,
                 )
 
             tools.append(
@@ -435,10 +439,61 @@ class DeepAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
+        confirmation_state: dict[str, Any] | None = None,
+    ) -> str:
+        """Run a business tool, serializing resume mutation tools per agent turn."""
+        if (
+            confirmation_state is not None
+            and tool_name not in agent.auto_execute_tool_names
+        ):
+            lock = confirmation_state["business_tool_lock"]
+            async with lock:
+                return await self._execute_tool_locked(
+                    agent=agent,
+                    run_id=run_id,
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    context=context,
+                    confirmation_queue=confirmation_queue,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    executed_tools=executed_tools,
+                    confirmation_state=confirmation_state,
+                )
+        return await self._execute_tool_locked(
+            agent=agent,
+            run_id=run_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            context=context,
+            confirmation_queue=confirmation_queue,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            confirmation_state=confirmation_state,
+        )
+
+    async def _execute_tool_locked(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        confirmation_state: dict[str, Any] | None = None,
     ) -> str:
         """Run a business tool, preserving existing preview and confirmation events."""
         call_id = uuid4().hex
         tool_started_at = perf_counter()
+        requires_confirmation = (
+            confirmation_queue is not None
+            and tool_name not in agent.auto_execute_tool_names
+        )
         tool_call = {
             "id": call_id,
             "type": "function",
@@ -451,16 +506,10 @@ class DeepAgentRuntime:
             call_id=call_id,
             tool_name=tool_name,
             tool_input=self._safe_tool_input(tool_input),
-            requires_confirmation=(
-                confirmation_queue is not None
-                and tool_name not in agent.auto_execute_tool_names
-            ),
+            requires_confirmation=requires_confirmation,
         )
 
-        if (
-            confirmation_queue is not None
-            and tool_name not in agent.auto_execute_tool_names
-        ):
+        if requires_confirmation:
             preview_context = {
                 "resume_content": deepcopy(context.get("resume_content"))
             }
@@ -582,8 +631,7 @@ class DeepAgentRuntime:
 
         event_key = (
             "tool_confirmed"
-            if confirmation_queue is not None
-            and tool_name not in agent.auto_execute_tool_names
+            if requires_confirmation
             else None
         )
         if event_key:
@@ -632,6 +680,7 @@ class DeepAgentRuntime:
             "max_completion_tokens": defaults.get("max_tokens", 1500),
             "timeout": settings.OPENROUTER_READ_TIMEOUT_SECONDS,
             "max_retries": settings.OPENROUTER_MAX_RETRIES,
+            "model_kwargs": {"parallel_tool_calls": False},
             "default_headers": {
                 "HTTP-Referer": "https://chat-resume.com",
                 "X-Title": "Chat Resume AI Assistant",

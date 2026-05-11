@@ -460,6 +460,66 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "已完成优化，重点突出系统规模和性能成果。",
         )
 
+    async def test_optimize_stream_serializes_multiple_business_tool_confirmations(
+        self,
+    ):
+        agent = self._build_agent(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_stream_first",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "先优化项目简介",
+                            },
+                        ),
+                        fake_tool_call(
+                            name="add_highlight",
+                            call_id="call_stream_second",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "text": "同一轮不应继续新增亮点",
+                            },
+                        ),
+                    ],
+                ),
+                AIMessage(content="已按顺序完成项目简介和项目亮点优化。"),
+            ]
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化项目内容",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+        ):
+            events.append(event)
+
+        pending_events = [event for event in events if event.get("tool_pending")]
+        confirmed_events = [event for event in events if event.get("tool_confirmed")]
+        self.assertEqual(len(pending_events), 2)
+        self.assertEqual(len(confirmed_events), 2)
+        self.assertEqual(resume["projects"][0]["overview"], "先优化项目简介")
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-1]["text"],
+            "同一轮不应继续新增亮点",
+        )
+        self.assertEqual(
+            "".join(event.get("content", "") for event in events),
+            "已按顺序完成项目简介和项目亮点优化。",
+        )
+
     async def test_optimize_stream_reject_keeps_resume_unchanged(self):
         agent = self._build_agent(
             [
@@ -604,6 +664,15 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         agent = ResumeAgent()
 
         self.assertIsInstance(agent.runtime, DeepAgentRuntime)
+
+    async def test_deep_agent_runtime_disables_parallel_tool_calls_at_model_layer(
+        self,
+    ):
+        runtime = DeepAgentRuntime()
+
+        model = runtime._build_model(ResumeAgent().definition)
+
+        self.assertEqual(model.model_kwargs.get("parallel_tool_calls"), False)
 
     async def test_deep_agent_runtime_stream_preserves_confirmation_flow(self):
         model = FakeDeepAgentChatModel(
