@@ -250,35 +250,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <nav>
-              <div
-                className="flex items-center gap-3 px-4 py-3 text-sm font-semibold"
-                style={{
-                  borderRadius: '12px',
-                  backgroundColor: '#eef0f3',
-                  color: '#0052ff',
-                }}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-                  style={{ backgroundColor: '#0052ff' }}
-                >
-                  {(user?.full_name || 'U')[0].toUpperCase()}
-                </div>
-                <div>
-                  <div className="font-semibold">个人资料</div>
-                  <div className="text-xs font-normal" style={{ color: '#5b616e' }}>管理您的个人信息</div>
-                </div>
-              </div>
-            </nav>
-          </div>
-
+      <div className="max-w-3xl mx-auto w-full px-6 py-10">
+        <div>
           {/* Main */}
-          <div className="lg:col-span-3">
+          <div>
             <div
               className="p-8"
               style={{

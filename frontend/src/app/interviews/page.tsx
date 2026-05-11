@@ -569,12 +569,6 @@ export default function InterviewsPage() {
                           )}
                           <span
                             className="px-3 py-1 text-xs font-semibold"
-                            style={{ borderRadius: '100000px', backgroundColor: '#eef0f3', color: '#0052ff' }}
-                          >
-                            {session.mode === 'simulation' ? '拟真模式' : '练习模式'}
-                          </span>
-                          <span
-                            className="px-3 py-1 text-xs font-semibold"
                             style={{ borderRadius: '100000px', backgroundColor: bg, color }}
                           >
                             {text}
