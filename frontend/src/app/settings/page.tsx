@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeftIcon,
   CheckIcon,
-  CreditCardIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
@@ -166,26 +165,6 @@ export default function SettingsPage() {
     }
   }
 
-  const handleManageBilling = async () => {
-    if (!billingStatus?.is_active || !billingStatus.subscription_id) {
-      setPlanPickerStep('plans')
-      setIsPlanPickerOpen(true)
-      return
-    }
-    if (!window.confirm('确定取消当前 PayPal 订阅吗？')) return
-
-    setIsBillingLoading(true)
-    try {
-      const nextStatus = await billingApi.cancelPayPalSubscription(billingStatus.subscription_id)
-      setBillingStatus(nextStatus)
-      toast.success('订阅已取消')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '取消 PayPal 订阅失败')
-    } finally {
-      setIsBillingLoading(false)
-    }
-  }
-
   if (authLoading || (!user && !authLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
@@ -197,11 +176,6 @@ export default function SettingsPage() {
     )
   }
 
-  const billingButtonLabel = billingStatus?.is_active
-    ? '管理套餐'
-    : isBillingLoading
-      ? '跳转中...'
-      : '升级套餐'
   const currentPlanName = billingStatus?.is_active ? 'Plus' : 'Free'
   const plusPlanPrice = formatPlanCardPrice(paypalPlan)
   const checkoutAmount = formatCheckoutAmount(paypalPlan)
@@ -250,111 +224,71 @@ export default function SettingsPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-3xl mx-auto w-full px-6 py-10">
-        <div>
-          {/* Main */}
-          <div>
-            <div
-              className="p-8"
-              style={{
-                border: '1px solid rgba(91,97,110,0.2)',
-                borderRadius: '16px',
-                backgroundColor: '#ffffff',
-              }}
-            >
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
-                  个人资料
-                </h2>
-                <p className="mt-1 text-base" style={{ color: '#5b616e' }}>管理您的个人信息</p>
-              </div>
+      <main className="mx-auto w-full max-w-3xl px-6 py-10">
+        <section
+          className="p-8"
+          style={{
+            border: '1px solid rgba(91,97,110,0.2)',
+            borderRadius: '24px',
+            backgroundColor: '#ffffff',
+          }}
+        >
+          <div className="mb-8">
+            <h2 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
+              个人资料
+            </h2>
+            <p className="mt-2 text-base" style={{ color: '#5b616e', lineHeight: '1.5' }}>
+              更新用于简历和面试记录中的身份信息。
+            </p>
+          </div>
 
-              <div className="space-y-6">
-                <div>
-                  <label className="label">姓名</label>
-                  <input
-                    type="text"
-                    value={userSettings.fullName}
-                    onChange={(e) => setUserSettings(prev => ({ ...prev, fullName: e.target.value }))}
-                    className="input"
-                    placeholder="请输入您的姓名"
-                  />
-                </div>
-                <div>
-                  <label className="label">邮箱地址</label>
-                  <input
-                    type="email"
-                    value={userSettings.email}
-                    readOnly
-                    className="input"
-                    style={{ backgroundColor: '#eef0f3', cursor: 'not-allowed', color: '#5b616e' }}
-                  />
-                </div>
-              </div>
+          <div className="space-y-6">
+            <div>
+              <label className="label">姓名</label>
+              <input
+                type="text"
+                value={userSettings.fullName}
+                onChange={(e) => setUserSettings(prev => ({ ...prev, fullName: e.target.value }))}
+                className="input"
+                placeholder="请输入您的姓名"
+              />
             </div>
+            <div>
+              <label className="label">邮箱地址</label>
+              <input
+                type="email"
+                value={userSettings.email}
+                readOnly
+                className="input"
+                style={{ backgroundColor: '#eef0f3', cursor: 'not-allowed', color: '#5b616e' }}
+              />
+            </div>
+          </div>
+        </section>
 
-            <div
-              className="mt-6 p-8"
-              style={{
-                border: '1px solid rgba(91,97,110,0.2)',
-                borderRadius: '16px',
-                backgroundColor: '#ffffff',
-              }}
-            >
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: '#eef0f3', color: '#0052ff' }}
-                  >
-                    <CreditCardIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
-                      账单
-                    </h2>
-                    <p className="mt-1 text-base" style={{ color: '#5b616e' }}>
-                      当前套餐：{billingStatus?.is_active ? 'Plus' : 'Free'}
-                    </p>
-                  </div>
+      </main>
+
+      {isPlanPickerOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto px-5 pb-6 pt-16" style={{ backgroundColor: '#ffffff' }}>
+          {planPickerStep === 'plans' ? (
+            <div className="mx-auto max-w-7xl">
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <h2 className="text-[52px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.00' }}>
+                    选择套餐
+                  </h2>
                 </div>
                 <button
                   type="button"
-                  onClick={handleManageBilling}
-                  disabled={isBillingLoading}
-                  className="btn-primary btn-sm w-full sm:w-auto"
+                  onClick={closePlanPicker}
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors"
+                  style={{ color: '#5b616e' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  aria-label="关闭"
                 >
-                  {billingButtonLabel}
+                  <XMarkIcon className="h-5 w-5" />
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {isPlanPickerOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto px-4 py-8"
-          style={{ backgroundColor: 'rgba(255,255,255,0.96)' }}
-        >
-          <button
-            type="button"
-            onClick={closePlanPicker}
-            className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-full transition-colors"
-            style={{ color: '#5b616e' }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-            aria-label="关闭"
-          >
-            <XMarkIcon className="h-5 w-5" />
-          </button>
-
-          {planPickerStep === 'plans' ? (
-            <div className="mx-auto max-w-6xl">
-              <div className="text-center">
-                <h2 className="text-3xl font-semibold" style={{ color: '#0a0b0d' }}>
-                  选择套餐
-                </h2>
               </div>
 
               <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -372,58 +306,69 @@ export default function SettingsPage() {
                         : `切换至 ${plan.name}`
 
                   return (
-                    <div
+                    <section
                       key={plan.id}
-                      className="flex min-h-[520px] flex-col p-7"
+                      className="flex min-h-[500px] flex-col p-8"
                       style={{
-                        border: isCurrent ? '1.5px solid #0a0b0d' : '1px solid rgba(91,97,110,0.2)',
-                        borderRadius: '16px',
+                        border: isCurrent ? '2px solid #0a0b0d' : '1px solid rgba(91,97,110,0.2)',
+                        borderRadius: '24px',
                         backgroundColor: '#ffffff',
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-2xl font-semibold" style={{ color: '#0a0b0d' }}>
-                          {plan.name}
-                        </h3>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
+                            {plan.name}
+                          </h3>
+                          <p className="mt-3 text-sm font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.5' }}>
+                            {plan.tagline}
+                          </p>
+                        </div>
                         {isCurrent && (
-                          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: '#eef0f3', color: '#5b616e' }}>
+                          <span className="rounded-full px-2.5 py-1 text-xs font-semibold leading-none" style={{ backgroundColor: '#eef0f3', color: '#5b616e' }}>
                             当前
                           </span>
                         )}
                       </div>
 
-                      <div className="mt-8 flex items-end gap-2">
+                      <div className="mt-9 flex items-end gap-2">
                         {hasUsdPrice ? (
                           <>
-                            <span className="text-base" style={{ color: '#7b818a' }}>$</span>
-                            <span className="text-5xl font-semibold leading-none" style={{ color: '#0a0b0d' }}>
+                            <span className="mb-2 text-base" style={{ color: '#5b616e' }}>$</span>
+                            <span className="text-[64px] font-semibold leading-none" style={{ color: '#0a0b0d' }}>
                               {plan.price.replace('$', '')}
                             </span>
-                            <span className="mb-1 text-sm font-medium" style={{ color: '#5b616e' }}>
+                            <span className="mb-2 text-sm font-semibold" style={{ color: '#5b616e' }}>
                               USD / 月
                             </span>
                           </>
                         ) : (
-                          <span className="text-3xl font-semibold leading-tight" style={{ color: '#0a0b0d' }}>
+                          <span className="text-[32px] font-semibold leading-tight" style={{ color: '#0a0b0d' }}>
                             {plan.price}
                           </span>
                         )}
                       </div>
-                      <p className="mt-5 text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                        {plan.tagline}
-                      </p>
 
                       <button
                         type="button"
                         disabled={isCurrent || isSoon}
                         onClick={isPayable ? () => setPlanPickerStep('checkout') : undefined}
-                        className="mt-6 w-full px-4 py-3 text-sm font-semibold transition-colors"
+                        className="mt-8 w-full px-5 py-3 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-black disabled:cursor-not-allowed"
                         style={{
-                          borderRadius: '999px',
-                          border: isCurrent ? 'none' : '1px solid rgba(91,97,110,0.22)',
-                          backgroundColor: isCurrent ? '#b8b8b8' : isPayable ? '#0a0b0d' : '#ffffff',
+                          borderRadius: '56px',
+                          border: isCurrent ? '1px solid #0052ff' : isPayable ? '1px solid #0052ff' : '1px solid rgba(91,97,110,0.2)',
+                          backgroundColor: isCurrent ? '#0052ff' : isPayable ? '#0052ff' : '#ffffff',
                           color: isCurrent ? '#ffffff' : isPayable ? '#ffffff' : '#0a0b0d',
-                          cursor: isCurrent || isSoon ? 'not-allowed' : 'pointer',
+                        }}
+                        onMouseEnter={(event) => {
+                          if (event.currentTarget.disabled || !isPayable) return
+                          event.currentTarget.style.backgroundColor = '#578bfa'
+                          event.currentTarget.style.borderColor = '#578bfa'
+                        }}
+                        onMouseLeave={(event) => {
+                          if (!isPayable) return
+                          event.currentTarget.style.backgroundColor = '#0052ff'
+                          event.currentTarget.style.borderColor = '#0052ff'
                         }}
                       >
                         {buttonLabel}
@@ -431,101 +376,100 @@ export default function SettingsPage() {
 
                       <div className="mt-8 space-y-4">
                         {plan.features.map(feature => (
-                          <div key={feature} className="flex items-start gap-3 text-sm" style={{ color: '#0a0b0d' }}>
+                          <div key={feature} className="flex items-start gap-3 text-base" style={{ color: '#0a0b0d', lineHeight: '1.5' }}>
                             {plan.name === 'Pro' ? (
-                              <SparklesIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                              <SparklesIcon className="mt-1 h-4 w-4 flex-shrink-0" />
                             ) : (
-                              <CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                              <CheckIcon className="mt-1 h-4 w-4 flex-shrink-0" />
                             )}
                             <span>{feature}</span>
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </section>
                   )
                 })}
               </div>
             </div>
           ) : (
-            <div className="mx-auto max-w-4xl">
-              <button
-                type="button"
-                onClick={() => setPlanPickerStep('plans')}
-                className="mb-8 flex items-center gap-3 text-sm font-semibold"
-                style={{ color: '#0a0b0d' }}
+            <div className="mx-auto max-w-5xl">
+              <div className="mb-8 flex items-center justify-between gap-6">
+                <button
+                  type="button"
+                  onClick={() => setPlanPickerStep('plans')}
+                  className="flex items-center gap-3 text-sm font-semibold transition-colors"
+                  style={{ color: '#0a0b0d' }}
+                >
+                  <ArrowLeftIcon className="h-5 w-5" />
+                  返回套餐
+                </button>
+                <button
+                  type="button"
+                  onClick={closePlanPicker}
+                  className="flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+                  style={{ color: '#5b616e' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  aria-label="关闭"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div
+                className="grid overflow-hidden lg:grid-cols-[0.9fr_1.1fr]"
+                style={{ border: '1px solid rgba(91,97,110,0.2)', borderRadius: '24px', backgroundColor: '#ffffff' }}
               >
-                <ArrowLeftIcon className="h-5 w-5" />
-                返回套餐
-              </button>
+                <aside className="p-8 lg:p-10" style={{ backgroundColor: '#0a0b0d', color: '#ffffff' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.68)', lineHeight: '1.5' }}>
+                    Chat Resume Plus
+                  </p>
+                  <h2 className="mt-3 text-[52px] font-semibold" style={{ lineHeight: '1.00' }}>
+                    确认订阅
+                  </h2>
+                  <p className="mt-5 text-base" style={{ color: 'rgba(255,255,255,0.72)', lineHeight: '1.5' }}>
+                    Plus 月度套餐将解锁更多 AI 对话额度、JD 匹配分析和面试训练能力。
+                  </p>
 
-              <div className="grid min-h-[700px] grid-cols-1 overflow-hidden rounded-[20px] border lg:grid-cols-[0.95fr_1.05fr]" style={{ borderColor: 'rgba(91,97,110,0.14)', backgroundColor: '#ffffff' }}>
-                <aside className="px-7 pb-9 pt-[68px] lg:px-10" style={{ backgroundColor: '#fbfbfc' }}>
-                  <div className="flex items-center justify-between gap-5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ backgroundColor: '#f5d94e' }}>
-                        <SparklesIcon className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                          Chat Resume Plus
-                        </div>
-                        <div className="text-xs" style={{ color: '#7b818a' }}>
-                          Plus 月度套餐
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                      {checkoutAmount}
-                    </div>
-                  </div>
+                  <div className="my-8 h-px" style={{ backgroundColor: 'rgba(255,255,255,0.18)' }} />
 
-                  <div className="my-7 h-px" style={{ backgroundColor: 'rgba(91,97,110,0.16)' }} />
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span style={{ color: '#0a0b0d' }}>小计</span>
-                      <span className="font-semibold" style={{ color: '#0a0b0d' }}>{checkoutAmount}</span>
+                  <div className="space-y-4 text-base">
+                    <div className="flex items-center justify-between gap-6">
+                      <span style={{ color: 'rgba(255,255,255,0.72)' }}>小计</span>
+                      <span className="font-semibold">{checkoutAmount}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="rounded-lg px-4 py-2.5 text-xs font-semibold"
-                      style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}
-                    >
-                      添加促销码
-                    </button>
-                    <div className="h-px" style={{ backgroundColor: 'rgba(91,97,110,0.16)' }} />
-                    <div className="flex items-center justify-between text-base font-semibold">
-                      <span style={{ color: '#0a0b0d' }}>应付合计</span>
-                      <span style={{ color: '#0a0b0d' }}>{checkoutAmount}</span>
+                    <div className="flex items-center justify-between gap-6 text-lg font-semibold">
+                      <span>应付合计</span>
+                      <span>{checkoutAmount}</span>
                     </div>
                   </div>
                 </aside>
 
-                <main className="px-7 pb-9 pt-[60px] lg:px-10">
-                  <section className="mx-auto w-full max-w-[360px]">
-                    <h2 className="text-base font-semibold" style={{ color: '#0a0b0d' }}>
+                <main className="p-8 lg:p-10">
+                  <section>
+                    <h3 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
                       联系信息
-                    </h2>
-                    <div className="mt-3 flex items-center rounded-lg border px-4 py-3.5" style={{ borderColor: 'rgba(91,97,110,0.18)', backgroundColor: '#f8f8f9' }}>
-                      <span className="w-20 text-xs" style={{ color: '#5b616e' }}>邮箱</span>
-                      <span className="text-sm" style={{ color: '#0a0b0d' }}>{user?.email || userSettings.email}</span>
+                    </h3>
+                    <div className="mt-5 rounded-2xl border px-5 py-4" style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#ffffff' }}>
+                      <p className="text-sm font-semibold" style={{ color: '#5b616e' }}>邮箱</p>
+                      <p className="mt-1 truncate text-base" style={{ color: '#0a0b0d' }}>{user?.email || userSettings.email}</p>
                     </div>
                   </section>
 
-                  <section className="mx-auto mt-7 w-full max-w-[360px]">
-                    <h2 className="text-base font-semibold" style={{ color: '#0a0b0d' }}>
+                  <section className="mt-8">
+                    <h3 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
                       支付方式
-                    </h2>
+                    </h3>
                     <div
-                      className="mt-3 flex w-full items-center gap-3 rounded-lg border px-4 py-3.5"
+                      className="mt-5 flex items-center justify-between gap-4 rounded-2xl border px-5 py-4"
                       style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#ffffff' }}
                     >
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full border-2" style={{ borderColor: '#0a0b0d' }}>
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#0a0b0d' }} />
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="rounded px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: '#0070e0', color: '#ffffff' }}>PayPal</span>
-                        <span className="text-sm font-medium" style={{ color: '#0a0b0d' }}>PayPal</span>
+                      <div>
+                        <p className="text-base font-semibold" style={{ color: '#0a0b0d' }}>PayPal</p>
+                        <p className="mt-1 text-sm" style={{ color: '#5b616e' }}>跳转到 PayPal 完成授权。</p>
+                      </div>
+                      <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
+                        PayPal
                       </span>
                     </div>
                   </section>
@@ -534,15 +478,24 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleUpgradeWithPayPal}
                     disabled={isBillingLoading}
-                    className="mx-auto mt-7 block w-full max-w-[360px] px-4 py-3.5 text-sm font-semibold shadow-md"
+                    className="mt-8 w-full px-5 py-4 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-black disabled:cursor-not-allowed disabled:opacity-60"
                     style={{
-                      borderRadius: '8px',
-                      backgroundColor: '#3f6dcc',
+                      borderRadius: '56px',
+                      border: '1px solid #0052ff',
+                      backgroundColor: '#0052ff',
                       color: '#ffffff',
-                      cursor: isBillingLoading ? 'not-allowed' : 'pointer',
+                    }}
+                    onMouseEnter={(event) => {
+                      if (event.currentTarget.disabled) return
+                      event.currentTarget.style.backgroundColor = '#578bfa'
+                      event.currentTarget.style.borderColor = '#578bfa'
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.backgroundColor = '#0052ff'
+                      event.currentTarget.style.borderColor = '#0052ff'
                     }}
                   >
-                    {isBillingLoading ? '跳转中...' : '支付'}
+                    {isBillingLoading ? '跳转中...' : '使用 PayPal 支付'}
                   </button>
                 </main>
               </div>
