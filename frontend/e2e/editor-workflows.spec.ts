@@ -189,15 +189,28 @@ async function readResumeAgentConfirmCalls(page: Page) {
 }
 
 test.describe('编辑页工作流', () => {
-  test('上传真实文件后会进入编辑页并加载返回的简历', async ({ page }) => {
+  test('上传真实文件后轮询解析任务，完成后进入编辑页并加载简历', async ({ page }) => {
     await loginAs(page, uniqueEmail('uploadflow'))
     const uploadedResume = buildResumeResponse(999)
 
     await page.route('**/api/upload/resume', async (route) => {
       await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ job_id: 'upload-job-999', status: 'queued' }),
+      })
+    })
+    await page.route('**/api/upload/resume-jobs/upload-job-999', async (route) => {
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(uploadedResume),
+        body: JSON.stringify({
+          job_id: 'upload-job-999',
+          status: 'completed',
+          resume_id: 999,
+          error: null,
+          original_filename: 'resume.txt',
+        }),
       })
     })
     await page.route('**/api/resumes/999', async (route) => {

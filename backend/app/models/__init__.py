@@ -23,5 +23,8 @@ from .resume import (
 from .resume import (
     ResumeChatMessage as ResumeChatMessage,
 )
+from .resume import (
+    ResumeUploadJob as ResumeUploadJob,
+)
 from .user import ProviderIdentity as ProviderIdentity
 from .user import User as User

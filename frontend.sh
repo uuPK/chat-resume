@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# Chat Resume 前端启动脚本
-echo "🚀 启动 Chat Resume 前端服务..."
+# Chat Resume 前端重启脚本
+set -euo pipefail
+
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+
+echo "🚀 重启 Chat Resume 前端服务..."
 
 # 检查是否在正确的目录
 if [ ! -f "frontend/package.json" ]; then
@@ -38,16 +42,34 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     exit 1
 fi
 
+stop_port() {
+    local port="$1"
+    local pids
+    pids="$(lsof -ti "tcp:${port}" || true)"
+    if [ -n "${pids}" ]; then
+        echo "🛑 停止占用端口 ${port} 的进程: ${pids}"
+        kill ${pids} || true
+        sleep 1
+        pids="$(lsof -ti "tcp:${port}" || true)"
+        if [ -n "${pids}" ]; then
+            echo "🛑 强制停止占用端口 ${port} 的进程: ${pids}"
+            kill -9 ${pids} || true
+        fi
+    fi
+}
+
 # 检查是否已安装依赖
 if [ ! -d "node_modules" ]; then
     echo "📦 安装依赖包..."
     npm install
 fi
 
-# 启动开发服务器
+# 重启开发服务器
+stop_port "${FRONTEND_PORT}"
+
 echo "🌟 启动前端开发服务器..."
-echo "前端将在 http://localhost:3000 运行"
+echo "前端将在 http://localhost:${FRONTEND_PORT} 运行"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-npm run dev
+npm run dev -- --port "${FRONTEND_PORT}"

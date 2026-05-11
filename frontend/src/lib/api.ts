@@ -44,6 +44,19 @@ interface JDOcrResponse {
   text: string
 }
 
+interface ResumeUploadJobCreated {
+  job_id: string
+  status: 'queued' | 'processing' | 'completed' | 'failed'
+}
+
+interface ResumeUploadJobStatus {
+  job_id: string
+  status: 'queued' | 'processing' | 'completed' | 'failed'
+  resume_id?: number | null
+  error?: string | null
+  original_filename: string
+}
+
 interface InterviewTurn {
   id: number
   turn_index: number
@@ -257,7 +270,7 @@ class ResumeAPI {
   /**
    * 上传简历文件
    */
-  static async uploadResume(file: File): Promise<Resume> {
+  static async uploadResume(file: File): Promise<ResumeUploadJobCreated> {
     const formData = new FormData()
     formData.append('file', file)
 
@@ -266,7 +279,16 @@ class ResumeAPI {
       body: formData,
     })
 
-    return handleApiResponse<Resume>(response)
+    return handleApiResponse<ResumeUploadJobCreated>(response)
+  }
+
+  /**
+   * 查询简历上传解析任务状态
+   */
+  static async getResumeUploadJob(jobId: string): Promise<ResumeUploadJobStatus> {
+    const response = await apiFetch(`/api/upload/resume-jobs/${jobId}`)
+
+    return handleApiResponse<ResumeUploadJobStatus>(response)
   }
 
   /**
@@ -487,6 +509,7 @@ export type {
   DigitalHumanConversation,
   PayPalPlan,
   PayPalSubscriptionCheckout,
+  ResumeUploadJobStatus,
   ResumeContent,
   InterviewSession,
   InterviewSessionSummary,

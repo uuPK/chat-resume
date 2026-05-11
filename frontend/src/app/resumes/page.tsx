@@ -28,6 +28,13 @@ interface Resume {
   preview_content?: Partial<ResumeContent>
 }
 
+const UPLOAD_JOB_POLL_INTERVAL_MS = 1500
+const UPLOAD_JOB_TIMEOUT_MS = 120000
+
+function sleep(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms))
+}
+
 // 简历预览加载器，展示简历内容缩略图
 function ResumePreviewLoader({ content }: { content?: Partial<ResumeContent> }) {
   return (
@@ -84,6 +91,24 @@ export default function ResumesPage() {
     if (mounted && isAuthenticated) fetchResumes()
   }, [mounted, isAuthenticated])
 
+  const waitForUploadJob = async (jobId: string) => {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < UPLOAD_JOB_TIMEOUT_MS) {
+      const job = await resumeApi.getResumeUploadJob(jobId)
+      if (job.status === 'completed') {
+        if (!job.resume_id) {
+          throw new Error('解析完成但没有返回简历 ID')
+        }
+        return job.resume_id
+      }
+      if (job.status === 'failed') {
+        throw new Error(job.error || '简历解析失败，请重试')
+      }
+      await sleep(UPLOAD_JOB_POLL_INTERVAL_MS)
+    }
+    throw new Error('简历解析超时，请稍后在简历中心刷新查看')
+  }
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -98,22 +123,14 @@ export default function ResumesPage() {
     }
     setUploadLoading(true)
     try {
-      toast.loading('正在上传和解析简历...', { id: 'upload' })
-      const result = await resumeApi.uploadResume(file)
-      const parsingQuality = result.content?.parsing_quality || 0
-      const parsingMethod = result.content?.parsing_method || 'unknown'
-      if (parsingMethod === 'fallback' || parsingQuality === 0) {
-        toast.success('简历上传成功，AI解析失败，已提取基本信息，请检查并补充', { id: 'upload', duration: 4000 })
-        router.push(`/resume/${result.id}/edit`)
-        return
-      } else if (parsingQuality < 0.3) {
-        toast.success(`简历上传成功，解析质量较低(${Math.round(parsingQuality * 100)}%)，建议检查并完善信息`, { id: 'upload', duration: 5000 })
-      } else {
-        toast.success(`简历上传并解析成功！解析质量: ${Math.round(parsingQuality * 100)}%`, { id: 'upload' })
-      }
-      await fetchResumes()
+      toast.loading('正在上传简历...', { id: 'upload' })
+      const job = await resumeApi.uploadResume(file)
+      toast.loading('简历已上传，正在后台解析...', { id: 'upload' })
+      const resumeId = await waitForUploadJob(job.job_id)
+      toast.success('简历解析完成', { id: 'upload' })
+      router.push(`/resume/${resumeId}/edit`)
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || '上传失败，请重试', { id: 'upload' })
+      toast.error(error.response?.data?.detail || error.message || '上传失败，请重试', { id: 'upload' })
     } finally {
       setUploadLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

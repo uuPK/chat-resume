@@ -30,7 +30,7 @@ from app.infra.database import Base, get_db
 from app.main import app
 from app.models.billing import BillingSubscription
 from app.models.interview import InterviewSession, InterviewTurn
-from app.models.resume import ResumeChatMessage
+from app.models.resume import ResumeChatMessage, ResumeUploadJob
 from app.models.user import ProviderIdentity, User
 from app.runtime.permissions import confirmation_manager
 from app.services.errors import ServicePayloadTooLargeError
@@ -1783,8 +1783,8 @@ class TestResumeUpload:
         self.headers = _auth_headers(self.token)
         self.client = client
 
-    def test_upload_resume_parses_and_persists_uploaded_file(self, monkeypatch, caplog):
-        """通过真实 multipart 上传验证简历上传接口会走解析和入库链路。"""
+    def test_upload_resume_enqueues_background_parse_job(self, monkeypatch, caplog):
+        """上传接口应立即返回 job_id，并通过状态接口暴露后台解析结果。"""
         fixture_path = (
             Path(__file__).resolve().parent / "fixtures" / "sample_resume_upload.txt"
         )
@@ -1847,6 +1847,7 @@ class TestResumeUpload:
             "app.entrypoints.http.upload.ResumeParser.parse_resume_text_async",
             _fake_parse_resume_text_async,
         )
+        monkeypatch.setattr("app.entrypoints.http.upload.SessionLocal", _TestingSession)
 
         with caplog.at_level("INFO", logger="app.entrypoints.http.upload"):
             response = self.client.post(
@@ -1861,15 +1862,36 @@ class TestResumeUpload:
                 headers=self.headers,
             )
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         body = response.json()
-        assert body["title"] == "sample_resume_upload"
-        assert body["original_filename"] == "sample_resume_upload.txt"
-        assert body["content"]["parsing_quality"] == 0.92
-        assert body["content"]["parsing_method"] == "ai"
-        assert body["content"]["personal_info"]["name"] == "测试用户"
-        assert body["content"]["job_application"]["target_company"] == "OpenAI"
+        assert body["job_id"]
+        assert body["status"] == "queued"
+
+        status_response = self.client.get(
+            f"/api/upload/resume-jobs/{body['job_id']}",
+            headers=self.headers,
+        )
+
+        assert status_response.status_code == 200
+        status_body = status_response.json()
+        assert status_body["job_id"] == body["job_id"]
+        assert status_body["status"] == "completed"
+        assert status_body["resume_id"]
+        assert status_body["error"] is None
+        resume_response = self.client.get(
+            f"/api/resumes/{status_body['resume_id']}",
+            headers=self.headers,
+        )
+        assert resume_response.status_code == 200
+        resume_body = resume_response.json()
+        assert resume_body["title"] == "sample_resume_upload"
+        assert resume_body["original_filename"] == "sample_resume_upload.txt"
+        assert resume_body["content"]["parsing_quality"] == 0.92
+        assert resume_body["content"]["parsing_method"] == "ai"
+        assert resume_body["content"]["personal_info"]["name"] == "测试用户"
+        assert resume_body["content"]["job_application"]["target_company"] == "OpenAI"
         assert deleted_paths == [saved_file_path]
+        assert "resume_upload.job.created" in caplog.text
         assert "resume_upload.parse.started model=" in caplog.text
         assert "file_bytes=" not in caplog.text
         assert "text_chars=" not in caplog.text
@@ -1895,6 +1917,92 @@ class TestResumeUpload:
 
         assert response.status_code == 413
         assert response.json()["detail"] == "File too large"
+
+    def test_upload_resume_job_reports_background_failure(self, monkeypatch):
+        """后台解析失败时状态接口应返回 failed，而不是让前端无限轮询。"""
+        saved_file_path = "/tmp/test_resume_upload_failed.txt"
+        deleted_paths: list[str] = []
+
+        async def _fake_save_uploaded_file(self, file):
+            return saved_file_path
+
+        def _fake_extract_text_from_file(self, file_path: str, filename: str) -> str:
+            return "broken resume text"
+
+        async def _fake_parse_resume_text_async(self, text: str) -> dict:
+            raise RuntimeError("parser exploded")
+
+        def _fake_delete_file(self, file_path: str) -> None:
+            deleted_paths.append(file_path)
+
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.save_uploaded_file",
+            _fake_save_uploaded_file,
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.extract_text_from_file",
+            _fake_extract_text_from_file,
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.FileService.delete_file", _fake_delete_file
+        )
+        monkeypatch.setattr(
+            "app.entrypoints.http.upload.ResumeParser.parse_resume_text_async",
+            _fake_parse_resume_text_async,
+        )
+        monkeypatch.setattr("app.entrypoints.http.upload.SessionLocal", _TestingSession)
+
+        response = self.client.post(
+            "/api/upload/resume",
+            files={"file": ("failed_resume.txt", b"content", "text/plain")},
+            headers=self.headers,
+        )
+
+        assert response.status_code == 202
+        job_id = response.json()["job_id"]
+        status_response = self.client.get(
+            f"/api/upload/resume-jobs/{job_id}",
+            headers=self.headers,
+        )
+
+        assert status_response.status_code == 200
+        status_body = status_response.json()
+        assert status_body["status"] == "failed"
+        assert status_body["resume_id"] is None
+        assert "parser exploded" in status_body["error"]
+        assert deleted_paths == [saved_file_path]
+
+    def test_upload_resume_job_status_is_user_scoped(self, monkeypatch):
+        """用户不能查询其他用户的上传解析任务状态。"""
+        db = _TestingSession()
+        try:
+            owner = (
+                db.query(User)
+                .filter(User.email == "resume_upload_user@example.com")
+                .one()
+            )
+            job = ResumeUploadJob(
+                id="private-job",
+                user_id=owner.id,
+                status="queued",
+                original_filename="private.txt",
+                file_path="/tmp/private.txt",
+            )
+            db.add(job)
+            db.commit()
+        finally:
+            db.close()
+
+        other_client = TestClient(app)
+        _register(other_client, "resume_upload_other@example.com")
+        other_token = _login(other_client, "resume_upload_other@example.com")
+
+        response = other_client.get(
+            "/api/upload/resume-jobs/private-job",
+            headers=_auth_headers(other_token),
+        )
+
+        assert response.status_code == 404
 
 
 # ═══════════════════════════════════════════════════════════════════════════
