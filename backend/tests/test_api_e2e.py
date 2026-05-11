@@ -24,6 +24,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.websockets import WebSocketDisconnect
 
 from app.infra.database import Base, get_db
 from app.main import app
@@ -2291,6 +2292,14 @@ class TestPlusFeatureAccess:
 
 
 class TestDigitalHumanBillingAccess:
+    class _FakeVolcengineVoiceService:
+        def is_configured(self) -> bool:
+            return True
+
+        async def proxy_session(self, client_ws, **kwargs):
+            await client_ws.send_json({"type": "ready"})
+            await client_ws.close()
+
     def _create_interview_session(self, client, headers: dict, email: str) -> int:
         resume_resp = client.post(
             "/api/resumes/",
@@ -2389,6 +2398,104 @@ class TestDigitalHumanBillingAccess:
             "status": "ready",
             "meeting_token": None,
         }
+
+    def test_voice_session_websocket_rejects_anonymous_client(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes,
+            "VolcengineVoiceService",
+            self._FakeVolcengineVoiceService,
+        )
+        _register(client, "voice_ws_owner@example.com")
+        token = _login(client, "voice_ws_owner@example.com")
+        session_id = self._create_interview_session(
+            client, _auth_headers(token), "voice_ws_owner@example.com"
+        )
+
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with _anonymous_client().websocket_connect(
+                f"/api/digital-human/voice-session/{session_id}"
+            ) as websocket:
+                websocket.receive_json()
+
+        assert exc_info.value.code == 1008
+
+    def test_voice_session_websocket_rejects_free_user(self, client, monkeypatch):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes,
+            "VolcengineVoiceService",
+            self._FakeVolcengineVoiceService,
+        )
+        email = "voice_ws_free@example.com"
+        _register(client, email)
+        token = _login(client, email)
+        session_id = self._create_interview_session(client, _auth_headers(token), email)
+
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect(
+                f"/api/digital-human/voice-session/{session_id}"
+            ) as websocket:
+                websocket.receive_json()
+
+        assert exc_info.value.code == 1008
+
+    def test_voice_session_websocket_rejects_other_users_session(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes,
+            "VolcengineVoiceService",
+            self._FakeVolcengineVoiceService,
+        )
+        owner_email = "voice_ws_owner_plus@example.com"
+        _register(client, owner_email)
+        owner_token = _login(client, owner_email)
+        _grant_active_subscription(owner_email, "I-VOICEOWNER")
+        session_id = self._create_interview_session(
+            client, _auth_headers(owner_token), owner_email
+        )
+
+        attacker_client = TestClient(app)
+        attacker_email = "voice_ws_attacker_plus@example.com"
+        _register(attacker_client, attacker_email)
+        _login(attacker_client, attacker_email)
+        _grant_active_subscription(attacker_email, "I-VOICEATTACKER")
+
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with attacker_client.websocket_connect(
+                f"/api/digital-human/voice-session/{session_id}"
+            ) as websocket:
+                websocket.receive_json()
+
+        assert exc_info.value.code == 1008
+
+    def test_active_subscriber_can_open_owned_voice_session_websocket(
+        self, client, monkeypatch
+    ):
+        from app.entrypoints.http import digital_human as digital_human_routes
+
+        monkeypatch.setattr(
+            digital_human_routes,
+            "VolcengineVoiceService",
+            self._FakeVolcengineVoiceService,
+        )
+        email = "voice_ws_plus@example.com"
+        _register(client, email)
+        token = _login(client, email)
+        _grant_active_subscription(email, "I-VOICEPLUS")
+        session_id = self._create_interview_session(client, _auth_headers(token), email)
+
+        with client.websocket_connect(
+            f"/api/digital-human/voice-session/{session_id}"
+        ) as websocket:
+            assert websocket.receive_json() == {"type": "ready"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════

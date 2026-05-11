@@ -20,9 +20,14 @@ from fastapi import (
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.entrypoints.http.deps import get_current_user, require_active_subscription
+from app.entrypoints.http.deps import (
+    authenticate_token_with_db,
+    get_current_user,
+    require_active_subscription,
+)
 from app.infra.config import settings
 from app.infra.database import get_db
+from app.models.billing import BillingSubscription
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
 from app.services.digital_human import (
@@ -45,6 +50,7 @@ from app.services.interview.session_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_WS_POLICY_VIOLATION = status.WS_1008_POLICY_VIOLATION
 
 
 class DigitalHumanCreateRequest(BaseModel):
@@ -284,6 +290,51 @@ def _prefers_chinese(language: str) -> bool:
     return normalized.startswith("zh") or "chinese" in normalized or "中文" in language
 
 
+async def _close_ws_policy_violation(websocket: WebSocket, reason: str) -> None:
+    await websocket.close(code=_WS_POLICY_VIOLATION, reason=reason)
+
+
+def _user_has_active_subscription(db: Session, user_id: int) -> bool:
+    return (
+        db.query(BillingSubscription.id)
+        .filter(
+            BillingSubscription.user_id == user_id,
+            BillingSubscription.status == "ACTIVE",
+        )
+        .first()
+        is not None
+    )
+
+
+async def _authorize_voice_session_ws(
+    websocket: WebSocket,
+    *,
+    session_id: int,
+    db: Session,
+) -> InterviewSession | None:
+    token = websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+    if not token:
+        await _close_ws_policy_violation(websocket, "Missing access token")
+        return None
+
+    try:
+        _, current_user = authenticate_token_with_db(token, db)
+    except HTTPException:
+        await _close_ws_policy_violation(websocket, "Invalid access token")
+        return None
+
+    user_id = int(current_user["id"])
+    if not _user_has_active_subscription(db, user_id):
+        await _close_ws_policy_violation(websocket, "active_subscription_required")
+        return None
+
+    try:
+        return get_session_for_user(db, session_id, user_id)
+    except ServiceError:
+        await _close_ws_policy_violation(websocket, "Interview session not found")
+        return None
+
+
 def _extract_resume_text(resume_content: dict) -> str:
     """把结构化简历 JSON 转为面试官可读的纯文本摘要。"""
     lines: list[str] = []
@@ -402,6 +453,14 @@ async def voice_session_ws(
     db: Session = Depends(get_db),
 ):
     """用于在前端和火山引擎之间代理实时语音 WebSocket 连接。"""
+    interview_session = await _authorize_voice_session_ws(
+        websocket,
+        session_id=session_id,
+        db=db,
+    )
+    if interview_session is None:
+        return
+
     await websocket.accept()
     logger.info("Voice WebSocket accepted for interview_session_id=%s", session_id)
     service = VolcengineVoiceService()
@@ -414,9 +473,6 @@ async def voice_session_ws(
     # 加载面试上下文构建 system_role 和开场白
     system_role = ""
     greeting = ""
-    interview_session = (
-        db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
-    )
     if interview_session:
         existing_turns = (
             db.query(InterviewTurn)

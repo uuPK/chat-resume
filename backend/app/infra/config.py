@@ -11,6 +11,9 @@ from typing import List, Literal, Union, cast
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
+DEFAULT_SECRET_KEY = "your-secret-key-here"
+_LOCAL_APP_ENVS = {"development", "dev", "local", "test", "testing"}
+
 
 class Settings(BaseSettings):
     """用于集中管理运行环境里的所有配置项。"""
@@ -37,7 +40,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
     # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     REFRESH_SESSION_EXPIRE_DAYS: int = int(
         os.getenv("REFRESH_SESSION_EXPIRE_DAYS", "30")
@@ -248,4 +251,17 @@ class Settings(BaseSettings):
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 
 
+def validate_secret_key(config: Settings) -> None:
+    """Fail fast when production would run with the development JWT key."""
+    app_env = config.APP_ENV.strip().lower()
+    secret_key = config.SECRET_KEY.strip()
+    if app_env in _LOCAL_APP_ENVS:
+        return
+    if not secret_key or secret_key == DEFAULT_SECRET_KEY:
+        raise ValueError(
+            "SECRET_KEY must be set to a non-default value outside development."
+        )
+
+
 settings = Settings.model_validate({})
+validate_secret_key(settings)

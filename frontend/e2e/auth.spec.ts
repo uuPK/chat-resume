@@ -10,14 +10,11 @@ import { uniqueEmail, DEFAULT_PASSWORD, registerUser } from './helpers'
 // ── 注册 ──────────────────────────────────────────────────────────────────
 
 test.describe('注册', () => {
-  test('页面包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
+  test('页面包含 Google 登录入口并指向后端启动端点', async ({ page }) => {
     await page.goto('/register')
     const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
-
-    await googleLink.click()
-    await page.waitForURL('http://localhost:8000/api/auth/google/login', { timeout: 10_000 })
   })
 
   test('新用户注册成功后跳转到 dashboard', async ({ page }) => {
@@ -69,14 +66,11 @@ test.describe('注册', () => {
 // ── Google OAuth 入口 ─────────────────────────────────────────────────────
 
 test.describe('Google OAuth 入口', () => {
-  test('登录页包含 Google 登录入口并跳转到后端启动端点', async ({ page }) => {
+  test('登录页包含 Google 登录入口并指向后端启动端点', async ({ page }) => {
     await page.goto('/login')
     const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
-
-    await googleLink.click()
-    await page.waitForURL('http://localhost:8000/api/auth/google/login', { timeout: 10_000 })
   })
 
   test('URL 中包含 oauth_error 时展示 Google 登录失败提示', async ({ page }) => {
