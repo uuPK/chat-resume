@@ -179,6 +179,33 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       let buffer = ''
       let streamingContent = ''
       let eventsBuffer: StreamEvent[] = []
+      const completeToolCallEvent = (
+        callId: string,
+        toolName: string,
+        displayMessage?: string,
+      ) => {
+        let updated = false
+        eventsBuffer = eventsBuffer.map((event) => {
+          if (event.type === 'tool_call' && event.callId === callId) {
+            updated = true
+            return {
+              type: 'tool_result' as const,
+              callId,
+              toolName: event.toolName || toolName,
+              displayMessage,
+            }
+          }
+          return event
+        })
+        if (!updated && !eventsBuffer.some((event) => event.type === 'tool_result' && event.callId === callId)) {
+          eventsBuffer = [...eventsBuffer, {
+            type: 'tool_result',
+            callId,
+            toolName,
+            displayMessage,
+          }]
+        }
+      }
 
       try {
         while (true) {
@@ -249,12 +276,20 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 }
 
                 if (data.event_type === 'tool_result') {
-                  eventsBuffer = [...eventsBuffer, {
-                    type: 'tool_result',
-                    callId: data.call_id ? String(data.call_id) : undefined,
-                    toolName: resolveToolName(data),
-                    displayMessage: data.display_message ? String(data.display_message) : undefined,
-                  }]
+                  const callId = data.call_id ? String(data.call_id) : ''
+                  if (callId) {
+                    completeToolCallEvent(
+                      callId,
+                      resolveToolName(data),
+                      data.display_message ? String(data.display_message) : undefined,
+                    )
+                  } else {
+                    eventsBuffer = [...eventsBuffer, {
+                      type: 'tool_result',
+                      toolName: resolveToolName(data),
+                      displayMessage: data.display_message ? String(data.display_message) : undefined,
+                    }]
+                  }
                   setStreamEvents([...eventsBuffer])
                 }
 
@@ -298,6 +333,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
                     ? 'tool_confirmed'
                     : 'tool_rejected'
+                  completeToolCallEvent(
+                    callId,
+                    resolveToolName(data),
+                    data.display_message ? String(data.display_message) : undefined,
+                  )
                   eventsBuffer = eventsBuffer.map(e => {
                     if (e.type === 'tool_pending' && e.callId === callId) {
                       return {

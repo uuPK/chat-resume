@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections import deque
 from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
@@ -116,6 +117,7 @@ class DeepAgentRuntime:
             event_callback=event_callback,
             run_id=run_id,
             executed_tools=executed_tools,
+            model_tool_call_ids_by_name=None,
         )
         deep_agent = self._create_deep_agent(
             agent=agent,
@@ -253,6 +255,7 @@ class DeepAgentRuntime:
         yield request_event
 
         event_queue: asyncio.Queue[Any] = asyncio.Queue()
+        model_tool_call_ids_by_name: dict[str, deque[str]] = {}
         tools = self._build_tools(
             agent=agent,
             context=context,
@@ -260,6 +263,7 @@ class DeepAgentRuntime:
             event_queue=event_queue,
             event_callback=event_callback,
             run_id=run_id,
+            model_tool_call_ids_by_name=model_tool_call_ids_by_name,
         )
         deep_agent = self._create_deep_agent(
             agent=agent,
@@ -281,6 +285,7 @@ class DeepAgentRuntime:
                 agent_name=agent.prompt_spec.name,
                 event_callback=event_callback,
                 run_id=run_id,
+                model_tool_call_ids_by_name=model_tool_call_ids_by_name,
             )
         )
 
@@ -309,6 +314,7 @@ class DeepAgentRuntime:
         agent_name: str,
         event_callback: RuntimeEventCallback | None,
         run_id: str,
+        model_tool_call_ids_by_name: dict[str, deque[str]],
     ) -> None:
         """Forward Deep Agents message stream into the local event queue."""
         started_at = perf_counter()
@@ -316,12 +322,24 @@ class DeepAgentRuntime:
         chunk_index = 0
         tool_call_detected = False
         seen_tool_call_keys: set[str] = set()
+        seen_tool_calls: dict[str, dict[str, Any]] = {}
         try:
             async for message, metadata in deep_agent.astream(
                 cast(Any, {"messages": messages}),
                 stream_mode="messages",
             ):
                 if metadata.get("langgraph_node") != "model":
+                    tool_result = self._visible_tool_result_event(
+                        message=message,
+                        seen_tool_calls=seen_tool_calls,
+                    )
+                    if tool_result is not None:
+                        await self._publish_event(
+                            event_queue=event_queue,
+                            event_callback=event_callback,
+                            event=tool_result,
+                        )
+                        continue
                     logger.debug(
                         "agent.trace.intermediate.skipped",
                         extra={
@@ -357,6 +375,13 @@ class DeepAgentRuntime:
                         if tool_call_key in seen_tool_call_keys:
                             continue
                         seen_tool_call_keys.add(tool_call_key)
+                        seen_tool_calls[tool_call_key] = tool_call
+                        tool_name = self._tool_call_name(tool_call)
+                        if tool_name:
+                            model_tool_call_ids_by_name.setdefault(
+                                tool_name,
+                                deque(),
+                            ).append(tool_call_key)
                         if not self._should_surface_model_tool_call(tool_call):
                             continue
                         await self._publish_event(
@@ -424,6 +449,7 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         run_id: str,
         executed_tools: list[dict[str, Any]] | None = None,
+        model_tool_call_ids_by_name: dict[str, deque[str]] | None = None,
     ) -> list[StructuredTool]:
         """Convert OpenAI-style tool schemas into LangChain structured tools."""
         tools: list[StructuredTool] = []
@@ -453,6 +479,7 @@ class DeepAgentRuntime:
                     event_callback=event_callback,
                     executed_tools=tool_results,
                     confirmation_state=confirmation_state,
+                    model_tool_call_ids_by_name=model_tool_call_ids_by_name,
                 )
 
             tools.append(
@@ -483,6 +510,7 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
         confirmation_state: dict[str, Any] | None = None,
+        model_tool_call_ids_by_name: dict[str, deque[str]] | None = None,
     ) -> str:
         """Run a business tool, serializing resume mutation tools per agent turn."""
         if (
@@ -502,6 +530,7 @@ class DeepAgentRuntime:
                     event_callback=event_callback,
                     executed_tools=executed_tools,
                     confirmation_state=confirmation_state,
+                    model_tool_call_ids_by_name=model_tool_call_ids_by_name,
                 )
         return await self._execute_tool_locked(
             agent=agent,
@@ -514,6 +543,7 @@ class DeepAgentRuntime:
             event_callback=event_callback,
             executed_tools=executed_tools,
             confirmation_state=confirmation_state,
+            model_tool_call_ids_by_name=model_tool_call_ids_by_name,
         )
 
     async def _execute_tool_locked(
@@ -529,9 +559,13 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
         confirmation_state: dict[str, Any] | None = None,
+        model_tool_call_ids_by_name: dict[str, deque[str]] | None = None,
     ) -> str:
         """Run a business tool, preserving existing preview and confirmation events."""
-        call_id = uuid4().hex
+        call_id = self._next_tool_call_id(
+            tool_name=tool_name,
+            model_tool_call_ids_by_name=model_tool_call_ids_by_name,
+        )
         tool_started_at = perf_counter()
         requires_confirmation = (
             confirmation_queue is not None
@@ -876,6 +910,19 @@ class DeepAgentRuntime:
         return json.dumps(tool_call, ensure_ascii=False, sort_keys=True, default=str)
 
     @staticmethod
+    def _next_tool_call_id(
+        *,
+        tool_name: str,
+        model_tool_call_ids_by_name: dict[str, deque[str]] | None,
+    ) -> str:
+        if model_tool_call_ids_by_name is None:
+            return uuid4().hex
+        call_ids = model_tool_call_ids_by_name.get(tool_name)
+        if call_ids:
+            return call_ids.popleft()
+        return uuid4().hex
+
+    @staticmethod
     def _tool_call_name(tool_call: dict[str, Any]) -> str:
         name = tool_call.get("name")
         if isinstance(name, str):
@@ -929,6 +976,36 @@ class DeepAgentRuntime:
             tool_input=tool_input,
             display_message=f"正在{display_name}",
             tool_calls=[],
+        )
+
+    @classmethod
+    def _visible_tool_result_event(
+        cls,
+        *,
+        message: Any,
+        seen_tool_calls: dict[str, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        call_id = getattr(message, "tool_call_id", None)
+        if not isinstance(call_id, str) or not call_id:
+            return None
+
+        tool_call = seen_tool_calls.get(call_id, {})
+        tool_name = cls._tool_call_name(tool_call)
+        if not tool_name:
+            raw_name = getattr(message, "name", None)
+            tool_name = raw_name if isinstance(raw_name, str) else ""
+        if not tool_name:
+            return None
+
+        display_name = _INTERNAL_TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        return tool_result_event(
+            call_id=call_id,
+            tool_id=tool_name,
+            tool_display_name=display_name,
+            tool_calls=[],
+            result={"content": cls._coerce_content_text(getattr(message, "content", ""))},
+            display_message=None,
+            context=None,
         )
 
     @classmethod

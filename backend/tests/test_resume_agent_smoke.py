@@ -457,6 +457,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(visible_tool_events), 1)
         self.assertEqual(visible_tool_events[0]["tool_id"], "update_bullet")
         self.assertEqual(visible_tool_events[0]["call_id"], "call_stream_1")
+        pending_events = [event for event in events if event.get("tool_pending")]
+        confirmed_events = [event for event in events if event.get("tool_confirmed")]
+        self.assertEqual(pending_events[0]["call_id"], "call_stream_1")
+        self.assertEqual(confirmed_events[0]["call_id"], "call_stream_1")
         self.assertLess(
             events.index(visible_tool_events[0]),
             next(index for index, event in enumerate(events) if event.get("tool_pending")),
@@ -664,6 +668,23 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(visible_tool_calls), 1)
         self.assertEqual(visible_tool_calls[0]["tool_id"], "edit_file")
         self.assertEqual(visible_tool_calls[0]["tool_display_name"], "更新记忆")
+        visible_tool_results = [
+            event for event in events if event.get("event_type") == "tool_result"
+        ]
+        self.assertEqual(len(visible_tool_results), 1)
+        self.assertEqual(visible_tool_results[0]["tool_id"], "edit_file")
+        self.assertEqual(
+            visible_tool_results[0]["call_id"],
+            visible_tool_calls[0]["call_id"],
+        )
+        self.assertLess(
+            events.index(visible_tool_calls[0]),
+            events.index(visible_tool_results[0]),
+        )
+        first_text_index = next(
+            index for index, event in enumerate(events) if event.get("content")
+        )
+        self.assertLess(events.index(visible_tool_results[0]), first_text_index)
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
             "已按你的长期偏好继续优化。",

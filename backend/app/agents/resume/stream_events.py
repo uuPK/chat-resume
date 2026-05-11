@@ -325,7 +325,7 @@ def tool_result_event(
     tool_calls: list[dict[str, Any]],
     result: Any,
     display_message: str | None,
-    context: dict[str, Any],
+    context: dict[str, Any] | None,
 ) -> ResumeStreamEvent:
     return {
         "event_type": "tool_result",
