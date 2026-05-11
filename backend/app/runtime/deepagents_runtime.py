@@ -26,7 +26,7 @@ from app.agents.resume.stream_events import (
 )
 from app.infra.config import settings
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
-from app.runtime.loop import AgentDefinition, RuntimeEventCallback
+from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 
 suppress_noisy_dependency_warnings()
 from deepagents import create_deep_agent  # noqa: E402

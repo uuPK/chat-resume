@@ -3,7 +3,6 @@
 __all__ = [
     "AgentDefinition",
     "AgentHarness",
-    "AgentRuntime",
     "ConfirmationSessionManager",
     "DeepAgentRuntime",
     "confirmation_manager",
@@ -12,13 +11,10 @@ __all__ = [
 
 def __getattr__(name: str):
     """用于延迟导入运行时对象，降低包初始化耦合。"""
-    if name in {"AgentDefinition", "AgentRuntime"}:
-        from .loop import AgentDefinition, AgentRuntime
+    if name == "AgentDefinition":
+        from .contracts import AgentDefinition
 
-        return {
-            "AgentDefinition": AgentDefinition,
-            "AgentRuntime": AgentRuntime,
-        }[name]
+        return AgentDefinition
     if name == "AgentHarness":
         from .harness import AgentHarness
 

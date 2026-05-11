@@ -14,7 +14,6 @@ if str(BACKEND_DIR) not in sys.path:
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.infra.config import settings  # noqa: E402
 from app.runtime.deepagents_runtime import DeepAgentRuntime  # noqa: E402
-from app.runtime.loop import AgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
 
@@ -880,21 +879,19 @@ class ChatServiceChunkParsingTests(unittest.TestCase):
         )
 
 
-class AgentRuntimeCompatibilityTests(unittest.IsolatedAsyncioTestCase):
-    async def test_agent_runtime_delegates_to_deep_agent_runtime(self):
-        runtime = AgentRuntime(
-            model=FakeDeepAgentChatModel(
-                responses=[AIMessage(content="兼容入口仍使用 Deep Agents。")]
-            )
-        )
-        result = await runtime.run(
-            agent=ResumeAgent().definition,
-            user_message="test",
-            context={"resume_content": {}},
-        )
+class RuntimePublicApiTests(unittest.TestCase):
+    def test_agent_runtime_compatibility_entrypoint_is_removed(self):
+        import app.runtime as runtime
 
-        self.assertEqual(result["content"], "兼容入口仍使用 Deep Agents。")
-        self.assertIsInstance(runtime._runtime, DeepAgentRuntime)
+        self.assertNotIn("AgentRuntime", runtime.__all__)
+        with self.assertRaises(AttributeError):
+            getattr(runtime, "AgentRuntime")
+
+    def test_agent_definition_lives_in_runtime_contracts(self):
+        from app.runtime.contracts import AgentDefinition
+
+        agent = ResumeAgent()
+        self.assertIsInstance(agent.definition, AgentDefinition)
 
 
 if __name__ == "__main__":

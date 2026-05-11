@@ -8,8 +8,8 @@ import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.prompts import load_prompt
+from app.runtime.contracts import AgentDefinition
 from app.runtime.deepagents_runtime import DeepAgentRuntime
-from app.runtime.loop import AgentDefinition
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 
 from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
