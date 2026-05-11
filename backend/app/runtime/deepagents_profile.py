@@ -52,9 +52,6 @@ CHINESE_BASE_SYSTEM_PROMPT = """## 核心行为
 EXCLUDED_DEEPAGENTS_TOOLS = frozenset(
     {
         "ls",
-        "read_file",
-        "write_file",
-        "edit_file",
         "glob",
         "grep",
         "execute",

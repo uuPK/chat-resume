@@ -5,12 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.tools.base import ToolExecutor
-from app.tools.resume.read_user_memory_tool import read_user_memory
 from app.tools.resume.registry import execute_resume_tool
-from app.tools.resume.write_user_memory_tool import write_user_memory
 
 TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
-    "write_user_memory": {"content"},
     "update_overview": {"section", "item_id", "overview"},
     "update_highlight": {"section", "item_id", "highlight_id", "text"},
     "add_highlight": {"section", "item_id", "text"},
@@ -25,8 +22,6 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
 }
 
 TOOL_DISPLAY_NAMES = {
-    "read_user_memory": "读取用户记忆",
-    "write_user_memory": "更新用户记忆",
     "update_overview": "优化简介",
     "update_highlight": "优化成果",
     "add_highlight": "新增成果",
@@ -46,13 +41,6 @@ class ResumeToolExecutor(ToolExecutor):
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """用于执行单次简历工具调用并补齐展示字段。"""
-        if tool_name == "read_user_memory":
-            return self._execute_read_user_memory(context=context)
-        if tool_name == "write_user_memory":
-            return self._execute_write_user_memory(
-                tool_input=tool_input, context=context
-            )
-
         resume_content = context["resume_content"]
         allowed_sections = context.get("allowed_sections")
         target_section = tool_input.get("section")
@@ -119,62 +107,6 @@ class ResumeToolExecutor(ToolExecutor):
             "updated_section_name": self._get_section_name(
                 result.get("updated_section") if isinstance(result, dict) else None
             ),
-        }
-
-    def _execute_read_user_memory(self, *, context: dict[str, Any]) -> dict[str, Any]:
-        """用于读取当前会话用户绑定的长期记忆。"""
-        user_id = context.get("user_id")
-        if not isinstance(user_id, int):
-            return self.error_result(
-                "read_user_memory",
-                "missing_user_id",
-                "当前会话缺少用户身份，无法读取长期记忆",
-                recoverable=True,
-            )
-        result = read_user_memory(user_id=user_id)
-        return {
-            "tool_name": TOOL_DISPLAY_NAMES["read_user_memory"],
-            "result": result,
-            "display_message": str(result.get("message", "") or "已读取用户长期记忆"),
-            "qr_image": None,
-            "updated_section_name": None,
-            "requires_confirmation": False,
-        }
-
-    def _execute_write_user_memory(
-        self,
-        *,
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-    ) -> dict[str, Any]:
-        """用于覆盖写入当前会话用户绑定的长期记忆。"""
-        user_id = context.get("user_id")
-        if not isinstance(user_id, int):
-            return self.error_result(
-                "write_user_memory",
-                "missing_user_id",
-                "当前会话缺少用户身份，无法写入长期记忆",
-                recoverable=True,
-            )
-        try:
-            result = write_user_memory(
-                user_id=user_id, content=str(tool_input.get("content", "") or "")
-            )
-        except ValueError as exc:
-            return self.error_result(
-                "write_user_memory",
-                "invalid_memory_content",
-                str(exc),
-                recoverable=True,
-                expected_arguments=["content"],
-            )
-        return {
-            "tool_name": TOOL_DISPLAY_NAMES["write_user_memory"],
-            "result": result,
-            "display_message": str(result.get("message", "") or "已更新用户长期记忆"),
-            "qr_image": None,
-            "updated_section_name": None,
-            "requires_confirmation": False,
         }
 
     def error_result(

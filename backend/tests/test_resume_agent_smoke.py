@@ -608,7 +608,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "已完成流式重试。",
         )
 
-    async def test_optimize_stream_auto_executes_read_user_memory_without_confirmation(
+    async def test_optimize_stream_uses_deepagents_memory_files(
         self,
     ):
         agent = self._build_agent(
@@ -617,13 +617,20 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     content="",
                     tool_calls=[
                         fake_tool_call(
-                            name="read_user_memory",
-                            call_id="call_read_memory_1",
-                            args={},
+                            name="edit_file",
+                            call_id="call_edit_memory_1",
+                            args={
+                                "file_path": "/memories/AGENTS.md",
+                                "old_string": "## 用户偏好\n- 暂无记录\n",
+                                "new_string": (
+                                    "## 用户偏好\n"
+                                    "- 简历表达不要夸大经历。\n"
+                                ),
+                            },
                         )
                     ],
                 ),
-                AIMessage(content="我已读取你的长期记忆，并会按既有偏好继续优化。"),
+                AIMessage(content="已按你的长期偏好继续优化。"),
             ]
         )
         resume = self._sample_resume()
@@ -643,11 +650,23 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(event.get("tool_confirmed") for event in events))
         self.assertEqual(
             "".join(event.get("content", "") for event in events),
-            "我已读取你的长期记忆，并会按既有偏好继续优化。",
+            "已按你的长期偏好继续优化。",
         )
+        memory_file = Path(settings.USER_MEMORY_DIR) / "55" / "AGENTS.md"
+        self.assertTrue(memory_file.exists())
+        self.assertIn("不要夸大经历", memory_file.read_text(encoding="utf-8"))
 
 
 class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.original_user_memory_dir = settings.USER_MEMORY_DIR
+        settings.USER_MEMORY_DIR = self.temp_dir.name
+
+    def tearDown(self):
+        settings.USER_MEMORY_DIR = self.original_user_memory_dir
+        self.temp_dir.cleanup()
+
     def _sample_resume(self):
         return {
             "work_experience": [
@@ -720,12 +739,48 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 for middleware in tool_exclusion_middlewares
             )
         )
+        self.assertNotIn("read_file", EXCLUDED_DEEPAGENTS_TOOLS)
+        self.assertNotIn("write_file", EXCLUDED_DEEPAGENTS_TOOLS)
+        self.assertNotIn("edit_file", EXCLUDED_DEEPAGENTS_TOOLS)
         self.assertTrue(
             any(
                 isinstance(middleware, DeepAgentsPromptMiddleware)
                 for middleware in captured["middleware"]
             )
         )
+
+    async def test_deep_agent_runtime_enables_official_user_memory(self):
+        captured = {}
+
+        class FakeGraph:
+            def with_config(self, config):
+                del config
+                return self
+
+        def fake_create_agent(*args, **kwargs):
+            del args
+            captured["middleware"] = kwargs["middleware"]
+            return FakeGraph()
+
+        runtime = DeepAgentRuntime()
+        with patch("deepagents.graph.create_agent", fake_create_agent):
+            runtime._create_deep_agent(
+                agent=ResumeAgent().definition,
+                tools=[],
+                system_prompt="业务提示词",
+                context={"user_id": 77},
+            )
+
+        memory_middlewares = [
+            middleware
+            for middleware in captured["middleware"]
+            if type(middleware).__name__ == "MemoryMiddleware"
+        ]
+        self.assertEqual(len(memory_middlewares), 1)
+        self.assertEqual(memory_middlewares[0].sources, ["/memories/AGENTS.md"])
+
+        memory_file = Path(settings.USER_MEMORY_DIR) / "77" / "AGENTS.md"
+        self.assertTrue(memory_file.exists())
 
     async def test_deep_agent_runtime_localizes_remaining_builtin_prompts(self):
         from langchain.agents.middleware.types import ModelRequest

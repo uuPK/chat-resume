@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 from copy import deepcopy
+from pathlib import Path
 from time import perf_counter
 from typing import Any, AsyncGenerator, cast
 from uuid import uuid4
@@ -31,12 +32,25 @@ from app.runtime.deepagents_profile import configure_deepagents_harness_profile
 
 suppress_noisy_dependency_warnings()
 from deepagents import create_deep_agent  # noqa: E402
+from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend  # noqa: E402
+from deepagents.middleware.filesystem import FilesystemPermission  # noqa: E402
 
 configure_deepagents_harness_profile()
 
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
+_MEMORY_ROUTE = "/memories/"
+_MEMORY_FILE = f"{_MEMORY_ROUTE}AGENTS.md"
+_DEFAULT_MEMORY_CONTENT = (
+    "# AGENTS.md\n\n"
+    "## 用户偏好\n"
+    "- 暂无记录\n\n"
+    "## 简历策略\n"
+    "- 暂无记录\n\n"
+    "## 已确认事实\n"
+    "- 暂无记录\n"
+)
 
 
 class DeepAgentRuntime:
@@ -96,6 +110,7 @@ class DeepAgentRuntime:
             agent=agent,
             tools=tools,
             system_prompt=system_prompt,
+            context=context,
         )
         self._trace(
             "agent.trace.llm.request",
@@ -239,6 +254,7 @@ class DeepAgentRuntime:
             agent=agent,
             tools=tools,
             system_prompt=system_prompt,
+            context=context,
         )
         messages = self._build_messages(
             user_message=user_message,
@@ -695,14 +711,59 @@ class DeepAgentRuntime:
         agent: AgentDefinition,
         tools: list[Any],
         system_prompt: str,
+        context: dict[str, Any] | None = None,
     ) -> Any:
         """Build a Deep Agents graph with the project harness profile applied."""
+        memory_config = self._build_memory_config(context or {})
         return create_deep_agent(
             model=self._build_model(agent),
             tools=tools,
             system_prompt=system_prompt,
+            memory=memory_config["memory"],
+            backend=memory_config["backend"],
+            permissions=memory_config["permissions"],
             name=agent.prompt_spec.name,
         )
+
+    def _build_memory_config(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Configure official Deep Agents filesystem memory for a bound user."""
+        user_id = context.get("user_id")
+        if not isinstance(user_id, int):
+            return {"memory": None, "backend": None, "permissions": None}
+
+        memory_root = self._ensure_user_memory_file(user_id)
+        backend = CompositeBackend(
+            default=StateBackend(),
+            routes={
+                _MEMORY_ROUTE: FilesystemBackend(
+                    root_dir=memory_root,
+                    virtual_mode=True,
+                )
+            },
+        )
+        permissions = [
+            FilesystemPermission(
+                operations=["read", "write"],
+                paths=[_MEMORY_FILE],
+                mode="allow",
+            ),
+            FilesystemPermission(
+                operations=["read", "write"],
+                paths=["/**"],
+                mode="deny",
+            ),
+        ]
+        return {"memory": [_MEMORY_FILE], "backend": backend, "permissions": permissions}
+
+    @staticmethod
+    def _ensure_user_memory_file(user_id: int) -> str:
+        """Create the official Deep Agents memory file for the current user."""
+        memory_root = Path(settings.USER_MEMORY_DIR) / str(user_id)
+        memory_path = memory_root / "AGENTS.md"
+        if not memory_path.exists():
+            memory_path.parent.mkdir(parents=True, exist_ok=True)
+            memory_path.write_text(_DEFAULT_MEMORY_CONTENT, encoding="utf-8")
+        return str(memory_root)
 
     @staticmethod
     def _build_messages(

@@ -18,8 +18,8 @@ from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
 
-_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume", "read_user_memory"}
-_AUTO_EXECUTE_TOOL_NAMES = {"read_user_memory", "write_user_memory"}
+_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
+_AUTO_EXECUTE_TOOL_NAMES: set[str] = set()
 _LOG_VALUE_LIMIT = 64
 
 
