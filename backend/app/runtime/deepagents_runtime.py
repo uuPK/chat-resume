@@ -12,7 +12,7 @@ from time import perf_counter
 from typing import Any, AsyncGenerator, cast
 from uuid import uuid4
 
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import ArgsSchema, StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.agents.resume.stream_events import (
@@ -489,15 +489,22 @@ class DeepAgentRuntime:
                     coroutine=run_tool,
                     name=tool_name,
                     description=str(function.get("description", "")),
-                    args_schema=function.get("parameters") or {
-                        "type": "object",
-                        "properties": {},
-                    },
+                    args_schema=cast(
+                        Any,
+                        self._structured_tool_args_schema(function.get("parameters")),
+                    ),
                     infer_schema=False,
                 )
             )
 
         return tools
+
+    @staticmethod
+    def _structured_tool_args_schema(value: Any) -> ArgsSchema:
+        """Coerce OpenAI JSON tool parameters into LangChain's args schema type."""
+        if isinstance(value, dict):
+            return cast(dict[str, Any], value)
+        return {"type": "object", "properties": {}}
 
     async def _execute_tool(
         self,

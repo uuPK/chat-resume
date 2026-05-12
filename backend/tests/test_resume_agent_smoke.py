@@ -2,6 +2,7 @@ import asyncio
 import sys
 import tempfile
 import unittest
+from typing import Any
 from pathlib import Path
 from unittest.mock import patch
 
@@ -820,7 +821,7 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(memory_file.exists())
 
     async def test_deep_agent_runtime_localizes_remaining_builtin_prompts(self):
-        from langchain.agents.middleware.types import ModelRequest
+        from langchain.agents.middleware.types import ModelRequest, ModelResponse
 
         from app.runtime.deepagents_profile import DeepAgentsPromptMiddleware
 
@@ -864,9 +865,9 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             state={"messages": []},
         )
 
-        def handler(next_request):
+        def handler(next_request: Any) -> ModelResponse:
             captured["system_text"] = next_request.system_message.text
-            return AIMessage(content="ok")
+            return ModelResponse(result=[AIMessage(content="ok")])
 
         middleware.wrap_model_call(request, handler)
 
@@ -1013,27 +1014,28 @@ class ResumeDeepAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             for record in trace_records
             if record.getMessage() == "agent.trace.tool.requested"
         )
-        self.assertEqual(requested.tool_name, "update_bullet")
-        self.assertNotIn("resume_content", requested.tool_input)
-        self.assertNotIn("content", requested.tool_input)
-        self.assertIn("text", requested.tool_input)
+        self.assertEqual(getattr(requested, "tool_name"), "update_bullet")
+        requested_input = getattr(requested, "tool_input")
+        self.assertNotIn("resume_content", requested_input)
+        self.assertNotIn("content", requested_input)
+        self.assertIn("text", requested_input)
 
         executed = next(
             record
             for record in trace_records
             if record.getMessage() == "agent.trace.tool.executed"
         )
-        self.assertEqual(executed.tool_name, "update_bullet")
-        self.assertIs(executed.result_success, True)
-        self.assertEqual(executed.result_summary["diff_item_count"], 1)
+        self.assertEqual(getattr(executed, "tool_name"), "update_bullet")
+        self.assertIs(getattr(executed, "result_success"), True)
+        self.assertEqual(getattr(executed, "result_summary")["diff_item_count"], 1)
 
         response = next(
             record
             for record in trace_records
             if record.getMessage() == "agent.trace.llm.response"
         )
-        self.assertEqual(response.response_preview, "已完成优化。")
-        self.assertEqual(response.chunk_count, 1)
+        self.assertEqual(getattr(response, "response_preview"), "已完成优化。")
+        self.assertEqual(getattr(response, "chunk_count"), 1)
 
 
 class ChatServiceChunkParsingTests(unittest.TestCase):

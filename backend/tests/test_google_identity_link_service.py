@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -15,7 +16,7 @@ from app.services.auth.google_oauth_client import GoogleIdentity
 
 
 @pytest.fixture()
-def db() -> Session:
+def db() -> Generator[Session, None, None]:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},

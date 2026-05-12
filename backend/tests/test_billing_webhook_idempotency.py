@@ -1,4 +1,7 @@
+from typing import cast
+
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.entrypoints.http.billing import _record_paypal_webhook_event
 
@@ -31,7 +34,7 @@ def test_record_paypal_webhook_event_treats_unique_violation_as_duplicate():
     db = _RacingWebhookSession()
 
     should_process = _record_paypal_webhook_event(
-        db,
+        cast(Session, db),
         {"id": "WH-RACE", "event_type": "BILLING.SUBSCRIPTION.ACTIVATED"},
         "BILLING.SUBSCRIPTION.ACTIVATED",
     )
