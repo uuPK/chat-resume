@@ -1,0 +1,32 @@
+{
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "include": [
+    "backend/app",
+    "backend/tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "backend/.venv",
+    "backend/alembic",
+    "backend/uploads",
+    "frontend",
+    "node_modules"
+  ],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        "backend"
+      ]
+    }
+  ],
+  "reportMissingModuleSource": false,
+  "reportUnsupportedDunderAll": false,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalSubscript": false,
+  "reportTypedDictNotRequiredAccess": false,
+  "useLibraryCodeForTypes": true
+}
