@@ -117,7 +117,7 @@ export default function MainNavigation() {
                 }}
               >
                 <button
-                  onClick={() => { setIsDropdownOpen(false); router.push('/settings?upgrade=1') }}
+                  onClick={() => { setIsDropdownOpen(false); router.push('/pricing') }}
                   className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
                   style={{ color: '#0a0b0d' }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}

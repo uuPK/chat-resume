@@ -19,6 +19,15 @@ interface LoginForm {
   password: string
 }
 
+// 只允许站内 next 路径，避免登录后跳到外部地址。
+function getSafeNextPath(): string {
+  const nextPath = new URLSearchParams(window.location.search).get('next')
+  if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//')) {
+    return '/dashboard'
+  }
+  return nextPath
+}
+
 // 登录页，Coinbase 风格：白底深色文字，蓝色 pill 按钮
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -32,7 +41,7 @@ export default function LoginPage() {
       const success = await login(data.email, data.password)
       if (success) {
         toast.success('登录成功！', { id: 'login' })
-        router.push('/dashboard')
+        router.push(getSafeNextPath())
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '登录失败，请重试'
