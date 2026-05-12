@@ -1,0 +1,44 @@
+{
+  "title": "Chat Resume Local Observability",
+  "timezone": "browser",
+  "schemaVersion": 42,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP requests",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (method, path, status) (rate(chat_resume_http_requests_total[5m]))",
+          "legendFormat": "{{method}} {{path}} {{status}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP latency p95",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, path) (rate(chat_resume_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{path}}"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "logs",
+      "title": "Backend logs",
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{app=\"chat-resume\", service=\"backend\"}"
+        }
+      ],
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8}
+    }
+  ]
+}

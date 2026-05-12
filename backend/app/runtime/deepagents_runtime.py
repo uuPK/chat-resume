@@ -28,6 +28,7 @@ from app.agents.resume.stream_events import (
     tool_result_event,
 )
 from app.infra.config import settings
+from app.infra.otel_setup import record_exception, set_span_attribute, start_span
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.deepagents_profile import configure_deepagents_harness_profile
@@ -664,7 +665,21 @@ class DeepAgentRuntime:
                 )
                 return json.dumps(rejected_result, ensure_ascii=False)
 
-        tool_result = agent.tool_executor(tool_call, context)
+        with start_span(
+            "agent.tool",
+            {
+                "agent.name": agent.prompt_spec.name,
+                "agent.run_id": run_id,
+                "tool.name": tool_name,
+                "tool.call_id": call_id,
+            },
+        ) as span:
+            try:
+                tool_result = agent.tool_executor(tool_call, context)
+            except Exception as exc:
+                record_exception(span, exc)
+                raise
+            set_span_attribute(span, "tool.confirmation_required", requires_confirmation)
         display_message = tool_result.get("display_message")
         result = tool_result.get("result", {})
         self._trace(

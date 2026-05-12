@@ -1,0 +1,3 @@
+uv reference for LLM-assisted backend development.
+
+TODO: Add the project-specific uv commands, extras, environment setup, and common troubleshooting notes.

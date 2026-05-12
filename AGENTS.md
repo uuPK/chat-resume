@@ -1,3 +1,43 @@
+## 项目概述
+一个AGENT驱动的简历优化和模拟面试网站
+
+## 技术栈
+- 语言：Python、TypeScript
+- 框架：FastAPI、Next.js、React
+- 数据库：本地默认 SQLite，生产使用 PostgreSQL；迁移由 Alembic 管理
+- 包管理器：后端使用 uv，前端使用 npm
+
+## 目录结构
+- `backend/app/entrypoints/http/`：FastAPI HTTP 路由入口
+- `backend/app/runtime/`：Deep Agents 运行时、权限和执行契约
+- `backend/app/tools/`：Agent 可调用的业务工具
+- `backend/app/services/`：业务服务、外部 API 集成和领域逻辑
+- `backend/app/models/`：SQLAlchemy 数据模型
+- `backend/app/schemas/`：Pydantic 请求和响应结构
+- `backend/alembic/`：数据库迁移脚本
+- `backend/tests/`：后端 pytest 测试
+- `frontend/src/app/`：Next.js App Router 页面和路由
+- `frontend/src/components/`：前端 UI 和业务组件
+- `frontend/src/lib/`：前端 API、状态和工具函数
+- `frontend/src/types/`：前端共享类型
+- `eval/`：Agent eval 用例、脚本和输出
+- `docs/`：产品、架构、issue 和设计相关文档
+
+## 本地可观测性栈
+- 启动命令：在项目根目录运行 `docker compose -f docker-compose.observability.yml up -d`
+- 后端建议启动方式：`LOG_FORMAT=json AGENT_TRACE_LOG_ENABLED=true OTEL_TRACES_ENABLED=true ./backend.sh`
+- Grafana：`http://localhost:13001`，用于查看日志、指标和 trace，可视化入口。
+- Prometheus：`http://localhost:19090`，采集后端 `/metrics`，用于 PromQL 指标查询。
+- Loki：`http://localhost:13100`，存储后端 JSON 日志，只提供 API；根路径 404 属于正常现象，健康检查用 `/ready`。
+- Promtail：采集 `backend/logs/backend.log` 并推送到 Loki，通常不直接访问。
+- Tempo：`http://localhost:13200`，存储 OpenTelemetry trace，主要通过 Grafana 查看。
+- OTel Collector：`http://localhost:14318/v1/traces`，接收后端 OTLP trace 并转发到 Tempo。
+- 后端指标端点：`http://localhost:8000/metrics`
+- Agent 可调用只读查询工具：`query_logs_logql` 查询 Loki 日志，`query_metrics_promql` 查询 Prometheus 指标。
+- 常用 PromQL：`sum(rate(chat_resume_http_requests_total[5m]))`
+- 常用 LogQL：`{app="chat-resume", service="backend"} |= "agent.trace.tool.executed"`
+- 端口使用独立高位端口，避免和其他本地观测栈冲突；不要改回 `3100`、`9090`、`3200`、`4318`、`3000`，除非先确认端口空闲。
+
 # 开发规则
 
 - 测试驱动开发，在构建功能时，先打造一个微小的、端到端的功能切片，寻求反馈，然后在此基础上逐步扩展。 曳光弹的概念源自《程序员修炼之道》。在构建系统时，你希望编写能尽快获得反馈的代码。曳光弹是贯穿系统所有层的小功能切片，让你能尽早测试和验证方法。这有助于识别潜在问题，并确保在投入大量开发时间之前，整体架构是稳健的。

@@ -254,6 +254,22 @@ class Settings(BaseSettings):
         os.getenv("LANGCHAIN_PROJECT", "chat-resume-dev"),
     )
     LANGSMITH_WORKSPACE_ID: str = os.getenv("LANGSMITH_WORKSPACE_ID", "")
+    PROMETHEUS_BASE_URL: str = os.getenv(
+        "PROMETHEUS_BASE_URL",
+        "http://localhost:19090",
+    )
+    LOKI_BASE_URL: str = os.getenv("LOKI_BASE_URL", "http://localhost:13100")
+    OBSERVABILITY_QUERY_TIMEOUT_SECONDS: float = float(
+        os.getenv("OBSERVABILITY_QUERY_TIMEOUT_SECONDS", "5")
+    )
+    OTEL_TRACES_ENABLED: bool = (
+        os.getenv("OTEL_TRACES_ENABLED", "false").strip().lower() == "true"
+    )
+    OTEL_SERVICE_NAME: str = os.getenv("OTEL_SERVICE_NAME", "chat-resume-backend")
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "http://localhost:14318/v1/traces",
+    )
 
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}
 

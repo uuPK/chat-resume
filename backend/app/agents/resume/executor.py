@@ -15,6 +15,8 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_highlight": {"section", "item_id", "highlight_id", "text"},
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
+    "query_logs_logql": {"query"},
+    "query_metrics_promql": {"query"},
 }
 
 TOOL_SECTION_ENUMS: dict[str, set[str]] = {
@@ -36,6 +38,8 @@ TOOL_DISPLAY_NAMES = {
     "add_highlight": "新增要点",
     "remove_highlight": "删除要点",
     "read_resume": "读取简历",
+    "query_logs_logql": "查询日志",
+    "query_metrics_promql": "查询指标",
 }
 
 

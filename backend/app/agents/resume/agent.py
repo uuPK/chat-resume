@@ -19,7 +19,10 @@ from .stream_events import normalize_resume_stream_payload
 logger = logging.getLogger(__name__)
 
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
-_AUTO_EXECUTE_TOOL_NAMES: set[str] = set()
+_AUTO_EXECUTE_TOOL_NAMES: set[str] = {
+    "query_logs_logql",
+    "query_metrics_promql",
+}
 _LOG_VALUE_LIMIT = 64
 
 

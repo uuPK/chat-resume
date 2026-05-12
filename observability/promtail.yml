@@ -1,0 +1,39 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: chat-resume-backend-file
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          app: chat-resume
+          service: backend
+          job: backend-file
+          __path__: /var/log/chat-resume/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            logger: logger
+            message: message
+            request_id: request_id
+            session_id: session_id
+            run_id: run_id
+            tool_name: tool_name
+      - labels:
+          level:
+          logger:
+          request_id:
+          session_id:
+          run_id:
+          tool_name:
+      - output:
+          source: message

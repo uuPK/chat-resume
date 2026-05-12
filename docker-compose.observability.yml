@@ -1,0 +1,74 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "19090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: -config.file=/etc/loki/local-config.yml
+    ports:
+      - "13100:3100"
+    volumes:
+      - ./observability/loki.yml:/etc/loki/local-config.yml:ro
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    volumes:
+      - ./observability/promtail.yml:/etc/promtail/config.yml:ro
+      - ./backend/logs:/var/log/chat-resume:ro
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    user: "0"
+    command: ["-config.file=/etc/tempo.yml"]
+    ports:
+      - "13200:3200"
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/tmp/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otelcol/config.yml"]
+    depends_on:
+      - tempo
+    ports:
+      - "14317:4317"
+      - "14318:4318"
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol/config.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    ports:
+      - "13001:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  grafana-data:

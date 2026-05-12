@@ -1,0 +1,3 @@
+Nixpacks reference for LLM-assisted deployment work.
+
+TODO: Add the project-specific build, install, and start behavior used by deployment targets.

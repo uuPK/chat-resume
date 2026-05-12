@@ -26,6 +26,13 @@ from app.infra.db_observability import (
 from app.infra.langfuse_setup import configure_langfuse, shutdown_langfuse
 from app.infra.langsmith_setup import configure_langsmith, shutdown_langsmith
 from app.infra.logging_setup import configure_logging
+from app.infra.otel_setup import (
+    configure_otel_tracing,
+    record_exception,
+    set_span_attribute,
+    start_span,
+)
+from app.infra.prometheus_metrics import record_http_request, render_metrics
 from app.infra.request_context import bind_log_context, reset_log_context
 from app.infra.sentry_setup import configure_sentry
 
@@ -34,6 +41,7 @@ logger = logging.getLogger(__name__)
 configure_sentry()
 configure_langfuse()
 configure_langsmith()
+configure_otel_tracing()
 
 
 def _truncate_log_value(value: str | None, limit: int = 240) -> str:
@@ -67,6 +75,13 @@ _AUTH_EXEMPT_PATHS = {
     f"{settings.API_STR}/billing/paypal/webhook",
 }
 _SLOW_REQUEST_LOG_MS = 1000.0
+
+
+def _route_template(request: Request) -> str:
+    """用于把请求路径压缩成低基数的路由模板。"""
+    route = request.scope.get("route")
+    path = getattr(route, "path", None)
+    return path if isinstance(path, str) and path else request.url.path
 
 
 def _is_protected_api_path(path: str) -> bool:
@@ -125,6 +140,7 @@ async def authenticate_protected_api_requests(request: Request, call_next):
 # 添加中间件来记录请求
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    """用于记录请求日志、Prometheus 指标和 OpenTelemetry span。"""
     request_id = request.headers.get("X-Request-ID") or uuid4().hex
     request.state.request_id = request_id
     context_tokens = bind_log_context(request_id=request_id)
@@ -132,13 +148,38 @@ async def log_requests(request: Request, call_next):
     metrics_token = start_request_metrics()
     response = None
     try:
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+        with start_span(
+            f"{request.method} {request.url.path}",
+            {
+                "http.request.method": request.method,
+                "url.path": request.url.path,
+                "request.id": request_id,
+            },
+        ) as span:
+            try:
+                response = await call_next(request)
+            except Exception as exc:
+                record_exception(span, exc)
+                raise
+            response.headers["X-Request-ID"] = request_id
+            set_span_attribute(span, "http.response.status_code", response.status_code)
+            set_span_attribute(span, "http.route", _route_template(request))
+            return response
     finally:
         request_elapsed_ms = (perf_counter() - request_started_at) * 1000
         metrics = get_request_metrics()
         status_code = response.status_code if response is not None else 500
+        route_path = _route_template(request)
+        record_http_request(
+            method=request.method,
+            path=route_path,
+            status=status_code,
+            duration_seconds=request_elapsed_ms / 1000,
+            db_query_count=metrics.query_count if metrics is not None else 0,
+            db_query_duration_seconds=(
+                metrics.query_ms_total / 1000 if metrics is not None else 0.0
+            ),
+        )
         should_log_request = (
             status_code >= 400 or request_elapsed_ms >= _SLOW_REQUEST_LOG_MS
         )
@@ -235,6 +276,15 @@ async def health_check(response: Response):
         return {"status": "unhealthy", "detail": "database unavailable"}
     finally:
         db.close()
+
+
+@app.get("/metrics")
+async def metrics_endpoint():
+    """用于给本地 Prometheus 暴露文本指标。"""
+    return Response(
+        render_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 @app.get("/api/test")

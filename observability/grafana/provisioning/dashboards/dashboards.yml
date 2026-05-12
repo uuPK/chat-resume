@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: chat-resume
+    orgId: 1
+    folder: Chat Resume
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

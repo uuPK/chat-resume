@@ -56,7 +56,7 @@ if [ ! -f "chat_resume.db" ]; then
 fi
 
 # 创建上传目录
-mkdir -p uploads
+mkdir -p uploads logs
 
 # 重启服务
 stop_port "${BACKEND_PORT}"
@@ -64,7 +64,8 @@ stop_port "${BACKEND_PORT}"
 echo "🌟 启动后端服务..."
 echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
+echo "指标端点: http://localhost:${BACKEND_PORT}/metrics"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app
+uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a logs/backend.log
