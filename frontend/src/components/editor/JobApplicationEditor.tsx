@@ -6,6 +6,7 @@ import { PhotoIcon } from '@heroicons/react/24/outline'
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import type { JobApplication } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface JobApplicationEditorProps {
   data: JobApplication
@@ -24,6 +25,7 @@ export default function JobApplicationEditor({
   onRecognizeJdImage,
 }: JobApplicationEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const t = useTranslations('resume.forms.job')
   const [formData, setFormData] = useState<JobApplication>({
     target_company: data.target_company || '',
     target_title: data.target_title || '',
@@ -59,7 +61,7 @@ export default function JobApplicationEditor({
   const applyRecognizedText = (recognizedText: string) => {
     const cleanText = recognizedText.trim()
     if (!cleanText) {
-      toast.error('图片里没有识别到可用文字')
+      toast.error(t('emptyImage'))
       return
     }
 
@@ -68,7 +70,7 @@ export default function JobApplicationEditor({
       : cleanText
 
     handleInputChange('jd_text', nextValue)
-    toast.success('JD 图片识别成功，已插入文本')
+    toast.success(t('ocrSuccess'))
   }
 
   /**
@@ -76,12 +78,12 @@ export default function JobApplicationEditor({
    */
   const handleJdImageOcr = async (file: File) => {
     if (!ALLOWED_JD_IMAGE_TYPES.includes(file.type)) {
-      toast.error('仅支持 PNG、JPG、JPEG、WEBP 图片')
+      toast.error(t('invalidImage'))
       return
     }
 
     setIsOcrProcessing(true)
-    const toastId = toast.loading('正在识别 JD 图片...')
+    const toastId = toast.loading(t('ocrLoading'))
 
     try {
       const recognizedText = await onRecognizeJdImage(file)
@@ -89,7 +91,7 @@ export default function JobApplicationEditor({
       applyRecognizedText(recognizedText)
     } catch (error) {
       toast.dismiss(toastId)
-      const message = error instanceof Error ? error.message : 'JD 图片识别失败，请重试'
+      const message = error instanceof Error ? error.message : t('ocrFailed')
       toast.error(message)
     } finally {
       setIsOcrProcessing(false)
@@ -132,26 +134,26 @@ export default function JobApplicationEditor({
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            目标公司
+            {t('targetCompany')}
           </label>
           <input
             type="text"
             value={formData.target_company || ''}
             onChange={(e) => handleInputChange('target_company', e.target.value)}
-            placeholder="请输入目标公司名称"
+            placeholder={t('companyPlaceholder')}
             className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            目标岗位
+            {t('targetTitle')}
           </label>
           <input
             type="text"
             value={formData.target_title || ''}
             onChange={(e) => handleInputChange('target_title', e.target.value)}
-            placeholder="请输入目标岗位名称"
+            placeholder={t('titlePlaceholder')}
             className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
@@ -159,7 +161,7 @@ export default function JobApplicationEditor({
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <label className="block text-sm font-medium text-gray-700">
-              职位描述 (JD)
+              {t('jd')}
             </label>
             <button
               type="button"
@@ -168,7 +170,7 @@ export default function JobApplicationEditor({
               className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <PhotoIcon className="h-4 w-4" />
-              识别图片
+              {t('ocrButton')}
             </button>
           </div>
           <input
@@ -182,13 +184,13 @@ export default function JobApplicationEditor({
             value={formData.jd_text || ''}
             onChange={(e) => handleInputChange('jd_text', e.target.value)}
             onPaste={handleJdPaste}
-            placeholder="请粘贴 JD 相关文字/图片"
+            placeholder={t('jdPlaceholder')}
             rows={26}
             className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
           {isOcrProcessing && (
             <p className="mt-2 text-xs text-blue-600">
-              正在识别图片文字，识别完成后会自动填入 JD 文本框。
+              {t('ocrInline')}
             </p>
           )}
         </div>

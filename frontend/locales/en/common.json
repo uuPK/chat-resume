@@ -1,0 +1,104 @@
+{
+  "app": {
+    "name": "Chat Resume"
+  },
+  "nav": {
+    "resumes": "Resumes",
+    "interviews": "Interviews",
+    "pricing": "Upgrade",
+    "settings": "Settings",
+    "logout": "Log out",
+    "login": "Log in",
+    "register": "Get started",
+    "accountSettings": "Account settings",
+    "enterApp": "Open app"
+  },
+  "localeSwitcher": {
+    "label": {
+      "zh": "中文",
+      "en": "EN"
+    },
+    "aria": {
+      "zh": "Switch to Chinese",
+      "en": "Switch to English"
+    }
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "save": "Save",
+    "saving": "Saving...",
+    "loading": "Loading...",
+    "create": "Create",
+    "creating": "Creating...",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "confirm": "Confirm"
+  },
+  "status": {
+    "free": "Free",
+    "plus": "Plus",
+    "comingSoon": "Coming soon",
+    "currentPlan": "Current plan"
+  },
+  "errors": {
+    "network": "Request failed. Check your connection and try again.",
+    "expiredAuth": "Your session has expired. Please log in again."
+  },
+  "landing": {
+    "heroPrefix": "Make every resume",
+    "heroHighlight": "match",
+    "heroSuffix": "the role",
+    "subtitle": "Upload a resume, improve it with AI chat, practice mock interviews, and strengthen your job search in one workflow.",
+    "primaryCta": "Get started",
+    "secondaryCta": "Already have an account? Log in",
+    "mockAssistantLabel": "AI Resume Assistant",
+    "mockAssistantMessage": "I analyzed your resume and found that your work experience needs more measurable outcomes.",
+    "mockUserMessage": "Help me improve the backend developer experience section",
+    "mockResultPrefix": "Rewrote \"participated in system optimization\" as \"reduced API response time by",
+    "mockResultMiddle": "through caching and supported",
+    "mockResultSuffix": "daily active users\"",
+    "features": {
+      "resume": {
+        "title": "AI resume optimization",
+        "desc": "Upload your current resume, find gaps, rewrite bullets for target roles, and quantify results."
+      },
+      "chat": {
+        "title": "Conversational editing",
+        "desc": "Tell AI what you want, preview changes in real time, and accept or reject edits before they land."
+      },
+      "interview": {
+        "title": "Mock interviews",
+        "desc": "Practice with questions based on your resume and target JD, then get focused feedback."
+      }
+    },
+    "steps": {
+      "upload": {
+        "title": "Upload resume",
+        "desc": "Supports PDF, Word, and TXT. AI parses your resume into structured content."
+      },
+      "optimize": {
+        "title": "Chat to optimize",
+        "desc": "Share your target company and role, then improve each experience with AI."
+      },
+      "export": {
+        "title": "Export and apply",
+        "desc": "Export a polished PDF and use it directly for applications."
+      }
+    },
+    "insightTitle": "More than editing,<break></break>it helps you think",
+    "insights": {
+      "metrics": "Find missing measurable outcomes automatically",
+      "keywords": "Strengthen wording around JD keywords",
+      "diff": "Preview every diff and accept changes one by one",
+      "report": "Use interview reports to find weak spots and next drills"
+    },
+    "metrics": {
+      "parse": "Resume parse quality",
+      "keywords": "Keyword match lift",
+      "quantified": "Quantified outcomes",
+      "interview": "Interview pass-rate lift"
+    }
+  }
+}

@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { useTranslations } from 'next-intl'
 
 import type { Resume } from '@/lib/api'
 
@@ -24,6 +25,7 @@ interface UseResumeAutoSaveOptions {
  * 提供简历自动保存所需的状态、草稿更新和手动触发保存能力。
  */
 export function useResumeAutoSave({ setResume, saveResume }: UseResumeAutoSaveOptions) {
+  const t = useTranslations('resume.editor')
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const statusResetTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -91,11 +93,11 @@ export function useResumeAutoSave({ setResume, saveResume }: UseResumeAutoSaveOp
           setAutoSaveStatus('pending')
         }
         if (showSuccessToast) {
-          toast.success('简历保存成功')
+          toast.success(t('saveSuccess'))
         }
       } catch (error) {
         setAutoSaveStatus('error')
-        toast.error('自动保存失败，请检查网络或手动保存')
+        toast.error(t('autoSaveError'))
         throw error
       } finally {
         savePromiseRef.current = null
@@ -104,7 +106,7 @@ export function useResumeAutoSave({ setResume, saveResume }: UseResumeAutoSaveOp
 
     savePromiseRef.current = saveTask
     return saveTask
-  }, [saveResume, scheduleStatusReset, setResume])
+  }, [saveResume, scheduleStatusReset, setResume, t])
 
   /**
    * 标记当前简历已有未保存修改，并启动防抖保存。

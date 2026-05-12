@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 
 // 品牌 Logo 组件，文档 + 对话气泡图标，严格使用 Coinbase Blue #0052ff
 export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {

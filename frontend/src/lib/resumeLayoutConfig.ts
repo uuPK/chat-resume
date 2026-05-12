@@ -11,10 +11,10 @@ export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/re
 export type LayoutDensity = 'comfortable' | 'normal' | 'compact' | 'custom'
 
 export const TEMPLATE_STYLE_LABELS: Record<ResumeTemplateStyle, string> = {
-  classic: '经典',
-  modern: '现代',
-  formal: '正式黑白',
-  emerald: '绿页眉',
+  classic: 'Classic',
+  modern: 'Modern',
+  formal: 'Formal',
+  emerald: 'Emerald',
 }
 
 /**
@@ -41,11 +41,11 @@ const DEFAULT_MODULE_ORDER: ResumeModule[] = [
  * 模块显示名称
  */
 export const MODULE_LABELS: Record<ResumeModule, string> = {
-  personal: '个人信息',
-  education: '教育经历',
-  work: '工作经验',
-  skills: '技能',
-  projects: '项目经验'
+  personal: 'Personal info',
+  education: 'Education',
+  work: 'Work experience',
+  skills: 'Skills',
+  projects: 'Projects'
 }
 
 /**

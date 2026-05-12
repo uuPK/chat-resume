@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { useTranslations } from 'next-intl'
 
 import { chatHistoryApi } from '@/lib/api'
 import { ChatMessage, StreamEvent, useStreamingChat } from '@/hooks/useStreamingChat'
@@ -30,6 +31,7 @@ export function useResumeChatPanel({
   onResumeUpdate,
   enabled,
 }: UseResumeChatPanelOptions) {
+  const t = useTranslations('resume.editor')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -80,7 +82,7 @@ export function useResumeChatPanel({
       appendMessage({
         id: Date.now().toString(),
         type: 'ai',
-        content: `抱歉，发生了错误：${error}`,
+        content: `${t('agentErrorPrefix')}${error}`,
         timestamp: new Date(),
       })
     },
@@ -183,7 +185,7 @@ export function useResumeChatPanel({
     try {
       await performAutoSave()
     } catch {
-      setApiError('简历保存失败，未发送给 Agent')
+      setApiError(t('chatSaveError'))
       return
     }
 
@@ -208,7 +210,7 @@ export function useResumeChatPanel({
     try {
       await sendStreamingMessage(trimmedMessage, messages)
     } catch {
-      setApiError('流式聊天发送失败，请重试')
+      setApiError(t('chatSendError'))
     } finally {
       setIsSending(false)
     }
@@ -226,16 +228,16 @@ export function useResumeChatPanel({
    */
   const handleClearMessages = useCallback(async () => {
     if (!resumeId || isStreaming || isSending || isClearingMessages || messages.length === 0) return
-    if (!window.confirm('确定清空当前聊天记录吗？此操作不可恢复。')) return
+    if (!window.confirm(t('clearConfirm'))) return
 
     try {
       setIsClearingMessages(true)
       await chatHistoryApi.clearMessages(parseInt(resumeId, 10))
       replaceMessages([])
       setApiError(null)
-      toast.success('已清空消息记录')
+      toast.success(t('clearSuccess'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '清空消息失败')
+      toast.error(error instanceof Error ? error.message : t('clearError'))
     } finally {
       setIsClearingMessages(false)
     }

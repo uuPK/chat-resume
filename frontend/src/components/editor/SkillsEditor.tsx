@@ -7,24 +7,14 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline'
 import type { Skill as SkillGroup } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface SkillsEditorProps {
   data: SkillGroup[]
   onChange: (data: SkillGroup[]) => void
 }
 
-const DEFAULT_CATEGORIES = [
-  '编程语言',
-  '前端技术',
-  '后端技术',
-  '数据库',
-  '开发工具',
-  '云平台',
-  'AI 技术栈',
-  '其他技能'
-]
-
-function createEmptyGroup(category = '编程语言'): SkillGroup {
+function createEmptyGroup(category: string): SkillGroup {
   return {
     id: `skill_group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     category,
@@ -36,12 +26,14 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([])
   const focusChipRef = useRef<{ groupId: string; index: number } | null>(null)
   const chipRefs = useRef<Map<string, HTMLInputElement | null>>(new Map())
+  const t = useTranslations('resume.forms.skills')
+  const defaultCategories = t.raw('categories') as string[]
 
   useEffect(() => {
     const safeData = Array.isArray(data) ? data : []
     const normalized = safeData.map((group, index) => ({
       id: group.id || `skill_group_${Date.now()}_${index}`,
-      category: group.category || '其他技能',
+      category: group.category || t('fallbackCategory'),
       items: Array.isArray(group.items) ? group.items : []
     }))
     setSkillGroups(normalized)
@@ -68,7 +60,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
 
   const addGroup = () => {
     const existing = new Set(skillGroups.map(g => g.category))
-    const nextCategory = DEFAULT_CATEGORIES.find(c => !existing.has(c)) || '新分类'
+    const nextCategory = defaultCategories.find(c => !existing.has(c)) || t('newCategory')
     commit([...skillGroups, createEmptyGroup(nextCategory)])
   }
 
@@ -111,13 +103,13 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
       <div className="space-y-6">
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <CodeBracketIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 mb-4">还没有添加技能</p>
+          <p className="text-gray-500 mb-4">{t('empty')}</p>
           <button
             onClick={addGroup}
             className="btn-primary flex items-center space-x-2 mx-auto"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加第一个技能分类</span>
+            <span>{t('addFirst')}</span>
           </button>
         </div>
       </div>
@@ -136,7 +128,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
               type="text"
               value={group.category}
               onChange={(e) => updateCategory(group.id!, e.target.value)}
-              placeholder="分类名"
+              placeholder={t('categoryPlaceholder')}
               className="text-sm font-semibold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none px-1 py-0.5 rounded hover:bg-gray-50 focus:bg-gray-50 w-auto min-w-[80px]"
               style={{ width: `${Math.max(group.category.length, 4) + 2}ch` }}
             />
@@ -162,14 +154,14 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
                         removeItem(group.id!, idx)
                       }
                     }}
-                    placeholder="技能"
+                    placeholder={t('skillPlaceholder')}
                     className="bg-transparent border-0 focus:ring-0 focus:outline-none text-xs text-gray-800 p-0 text-center"
                     style={{ width: `${Math.max(item.length, 2) + 1}ch` }}
                   />
                   <button
                     onClick={() => removeItem(group.id!, idx)}
                     className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 text-gray-400 hover:text-red-600 opacity-0 group-hover/chip:opacity-100 transition-opacity shadow-sm"
-                    title="删除"
+                    title={t('delete')}
                   >
                     <TrashIcon className="w-3 h-3" />
                   </button>
@@ -182,13 +174,13 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
               className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 hover:border-primary-400 hover:text-primary-600 px-3 py-1 text-xs text-gray-500 transition-colors"
             >
               <PlusIcon className="w-3 h-3" />
-              <span>添加</span>
+              <span>{t('addItem')}</span>
             </button>
 
             <button
               onClick={() => removeGroup(group.id!)}
               className="ml-auto text-gray-300 hover:text-red-600 opacity-0 group-hover/cat:opacity-100 transition-opacity p-1"
-              title="删除分类"
+              title={t('deleteCategory')}
             >
               <TrashIcon className="w-4 h-4" />
             </button>
@@ -201,7 +193,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
         className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2 text-sm"
       >
         <PlusIcon className="w-4 h-4" />
-        <span>添加技能分类</span>
+        <span>{t('addGroup')}</span>
       </button>
     </div>
   )

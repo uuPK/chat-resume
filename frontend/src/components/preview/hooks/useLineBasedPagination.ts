@@ -169,7 +169,7 @@ export function useLineBasedPagination({
       setTotalPages(calculatedPages.length)
       setContentHeight(totalHeight)
     } catch (error) {
-      console.error('分页计算错误:', error)
+      console.error('Pagination calculation error:', error)
       setPages([{ lines: [], height: 0 }])
       setTotalPages(1)
     } finally {

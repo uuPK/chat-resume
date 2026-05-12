@@ -1,0 +1,48 @@
+{
+  "dashboard": {
+    "title": "仪表板"
+  },
+  "pricing": {
+    "title": "选择适合你的套餐",
+    "subtitle": "从简历优化到模拟面试，按需解锁完整求职工作流。",
+    "plans": {
+      "free": {
+        "tagline": "开始优化简历",
+        "features": ["简历编辑与预览", "基础 AI 优化", "PDF 导出"]
+      },
+      "plus": {
+        "tagline": "解锁更多优化能力",
+        "features": ["更多 AI 对话额度", "JD 匹配分析", "面试问答训练", "更多导出样式"]
+      },
+      "pro": {
+        "tagline": "获得完整求职工作流",
+        "features": ["深度简历优化", "模拟面试与复盘", "高级模型能力", "优先体验新功能"]
+      }
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "管理您的个人信息",
+    "profileTitle": "个人信息",
+    "profileSubtitle": "更新用于简历和面试记录中的身份信息。",
+    "billingTitle": "套餐与支付",
+    "back": "返回",
+    "choosePlan": "选择套餐",
+    "current": "当前",
+    "switchTo": "切换至 {plan}",
+    "backToPlans": "返回套餐",
+    "confirmSubscription": "确认订阅",
+    "checkoutDescription": "Plus 月度套餐将解锁更多 AI 对话额度、JD 匹配分析和面试训练能力。",
+    "subtotal": "小计",
+    "total": "应付合计",
+    "contact": "联系信息",
+    "paymentMethod": "支付方式",
+    "paypalDescription": "跳转到 PayPal 完成授权。",
+    "paypalPay": "使用 PayPal 支付",
+    "paypalRedirecting": "跳转中...",
+    "nameRequired": "姓名不能为空",
+    "saveFallback": "保存失败",
+    "saveSuccess": "设置已保存",
+    "saveError": "保存设置失败"
+  }
+}

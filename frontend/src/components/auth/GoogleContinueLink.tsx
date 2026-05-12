@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export function getGoogleLoginUrl() {
@@ -7,10 +9,12 @@ export function getGoogleLoginUrl() {
 }
 
 export default function GoogleContinueLink() {
+  const t = useTranslations('auth.oauth')
+
   return (
     <a
       href={getGoogleLoginUrl()}
-      aria-label="使用谷歌登录"
+      aria-label={t('google')}
       className="flex h-12 w-full items-center justify-center gap-3 rounded-full border text-base font-semibold transition-colors hover:bg-gray-50"
       style={{ borderColor: 'rgba(91,97,110,0.28)', color: '#0a0b0d' }}
     >
@@ -38,7 +42,7 @@ export default function GoogleContinueLink() {
           />
         </svg>
       </span>
-      <span>使用谷歌登录</span>
+      <span>{t('google')}</span>
     </a>
   )
 }

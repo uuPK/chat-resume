@@ -2,6 +2,7 @@
 
 import type { Project } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { useTranslations } from 'next-intl'
 
 interface ProjectsPreviewProps {
   data: Project[]
@@ -39,6 +40,7 @@ const DemoIcon = () => (
 
 // 单个项目项组件
 function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { project: Project; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
+  const t = useTranslations('resume.preview')
   const highlights = project.highlights && project.highlights.length > 0
     ? project.highlights.map(item => item.text)
     : []
@@ -71,7 +73,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
         {project.overview && (
           <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
-            <span className="font-semibold">项目描述：</span>{project.overview}
+            <span className="font-semibold">{t('projectDescription')}</span>{project.overview}
           </p>
         )}
 
@@ -146,7 +148,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
               className="inline-flex items-center gap-1 leading-none hover:underline"
             >
               <GithubIcon />
-              <span className="inline-block leading-none">Github</span>
+              <span className="inline-block leading-none">{t('github')}</span>
             </a>
           )}
           {project.demo_url && (
@@ -157,7 +159,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
               className="inline-flex items-center gap-1 leading-none hover:underline"
             >
               <DemoIcon />
-              <span className="inline-block leading-none">Demo</span>
+              <span className="inline-block leading-none">{t('demo')}</span>
             </a>
           )}
         </div>
@@ -177,7 +179,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
       {highlights.length > 0 && (
         <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <span className="text-sm font-medium text-gray-700">关键要点:</span>
+          <span className="text-sm font-medium text-gray-700">{t('keyPoints')}</span>
           <ul
             className="list-disc list-inside text-sm text-gray-600"
             style={{
@@ -201,6 +203,7 @@ export default function ProjectsPreview({
   renderLines,
   templateStyle = 'classic',
 }: ProjectsPreviewProps) {
+  const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
@@ -215,8 +218,8 @@ export default function ProjectsPreview({
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           {templateStyle === 'emerald' ? (
-            <span className="resume-emerald-heading-label">项目经历</span>
-          ) : templateStyle === 'formal' ? '项目经历' : '项目经验'}
+            <span className="resume-emerald-heading-label">{t('projects')}</span>
+          ) : t('projects')}
         </h2>
       )}
 

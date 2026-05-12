@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
+import { useTranslations } from 'next-intl'
 
 export type DiffItem = {
   before?: string
@@ -91,7 +92,7 @@ function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
 }
 
-function resolveToolName(data: Record<string, unknown>): string {
+function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
   if (data.tool_name) return normalizeToolName(String(data.tool_name))
   const calls = Array.isArray(data.tool_calls) ? data.tool_calls : []
@@ -99,10 +100,11 @@ function resolveToolName(data: Record<string, unknown>): string {
   if (lastCall && typeof lastCall === 'object' && 'name' in lastCall) {
     return normalizeToolName(String((lastCall as { name?: unknown }).name || ''))
   }
-  return '工具调用'
+  return fallbackName
 }
 
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
+  const t = useTranslations('resume.editor')
   const [isStreaming, setIsStreaming] = useState(false)
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('')
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([])
@@ -166,7 +168,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('认证已过期，请重新登录')
+          throw new Error(t('authExpired'))
         }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -270,7 +272,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_call',
                     callId,
-                    toolName: resolveToolName(data),
+                    toolName: resolveToolName(data, t('toolCall')),
                     displayMessage: data.display_message ? String(data.display_message) : undefined,
                   }]
                   setStreamEvents([...eventsBuffer])
@@ -281,13 +283,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   if (callId) {
                     completeToolCallEvent(
                       callId,
-                      resolveToolName(data),
+                      resolveToolName(data, t('toolCall')),
                       data.display_message ? String(data.display_message) : undefined,
                     )
                   } else {
                     eventsBuffer = [...eventsBuffer, {
                       type: 'tool_result',
-                      toolName: resolveToolName(data),
+                      toolName: resolveToolName(data, t('toolCall')),
                       displayMessage: data.display_message ? String(data.display_message) : undefined,
                     }]
                   }
@@ -336,7 +338,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     : 'tool_rejected'
                   completeToolCallEvent(
                     callId,
-                    resolveToolName(data),
+                    resolveToolName(data, t('toolCall')),
                     data.display_message ? String(data.display_message) : undefined,
                   )
                   eventsBuffer = eventsBuffer.map(e => {

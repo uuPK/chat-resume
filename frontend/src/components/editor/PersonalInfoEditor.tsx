@@ -8,6 +8,7 @@ import {
   BriefcaseIcon
 } from '@heroicons/react/24/outline'
 import type { PersonalInfo } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface PersonalInfoEditorProps {
   data: PersonalInfo
@@ -16,6 +17,7 @@ interface PersonalInfoEditorProps {
 
 export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEditorProps) {
   const [formData, setFormData] = useState<PersonalInfo>(data || {})
+  const t = useTranslations('resume.forms.personal')
 
   useEffect(() => {
     setFormData(data || {})
@@ -33,13 +35,13 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 姓名 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            姓名
+            {t('name')}
           </label>
           <input
             type="text"
             value={formData.name || ''}
             onChange={(e) => handleChange('name', e.target.value)}
-            placeholder="请输入您的姓名"
+            placeholder={t('namePlaceholder')}
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
@@ -47,7 +49,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 邮箱 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            邮箱
+            {t('email')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -57,7 +59,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               type="email"
               value={formData.email || ''}
               onChange={(e) => handleChange('email', e.target.value)}
-              placeholder="your@email.com"
+              placeholder={t('emailPlaceholder')}
               className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -66,7 +68,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 手机号 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            手机号
+            {t('phone')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -85,7 +87,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 期望职位 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            期望职位
+            {t('position')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -95,7 +97,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               type="text"
               value={formData.position || ''}
               onChange={(e) => handleChange('position', e.target.value)}
-              placeholder="软件工程师"
+              placeholder={t('positionPlaceholder')}
               className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -114,7 +116,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               type="url"
               value={formData.github || ''}
               onChange={(e) => handleChange('github', e.target.value)}
-              placeholder="https://github.com/yourusername"
+              placeholder={t('githubPlaceholder')}
               className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -133,7 +135,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               type="url"
               value={formData.linkedin || ''}
               onChange={(e) => handleChange('linkedin', e.target.value)}
-              placeholder="https://linkedin.com/in/yourusername"
+              placeholder={t('linkedinPlaceholder')}
               className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -142,7 +144,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 个人网站 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            个人网站
+            {t('website')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -152,7 +154,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
               type="url"
               value={formData.website || ''}
               onChange={(e) => handleChange('website', e.target.value)}
-              placeholder="https://yourwebsite.com"
+              placeholder={t('websitePlaceholder')}
               className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
@@ -161,13 +163,13 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
         {/* 地址 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            居住地址
+            {t('address')}
           </label>
           <input
             type="text"
             value={formData.address || ''}
             onChange={(e) => handleChange('address', e.target.value)}
-            placeholder="北京市朝阳区"
+            placeholder={t('addressPlaceholder')}
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>

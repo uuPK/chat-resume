@@ -16,6 +16,7 @@
     "@heroicons/react": "^2.0.18",
     "framer-motion": "^10.16.16",
     "next": "^16.2.6",
+    "next-intl": "^4.11.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.2",

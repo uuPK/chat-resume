@@ -7,8 +7,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter } from '@/i18n/navigation'
 import toast from 'react-hot-toast'
+import { useTranslations } from 'next-intl'
 
 import { resumeApi, type Resume } from '@/lib/api'
 import {
@@ -43,6 +44,7 @@ interface UseResumeEditorOptions {
  */
 export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOptions) {
   const router = useRouter()
+  const t = useTranslations('resume')
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -103,7 +105,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
       setLayoutConfig(serverConfig)
       saveLayoutConfig(parseInt(resumeId, 10), serverConfig)
     } catch {
-      toast.error('获取简历失败')
+      toast.error(t('editor.fetchError'))
       router.push('/dashboard')
     } finally {
       setResumeLoading(false)
@@ -136,11 +138,14 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
       const result = await smartFitTriggerRef.current()
       if (!result) return
       if (result.status === 'already_fits') {
-        toast('当前简历已是一页，无需调整', { icon: '✅' })
+        toast(t('editor.alreadyOnePage'), { icon: '✅' })
       } else if (result.status === 'too_much_content') {
-        toast.error(`内容过多（约 ${result.pages} 页），建议删减内容`)
+        toast.error(t('editor.tooManyPages', { pages: result.pages }))
       } else if (result.status === 'success') {
-        toast.success(`已将间距从 ${result.oldScale.toFixed(2)}× 调整为 ${result.newScale.toFixed(2)}×，简历适配一页`)
+        toast.success(t('editor.fitSuccess', {
+          oldScale: result.oldScale.toFixed(2),
+          newScale: result.newScale.toFixed(2),
+        }))
       }
     } finally {
       setIsSmartFitting(false)
@@ -152,13 +157,13 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
    */
   const handleExportPDF = useCallback(async () => {
     if (!resume) {
-      toast.error('简历不存在')
+      toast.error(t('editor.missing'))
       return
     }
 
     try {
       setExporting(true)
-      const toastId = toast.loading('正在生成PDF...')
+      const toastId = toast.loading(t('editor.exporting'))
       const result = await resumeApi.exportResume(resume.id, 'pdf', layoutConfig.templateStyle)
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const downloadUrl = `${apiBaseUrl}${result.download_url}`
@@ -168,13 +173,13 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      toast.success('PDF导出成功', { id: toastId })
+      toast.success(t('editor.exportSuccess'), { id: toastId })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'PDF导出失败')
+      toast.error(error instanceof Error ? error.message : t('editor.exportError'))
     } finally {
       setExporting(false)
     }
-  }, [layoutConfig.templateStyle, resume])
+  }, [layoutConfig.templateStyle, resume, t])
 
   /**
    * 更新指定简历模块内容，并交给自动保存 Hook 处理脏数据状态。
@@ -227,18 +232,18 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
 
   const editorSections = useMemo(() => {
     const allSections = [
-      { key: 'job_application', label: '岗位' },
-      { key: 'personal', label: '个人' },
-      { key: 'education', label: '教育' },
-      { key: 'work', label: '工作' },
-      { key: 'projects', label: '项目' },
-      { key: 'skills', label: '技能' },
+      { key: 'job_application', label: t('sections.job') },
+      { key: 'personal', label: t('sections.personal') },
+      { key: 'education', label: t('sections.education') },
+      { key: 'work', label: t('sections.work') },
+      { key: 'projects', label: t('sections.projects') },
+      { key: 'skills', label: t('sections.skills') },
     ]
     return allSections.filter((section) => {
       const mappedModule = EDITOR_SECTION_TO_MODULE[section.key]
       return mappedModule ? layoutConfig.visibleModules.has(mappedModule) : true
     })
-  }, [layoutConfig.visibleModules])
+  }, [layoutConfig.visibleModules, t])
 
   /**
    * 当当前编辑模块被隐藏时，自动切到仍然可见的第一个模块。

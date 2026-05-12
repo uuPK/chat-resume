@@ -7,6 +7,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline'
 import type { Education } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface EducationEditorProps {
   data: Education[]
@@ -15,6 +16,8 @@ interface EducationEditorProps {
 
 export default function EducationEditor({ data, onChange }: EducationEditorProps) {
   const [educationList, setEducationList] = useState<Education[]>(Array.isArray(data) ? data : [])
+  const t = useTranslations('resume.forms.education')
+  const degrees = t.raw('degrees') as string[]
 
   useEffect(() => {
     setEducationList(Array.isArray(data) ? data : [])
@@ -91,13 +94,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
       {educationList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <AcademicCapIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 mb-4">还没有添加教育经历</p>
+          <p className="text-gray-500 mb-4">{t('empty')}</p>
           <button
             onClick={addEducation}
             className="btn-primary flex items-center space-x-2 mx-auto"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加第一个教育经历</span>
+            <span>{t('addFirst')}</span>
           </button>
         </div>
       ) : (
@@ -109,7 +112,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   <button
                     onClick={() => removeEducation(education.id!)}
                     className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                    title="删除此教育经历"
+                    title={t('delete')}
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -120,13 +123,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 学校名称 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    学校名称
+                    {t('school')}
                   </label>
                   <input
                     type="text"
                     value={education.school}
                     onChange={(e) => updateEducation(education.id!, 'school', e.target.value)}
-                    placeholder="北京大学"
+                    placeholder={t('schoolPlaceholder')}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -134,13 +137,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 专业 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    专业
+                    {t('major')}
                   </label>
                   <input
                     type="text"
                     value={education.major}
                     onChange={(e) => updateEducation(education.id!, 'major', e.target.value)}
-                    placeholder="计算机科学与技术"
+                    placeholder={t('majorPlaceholder')}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -148,27 +151,24 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* 学历 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    学历
+                    {t('degree')}
                   </label>
                   <select
                     value={education.degree}
                     onChange={(e) => updateEducation(education.id!, 'degree', e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
-                    <option value="">请选择学历</option>
-                    <option value="博士">博士</option>
-                    <option value="硕士">硕士</option>
-                    <option value="本科">本科</option>
-                    <option value="专科">专科</option>
-                    <option value="高中">高中</option>
-                    <option value="中专">中专</option>
+                    <option value="">{t('selectDegree')}</option>
+                    {degrees.map((degree) => (
+                      <option key={degree} value={degree}>{degree}</option>
+                    ))}
                   </select>
                 </div>
 
                 {/* 就读时间 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    就读时间
+                    {t('duration')}
                   </label>
                   <input
                     type="text"
@@ -182,7 +182,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                 {/* GPA */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    GPA (可选)
+                    {t('gpa')}
                   </label>
                   <input
                     type="text"
@@ -197,14 +197,14 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    教育要点
+                    {t('highlights')}
                   </label>
                   <button
                     onClick={() => addBullet(education.id!)}
                     className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                   >
                     <PlusIcon className="w-3 h-3" />
-                    <span>添加要点</span>
+                    <span>{t('addBullet')}</span>
                   </button>
                 </div>
                 <div className="space-y-2">
@@ -213,7 +213,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                       <textarea
                         value={highlight.text}
                         onChange={(e) => updateBullet(education.id!, highlightIndex, e.target.value)}
-                        placeholder="985高校、主要课程、奖项、研究方向等"
+                        placeholder={t('highlightPlaceholder')}
                         rows={1}
                         className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
@@ -221,7 +221,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                         <button
                           onClick={() => removeBullet(education.id!, highlightIndex)}
                           className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                          title="删除此要点"
+                          title={t('deleteBullet')}
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -237,7 +237,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
             className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加教育经历</span>
+            <span>{t('add')}</span>
           </button>
         </div>
       )}

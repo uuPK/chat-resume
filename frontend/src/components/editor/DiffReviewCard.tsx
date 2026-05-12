@@ -7,6 +7,14 @@
 import React from 'react'
 
 import type { DiffItem } from '@/hooks/useStreamingChat'
+import {
+  DIFF_AFTER_LABEL,
+  DIFF_BEFORE_LABEL,
+  DIFF_CREATED_MARKER,
+  DIFF_DELETED_MARKER,
+  DIFF_REASON_LABEL,
+  DIFF_SUMMARY_SECTION_SUFFIXES,
+} from '@/lib/resumeDiffProtocol'
 
 type DiffLine = { type: 'remove' | 'add' | 'reason' | 'meta'; text: string }
 type DiffGroup = { remove?: string; add?: string; reason?: string }
@@ -19,17 +27,17 @@ function parseDiffSummary(raw: string): DiffLine[] {
   const result: DiffLine[] = []
   for (const line of lines) {
     if (!line.trim()) continue
-    if (line.endsWith('修改摘要') || line.endsWith('新增') || line.endsWith('删除')) continue
-    if (line.startsWith('改前：') || line.startsWith('  改前：')) {
-      const text = line.replace(/^\s*改前：/, '').trim()
-      if (text === '（新增）') continue
+    if (DIFF_SUMMARY_SECTION_SUFFIXES.some((suffix) => line.endsWith(suffix))) continue
+    if (line.startsWith(DIFF_BEFORE_LABEL) || line.startsWith(`  ${DIFF_BEFORE_LABEL}`)) {
+      const text = line.replace(new RegExp(`^\\s*${DIFF_BEFORE_LABEL}`), '').trim()
+      if (text === DIFF_CREATED_MARKER) continue
       result.push({ type: 'remove', text: `- ${text}` })
-    } else if (line.startsWith('改后：') || line.startsWith('  改后：')) {
-      const text = line.replace(/^\s*改后：/, '').trim()
-      if (text === '（已删除）') continue
+    } else if (line.startsWith(DIFF_AFTER_LABEL) || line.startsWith(`  ${DIFF_AFTER_LABEL}`)) {
+      const text = line.replace(new RegExp(`^\\s*${DIFF_AFTER_LABEL}`), '').trim()
+      if (text === DIFF_DELETED_MARKER) continue
       result.push({ type: 'add', text: `+ ${text}` })
-    } else if (line.startsWith('改动理由：') || line.startsWith('  改动理由：')) {
-      const text = line.replace(/^\s*改动理由：/, '').trim()
+    } else if (line.startsWith(DIFF_REASON_LABEL) || line.startsWith(`  ${DIFF_REASON_LABEL}`)) {
+      const text = line.replace(new RegExp(`^\\s*${DIFF_REASON_LABEL}`), '').trim()
       if (text) result.push({ type: 'reason', text })
     }
   }

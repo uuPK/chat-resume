@@ -2,6 +2,7 @@
 
 import type { Education } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { useTranslations } from 'next-intl'
 
 interface EducationPreviewProps {
   data: Education[]
@@ -100,6 +101,7 @@ export default function EducationPreview({
   renderLines,
   templateStyle = 'classic',
 }: EducationPreviewProps) {
+  const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
@@ -114,8 +116,8 @@ export default function EducationPreview({
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           {templateStyle === 'emerald' ? (
-            <span className="resume-emerald-heading-label">教育经历</span>
-          ) : templateStyle === 'formal' ? '教育经历' : '教育背景'}
+            <span className="resume-emerald-heading-label">{t('education')}</span>
+          ) : t('education')}
         </h2>
       )}
 

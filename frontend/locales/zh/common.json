@@ -1,0 +1,104 @@
+{
+  "app": {
+    "name": "Chat Resume"
+  },
+  "nav": {
+    "resumes": "简历中心",
+    "interviews": "面试中心",
+    "pricing": "升级套餐",
+    "settings": "设置",
+    "logout": "退出登录",
+    "login": "登录",
+    "register": "免费开始",
+    "accountSettings": "账户设置",
+    "enterApp": "进入应用"
+  },
+  "localeSwitcher": {
+    "label": {
+      "zh": "中文",
+      "en": "EN"
+    },
+    "aria": {
+      "zh": "切换到中文",
+      "en": "Switch to English"
+    }
+  },
+  "actions": {
+    "cancel": "取消",
+    "close": "关闭",
+    "delete": "删除",
+    "save": "保存",
+    "saving": "保存中...",
+    "loading": "加载中...",
+    "create": "创建",
+    "creating": "创建中...",
+    "upload": "上传",
+    "uploading": "上传中...",
+    "confirm": "确认"
+  },
+  "status": {
+    "free": "Free",
+    "plus": "Plus",
+    "comingSoon": "即将推出",
+    "currentPlan": "当前套餐"
+  },
+  "errors": {
+    "network": "请求失败，请检查网络后重试",
+    "expiredAuth": "认证已过期，请重新登录"
+  },
+  "landing": {
+    "heroPrefix": "让每一份简历",
+    "heroHighlight": "精准命中",
+    "heroSuffix": "目标岗位",
+    "subtitle": "上传简历，与 AI 对话优化内容，模拟面试练习表达，一站式提升求职竞争力。",
+    "primaryCta": "免费开始使用",
+    "secondaryCta": "已有账户，去登录",
+    "mockAssistantLabel": "AI Resume Assistant",
+    "mockAssistantMessage": "你好！我已分析你的简历，发现工作经历的描述缺乏量化数据，建议补充具体成果。",
+    "mockUserMessage": "好的，帮我优化「后端开发」这段经历",
+    "mockResultPrefix": "已将「参与系统优化」改写为「通过缓存改造将接口响应时间降低",
+    "mockResultMiddle": "，支撑",
+    "mockResultSuffix": "日活」",
+    "features": {
+      "resume": {
+        "title": "AI 简历优化",
+        "desc": "上传现有简历，AI 识别不足，针对目标岗位重写要点，量化每项成果。"
+      },
+      "chat": {
+        "title": "对话式编辑",
+        "desc": "像和同事沟通一样告诉 AI 你的想法，实时预览修改效果，随时撤销确认。"
+      },
+      "interview": {
+        "title": "模拟面试",
+        "desc": "基于你的简历和目标 JD，AI 生成专项面试题，给出详细点评和改进建议。"
+      }
+    },
+    "steps": {
+      "upload": {
+        "title": "上传简历",
+        "desc": "支持 PDF、Word、TXT 格式，AI 自动解析结构化内容。"
+      },
+      "optimize": {
+        "title": "对话优化",
+        "desc": "告知目标公司和岗位，AI 针对性重写每一段经历。"
+      },
+      "export": {
+        "title": "导出投递",
+        "desc": "一键导出精美 PDF，直接投递目标岗位。"
+      }
+    },
+    "insightTitle": "不只是改简历，<break></break>更是帮你思考",
+    "insights": {
+      "metrics": "自动识别简历中缺失的量化数据",
+      "keywords": "针对 JD 关键词定向强化描述",
+      "diff": "实时 Diff 预览，逐条确认或拒绝修改",
+      "report": "面试报告指出薄弱点和训练计划"
+    },
+    "metrics": {
+      "parse": "简历解析质量",
+      "keywords": "关键词匹配率",
+      "quantified": "量化指标覆盖",
+      "interview": "面试通过率提升"
+    }
+  }
+}

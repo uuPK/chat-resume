@@ -1,0 +1,48 @@
+{
+  "dashboard": {
+    "title": "Dashboard"
+  },
+  "pricing": {
+    "title": "Choose your plan",
+    "subtitle": "Unlock the job-search workflow you need, from resume optimization to mock interviews.",
+    "plans": {
+      "free": {
+        "tagline": "Start improving resumes",
+        "features": ["Resume editor and preview", "Basic AI optimization", "PDF export"]
+      },
+      "plus": {
+        "tagline": "Unlock more optimization",
+        "features": ["More AI chat quota", "JD match analysis", "Interview Q&A drills", "More export styles"]
+      },
+      "pro": {
+        "tagline": "Get the full job-search workflow",
+        "features": ["Deep resume optimization", "Mock interviews and reviews", "Advanced model capability", "Early access to new features"]
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile information",
+    "profileTitle": "Profile",
+    "profileSubtitle": "Update identity information used in resumes and interview records.",
+    "billingTitle": "Plan and billing",
+    "back": "Back",
+    "choosePlan": "Choose plan",
+    "current": "Current",
+    "switchTo": "Switch to {plan}",
+    "backToPlans": "Back to plans",
+    "confirmSubscription": "Confirm subscription",
+    "checkoutDescription": "The Plus monthly plan unlocks more AI chat quota, JD match analysis, and interview practice.",
+    "subtotal": "Subtotal",
+    "total": "Total due",
+    "contact": "Contact information",
+    "paymentMethod": "Payment method",
+    "paypalDescription": "Continue to PayPal to authorize the subscription.",
+    "paypalPay": "Pay with PayPal",
+    "paypalRedirecting": "Redirecting...",
+    "nameRequired": "Name cannot be empty",
+    "saveFallback": "Save failed",
+    "saveSuccess": "Settings saved",
+    "saveError": "Failed to save settings"
+  }
+}

@@ -7,6 +7,7 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline'
 import type { ResumeBullet as Bullet, WorkExperience } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface WorkExperienceEditorProps {
   data: WorkExperience[]
@@ -22,6 +23,8 @@ function normalizeBullets(work: WorkExperience): Bullet[] {
 
 export default function WorkExperienceEditor({ data, onChange }: WorkExperienceEditorProps) {
   const [workList, setWorkList] = useState<WorkExperience[]>(Array.isArray(data) ? data : [])
+  const t = useTranslations('resume.forms.work')
+  const employmentTypes = t.raw('employmentTypes') as string[]
 
   useEffect(() => {
     const next = Array.isArray(data)
@@ -48,7 +51,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
         position: '',
         duration: '',
         location: '',
-        employment_type: '全职',
+        employment_type: employmentTypes[0],
         highlights: [{ id: `hl_${Date.now()}`, text: '' }]
       }
     ])
@@ -91,13 +94,13 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
       {workList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <BriefcaseIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 mb-4">还没有添加工作经验</p>
+          <p className="text-gray-500 mb-4">{t('empty')}</p>
           <button
             onClick={addWork}
             className="btn-primary flex items-center space-x-2 mx-auto"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加第一个工作经验</span>
+            <span>{t('addFirst')}</span>
           </button>
         </div>
       ) : (
@@ -109,7 +112,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                   <button
                     onClick={() => removeWork(work.id!)}
                     className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                    title="删除此工作经验"
+                    title={t('delete')}
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -120,33 +123,33 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      公司名称
+                      {t('company')}
                     </label>
                     <input
                       type="text"
                       value={work.company}
                       onChange={(e) => updateWork(work.id!, 'company', e.target.value)}
-                      placeholder="腾讯科技"
+                      placeholder={t('companyPlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      职位
+                      {t('position')}
                     </label>
                     <input
                       type="text"
                       value={work.position}
                       onChange={(e) => updateWork(work.id!, 'position', e.target.value)}
-                      placeholder="软件工程师"
+                      placeholder={t('positionPlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      工作时间
+                      {t('duration')}
                     </label>
                     <input
                       type="text"
@@ -159,31 +162,29 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      工作地点
+                      {t('location')}
                     </label>
                     <input
                       type="text"
                       value={work.location || ''}
                       onChange={(e) => updateWork(work.id!, 'location', e.target.value)}
-                      placeholder="北京"
+                      placeholder={t('locationPlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      雇佣类型
+                      {t('employmentType')}
                     </label>
                     <select
-                      value={work.employment_type || '全职'}
+                      value={work.employment_type || employmentTypes[0]}
                       onChange={(e) => updateWork(work.id!, 'employment_type', e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
-                      <option value="全职">全职</option>
-                      <option value="兼职">兼职</option>
-                      <option value="实习">实习</option>
-                      <option value="自由职业">自由职业</option>
-                      <option value="合同工">合同工</option>
+                      {employmentTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -191,14 +192,14 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      主要成果
+                      {t('highlights')}
                     </label>
                     <button
                       onClick={() => addBullet(work.id!)}
                       className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                     >
                       <PlusIcon className="w-3 h-3" />
-                      <span>添加要点</span>
+                      <span>{t('addBullet')}</span>
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -207,7 +208,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                         <textarea
                           value={highlight.text}
                           onChange={(e) => updateBullet(work.id!, highlightIndex, e.target.value)}
-                          placeholder="负责后端系统重构，接口平均响应时间下降 35%"
+                          placeholder={t('highlightPlaceholder')}
                           rows={1}
                           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
@@ -215,7 +216,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                           <button
                             onClick={() => removeBullet(work.id!, highlightIndex)}
                             className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                            title="删除此要点"
+                            title={t('deleteBullet')}
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -232,7 +233,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
             className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加工作经验</span>
+            <span>{t('add')}</span>
           </button>
         </div>
       )}

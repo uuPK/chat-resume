@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiFetch, handleApiResponse } from './httpClient'
+import zhAuth from '../../locales/zh/auth.json'
+import enAuth from '../../locales/en/auth.json'
 
 // 用户接口定义
 interface User {
@@ -42,6 +44,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const USER_STORAGE_KEY = 'auth_user'
 
+function currentAuthMessages() {
+  // Chooses fallback auth copy without tying the auth client to React hooks.
+  const locale = document.cookie.includes('NEXT_LOCALE=en') ? 'en' : 'zh'
+  return locale === 'en' ? enAuth : zhAuth
+}
+
+function authMessage(key: 'login' | 'register' | 'getCurrentUser' | 'refresh' | 'logout') {
+  // Maps low-level auth failures to localized fallback messages.
+  const messages = currentAuthMessages()
+  const errors = {
+    login: messages.errors.loginFailed,
+    register: messages.errors.registerFailed,
+    getCurrentUser: messages.errors.getCurrentUserFailed,
+    refresh: messages.errors.refreshFailed,
+    logout: messages.errors.logoutFailed,
+  }
+  return errors[key]
+}
+
 function readStoredUser(): User | null {
   try {
     const raw = localStorage.getItem(USER_STORAGE_KEY)
@@ -74,7 +95,7 @@ class AuthAPI {
       }),
     })
 
-    return handleApiResponse<LoginResponse>(response, '登录失败')
+    return handleApiResponse<LoginResponse>(response, authMessage('login'))
   }
 
   static async register(data: RegisterRequest): Promise<User> {
@@ -86,12 +107,12 @@ class AuthAPI {
       body: JSON.stringify(data),
     })
 
-    return handleApiResponse<User>(response, '注册失败')
+    return handleApiResponse<User>(response, authMessage('register'))
   }
 
   static async getCurrentUser(): Promise<User> {
     const response = await apiFetch('/api/auth/me')
-    return handleApiResponse<User>(response, '获取用户信息失败')
+    return handleApiResponse<User>(response, authMessage('getCurrentUser'))
   }
 
   static async refresh(): Promise<LoginResponse> {
@@ -99,7 +120,7 @@ class AuthAPI {
       method: 'POST',
     })
 
-    return handleApiResponse<LoginResponse>(response, '刷新登录状态失败')
+    return handleApiResponse<LoginResponse>(response, authMessage('refresh'))
   }
 
   static async logout(): Promise<void> {
@@ -107,7 +128,7 @@ class AuthAPI {
       method: 'POST',
     })
 
-    await handleApiResponse<void>(response, '退出登录失败')
+    await handleApiResponse<void>(response, authMessage('logout'))
   }
 }
 
@@ -188,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const freshUser = await AuthAPI.getCurrentUser().catch(async () => {
         const refreshed = await refreshSession()
         if (!refreshed) {
-          throw new Error('获取用户信息失败')
+          throw new Error(authMessage('getCurrentUser'))
         }
         return AuthAPI.getCurrentUser()
       })
@@ -212,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const user = await AuthAPI.getCurrentUser().catch(async () => {
         const refreshed = await refreshSession()
         if (!refreshed) {
-          throw new Error('获取用户信息失败')
+          throw new Error(authMessage('getCurrentUser'))
         }
         return AuthAPI.getCurrentUser()
       })

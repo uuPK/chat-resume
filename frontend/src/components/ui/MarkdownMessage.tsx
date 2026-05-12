@@ -2,6 +2,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
 import { DocumentDuplicateIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { useTranslations } from 'next-intl'
 
 interface MarkdownMessageProps {
   content: string
@@ -10,6 +11,7 @@ interface MarkdownMessageProps {
 
 export default function MarkdownMessage({ content, className = '' }: MarkdownMessageProps) {
   const [copied, setCopied] = useState(false)
+  const t = useTranslations('resume.preview')
 
   const handleCopy = async () => {
     try {
@@ -27,7 +29,7 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
       <button
         onClick={handleCopy}
         className="absolute top-2 right-2 p-1.5 rounded-md bg-white shadow-sm border border-gray-200 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-50"
-        title={copied ? "已复制" : "复制内容"}
+        title={copied ? t('copied') : t('copy')}
       >
         {copied ? (
           <CheckIcon className="w-4 h-4 text-green-600" />

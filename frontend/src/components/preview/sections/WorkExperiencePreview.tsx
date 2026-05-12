@@ -2,6 +2,7 @@
 
 import type { WorkExperience } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { useTranslations } from 'next-intl'
 
 interface WorkExperiencePreviewProps {
   data: WorkExperience[]
@@ -106,6 +107,7 @@ export default function WorkExperiencePreview({
   renderLines,
   templateStyle = 'classic',
 }: WorkExperiencePreviewProps) {
+  const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
@@ -120,8 +122,8 @@ export default function WorkExperiencePreview({
       {shouldRenderLine(0) && (
         <h2 data-line-index={0} className="text-lg font-bold text-gray-900 pb-1.5 border-b border-gray-300" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
           {templateStyle === 'emerald' ? (
-            <span className="resume-emerald-heading-label">工作经历</span>
-          ) : templateStyle === 'formal' ? '工作经历' : '工作经验'}
+            <span className="resume-emerald-heading-label">{t('work')}</span>
+          ) : t('work')}
         </h2>
       )}
 

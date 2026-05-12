@@ -1,0 +1,58 @@
+{
+  "center": {
+    "title": "面试中心",
+    "create": "创建面试",
+    "history": "历史面试",
+    "emptyTitle": "还没有面试记录",
+    "emptyDescription": "选择一份简历，围绕目标岗位开始模拟面试。",
+    "loading": "加载中...",
+    "loadError": "加载面试中心失败",
+    "readingResume": "正在读取简历岗位信息...",
+    "readResumeError": "读取简历中的岗位信息失败，请手动填写",
+    "selectResumeFirst": "请先选择一份简历",
+    "createError": "创建面试失败，请稍后重试",
+    "deleteConfirm": "确认删除这条面试记录吗？删除后无法恢复。",
+    "deleteError": "删除面试记录失败"
+  },
+  "errors": {
+    "sessionMismatch": "面试记录与当前简历不匹配",
+    "startFailed": "启动面试失败",
+    "endFailed": "结束面试失败"
+  },
+  "status": {
+    "completed": "已完成",
+    "active": "进行中",
+    "notStarted": "未开始"
+  },
+  "form": {
+    "selectResume": "选择简历",
+    "selectResumePlaceholder": "请选择一份简历",
+    "targetCompany": "目标公司",
+    "targetTitle": "目标岗位",
+    "jd": "职位描述（JD）",
+    "targetCompanyPlaceholder": "例如：腾讯 / 字节跳动",
+    "targetTitlePlaceholder": "例如：前端工程师 / 产品经理",
+    "jdPlaceholder": "粘贴职位描述，或先在简历编辑页保存 JD 后再自动带入",
+    "start": "开始面试",
+    "creating": "正在创建面试...",
+    "close": "关闭创建面试弹层"
+  },
+  "session": {
+    "continue": "继续面试",
+    "start": "开始面试",
+    "connecting": "连接中…",
+    "retry": "重试连接",
+    "hangup": "挂断",
+    "viewReport": "查看报告",
+    "home": "返回首页",
+    "untitledRole": "未设置岗位",
+    "deleteTitle": "删除面试记录",
+    "deletingTitle": "正在删除...",
+    "microphone": "选择麦克风",
+    "defaultMicrophone": "默认麦克风",
+    "preparing": "准备中…",
+    "resumeMissing": "简历不存在",
+    "title": "模拟面试",
+    "timeout": "连接超时"
+  }
+}

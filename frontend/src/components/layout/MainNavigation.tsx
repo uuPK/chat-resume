@@ -1,18 +1,21 @@
 'use client'
 
-import Link from 'next/link'
-import { useRouter, usePathname } from 'next/navigation'
+import { Link } from '@/i18n/navigation'
+import { useRouter, usePathname } from '@/i18n/navigation'
 import { ChevronDownIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { useState, useRef, useEffect } from 'react'
 import Logo from '@/components/ui/Logo'
 import { billingApi, type BillingStatus } from '@/lib/api'
+import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
+import { useTranslations } from 'next-intl'
 
 // 顶部主导航栏，Coinbase 风格：白底、蓝色品牌色、pill 形激活态
 export default function MainNavigation() {
   const router = useRouter()
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const t = useTranslations('common')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -62,7 +65,7 @@ export default function MainNavigation() {
                   color: isResumesActive ? '#0052ff' : '#0a0b0d',
                 }}
               >
-                简历中心
+                {t('nav.resumes')}
               </Link>
               <Link
                 href="/interviews"
@@ -73,81 +76,85 @@ export default function MainNavigation() {
                   color: isInterviewsActive ? '#0052ff' : '#0a0b0d',
                 }}
               >
-                面试中心
+                {t('nav.interviews')}
               </Link>
             </nav>
           </div>
 
-          {/* User menu */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-2 transition-colors"
-              style={{ borderRadius: '56px' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
-                style={{ backgroundColor: '#0052ff' }}
-              >
-                {(user?.full_name || 'U')[0].toUpperCase()}
-              </div>
-              <span className="hidden sm:flex flex-col items-start leading-tight">
-                <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                  {user?.full_name || 'User'}
-                </span>
-                <span className="text-xs font-medium" style={{ color: '#5b616e' }}>
-                  {planName}
-                </span>
-              </span>
-              <ChevronDownIcon
-                className={`w-4 h-4 transition-transform flex-shrink-0`}
-                style={{ color: '#5b616e', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              />
-            </button>
+          <div className="flex items-center gap-2">
+            <LocaleSwitcher compact />
 
-            {isDropdownOpen && (
-              <div
-                className="absolute right-0 mt-2 w-64 bg-white py-2 z-50"
-                style={{
-                  borderRadius: '16px',
-                  border: '1px solid rgba(91,97,110,0.2)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                }}
+            {/* User menu */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-2 transition-colors"
+                style={{ borderRadius: '56px' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
-                <button
-                  onClick={() => { setIsDropdownOpen(false); router.push('/pricing') }}
-                  className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{ color: '#0a0b0d' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
+                  style={{ backgroundColor: '#0052ff' }}
                 >
-                  <SparklesIcon className="w-4 h-4" />
-                  <span>升级套餐</span>
-                </button>
-                <button
-                  onClick={() => { setIsDropdownOpen(false); router.push('/settings') }}
-                  className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{ color: '#0a0b0d' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  {(user?.full_name || 'U')[0].toUpperCase()}
+                </div>
+                <span className="hidden sm:flex flex-col items-start leading-tight">
+                  <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                    {user?.full_name || 'User'}
+                  </span>
+                  <span className="text-xs font-medium" style={{ color: '#5b616e' }}>
+                    {planName}
+                  </span>
+                </span>
+                <ChevronDownIcon
+                  className={`w-4 h-4 transition-transform flex-shrink-0`}
+                  style={{ color: '#5b616e', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                />
+              </button>
+
+              {isDropdownOpen && (
+                <div
+                  className="absolute right-0 mt-2 w-64 bg-white py-2 z-50"
+                  style={{
+                    borderRadius: '16px',
+                    border: '1px solid rgba(91,97,110,0.2)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                  }}
                 >
-                  <Cog6ToothIcon className="w-4 h-4" />
-                  <span>设置</span>
-                </button>
-                <button
-                  onClick={() => { setIsDropdownOpen(false); logout() }}
-                  className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{ color: '#0a0b0d' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <ArrowLeftOnRectangleIcon className="w-4 h-4" />
-                  <span>退出登录</span>
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={() => { setIsDropdownOpen(false); router.push('/pricing') }}
+                    className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
+                    style={{ color: '#0a0b0d' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <SparklesIcon className="w-4 h-4" />
+                    <span>{t('nav.pricing')}</span>
+                  </button>
+                  <button
+                    onClick={() => { setIsDropdownOpen(false); router.push('/settings') }}
+                    className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
+                    style={{ color: '#0a0b0d' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <Cog6ToothIcon className="w-4 h-4" />
+                    <span>{t('nav.settings')}</span>
+                  </button>
+                  <button
+                    onClick={() => { setIsDropdownOpen(false); logout() }}
+                    className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
+                    style={{ color: '#0a0b0d' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <ArrowLeftOnRectangleIcon className="w-4 h-4" />
+                    <span>{t('nav.logout')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

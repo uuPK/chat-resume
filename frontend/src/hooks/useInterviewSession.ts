@@ -7,8 +7,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 
 import { resumeApi, type InterviewSession } from '@/lib/api'
+import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 
 type InterviewResumeSource = {
   id: number
@@ -47,12 +49,14 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
 async function loadVoiceInterviewSession(
   resume: InterviewResumeSource,
   defaultMode: 'practice' | 'simulation',
+  language: 'zh-CN' | 'en-US',
+  sessionMismatchMessage: string,
   requestedSessionId?: number,
 ) {
   if (requestedSessionId) {
     const result = await resumeApi.getInterviewSession(requestedSessionId)
     if (result.session.resume_id !== resume.id) {
-      throw new Error('面试记录与当前简历不匹配')
+      throw new Error(sessionMismatchMessage)
     }
     return result.session
   }
@@ -62,7 +66,7 @@ async function loadVoiceInterviewSession(
     ...getJobApplicationPayload(resume),
     interview_type: 'general',
     difficulty: 'medium',
-    language: 'zh-CN',
+    language,
     mode: defaultMode,
   })
   return created.session
@@ -80,6 +84,8 @@ export function useInterviewSession({
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const locale = useLocale() as AppLocale
+  const t = useTranslations('interview.errors')
 
   /**
    * 当简历或 session 参数变化时重置局部会话状态。
@@ -98,14 +104,20 @@ export function useInterviewSession({
     setIsSending(true)
     setError(null)
     try {
-      const nextSession = await loadVoiceInterviewSession(resume, defaultMode, requestedSessionId)
+      const nextSession = await loadVoiceInterviewSession(
+        resume,
+        defaultMode,
+        toInterviewLanguage(locale),
+        t('sessionMismatch'),
+        requestedSessionId,
+      )
       setSession(nextSession)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '启动面试失败')
+      setError(err instanceof Error ? err.message : t('startFailed'))
     } finally {
       setIsSending(false)
     }
-  }, [defaultMode, resume, requestedSessionId])
+  }, [defaultMode, locale, resume, requestedSessionId, t])
 
   /**
    * 在启用面试模式后按需自动初始化会话。
@@ -129,11 +141,11 @@ export function useInterviewSession({
       const result = await resumeApi.endInterviewSession(session.id)
       setSession(result.session)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '结束面试失败')
+      setError(err instanceof Error ? err.message : t('endFailed'))
     } finally {
       setIsSending(false)
     }
-  }, [isSending, session])
+  }, [isSending, session, t])
 
   return {
     session,

@@ -9,6 +9,7 @@ import {
   CalendarIcon
 } from '@heroicons/react/24/outline'
 import type { Project, ResumeBullet as Bullet } from '@/types/resume'
+import { useTranslations } from 'next-intl'
 
 interface ProjectsEditorProps {
   data: Project[]
@@ -24,6 +25,7 @@ function normalizeBullets(project: Project): Bullet[] {
 
 export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
+  const t = useTranslations('resume.forms.project')
 
   useEffect(() => {
     const next = Array.isArray(data)
@@ -99,13 +101,13 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       {projectsList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <FolderIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 mb-4">还没有添加项目经验</p>
+          <p className="text-gray-500 mb-4">{t('empty')}</p>
           <button
             onClick={addProject}
             className="btn-primary flex items-center space-x-2 mx-auto"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加第一个项目</span>
+            <span>{t('addFirst')}</span>
           </button>
         </div>
       ) : (
@@ -117,7 +119,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                   <button
                     onClick={() => removeProject(project.id!)}
                     className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
-                    title="删除此项目"
+                    title={t('delete')}
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -128,20 +130,20 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目名称
+                      {t('name')}
                     </label>
                     <input
                       type="text"
                       value={project.name}
                       onChange={(e) => updateProject(project.id!, 'name', e.target.value)}
-                      placeholder="智能简历生成系统"
+                      placeholder={t('namePlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目周期
+                      {t('duration')}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -159,20 +161,20 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      项目角色
+                      {t('role')}
                     </label>
                     <input
                       type="text"
                       value={project.role}
                       onChange={(e) => updateProject(project.id!, 'role', e.target.value)}
-                      placeholder="前端开发工程师"
+                      placeholder={t('rolePlaceholder')}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      GitHub 地址
+                      {t('github')}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -182,7 +184,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         type="url"
                         value={project.github_url || ''}
                         onChange={(e) => updateProject(project.id!, 'github_url', e.target.value)}
-                        placeholder="https://github.com/username/project"
+                        placeholder={t('githubPlaceholder')}
                         className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
@@ -190,7 +192,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      演示地址
+                      {t('demo')}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -200,7 +202,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         type="url"
                         value={project.demo_url || ''}
                         onChange={(e) => updateProject(project.id!, 'demo_url', e.target.value)}
-                        placeholder="https://your-project-demo.com"
+                        placeholder={t('demoPlaceholder')}
                         className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       />
                     </div>
@@ -209,12 +211,12 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    简介
+                    {t('overview')}
                   </label>
                   <textarea
                     value={project.overview || ''}
                     onChange={(e) => updateProject(project.id!, 'overview', e.target.value)}
-                    placeholder="一句话说明项目背景、目标或你的角色..."
+                    placeholder={t('overviewPlaceholder')}
                     rows={1}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                   />
@@ -223,14 +225,14 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      主要成果
+                      {t('highlights')}
                     </label>
                     <button
                       onClick={() => addBullet(project.id!)}
                       className="text-primary-600 hover:text-primary-800 text-sm flex items-center space-x-1"
                     >
                       <PlusIcon className="w-3 h-3" />
-                      <span>添加成果</span>
+                      <span>{t('addBullet')}</span>
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -239,7 +241,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                         <textarea
                           value={highlight.text}
                           onChange={(e) => updateBullet(project.id!, highlightIndex, e.target.value)}
-                          placeholder="实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%"
+                          placeholder={t('highlightPlaceholder')}
                           rows={1}
                           className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
@@ -263,7 +265,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
             className="w-full py-4 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:text-primary-600 hover:border-primary-400 transition-colors flex items-center justify-center space-x-2"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>添加项目</span>
+            <span>{t('add')}</span>
           </button>
         </div>
       )}

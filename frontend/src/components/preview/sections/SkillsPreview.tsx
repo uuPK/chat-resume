@@ -2,6 +2,7 @@
 
 import type { Skill } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { useTranslations } from 'next-intl'
 
 interface SkillsPreviewProps {
   data: Skill[]
@@ -10,6 +11,7 @@ interface SkillsPreviewProps {
 }
 
 export default function SkillsPreview({ data, renderLines, templateStyle = 'classic' }: SkillsPreviewProps) {
+  const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
@@ -28,8 +30,8 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
           style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}
         >
           {templateStyle === 'emerald' ? (
-            <span className="resume-emerald-heading-label">专业技能</span>
-          ) : templateStyle === 'formal' ? '专业技能' : '技能专长'}
+            <span className="resume-emerald-heading-label">{t('skills')}</span>
+          ) : t('skills')}
         </h2>
       )}
 

@@ -7,12 +7,11 @@ import {
 import {
   LayoutDensity,
   ResumeModule,
-  MODULE_LABELS,
   ResumeLayoutConfig,
   DENSITY_SPACING_SCALE,
   ResumeTemplateStyle,
-  TEMPLATE_STYLE_LABELS
 } from '@/lib/resumeLayoutConfig'
+import { useTranslations } from 'next-intl'
 
 interface ResumeLayoutControlsProps {
   config: ResumeLayoutConfig
@@ -27,6 +26,7 @@ export default function ResumeLayoutControls({
 }: ResumeLayoutControlsProps) {
   const [showControls, setShowControls] = useState(false)
   const [activeTab, setActiveTab] = useState<'template' | 'density' | 'modules'>('template')
+  const t = useTranslations('resume.layout')
 
   const handleTemplateStyleChange = (templateStyle: ResumeTemplateStyle) => {
     onConfigChange({
@@ -122,7 +122,7 @@ export default function ResumeLayoutControls({
         onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
       >
         <AdjustmentsHorizontalIcon className="w-4 h-4" />
-        <span>布局设置</span>
+        <span>{t('settings')}</span>
       </button>
 
       {/* 控制面板 */}
@@ -147,7 +147,7 @@ export default function ResumeLayoutControls({
                   className="flex-1 px-4 py-3 text-sm font-semibold transition-colors relative"
                   style={{ color: activeTab === tab ? '#0052ff' : '#5b616e' }}
                 >
-                  {tab === 'template' ? '样式' : tab === 'density' ? '密度' : '显示'}
+                  {t(`tabs.${tab}`)}
                   {activeTab === tab && (
                     <div className="absolute bottom-0 left-4 right-4 h-0.5" style={{ backgroundColor: '#0052ff', borderRadius: '2px 2px 0 0' }} />
                   )}
@@ -175,7 +175,7 @@ export default function ResumeLayoutControls({
                         }}
                       >
                         <span className="block text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                          {TEMPLATE_STYLE_LABELS[templateStyle]}
+                          {t(`templates.${templateStyle}`)}
                         </span>
                         <span className="mt-2 flex h-10 items-center gap-2">
                           <span
@@ -221,7 +221,7 @@ export default function ResumeLayoutControls({
                           style={{ accentColor: '#0052ff' }}
                         />
                         <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                          {density === 'comfortable' ? '舒适' : density === 'normal' ? '标准' : '紧凑'}
+                          {t(`density.${density}`)}
                         </span>
                       </label>
                     ))}
@@ -229,13 +229,13 @@ export default function ResumeLayoutControls({
 
                   <div className="pt-3" style={{ borderTop: '1px solid rgba(91,97,110,0.1)' }}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold" style={{ color: '#0a0b0d' }}>精细调节</span>
+                      <span className="text-xs font-semibold" style={{ color: '#0a0b0d' }}>{t('density.fine')}</span>
                       <button
                         onClick={handleSpacingScaleReset}
                         className="text-xs font-semibold"
                         style={{ color: '#0052ff' }}
                       >
-                        重置
+                        {t('density.reset')}
                       </button>
                     </div>
                     <input
@@ -249,11 +249,11 @@ export default function ResumeLayoutControls({
                       style={{ accentColor: '#0052ff', backgroundColor: '#eef0f3' }}
                     />
                     <div className="flex justify-between items-center mt-1.5">
-                      <span className="text-xs" style={{ color: '#9ca3af' }}>紧</span>
+                      <span className="text-xs" style={{ color: '#9ca3af' }}>{t('density.tight')}</span>
                       <span className="text-xs font-semibold" style={{ color: '#0a0b0d' }}>
-                        间距: {(config.spacingScale ?? 1).toFixed(2)}×
+                        {t('density.spacing', { value: (config.spacingScale ?? 1).toFixed(2) })}
                       </span>
-                      <span className="text-xs" style={{ color: '#9ca3af' }}>松</span>
+                      <span className="text-xs" style={{ color: '#9ca3af' }}>{t('density.loose')}</span>
                     </div>
                   </div>
                 </div>
@@ -278,7 +278,7 @@ export default function ResumeLayoutControls({
                         style={{ accentColor: '#0052ff' }}
                       />
                       <div className="flex-1 text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                        {MODULE_LABELS[module]}
+                        {t(`modules.${module}`)}
                       </div>
                       <div className="flex gap-1">
                         <button

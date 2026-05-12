@@ -1,0 +1,58 @@
+{
+  "center": {
+    "title": "Interviews",
+    "create": "Create interview",
+    "history": "Interview history",
+    "emptyTitle": "No interviews yet",
+    "emptyDescription": "Choose a resume and start practicing for a target role.",
+    "loading": "Loading...",
+    "loadError": "Failed to load interviews",
+    "readingResume": "Reading saved role context...",
+    "readResumeError": "Failed to read saved role context. Fill it manually.",
+    "selectResumeFirst": "Please select a resume first",
+    "createError": "Failed to create interview. Please try again.",
+    "deleteConfirm": "Delete this interview record? This cannot be undone.",
+    "deleteError": "Failed to delete interview record"
+  },
+  "errors": {
+    "sessionMismatch": "Interview record does not match this resume",
+    "startFailed": "Failed to start interview",
+    "endFailed": "Failed to end interview"
+  },
+  "status": {
+    "completed": "Completed",
+    "active": "In progress",
+    "notStarted": "Not started"
+  },
+  "form": {
+    "selectResume": "Resume",
+    "selectResumePlaceholder": "Select a resume",
+    "targetCompany": "Target company",
+    "targetTitle": "Target role",
+    "jd": "Job description",
+    "targetCompanyPlaceholder": "e.g. Stripe / Google",
+    "targetTitlePlaceholder": "e.g. Frontend Engineer / Product Manager",
+    "jdPlaceholder": "Paste a JD, or save one on the resume edit page first",
+    "start": "Start interview",
+    "creating": "Creating interview...",
+    "close": "Close create interview panel"
+  },
+  "session": {
+    "continue": "Continue interview",
+    "start": "Start interview",
+    "connecting": "Connecting...",
+    "retry": "Retry connection",
+    "hangup": "Hang up",
+    "viewReport": "View report",
+    "home": "Back home",
+    "untitledRole": "Role not set",
+    "deleteTitle": "Delete interview record",
+    "deletingTitle": "Deleting...",
+    "microphone": "Choose microphone",
+    "defaultMicrophone": "Default microphone",
+    "preparing": "Preparing...",
+    "resumeMissing": "Resume not found",
+    "title": "Mock interview",
+    "timeout": "Connection timed out"
+  }
+}

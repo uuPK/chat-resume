@@ -12,6 +12,7 @@ import ProjectsPreview from './sections/ProjectsPreview'
 import type { ResumeContent } from '@/types/resume'
 import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
+import { useTranslations } from 'next-intl'
 
 const SECTION_ID_MAP: Record<ResumeModule, string> = {
   personal: 'personal-info-section',
@@ -48,6 +49,7 @@ export default function PaginatedResumePreview({
   onTotalPagesChange,
   smartFitTriggerRef
 }: PaginatedResumePreviewProps) {
+  const t = useTranslations('resume.layout')
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const smartFitContentRef = useRef<HTMLDivElement>(null)
@@ -302,8 +304,8 @@ export default function PaginatedResumePreview({
       <div className="h-full flex items-center justify-center text-gray-500">
         <div className="text-center">
           <div className="text-6xl mb-4">📄</div>
-          <p className="text-lg font-medium mb-2">开始编辑简历</p>
-          <p className="text-sm">在左侧编辑区域填写信息，实时预览将在这里显示</p>
+          <p className="text-lg font-medium mb-2">{t('emptyTitle')}</p>
+          <p className="text-sm">{t('emptyDescription')}</p>
         </div>
       </div>
     )
@@ -319,7 +321,7 @@ export default function PaginatedResumePreview({
       {isCalculating && (
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-sm text-gray-600">正在计算分页...</span>
+          <span className="ml-2 text-sm text-gray-600">{t('calculatingPages')}</span>
         </div>
       )}
 

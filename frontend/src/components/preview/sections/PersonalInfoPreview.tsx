@@ -2,6 +2,7 @@
 
 import type { PersonalInfo } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
+import { useTranslations } from 'next-intl'
 
 interface PersonalInfoPreviewProps {
   data: PersonalInfo
@@ -73,6 +74,7 @@ const WebsiteIcon = () => (
 )
 
 export default function PersonalInfoPreview({ data, renderLines, templateStyle = 'classic' }: PersonalInfoPreviewProps) {
+  const t = useTranslations('resume.preview')
   if (!data || (!data.name && !data.email && !data.phone)) {
     return null
   }
@@ -91,7 +93,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
         {shouldRenderLine(0) && (
           <div data-line-index={0} className="resume-emerald-name-block">
             <h1 className="text-2xl font-bold">
-              {data.name || '姓名'}
+              {data.name || t('nameFallback')}
             </h1>
             {data.position && (
               <p className="resume-emerald-position">
@@ -124,7 +126,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
               {data.website && (
                 <span className={itemClassName}>
                   <WebsiteIcon />
-                  <a href={data.website} target="_blank" rel="noopener noreferrer">个人网站</a>
+                  <a href={data.website} target="_blank" rel="noopener noreferrer">{t('website')}</a>
                 </span>
               )}
               {data.linkedin && (
@@ -149,7 +151,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
     const linkItems = [
       data.github ? `GitHub: ${data.github}` : null,
       data.linkedin ? `LinkedIn: ${data.linkedin}` : null,
-      data.website ? `个人网站: ${data.website}` : null,
+      data.website ? `${t('website')}: ${data.website}` : null,
     ].filter(Boolean)
 
     return (
@@ -157,11 +159,11 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
         {shouldRenderLine(0) && (
           <div data-line-index={0} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 12px)' }}>
             <h1 className="text-2xl font-bold text-gray-900 mb-3">
-              {data.name || '姓名'}
+              {data.name || t('nameFallback')}
             </h1>
             {data.position && (
               <p className="text-base text-gray-900 font-semibold">
-                求职意向：{data.position}
+                {t('targetIntent')}: {data.position}
               </p>
             )}
           </div>
@@ -191,7 +193,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
       {shouldRenderLine(0) && (
         <div data-line-index={0} className="text-center" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            {data.name || '姓名'}
+            {data.name || t('nameFallback')}
           </h1>
           {data.position && (
             <p className="text-lg text-gray-600 font-medium">
@@ -233,7 +235,7 @@ export default function PersonalInfoPreview({ data, renderLines, templateStyle =
           {data.website && (
             <span className={`${itemClassName} text-blue-600`}>
               <WebsiteIcon />
-              <a href={data.website} target="_blank" rel="noopener noreferrer" className="hover:underline">个人网站</a>
+              <a href={data.website} target="_blank" rel="noopener noreferrer" className="hover:underline">{t('website')}</a>
             </span>
           )}
         </div>
