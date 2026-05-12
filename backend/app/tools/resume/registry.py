@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from app.tools.observability import query_logs_logql, query_metrics_promql
@@ -14,7 +16,18 @@ from .update_overview_tool import update_overview
 
 _BULLET_SECTIONS = ["education", "work_experience", "projects"]
 
-RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
+
+@dataclass(frozen=True)
+class ResumeToolDefinition:
+    """用于把工具 schema、handler 和分类收敛成一个定义单元。"""
+
+    name: str
+    handler: Callable[..., dict[str, Any]]
+    schema: dict[str, Any] | None = None
+    category: str = "resume"
+
+
+_RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
@@ -206,17 +219,64 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
     },
 ]
 
+
+def _schema_tool_name(schema: dict[str, Any]) -> str:
+    """用于从 OpenAI function schema 中读取工具名。"""
+    function = schema.get("function")
+    if not isinstance(function, dict):
+        return ""
+    name = function.get("name")
+    return name if isinstance(name, str) else ""
+
+
+_SCHEMA_BY_NAME = {
+    name: schema
+    for schema in _RESUME_TOOL_SCHEMAS
+    if (name := _schema_tool_name(schema))
+}
+
+RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
+    ResumeToolDefinition("read_resume", read_resume_content),
+    ResumeToolDefinition(
+        "update_overview",
+        update_overview,
+        _SCHEMA_BY_NAME.get("update_overview"),
+    ),
+    ResumeToolDefinition(
+        "update_bullet",
+        update_bullet,
+        _SCHEMA_BY_NAME.get("update_bullet"),
+    ),
+    ResumeToolDefinition("add_bullet", add_bullet, _SCHEMA_BY_NAME.get("add_bullet")),
+    ResumeToolDefinition(
+        "remove_bullet",
+        remove_bullet,
+        _SCHEMA_BY_NAME.get("remove_bullet"),
+    ),
+    ResumeToolDefinition("update_highlight", update_highlight),
+    ResumeToolDefinition("add_highlight", add_highlight),
+    ResumeToolDefinition("remove_highlight", remove_highlight),
+    ResumeToolDefinition(
+        "query_logs_logql",
+        query_logs_logql,
+        _SCHEMA_BY_NAME.get("query_logs_logql"),
+        category="observability",
+    ),
+    ResumeToolDefinition(
+        "query_metrics_promql",
+        query_metrics_promql,
+        _SCHEMA_BY_NAME.get("query_metrics_promql"),
+        category="observability",
+    ),
+)
+
+RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
+    definition.schema
+    for definition in RESUME_TOOL_CATALOG
+    if definition.schema is not None
+]
 _RESUME_TOOL_HANDLERS = {
-    "read_resume": read_resume_content,
-    "update_overview": update_overview,
-    "update_bullet": update_bullet,
-    "add_bullet": add_bullet,
-    "remove_bullet": remove_bullet,
-    "update_highlight": update_highlight,
-    "add_highlight": add_highlight,
-    "remove_highlight": remove_highlight,
-    "query_logs_logql": query_logs_logql,
-    "query_metrics_promql": query_metrics_promql,
+    definition.name: definition.handler for definition in RESUME_TOOL_CATALOG
 }
 
 
@@ -233,4 +293,9 @@ def execute_resume_tool(
     return handler(resume_content, **kwargs)
 
 
-__all__ = ["RESUME_TOOLS_SCHEMA", "execute_resume_tool"]
+__all__ = [
+    "RESUME_TOOL_CATALOG",
+    "RESUME_TOOLS_SCHEMA",
+    "ResumeToolDefinition",
+    "execute_resume_tool",
+]

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 
 export type DiffItem = {
   before?: string
@@ -118,7 +119,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const {
     onMessage,
     onError,
-    apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    apiBaseUrl = API_BASE_URL,
     onQrImages,
     onResumeUpdate,
     visibleModules = [],
@@ -147,7 +148,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         content: msg.content
       }))
 
-      const response = await fetch(`${apiBaseUrl}/api/ai/chat/stream`, {
+      const response = await fetch(apiUrl('/api/ai/chat/stream', apiBaseUrl), {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -420,8 +421,8 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       return
     }
     confirmingToolCallsRef.current.add(callId)
-    const apiBaseUrl = options.apiBaseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    const response = await fetch(`${apiBaseUrl}/api/ai/chat/confirm-tool`, {
+    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
+    const response = await fetch(apiUrl('/api/ai/chat/confirm-tool', apiBaseUrl), {
       method: 'POST',
       credentials: 'include',
       headers: {

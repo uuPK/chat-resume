@@ -3,7 +3,6 @@
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -13,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.entrypoints.http.deps import get_current_user
 from app.infra.config import settings
 from app.infra.database import get_db
-from app.models.billing import BillingSubscription, BillingWebhookEvent
+from app.models.billing import BillingSubscription
+from app.services.billing_webhook_service import PayPalWebhookService
 from app.services.paypal_billing_service import (
     PayPalBillingConfigurationError,
     PayPalBillingError,
@@ -22,12 +22,6 @@ from app.services.paypal_billing_service import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-_PAYPAL_SUBSCRIPTION_STATUS_EVENTS = {
-    "BILLING.SUBSCRIPTION.ACTIVATED",
-    "BILLING.SUBSCRIPTION.CANCELLED",
-    "BILLING.SUBSCRIPTION.EXPIRED",
-    "BILLING.SUBSCRIPTION.SUSPENDED",
-}
 _OPEN_PAYPAL_SUBSCRIPTION_STATUSES = {"APPROVAL_PENDING", "ACTIVE"}
 
 
@@ -136,120 +130,12 @@ def _current_subscription_for_user(
     )
 
 
-def _subscription_resource_from_event(event: dict[str, Any]) -> tuple[str, str] | None:
-    resource = event.get("resource")
-    if not isinstance(resource, dict):
-        return None
-    subscription_id = resource.get("id")
-    status_value = resource.get("status")
-    if not isinstance(subscription_id, str) or not subscription_id.strip():
-        return None
-    if not isinstance(status_value, str) or not status_value.strip():
-        return None
-    return subscription_id, status_value
-
-
-def _paypal_event_id(event: dict[str, Any]) -> str | None:
-    event_id = event.get("id")
-    if not isinstance(event_id, str) or not event_id.strip():
-        return None
-    return event_id
-
-
-def _record_paypal_webhook_event(
-    db: Session,
-    event: dict[str, Any],
-    event_type: object,
-) -> bool:
-    event_id = _paypal_event_id(event)
-    if event_id is None:
-        return True
-
-    existing_event = (
-        db.query(BillingWebhookEvent.id)
-        .filter(
-            BillingWebhookEvent.provider == "paypal",
-            BillingWebhookEvent.event_id == event_id,
-        )
-        .first()
-    )
-    if existing_event is not None:
-        logger.info(
-            "billing.paypal.duplicate_webhook_ignored",
-            extra={"paypal_event_id": event_id, "paypal_event_type": event_type},
-        )
-        return False
-
-    try:
-        db.add(
-            BillingWebhookEvent(
-                provider="paypal",
-                event_id=event_id,
-                event_type=event_type if isinstance(event_type, str) else None,
-                raw_payload=event,
-            )
-        )
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        logger.info(
-            "billing.paypal.duplicate_webhook_ignored",
-            extra={"paypal_event_id": event_id, "paypal_event_type": event_type},
-        )
-        return False
-    return True
-
-
-def _parse_paypal_event_time(value: object) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def _stored_paypal_event_time(subscription: BillingSubscription) -> datetime | None:
-    stored_event_time = subscription.last_provider_event_time
-    if stored_event_time is not None:
-        if stored_event_time.tzinfo is None:
-            stored_event_time = stored_event_time.replace(tzinfo=timezone.utc)
-        return stored_event_time.astimezone(timezone.utc)
-
-    payload = subscription.raw_payload
-    if not isinstance(payload, dict):
-        return None
-    return _parse_paypal_event_time(payload.get("create_time"))
-
-
-def _is_stale_paypal_event(
-    subscription: BillingSubscription,
-    event: dict[str, Any],
-) -> bool:
-    stored_time = _stored_paypal_event_time(subscription)
-    if stored_time is None:
-        return False
-    incoming_time = _parse_paypal_event_time(event.get("create_time"))
-    if incoming_time is None:
-        return True
-    return incoming_time <= stored_time
-
-
 def _paypal_subscription_plan_matches(raw_payload: object) -> bool:
     if not isinstance(raw_payload, dict):
         return False
     plan_id = raw_payload.get("plan_id")
     expected_plan_id = settings.PAYPAL_PLAN_ID.strip()
     return isinstance(plan_id, str) and plan_id.strip() == expected_plan_id
-
-
-def _paypal_event_plan_matches(event: dict[str, Any]) -> bool:
-    resource = event.get("resource")
-    return _paypal_subscription_plan_matches(resource)
-
 
 @router.post("/paypal/subscriptions")
 async def create_paypal_subscription(
@@ -473,72 +359,4 @@ async def handle_paypal_webhook(
             detail=str(exc),
         ) from exc
 
-    if not _record_paypal_webhook_event(db, event, event_type):
-        return {"received": True}
-
-    if event_type in _PAYPAL_SUBSCRIPTION_STATUS_EVENTS:
-        subscription_resource = _subscription_resource_from_event(event)
-        if subscription_resource is not None:
-            subscription_id, status_value = subscription_resource
-            if not _paypal_event_plan_matches(event):
-                db.rollback()
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="paypal_subscription_plan_mismatch",
-                )
-            subscription = (
-                db.query(BillingSubscription)
-                .filter(
-                    BillingSubscription.provider == "paypal",
-                    BillingSubscription.provider_subscription_id == subscription_id,
-                )
-                .first()
-            )
-            if subscription is not None:
-                if _is_stale_paypal_event(subscription, event):
-                    logger.warning(
-                        "billing.paypal.stale_webhook_ignored",
-                        extra={
-                            "provider_subscription_id": subscription_id,
-                            "paypal_status": status_value,
-                            "user_id": subscription.user_id,
-                        },
-                    )
-                    db.commit()
-                    return {"received": True}
-                subscription.status = status_value
-                incoming_time = _parse_paypal_event_time(event.get("create_time"))
-                if incoming_time is not None:
-                    subscription.last_provider_event_time = incoming_time
-                subscription.raw_payload = event
-                db.add(subscription)
-                db.commit()
-                logger.info(
-                    "billing.paypal.subscription_status_updated",
-                    extra={
-                        "provider_subscription_id": subscription_id,
-                        "paypal_status": status_value,
-                        "user_id": subscription.user_id,
-                    },
-                )
-            else:
-                logger.warning(
-                    "billing.paypal.subscription_not_found",
-                    extra={
-                        "provider_subscription_id": subscription_id,
-                        "paypal_status": status_value,
-                    },
-                )
-                db.rollback()
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="paypal_subscription_not_found",
-                )
-        else:
-            logger.warning(
-                "billing.paypal.webhook_resource_missing",
-                extra={"paypal_event_type": event_type},
-            )
-
-    db.commit()
-    return {"received": True}
+    return PayPalWebhookService(db).handle_event(event, event_type)

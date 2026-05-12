@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { apiFetch, handleApiResponse } from './httpClient'
 
 // 用户接口定义
 interface User {
@@ -39,8 +40,6 @@ interface AuthContextType {
 // 创建认证上下文
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const USER_STORAGE_KEY = 'auth_user'
 
 function readStoredUser(): User | null {
@@ -64,9 +63,8 @@ function writeStoredUser(user: User | null) {
 // 认证相关API调用
 class AuthAPI {
   static async login(email: string, password: string): Promise<LoginResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await apiFetch('/api/auth/login', {
       method: 'POST',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -76,67 +74,40 @@ class AuthAPI {
       }),
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || '登录失败')
-    }
-
-    return response.json()
+    return handleApiResponse<LoginResponse>(response, '登录失败')
   }
 
   static async register(data: RegisterRequest): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await apiFetch('/api/auth/register', {
       method: 'POST',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || '注册失败')
-    }
-
-    return response.json()
+    return handleApiResponse<User>(response, '注册失败')
   }
 
   static async getCurrentUser(): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
-      throw new Error('获取用户信息失败')
-    }
-
-    return response.json()
+    const response = await apiFetch('/api/auth/me')
+    return handleApiResponse<User>(response, '获取用户信息失败')
   }
 
   static async refresh(): Promise<LoginResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    const response = await apiFetch('/api/auth/refresh', {
       method: 'POST',
-      credentials: 'include',
     })
 
-    if (!response.ok) {
-      throw new Error('刷新登录状态失败')
-    }
-
-    return response.json()
+    return handleApiResponse<LoginResponse>(response, '刷新登录状态失败')
   }
 
   static async logout(): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    const response = await apiFetch('/api/auth/logout', {
       method: 'POST',
-      credentials: 'include',
     })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || '退出登录失败')
-    }
+    await handleApiResponse<void>(response, '退出登录失败')
   }
 }
 

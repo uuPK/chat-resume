@@ -12,7 +12,7 @@ from time import perf_counter
 from typing import Any, AsyncGenerator, cast
 from uuid import uuid4
 
-from langchain_core.tools import ArgsSchema, StructuredTool
+from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 
 from app.agents.resume.stream_events import (
@@ -30,8 +30,17 @@ from app.agents.resume.stream_events import (
 from app.infra.config import settings
 from app.infra.otel_setup import record_exception, set_span_attribute, start_span
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
+from app.runtime.deepagents_confirmation import (
+    requires_tool_confirmation,
+    wait_for_tool_confirmation,
+)
+from app.runtime.deepagents_event_adapter import (
+    emit_runtime_event,
+    publish_runtime_event,
+)
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.deepagents_profile import configure_deepagents_harness_profile
+from app.runtime.deepagents_tool_adapter import make_deepagent_structured_tool
 from app.types.stream import ResumeStreamEvent
 
 suppress_noisy_dependency_warnings()
@@ -485,26 +494,15 @@ class DeepAgentRuntime:
                 )
 
             tools.append(
-                StructuredTool.from_function(
-                    coroutine=run_tool,
+                make_deepagent_structured_tool(
                     name=tool_name,
                     description=str(function.get("description", "")),
-                    args_schema=cast(
-                        Any,
-                        self._structured_tool_args_schema(function.get("parameters")),
-                    ),
-                    infer_schema=False,
+                    parameters=function.get("parameters"),
+                    coroutine=run_tool,
                 )
             )
 
         return tools
-
-    @staticmethod
-    def _structured_tool_args_schema(value: Any) -> ArgsSchema:
-        """Coerce OpenAI JSON tool parameters into LangChain's args schema type."""
-        if isinstance(value, dict):
-            return cast(dict[str, Any], value)
-        return {"type": "object", "properties": {}}
 
     async def _execute_tool(
         self,
@@ -577,8 +575,11 @@ class DeepAgentRuntime:
         )
         tool_started_at = perf_counter()
         requires_confirmation = (
-            confirmation_queue is not None
-            and tool_name not in agent.auto_execute_tool_names
+            requires_tool_confirmation(
+                confirmation_queue=confirmation_queue,
+                tool_name=tool_name,
+                auto_execute_tool_names=agent.auto_execute_tool_names,
+            )
         )
         tool_call = {
             "id": call_id,
@@ -630,13 +631,7 @@ class DeepAgentRuntime:
                 event=pending_event,
             )
 
-            try:
-                confirmed = await asyncio.wait_for(
-                    confirmation_queue.get(),
-                    timeout=300,
-                )
-            except asyncio.TimeoutError:
-                confirmed = False
+            confirmed = await wait_for_tool_confirmation(confirmation_queue)
             self._trace(
                 "agent.trace.tool.confirmation",
                 run_id=run_id,
@@ -902,17 +897,18 @@ class DeepAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        self._emit_event(event_callback, event)
-        if event_queue is not None:
-            await event_queue.put(event)
+        await publish_runtime_event(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=event,
+        )
 
     @staticmethod
     def _emit_event(
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        if event_callback is not None:
-            event_callback(event)
+        emit_runtime_event(event_callback, event)
 
     @staticmethod
     def _message_has_tool_calls(message: Any) -> bool:

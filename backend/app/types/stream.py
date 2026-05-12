@@ -1,4 +1,4 @@
-"""用于定义简历 Agent SSE 通道的事件载荷结构。"""
+"""用于定义和序列化简历 Agent SSE 通道的事件载荷结构。"""
 
 from __future__ import annotations
 
@@ -72,4 +72,59 @@ class ResumeStreamEvent(TypedDict, total=False):
     error: str
 
 
-__all__ = ["DiffItem", "ResumeStreamEvent", "ResumeStreamEventType"]
+def public_resume_stream_event(
+    event: ResumeStreamEvent,
+) -> dict[str, Any]:
+    """用于把内部事件收窄成允许传给前端的 SSE 载荷。"""
+    return {
+        key: value
+        for key, value in event.items()
+        if value is not None and key not in {"context", "internal_only"}
+    }
+
+
+def session_started_event(session_id: str) -> ResumeStreamEvent:
+    """用于构造简历 Agent 流式会话开始事件。"""
+    return {
+        "event_type": "session_started",
+        "session_id": session_id,
+        "content": "",
+        "done": False,
+    }
+
+
+def stream_done_event(
+    *,
+    resume_content: dict[str, Any] | None = None,
+) -> ResumeStreamEvent:
+    """用于构造简历 Agent 流式会话完成事件。"""
+    event: ResumeStreamEvent = {
+        "event_type": "done",
+        "content": "",
+        "qr_images": [],
+        "tool_calls": [],
+        "done": True,
+    }
+    if resume_content is not None:
+        event["resume_content"] = resume_content
+    return event
+
+
+def stream_error_event(error: str) -> ResumeStreamEvent:
+    """用于构造简历 Agent 流式会话失败事件。"""
+    return {
+        "event_type": "done",
+        "error": error,
+        "done": True,
+    }
+
+
+__all__ = [
+    "DiffItem",
+    "ResumeStreamEvent",
+    "ResumeStreamEventType",
+    "public_resume_stream_event",
+    "session_started_event",
+    "stream_done_event",
+    "stream_error_event",
+]

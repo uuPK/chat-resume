@@ -1,4 +1,5 @@
 import type { ResumeContent } from '@/types/resume'
+import { apiFetch, fetchWithTimeout, handleApiResponse } from './httpClient'
 
 // 简历内容接口定义
 export interface Resume {
@@ -161,46 +162,6 @@ interface PayPalPlan {
   name: string
   price: string
   currency_code: string
-}
-
-// API基础URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-// 统一通过 HttpOnly Cookie 发起带登录态的请求。
-function apiFetch(path: string, init: RequestInit = {}) {
-  const url = `${API_BASE_URL}${path}`
-  return fetch(url, {
-    ...init,
-    credentials: 'include',
-  }).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`API请求失败: ${url} (${message})`)
-  })
-}
-
-// 给外部供应商代理请求设置前端超时，避免 UI 长时间停在连接中。
-async function fetchWithTimeout(
-  path: string,
-  init: RequestInit = {},
-  timeoutMs = 45000,
-) {
-  const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await apiFetch(path, { ...init, signal: controller.signal })
-  } finally {
-    window.clearTimeout(timeoutId)
-  }
-}
-
-// 处理API响应
-async function handleApiResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `API请求失败: ${response.status}`)
-  }
-  
-  return response.json()
 }
 
 // 简历API类

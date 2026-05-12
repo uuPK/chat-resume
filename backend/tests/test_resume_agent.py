@@ -16,6 +16,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
 )
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
+from app.types.stream import public_resume_stream_event  # noqa: E402
 
 
 class ResumeAgentPromptContextTests(unittest.TestCase):
@@ -191,6 +192,23 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("context", event)
         self.assertEqual(event["resume_content"], resume_content)
         json.dumps({k: v for k, v in event.items() if v is not None})
+
+    def test_public_resume_stream_event_strips_internal_fields(self):
+        event = public_resume_stream_event(
+            {
+                "event_type": "tool_result",
+                "internal_only": False,
+                "content": "",
+                "context": {"resume_content": {"projects": []}},
+                "display_message": None,
+                "done": False,
+            }
+        )
+
+        self.assertNotIn("context", event)
+        self.assertNotIn("internal_only", event)
+        self.assertNotIn("display_message", event)
+        self.assertEqual(event["event_type"], "tool_result")
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
