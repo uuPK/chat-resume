@@ -4,6 +4,12 @@
 set -euo pipefail
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
+BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-logs/backend.log}"
+
+# 本地默认按 docs/OBSERVABILITY.md 的可观测模式启动。
+export LOG_FORMAT="${LOG_FORMAT:-json}"
+export AGENT_TRACE_LOG_ENABLED="${AGENT_TRACE_LOG_ENABLED:-true}"
+export OTEL_TRACES_ENABLED="${OTEL_TRACES_ENABLED:-true}"
 
 echo "🚀 重启 Chat Resume 后端服务..."
 
@@ -32,12 +38,30 @@ fi
 stop_port() {
     local port="$1"
     local pids
-    pids="$(lsof -ti "tcp:${port}" || true)"
+    pids="$(
+        lsof -nP -ti "tcp:${port}" 2>/dev/null \
+            | while read -r pid; do
+                [ -n "${pid}" ] || continue
+                command_line="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+                if printf '%s\n' "${command_line}" \
+                    | grep -Eq 'backend\.sh|uvicorn app\.main:app|chat-resume/backend'; then
+                    echo "${pid}"
+                fi
+            done
+    )"
     if [ -n "${pids}" ]; then
         echo "🛑 停止占用端口 ${port} 的进程: ${pids}"
         kill ${pids} || true
         sleep 1
-        pids="$(lsof -ti "tcp:${port}" || true)"
+        pids="$(
+            echo "${pids}" \
+                | while read -r pid; do
+                    [ -n "${pid}" ] || continue
+                    if kill -0 "${pid}" 2>/dev/null; then
+                        echo "${pid}"
+                    fi
+                done
+        )"
         if [ -n "${pids}" ]; then
             echo "🛑 强制停止占用端口 ${port} 的进程: ${pids}"
             kill -9 ${pids} || true
@@ -57,6 +81,7 @@ fi
 
 # 创建上传目录
 mkdir -p uploads logs
+touch "${BACKEND_LOG_FILE}"
 
 # 重启服务
 stop_port "${BACKEND_PORT}"
@@ -65,7 +90,9 @@ echo "🌟 启动后端服务..."
 echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
 echo "指标端点: http://localhost:${BACKEND_PORT}/metrics"
+echo "日志文件: backend/${BACKEND_LOG_FILE}"
+echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}; OTEL trace: ${OTEL_TRACES_ENABLED}"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a logs/backend.log
+uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a "${BACKEND_LOG_FILE}"

@@ -195,10 +195,6 @@ def normalize_resume_stream_payload(
     params = _dict_or_none(event.get("params"))
     if params is not None:
         payload["params"] = params
-    context = _dict_or_none(event.get("context"))
-    if context is not None:
-        payload["context"] = context
-
     messages = _list_of_dicts(event.get("messages"))
     if messages:
         payload["messages"] = messages

@@ -108,11 +108,114 @@ function shortPath(urlString) {
   }
 }
 
-async function requestJson(baseUrl, path, { method = 'GET', token = '', body, headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+// Split a combined Set-Cookie header without breaking Expires-style commas.
+function splitSetCookieHeader(headerValue) {
+  if (!headerValue) return []
+  return headerValue
+    .split(/,(?=\s*[^;,=\s]+=)/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+// Read Set-Cookie values across Node versions.
+function getSetCookieHeaders(response) {
+  if (typeof response.headers.getSetCookie === 'function') {
+    return response.headers.getSetCookie()
+  }
+  return splitSetCookieHeader(response.headers.get('set-cookie'))
+}
+
+// Keep backend HttpOnly session cookies available to API and browser probes.
+function createCookieJar() {
+  const cookies = new Map()
+
+  return {
+    capture(response) {
+      for (const headerValue of getSetCookieHeaders(response)) {
+        const [cookiePair, ...attributes] = headerValue
+          .split(';')
+          .map((part) => part.trim())
+        const separatorIndex = cookiePair.indexOf('=')
+        if (separatorIndex <= 0) continue
+
+        const name = cookiePair.slice(0, separatorIndex)
+        const value = cookiePair.slice(separatorIndex + 1)
+        const cookie = {
+          name,
+          value,
+          path: '/',
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        }
+
+        for (const attribute of attributes) {
+          const [rawKey, ...rawValueParts] = attribute.split('=')
+          const key = rawKey.toLowerCase()
+          const rawValue = rawValueParts.join('=')
+          if (key === 'path' && rawValue) cookie.path = rawValue
+          else if (key === 'httponly') cookie.httpOnly = true
+          else if (key === 'secure') cookie.secure = true
+          else if (key === 'samesite' && rawValue) {
+            const normalized = rawValue.toLowerCase()
+            if (normalized === 'strict') cookie.sameSite = 'Strict'
+            else if (normalized === 'none') cookie.sameSite = 'None'
+            else cookie.sameSite = 'Lax'
+          }
+        }
+
+        if (!value) cookies.delete(name)
+        else cookies.set(name, cookie)
+      }
+    },
+
+    header() {
+      return [...cookies.values()]
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ')
+    },
+
+    browserCookies(urls) {
+      const result = []
+      const seen = new Set()
+      for (const url of urls) {
+        for (const cookie of cookies.values()) {
+          const hostname = new URL(url).hostname
+          const key = `${hostname}:${cookie.name}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          result.push({
+            name: cookie.name,
+            value: cookie.value,
+            url,
+            httpOnly: cookie.httpOnly,
+            secure: cookie.secure,
+            sameSite: cookie.sameSite,
+          })
+        }
+      }
+      return result
+    },
+  }
+}
+
+async function requestJson(
+  baseUrl,
+  path,
+  {
+    method = 'GET',
+    token = '',
+    body,
+    headers = {},
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    cookieJar = null,
+  } = {},
+) {
   const url = path.startsWith('http') ? path : `${baseUrl}${path}`
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   const startedAt = performance.now()
+  const cookieHeader = cookieJar?.header() || ''
 
   try {
     const response = await fetch(url, {
@@ -120,11 +223,13 @@ async function requestJson(baseUrl, path, { method = 'GET', token = '', body, he
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
         ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     })
+    cookieJar?.capture(response)
     const elapsedMs = performance.now() - startedAt
     const text = await response.text()
     let data = null
@@ -149,20 +254,28 @@ async function requestJson(baseUrl, path, { method = 'GET', token = '', body, he
   }
 }
 
-async function requestForm(baseUrl, path, formBody, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function requestForm(
+  baseUrl,
+  path,
+  formBody,
+  { timeoutMs = DEFAULT_TIMEOUT_MS, cookieJar = null } = {},
+) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   const startedAt = performance.now()
+  const cookieHeader = cookieJar?.header() || ''
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
       body: new URLSearchParams(formBody),
       signal: controller.signal,
     })
+    cookieJar?.capture(response)
     const elapsedMs = performance.now() - startedAt
     const text = await response.text()
     let data = null
@@ -249,7 +362,7 @@ function buildSeedResumeContent(email) {
   }
 }
 
-async function ensureUser(config) {
+async function ensureUser(config, cookieJar) {
   try {
     await requestJson(config.apiUrl, '/api/auth/register', {
       method: 'POST',
@@ -259,6 +372,7 @@ async function ensureUser(config) {
         full_name: '性能测速用户',
       },
       timeoutMs: config.timeoutMs,
+      cookieJar,
     })
   } catch (error) {
     if (error.status !== 400) throw error
@@ -268,15 +382,15 @@ async function ensureUser(config) {
     config.apiUrl,
     '/api/auth/login',
     { username: config.email, password: config.password },
-    { timeoutMs: config.timeoutMs },
+    { timeoutMs: config.timeoutMs, cookieJar },
   )
   return login.data
 }
 
-async function ensureResume(config, accessToken) {
+async function ensureResume(config, cookieJar) {
   const list = await requestJson(config.apiUrl, '/api/resumes/', {
-    token: accessToken,
     timeoutMs: config.timeoutMs,
+    cookieJar,
   })
   const existing = Array.isArray(list.data)
     ? list.data.find((item) => item.title === BENCHMARK_RESUME_TITLE)
@@ -286,20 +400,20 @@ async function ensureResume(config, accessToken) {
 
   const created = await requestJson(config.apiUrl, '/api/resumes/', {
     method: 'POST',
-    token: accessToken,
     body: {
       title: BENCHMARK_RESUME_TITLE,
       content: buildSeedResumeContent(config.email),
     },
     timeoutMs: config.timeoutMs,
+    cookieJar,
   })
   return created.data
 }
 
-async function ensureInterviewSession(config, accessToken, resume) {
+async function ensureInterviewSession(config, cookieJar, resume) {
   const list = await requestJson(config.apiUrl, '/api/interviews/', {
-    token: accessToken,
     timeoutMs: config.timeoutMs,
+    cookieJar,
   })
 
   const existing = Array.isArray(list.data)
@@ -318,8 +432,8 @@ async function ensureInterviewSession(config, accessToken, resume) {
     try {
       await requestJson(config.apiUrl, `/api/interviews/${existing.id}/start`, {
         method: 'POST',
-        token: accessToken,
         timeoutMs: config.timeoutMs,
+        cookieJar,
       })
       return {
         sessionId: existing.id,
@@ -335,21 +449,33 @@ async function ensureInterviewSession(config, accessToken, resume) {
     }
   }
 
-  const created = await requestJson(config.apiUrl, '/api/interviews/', {
-    method: 'POST',
-    token: accessToken,
-    body: {
-      resume_id: resume.id,
-      target_title: resume.target_title || '全栈工程师',
-      target_company: resume.target_company || '性能测试科技',
-      jd_text: '负责 Web 产品开发、性能优化与工程质量建设。',
-      interview_type: 'general',
-      difficulty: 'medium',
-      language: 'zh-CN',
-      mode: 'text',
-    },
-    timeoutMs: config.timeoutMs,
-  })
+  let created
+  try {
+    created = await requestJson(config.apiUrl, '/api/interviews/', {
+      method: 'POST',
+      body: {
+        resume_id: resume.id,
+        target_title: resume.target_title || '全栈工程师',
+        target_company: resume.target_company || '性能测试科技',
+        jd_text: '负责 Web 产品开发、性能优化与工程质量建设。',
+        interview_type: 'general',
+        difficulty: 'medium',
+        language: 'zh-CN',
+        mode: 'text',
+      },
+      timeoutMs: config.timeoutMs,
+      cookieJar,
+    })
+  } catch (error) {
+    if (error.status === 403) {
+      return {
+        sessionId: null,
+        routeReady: false,
+        note: `测速账号没有面试权限，已跳过面试工作台测速。原因: ${error.message}`,
+      }
+    }
+    throw error
+  }
 
   const createdSession = created.data?.session
   if (!createdSession?.id) {
@@ -363,8 +489,8 @@ async function ensureInterviewSession(config, accessToken, resume) {
   try {
     await requestJson(config.apiUrl, `/api/interviews/${createdSession.id}/start`, {
       method: 'POST',
-      token: accessToken,
       timeoutMs: config.timeoutMs,
+      cookieJar,
     })
     return {
       sessionId: createdSession.id,
@@ -380,13 +506,13 @@ async function ensureInterviewSession(config, accessToken, resume) {
   }
 }
 
-async function measureApiProbe(config, token, probe) {
+async function measureApiProbe(config, cookieJar, probe) {
   const samples = []
 
   for (let i = 0; i < config.runs; i += 1) {
     const result = await requestJson(config.apiUrl, probe.path, {
-      token,
       timeoutMs: config.timeoutMs,
+      cookieJar,
     })
     samples.push(result.elapsedMs)
     await sleep(200)
@@ -400,28 +526,19 @@ async function measureApiProbe(config, token, probe) {
 }
 
 function buildStorageScript(authState) {
-  return ({ accessToken, refreshToken, user }) => {
-    localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', refreshToken)
+  return ({ user }) => {
     localStorage.setItem('auth_user', JSON.stringify(user))
-    document.cookie = `access_token=${encodeURIComponent(accessToken)}; Path=/; SameSite=Lax`
   }
 }
 
-async function measureBrowserRoute(browser, config, authState, routeConfig) {
+async function measureBrowserRoute(browser, config, authState, cookieJar, routeConfig) {
   const samples = []
   const url = `${config.frontendUrl}${routeConfig.path}`
 
   for (let i = 0; i < config.runs; i += 1) {
     const context = await browser.newContext()
     await context.addInitScript(buildStorageScript(authState), authState)
-    await context.addCookies([
-      {
-        name: 'access_token',
-        value: authState.accessToken,
-        url: config.frontendUrl,
-      },
-    ])
+    await context.addCookies(cookieJar.browserCookies([config.frontendUrl, config.apiUrl]))
 
     const page = await context.newPage()
     const startedAt = performance.now()
@@ -533,15 +650,14 @@ async function main() {
   console.log(`测速账号: ${config.email}`)
   console.log(`重复次数: ${config.runs}`)
 
-  const login = await ensureUser(config)
+  const cookieJar = createCookieJar()
+  const login = await ensureUser(config, cookieJar)
   const authState = {
-    accessToken: login.access_token,
-    refreshToken: login.refresh_token,
     user: login.user,
   }
 
-  const resume = await ensureResume(config, authState.accessToken)
-  const interviewSetup = await ensureInterviewSession(config, authState.accessToken, resume)
+  const resume = await ensureResume(config, cookieJar)
+  const interviewSetup = await ensureInterviewSession(config, cookieJar, resume)
 
   console.log(`基准简历 ID: ${resume.id}`)
   console.log(interviewSetup.note)
@@ -562,7 +678,7 @@ async function main() {
 
   const apiResults = []
   for (const probe of apiProbes) {
-    apiResults.push(await measureApiProbe(config, authState.accessToken, probe))
+    apiResults.push(await measureApiProbe(config, cookieJar, probe))
   }
 
   let browser
@@ -604,7 +720,7 @@ async function main() {
 
     const browserResults = []
     for (const route of browserRoutes) {
-      browserResults.push(await measureBrowserRoute(browser, config, authState, route))
+      browserResults.push(await measureBrowserRoute(browser, config, authState, cookieJar, route))
     }
 
     printApiSection(apiResults)

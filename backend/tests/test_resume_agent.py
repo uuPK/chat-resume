@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -171,6 +172,25 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(event["tool_id"], "update_highlight")
         self.assertEqual(event["tool_display_name"], "update_highlight")
         self.assertEqual(event["diff_items"][0]["reason"], "123")
+
+    def test_resume_stream_event_does_not_expose_runtime_context(self):
+        resume_content = {"projects": [{"id": "proj_1", "highlights": []}]}
+
+        event = normalize_resume_stream_payload(
+            {
+                "tool_confirmed": True,
+                "call_id": "call_1",
+                "context": {
+                    "resume_content": resume_content,
+                    "allowed_sections": {"projects"},
+                },
+            },
+            resume_content=resume_content,
+        )
+
+        self.assertNotIn("context", event)
+        self.assertEqual(event["resume_content"], resume_content)
+        json.dumps({k: v for k, v in event.items() if v is not None})
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
