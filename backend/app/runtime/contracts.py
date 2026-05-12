@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -9,7 +10,7 @@ from app.prompts import AgentPromptSpec
 
 ToolExecutor = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
 PromptContextBuilder = Callable[[dict[str, Any]], dict[str, Any]]
-RuntimeEventCallback = Callable[[dict[str, Any]], None]
+RuntimeEventCallback = Callable[[Mapping[str, Any]], None]
 
 
 @dataclass(slots=True)

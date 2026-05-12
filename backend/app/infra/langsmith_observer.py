@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from app.infra.config import settings
@@ -91,5 +92,5 @@ class LangSmithRunObserver:
     def fail(self, error: str, *, metadata: dict[str, Any] | None = None) -> None:
         del error, metadata
 
-    def on_runtime_event(self, event: dict[str, Any]) -> None:
+    def on_runtime_event(self, event: Mapping[str, Any]) -> None:
         del event

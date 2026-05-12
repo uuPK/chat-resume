@@ -112,7 +112,10 @@ _configured = False
 class DeepAgentsPromptMiddleware(AgentMiddleware[Any, Any, Any]):
     """Localize Deep Agents middleware prompts and hide excluded tool guidance."""
 
-    name = "DeepAgentsPromptMiddleware"
+    @property
+    def name(self) -> str:
+        """Return the LangChain middleware identifier."""
+        return "DeepAgentsPromptMiddleware"
 
     def wrap_model_call(
         self,

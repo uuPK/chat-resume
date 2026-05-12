@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.agents.resume.agent import ResumeAgent
 from app.runtime.recovery import recover_resume_session
 from app.state.store import AgentSessionStore
+from app.types.stream import ResumeStreamEvent
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class AgentHarness:
         allowed_sections: set[str],
         event_callback=None,
         user_id: int | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
+    ) -> AsyncIterator[ResumeStreamEvent]:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
         latest_resume_content: dict[str, Any] | None = None
@@ -177,7 +178,7 @@ class AgentHarness:
         self,
         *,
         session_id: str,
-        event: dict[str, Any],
+        event: ResumeStreamEvent,
         final_content_parts: list[str],
         latest_resume_content: dict[str, Any] | None,
     ) -> dict[str, Any] | None:

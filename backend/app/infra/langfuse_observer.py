@@ -5,6 +5,7 @@ Helpers for mirroring agent runs into Langfuse traces.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from app.infra.langfuse_setup import get_langfuse_client
@@ -35,7 +36,7 @@ class LangfuseRunObserver:
         self.trace_url: str | None = None
         self._root_cm: Any | None = None
         self._root_observation: Any | None = None
-        self._pending_llm_request: dict[str, Any] | None = None
+        self._pending_llm_request: Mapping[str, Any] | None = None
         self._pending_tool_calls: dict[str, dict[str, Any]] = {}
 
     @property
@@ -109,7 +110,7 @@ class LangfuseRunObserver:
         except Exception as exc:
             logger.warning("Langfuse fail failed run_id=%s error=%s", self.run_id, exc)
 
-    def on_runtime_event(self, event: dict[str, Any]) -> None:
+    def on_runtime_event(self, event: Mapping[str, Any]) -> None:
         """用于按事件类型把运行时日志映射到 Langfuse 子观察节点。"""
         if not self.enabled:
             return
@@ -137,7 +138,7 @@ class LangfuseRunObserver:
                 "Langfuse runtime event failed run_id=%s error=%s", self.run_id, exc
             )
 
-    def _record_prompt_rendered(self, event: dict[str, Any]) -> None:
+    def _record_prompt_rendered(self, event: Mapping[str, Any]) -> None:
         """用于记录渲染完成的提示词内容。"""
         client = self.client
         if client is None:
@@ -151,7 +152,7 @@ class LangfuseRunObserver:
         ):
             return
 
-    def _record_llm_response(self, event: dict[str, Any]) -> None:
+    def _record_llm_response(self, event: Mapping[str, Any]) -> None:
         """用于记录一次 LLM 请求和响应详情。"""
         client = self.client
         if client is None:
@@ -178,7 +179,7 @@ class LangfuseRunObserver:
             pass
         self._pending_llm_request = None
 
-    def _cache_tool_call(self, event: dict[str, Any]) -> None:
+    def _cache_tool_call(self, event: Mapping[str, Any]) -> None:
         """用于缓存待执行工具的输入上下文，方便后续补录结果。"""
         call_id = event.get("call_id")
         cache_key = str(
@@ -191,7 +192,7 @@ class LangfuseRunObserver:
             "diff_summary": event.get("diff_summary"),
         }
 
-    def _record_tool_result(self, event: dict[str, Any]) -> None:
+    def _record_tool_result(self, event: Mapping[str, Any]) -> None:
         """用于记录一次工具执行或确认结果。"""
         client = self.client
         if client is None:

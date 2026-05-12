@@ -32,6 +32,7 @@ from app.infra.otel_setup import record_exception, set_span_attribute, start_spa
 from app.infra.warnings_setup import suppress_noisy_dependency_warnings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.deepagents_profile import configure_deepagents_harness_profile
+from app.types.stream import ResumeStreamEvent
 
 suppress_noisy_dependency_warnings()
 from deepagents import create_deep_agent  # noqa: E402
@@ -188,7 +189,7 @@ class DeepAgentRuntime:
         conversation_history: list[dict[str, str]] | None = None,
         confirmation_queue: asyncio.Queue | None = None,
         event_callback: RuntimeEventCallback | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """Stream Deep Agents model output and custom business tool events."""
         run_id = uuid4().hex
         run_started_at = perf_counter()
@@ -248,9 +249,9 @@ class DeepAgentRuntime:
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             model=self._chat_model_name(),
-            message_count=len(request_event["messages"]),
-            tool_names=request_event["tool_names"],
-            params=request_event["params"],
+            message_count=len(request_event.get("messages", [])),
+            tool_names=request_event.get("tool_names", []),
+            params=request_event.get("params", {}),
         )
         self._emit_event(event_callback, request_event)
         yield request_event
@@ -588,6 +589,7 @@ class DeepAgentRuntime:
         )
 
         if requires_confirmation:
+            assert confirmation_queue is not None
             preview_context = {
                 "resume_content": deepcopy(context.get("resume_content"))
             }
@@ -879,7 +881,7 @@ class DeepAgentRuntime:
         agent: AgentDefinition,
         system_prompt: str,
         user_message: str,
-    ) -> dict[str, Any]:
+    ) -> ResumeStreamEvent:
         return prompt_rendered_event(
             agent_name=agent.prompt_spec.name,
             system_prompt=system_prompt,
@@ -891,7 +893,7 @@ class DeepAgentRuntime:
         *,
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
-        event: dict[str, Any],
+        event: ResumeStreamEvent,
     ) -> None:
         self._emit_event(event_callback, event)
         if event_queue is not None:
@@ -900,7 +902,7 @@ class DeepAgentRuntime:
     @staticmethod
     def _emit_event(
         event_callback: RuntimeEventCallback | None,
-        event: dict[str, Any],
+        event: ResumeStreamEvent,
     ) -> None:
         if event_callback is not None:
             event_callback(event)
@@ -972,7 +974,11 @@ class DeepAgentRuntime:
         return bool(cls._tool_call_name(tool_call))
 
     @classmethod
-    def _visible_tool_call_event(cls, *, tool_call: dict[str, Any]) -> dict[str, Any]:
+    def _visible_tool_call_event(
+        cls,
+        *,
+        tool_call: dict[str, Any],
+    ) -> ResumeStreamEvent:
         tool_name = cls._tool_call_name(tool_call)
         tool_input = cls._tool_call_args(tool_call)
         call_id = tool_call.get("id")
@@ -999,7 +1005,7 @@ class DeepAgentRuntime:
         *,
         message: Any,
         seen_tool_calls: dict[str, dict[str, Any]],
-    ) -> dict[str, Any] | None:
+    ) -> ResumeStreamEvent | None:
         call_id = getattr(message, "tool_call_id", None)
         if not isinstance(call_id, str) or not call_id:
             return None

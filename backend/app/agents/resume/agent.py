@@ -11,6 +11,7 @@ from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
 from app.runtime.deepagents_runtime import DeepAgentRuntime
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
+from app.types.stream import ResumeStreamEvent
 
 from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
@@ -118,9 +119,9 @@ class ResumeAgent:
         allowed_sections: Optional[set[str]] = None,
         event_callback=None,
         user_id: Optional[int] = None,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
-        context = {
+        context: dict[str, Any] = {
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,
             "user_id": user_id,

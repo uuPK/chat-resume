@@ -193,7 +193,7 @@ async def log_requests(request: Request, call_next):
                     "request_ms": round(request_elapsed_ms, 2),
                 },
             )
-        elif should_log_request:
+        elif should_log_request and metrics is not None:
             logger.info(
                 "request.finished",
                 extra={

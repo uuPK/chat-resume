@@ -6,6 +6,7 @@
 
 import json
 import logging
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any, Dict, cast
 from uuid import uuid4
@@ -229,7 +230,7 @@ async def chat_with_resume_stream(
                 },
             )
 
-            def observe_runtime_event(event: dict[str, Any]) -> None:
+            def observe_runtime_event(event: Mapping[str, Any]) -> None:
                 langfuse_observer.on_runtime_event(event)
                 langsmith_observer.on_runtime_event(event)
 
@@ -303,10 +304,12 @@ async def chat_with_resume_stream(
                     async for event in event_stream:
                         if event.get("internal_only"):
                             continue
-                        if event.get("resume_content") is not None:
-                            latest_resume_content = event["resume_content"]
-                        if event.get("content"):
-                            final_content_parts.append(event["content"])
+                        resume_content = event.get("resume_content")
+                        if resume_content is not None:
+                            latest_resume_content = resume_content
+                        content = event.get("content")
+                        if content:
+                            final_content_parts.append(content)
                         # 过滤掉值为 None 的键，减少传输体积
                         payload = {k: v for k, v in event.items() if v is not None}
                         yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
