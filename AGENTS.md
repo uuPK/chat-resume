@@ -1,28 +1,6 @@
 ## 项目概述
 一个AGENT驱动的简历优化和模拟面试网站
 
-## 技术栈
-- 语言：Python、TypeScript
-- 框架：FastAPI、Next.js、React
-- 数据库：本地默认 SQLite，生产使用 PostgreSQL；迁移由 Alembic 管理
-- 包管理器：后端使用 uv，前端使用 npm
-
-## 目录结构
-- `backend/app/entrypoints/http/`：FastAPI HTTP 路由入口
-- `backend/app/runtime/`：Deep Agents 运行时、权限和执行契约
-- `backend/app/tools/`：Agent 可调用的业务工具
-- `backend/app/services/`：业务服务、外部 API 集成和领域逻辑
-- `backend/app/models/`：SQLAlchemy 数据模型
-- `backend/app/schemas/`：Pydantic 请求和响应结构
-- `backend/alembic/`：数据库迁移脚本
-- `backend/tests/`：后端 pytest 测试
-- `frontend/src/app/`：Next.js App Router 页面和路由
-- `frontend/src/components/`：前端 UI 和业务组件
-- `frontend/src/lib/`：前端 API、状态和工具函数
-- `frontend/src/types/`：前端共享类型
-- `eval/`：Agent eval 用例、脚本和输出
-- `docs/`：产品、架构、issue 和设计相关文档
-
 ## 本地可观测性栈
 - 启动命令：在项目根目录运行 `docker compose -f docker-compose.observability.yml up -d`
 - 后端建议启动方式：`LOG_FORMAT=json AGENT_TRACE_LOG_ENABLED=true OTEL_TRACES_ENABLED=true ./backend.sh`
