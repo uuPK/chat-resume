@@ -183,7 +183,7 @@ export default function JobApplicationEditor({
             onChange={(e) => handleInputChange('jd_text', e.target.value)}
             onPaste={handleJdPaste}
             placeholder="请粘贴 JD 相关文字/图片"
-            rows={12}
+            rows={26}
             className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
           {isOcrProcessing && (
