@@ -192,10 +192,6 @@ export default function ResumeEditPage() {
     }
   }, [fetchResume, mounted, isAuthenticated])
 
-  useEffect(() => {
-    if (!resumeSelectionAction) clearResumeSelectionVisuals()
-  }, [resumeSelectionAction])
-
   /**
    * 关闭选区动作浮层，并同步清掉所有选区视觉状态。
    */
@@ -206,13 +202,20 @@ export default function ResumeEditPage() {
   }, [])
 
   /**
-   * 在用户按下非选区浮层区域时立即取消选区，避免留下失焦后的蓝色选中态。
+   * 在用户按下非选区浮层区域时取消选区。
+   * 预览区内点击说明用户在开始新的拖选，只清 toolbar 状态，不动原生 selection，
+   * 否则 clearResumeSelectionVisualsAfterEvents 的定时器会在拖选途中把新选区清掉。
    */
   const handleMainPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     const target = event.target
     if (!(target instanceof Element)) return
     if (target.closest('[data-resume-selection-action="true"]')) return
     if (!resumeSelectionAction && !window.getSelection()?.toString()) return
+    if (previewPanelRef.current?.contains(target)) {
+      setQuickEditPrompt('')
+      setResumeSelectionAction(null)
+      return
+    }
     clearResumeSelectionAction()
   }, [clearResumeSelectionAction, resumeSelectionAction])
 
@@ -228,7 +231,7 @@ export default function ResumeEditPage() {
     const previewPanel = previewPanelRef.current
     const selection = window.getSelection()
     if (!previewPanel || !selection || selection.rangeCount === 0) {
-      clearResumeSelectionAction()
+      setResumeSelectionAction(null)
       return
     }
 
@@ -240,7 +243,7 @@ export default function ResumeEditPage() {
       : rangeNode.parentElement
 
     if (!selectedText || !selectedElement || !previewPanel.contains(selectedElement)) {
-      clearResumeSelectionAction()
+      setResumeSelectionAction(null)
       return
     }
 
