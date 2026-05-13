@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
@@ -55,12 +55,20 @@ function ToolActivityRow({
   )
 }
 
+interface ResumeSelectionAction {
+  text: string
+  top: number
+  left: number
+}
+
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
 export default function ResumeEditPage() {
   const params = useParams()
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
+  const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
+  const previewPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
 
   const resumeId = params?.id as string
@@ -111,12 +119,14 @@ export default function ResumeEditPage() {
     setApiError,
     messagesEndRef,
     messagesContainerRef,
+    chatInputRef,
     isStreaming,
     streamEvents,
     confirmTool,
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
+    appendToInputMessage,
     sendMessage,
   } = useResumeChatPanel({
     resumeId,
@@ -152,6 +162,49 @@ export default function ResumeEditPage() {
     null
   )
 
+  /**
+   * 读取预览区当前选中文本，并把浮动按钮定位到选区上方。
+   */
+  const updateResumeSelectionAction = useCallback(() => {
+    const previewPanel = previewPanelRef.current
+    const selection = window.getSelection()
+    if (!previewPanel || !selection || selection.rangeCount === 0) {
+      setResumeSelectionAction(null)
+      return
+    }
+
+    const selectedText = selection.toString().trim()
+    const range = selection.getRangeAt(0)
+    const rangeNode = range.commonAncestorContainer
+    const selectedElement = rangeNode.nodeType === Node.ELEMENT_NODE
+      ? rangeNode
+      : rangeNode.parentElement
+
+    if (!selectedText || !selectedElement || !previewPanel.contains(selectedElement)) {
+      setResumeSelectionAction(null)
+      return
+    }
+
+    const rangeRect = range.getBoundingClientRect()
+    const panelRect = previewPanel.getBoundingClientRect()
+    const actionWidth = 120
+    const left = Math.min(
+      Math.max(rangeRect.right - panelRect.left + 8, 8),
+      panelRect.width - actionWidth - 8
+    )
+    const top = Math.max(rangeRect.top - panelRect.top - 40, 8)
+    setResumeSelectionAction({ text: selectedText, top, left })
+  }, [])
+
+  /**
+   * 把预览区选中文本放入聊天输入框，等待用户继续编辑或发送。
+   */
+  const pasteResumeSelectionToChat = useCallback(() => {
+    if (!resumeSelectionAction) return
+    appendToInputMessage(resumeSelectionAction.text)
+    setResumeSelectionAction(null)
+  }, [appendToInputMessage, resumeSelectionAction])
+
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
@@ -185,7 +238,7 @@ export default function ResumeEditPage() {
       <header className="bg-white print:hidden" style={{ borderBottom: '1px solid rgba(91,97,110,0.15)' }}>
         <div className="w-full px-6">
           <div className="flex justify-between items-center py-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pr-8">
               <Link
                 href="/dashboard"
                 className="flex items-center p-2 transition-colors"
@@ -259,7 +312,11 @@ export default function ResumeEditPage() {
       </header>
 
       {/* Main Content — 三栏布局 */}
-      <main className="max-w-full mx-auto px-6 py-3">
+      <main
+        className="max-w-full mx-auto px-6 py-3"
+        onMouseUp={updateResumeSelectionAction}
+        onKeyUp={updateResumeSelectionAction}
+      >
         <div
           ref={mainPanelsRef}
           className="flex gap-0 h-[calc(100vh-120px)]"
@@ -331,7 +388,7 @@ export default function ResumeEditPage() {
                 </button>
 
                 {/* Editor Content */}
-                <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar">
+                <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar px-1">
                   {activeSection === 'job_application' && (
                     <JobApplicationEditor
                       data={resume.content.job_application || {}}
@@ -397,13 +454,32 @@ export default function ResumeEditPage() {
 
           {/* Middle Panel - Preview */}
           <motion.div
+            ref={previewPanelRef}
             layout
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ layout: { duration: 0.35, ease: 'easeInOut' }, opacity: { duration: 0.8, delay: 0.2 }, x: { duration: 0.8, delay: 0.2 } }}
-            className="preview-panel flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
+            className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
+            {resumeSelectionAction && (
+              <button
+                type="button"
+                className="absolute z-30 inline-flex items-center whitespace-nowrap px-2 py-1 text-sm font-normal shadow-sm transition-colors print:hidden"
+                style={{
+                  top: resumeSelectionAction.top,
+                  left: resumeSelectionAction.left,
+                  borderRadius: '2px',
+                  backgroundColor: '#0052ff',
+                  border: '1px solid #0052ff',
+                  color: '#ffffff',
+                }}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={pasteResumeSelectionToChat}
+              >
+                {t('pasteSelectionToChat')}
+              </button>
+            )}
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
                 key={`${layoutConfig.templateStyle}-${JSON.stringify(moduleOrder.map(m => `${m.type}-${m.order}-${m.visible}`))}`}
@@ -445,6 +521,9 @@ export default function ResumeEditPage() {
                 borderRadius: '16px',
               }}
             >
+              <div className="mb-3 flex-shrink-0 pr-12 text-lg font-semibold text-[#0a0b0d]">
+                简历智能体
+              </div>
               <button
                 onClick={handleClearMessages}
                 disabled={messages.length === 0 || isStreaming || isSending || isClearingMessages}
@@ -691,15 +770,17 @@ export default function ResumeEditPage() {
                 <div className="pt-3 flex-shrink-0">
                   <div className="relative">
                     <textarea
+                      ref={chatInputRef}
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder={t('messagePlaceholder')}
-                      className="w-full p-3 pr-12 text-sm resize-none focus:outline-none"
+                      className="w-full min-h-[66px] max-h-[160px] p-3 pr-12 text-sm resize-none focus:outline-none"
                       style={{
                         border: '1px solid rgba(91,97,110,0.25)',
                         borderRadius: '12px',
                         color: '#0a0b0d',
+                        overflowY: 'hidden',
                       }}
                       rows={2}
                       disabled={isSending || isStreaming}

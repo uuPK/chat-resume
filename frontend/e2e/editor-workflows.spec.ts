@@ -53,6 +53,68 @@ function buildResumeResponse(id: number) {
 }
 
 /**
+ * 为编辑页安装最小登录态和 API mock，避免测试依赖真实账号注册。
+ */
+async function installEditorApiMock(page: Page, resume = buildResumeResponse(123)) {
+  const user = {
+    id: 1,
+    email: 'editor@test.example',
+    is_active: true,
+    created_at: new Date().toISOString(),
+  }
+
+  await page.addInitScript((storedUser) => {
+    window.localStorage.setItem('auth_user', JSON.stringify(storedUser))
+  }, user)
+  await page.context().addCookies([
+    {
+      name: 'refresh_token',
+      value: 'test-refresh-token',
+      domain: 'localhost',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+    {
+      name: 'NEXT_LOCALE',
+      value: 'zh',
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Lax',
+    },
+  ])
+
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(user),
+    })
+  })
+  await page.route('**/api/auth/refresh', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ token_type: 'bearer', user }),
+    })
+  })
+  await page.route(`**/api/resumes/${resume.id}/chat-messages`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    })
+  })
+  await page.route(`**/api/resumes/${resume.id}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(resume),
+    })
+  })
+}
+
+/**
  * 在浏览器里注入一个可控的 Resume Agent mock，用于真实驱动流式 diff 确认交互。
  */
 async function installResumeAgentMock(page: Page) {
@@ -189,6 +251,33 @@ async function readResumeAgentConfirmCalls(page: Page) {
 }
 
 test.describe('编辑页工作流', () => {
+  test('选中预览内容后可以粘贴到聊天输入框', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    const resumePage = page.locator('.resume-page').first()
+    await expect(resumePage).toContainText('负责前端开发与性能优化')
+    const selectedText = resumePage.locator('li').filter({ hasText: '负责前端开发与性能优化' })
+    const textBox = await selectedText.boundingBox()
+    expect(textBox, '应找到可拖选的预览文本').toBeTruthy()
+    await page.mouse.move(textBox!.x + 2, textBox!.y + textBox!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(textBox!.x + textBox!.width - 2, textBox!.y + textBox!.height / 2, { steps: 8 })
+    await page.mouse.up()
+
+    await page.getByRole('button', { name: '添加至对话框' }).click()
+    await expect(page.getByPlaceholder('输入消息...')).toHaveValue('负责前端开发与性能优化')
+  })
+
   test('上传真实文件后轮询解析任务，完成后进入编辑页并加载简历', async ({ page }) => {
     await loginAs(page, uniqueEmail('uploadflow'))
     const uploadedResume = buildResumeResponse(999)

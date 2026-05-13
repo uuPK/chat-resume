@@ -48,6 +48,7 @@
     "authExpired": "Your session has expired. Please log in again.",
     "thinking": "Thinking",
     "messagePlaceholder": "Type a message...",
+    "pasteSelectionToChat": "Add to Chat",
     "acceptChange": "Accept change",
     "reject": "Reject",
     "fetchError": "Failed to load resume",

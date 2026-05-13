@@ -48,6 +48,7 @@
     "authExpired": "认证已过期，请重新登录",
     "thinking": "思考中",
     "messagePlaceholder": "输入消息...",
+    "pasteSelectionToChat": "添加至对话框",
     "acceptChange": "确认修改",
     "reject": "拒绝",
     "fetchError": "获取简历失败",

@@ -39,6 +39,7 @@ export function useResumeChatPanel({
   const [apiError, setApiError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const shouldStickToBottomRef = useRef(true)
   const previousMessageCountRef = useRef(0)
 
@@ -168,6 +169,17 @@ export function useResumeChatPanel({
   }, [messages.length])
 
   /**
+   * 根据输入内容自动增高聊天输入框，超过上限后改为内部滚动。
+   */
+  useLayoutEffect(() => {
+    const input = chatInputRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`
+    input.style.overflowY = input.scrollHeight > 160 ? 'auto' : 'hidden'
+  }, [inputMessage])
+
+  /**
    * 在启用简历 Agent 面板后自动加载聊天历史。
    */
   useEffect(() => {
@@ -224,6 +236,22 @@ export function useResumeChatPanel({
   }, [dispatchMessage, inputMessage])
 
   /**
+   * 把选中的简历文本追加到聊天输入框，便于用户继续提问。
+   */
+  const appendToInputMessage = useCallback((content: string) => {
+    const selectedText = content.trim()
+    if (!selectedText) return
+    setInputMessage((currentMessage) => (
+      currentMessage.trim()
+        ? `${currentMessage.trimEnd()}\n\n${selectedText}`
+        : selectedText
+    ))
+    window.requestAnimationFrame(() => {
+      chatInputRef.current?.focus()
+    })
+  }, [])
+
+  /**
    * 清空当前聊天历史，并同步删除服务端已保存的消息。
    */
   const handleClearMessages = useCallback(async () => {
@@ -263,6 +291,7 @@ export function useResumeChatPanel({
     setApiError,
     messagesEndRef,
     messagesContainerRef,
+    chatInputRef,
     isStreaming,
     currentStreamingMessage,
     streamEvents,
@@ -270,6 +299,7 @@ export function useResumeChatPanel({
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
+    appendToInputMessage,
     sendMessage,
   }
 }
