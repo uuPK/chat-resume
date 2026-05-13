@@ -769,12 +769,12 @@ export default function ResumeEditPage() {
                     >
                       <div
                         className="max-w-[85%] px-4 py-3"
-                        style={{
-                          borderRadius: message.type === 'user' ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
-                          backgroundColor: message.type === 'user' ? '#0052ff' : '#eef0f3',
-                          color: message.type === 'user' ? '#ffffff' : '#0a0b0d',
-                          border: message.type === 'user' ? 'none' : '1px solid rgba(91,97,110,0.15)',
-                        }}
+                        style={message.type === 'user' ? {
+                          borderRadius: '20px 20px 6px 20px',
+                          backgroundColor: '#0052ff',
+                          color: '#ffffff',
+                          border: 'none',
+                        } : { color: '#0a0b0d' }}
                       >
                         {message.type === 'ai' ? (
                           <>
@@ -824,15 +824,7 @@ export default function ResumeEditPage() {
                   ))}
                   {isStreaming && streamEvents.length > 0 && (
                     <div className="flex w-full justify-start">
-                      <div
-                        className="max-w-[85%] px-4 py-3"
-                        style={{
-                          borderRadius: '20px 20px 20px 6px',
-                          backgroundColor: '#eef0f3',
-                          border: '1px solid rgba(91,97,110,0.15)',
-                          color: '#0a0b0d',
-                        }}
-                      >
+                      <div className="max-w-[85%] px-4 py-3" style={{ color: '#0a0b0d' }}>
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
                             const isActivePending = event.callId === latestPendingCallId
@@ -937,15 +929,7 @@ export default function ResumeEditPage() {
 
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
-                      <div
-                        className="max-w-[85%] px-4 py-3 text-sm"
-                        style={{
-                          borderRadius: '20px 20px 20px 6px',
-                          backgroundColor: '#eef0f3',
-                          border: '1px solid rgba(91,97,110,0.15)',
-                          color: '#5b616e',
-                        }}
-                      >
+                      <div className="max-w-[85%] px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
                         <span className="inline-block animate-pulse">{t('thinking')}</span>
                       </div>
                     </div>
