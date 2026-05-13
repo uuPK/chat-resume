@@ -3,6 +3,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, RenderableLine } from './useLineBasedPagination'
 
+const MIN_SPACING_SCALE = 0.5
+const MAX_SPACING_SCALE = 1.5
+const SPACING_SCALE_STEP = 0.05
+
 export type SmartFitResult =
   | { status: 'already_fits' }
   | { status: 'too_much_content'; pages: number }
@@ -23,6 +27,11 @@ interface UseSmartFitOptions {
 // 对于给定的 scale，计算有效页高（可填充内容高度）
 function effectivePageHeight(scale: number) {
   return A4_HEIGHT - PAGE_PADDING * 2 * scale - SAFETY_MARGIN
+}
+
+// 将试算结果落到可控步长，避免布局滑块出现过细的小数。
+function roundToSpacingStep(scale: number) {
+  return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
 }
 
 export function useSmartFit({
@@ -58,25 +67,35 @@ export function useSmartFit({
 
       if (abortRef.current) return { status: 'failed' }
 
-      if (currentContentHeight <= currentPageHeight) {
-        return { status: 'already_fits' }
+      const currentFits = currentContentHeight <= currentPageHeight
+      let lo = currentFits ? currentScale : MIN_SPACING_SCALE
+      let hi = currentFits ? MAX_SPACING_SCALE : currentScale
+      let bestScale = currentFits ? currentScale : MIN_SPACING_SCALE
+
+      if (currentFits) {
+        if (currentScale >= MAX_SPACING_SCALE) {
+          return { status: 'already_fits' }
+        }
+        const maxContentHeight = await measureTotalHeight(MAX_SPACING_SCALE)
+        if (abortRef.current) return { status: 'failed' }
+        if (maxContentHeight <= effectivePageHeight(MAX_SPACING_SCALE)) {
+          bestScale = MAX_SPACING_SCALE
+          onComplete(bestScale)
+          finalMeasureScale = bestScale
+          return { status: 'success', oldScale: currentScale, newScale: bestScale }
+        }
+      } else {
+        // 检查最小 scale 能否放下；仍放不下时不再尝试布局密度调整。
+        const minContentHeight = await measureTotalHeight(MIN_SPACING_SCALE)
+        const minPageHeight = effectivePageHeight(MIN_SPACING_SCALE)
+
+        if (abortRef.current) return { status: 'failed' }
+
+        if (minContentHeight > minPageHeight) {
+          const approxPages = Math.ceil(minContentHeight / minPageHeight)
+          return { status: 'too_much_content', pages: approxPages }
+        }
       }
-
-      // 检查最小 scale（0.5）能否放下
-      const minContentHeight = await measureTotalHeight(0.5)
-      const minPageHeight = effectivePageHeight(0.5)
-
-      if (abortRef.current) return { status: 'failed' }
-
-      if (minContentHeight > minPageHeight) {
-        const approxPages = Math.ceil(minContentHeight / minPageHeight)
-        return { status: 'too_much_content', pages: approxPages }
-      }
-
-      // 二分搜索：找最大的能放入一页的 spacingScale
-      let lo = 0.5
-      let hi = currentScale
-      let bestScale = 0.5
 
       for (let i = 0; i < 8; i++) {
         if (abortRef.current) return { status: 'failed' }
@@ -91,13 +110,23 @@ export function useSmartFit({
       }
 
       // 取整到 0.05 步长
-      bestScale = Math.round(bestScale / 0.05) * 0.05
-      bestScale = Math.max(0.5, Math.min(1.5, bestScale))
+      bestScale = roundToSpacingStep(bestScale)
+      bestScale = Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, bestScale))
 
       // 验证取整后仍能放下
-      const verifyH = await measureTotalHeight(bestScale)
-      if (verifyH > effectivePageHeight(bestScale) && bestScale > 0.5) {
-        bestScale = Math.max(0.5, bestScale - 0.05)
+      let verifyH = await measureTotalHeight(bestScale)
+      while (verifyH > effectivePageHeight(bestScale) && bestScale > MIN_SPACING_SCALE) {
+        bestScale = Math.max(MIN_SPACING_SCALE, bestScale - SPACING_SCALE_STEP)
+        verifyH = await measureTotalHeight(bestScale)
+      }
+
+      if (currentFits && bestScale < currentScale) {
+        bestScale = currentScale
+      }
+
+      if (Math.abs(bestScale - currentScale) < SPACING_SCALE_STEP / 2) {
+        finalMeasureScale = currentScale
+        return { status: 'already_fits' }
       }
 
       onComplete(bestScale)

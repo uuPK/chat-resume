@@ -34,6 +34,7 @@ export function useResumeChatPanel({
   const t = useTranslations('resume.editor')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputMessage, setInputMessage] = useState('')
+  const [selectedResumeContext, setSelectedResumeContext] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isClearingMessages, setIsClearingMessages] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -216,6 +217,7 @@ export function useResumeChatPanel({
 
     if (clearInput) {
       setInputMessage('')
+      setSelectedResumeContext('')
     }
     setIsSending(true)
     setApiError(null)
@@ -229,21 +231,32 @@ export function useResumeChatPanel({
   }, [appendMessage, isSending, isStreaming, messages, performAutoSave, resumeId, sendStreamingMessage])
 
   /**
+   * 把选中的简历上下文和用户输入合并成发送给 Agent 的消息。
+   */
+  const buildMessageContent = useCallback((messageContent: string) => {
+    const selectedContext = selectedResumeContext.trim()
+    const userRequest = messageContent.trim()
+    if (!selectedContext) return userRequest
+    if (!userRequest) return `选中的简历内容：\n${selectedContext}`
+    return `选中的简历内容：\n${selectedContext}\n\n用户要求：\n${userRequest}`
+  }, [selectedResumeContext])
+
+  /**
    * 发送输入框中的消息，并在成功提交后清空输入框。
    */
   const sendMessage = useCallback(async () => {
-    await dispatchMessage(inputMessage, true)
-  }, [dispatchMessage, inputMessage])
+    await dispatchMessage(buildMessageContent(inputMessage), true)
+  }, [buildMessageContent, dispatchMessage, inputMessage])
 
   /**
-   * 把选中的简历文本追加到聊天输入框，便于用户继续提问。
+   * 把选中的简历文本保存为彩色上下文，便于用户继续提问。
    */
   const appendToInputMessage = useCallback((content: string) => {
     const selectedText = content.trim()
     if (!selectedText) return
-    setInputMessage((currentMessage) => (
-      currentMessage.trim()
-        ? `${currentMessage.trimEnd()}\n\n${selectedText}`
+    setSelectedResumeContext((currentContext) => (
+      currentContext.trim()
+        ? `${currentContext.trimEnd()}\n\n${selectedText}`
         : selectedText
     ))
     window.requestAnimationFrame(() => {
@@ -275,16 +288,23 @@ export function useResumeChatPanel({
    * 支持 Enter 直接发送，Shift+Enter 保留换行。
    */
   const handleKeyPress = useCallback((event: React.KeyboardEvent) => {
+    if (event.key === 'Backspace' && selectedResumeContext && inputMessage.length === 0) {
+      event.preventDefault()
+      setSelectedResumeContext('')
+      return
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       void sendMessage()
     }
-  }, [sendMessage])
+  }, [inputMessage.length, selectedResumeContext, sendMessage])
 
   return {
     messages,
     inputMessage,
     setInputMessage,
+    selectedResumeContext,
     isSending,
     isClearingMessages,
     apiError,

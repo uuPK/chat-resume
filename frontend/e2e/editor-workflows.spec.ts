@@ -105,6 +105,13 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
       body: '[]',
     })
   })
+  await page.route(`**/api/resumes/${resume.id}/layout`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true }),
+    })
+  })
   await page.route(`**/api/resumes/${resume.id}`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -266,16 +273,49 @@ test.describe('编辑页工作流', () => {
     await page.goto('/zh/resume/123/edit')
     const resumePage = page.locator('.resume-page').first()
     await expect(resumePage).toContainText('负责前端开发与性能优化')
-    const selectedText = resumePage.locator('li').filter({ hasText: '负责前端开发与性能优化' })
-    const textBox = await selectedText.boundingBox()
-    expect(textBox, '应找到可拖选的预览文本').toBeTruthy()
-    await page.mouse.move(textBox!.x + 2, textBox!.y + textBox!.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(textBox!.x + textBox!.width - 2, textBox!.y + textBox!.height / 2, { steps: 8 })
-    await page.mouse.up()
+    const selectedTextElement = resumePage.getByText('负责前端开发与性能优化', { exact: true })
+    await expect(selectedTextElement).toBeVisible()
+    const selectedText = await selectedTextElement.evaluate((targetElement) => {
+      const range = document.createRange()
+      range.selectNodeContents(targetElement)
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+      document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      return selection?.toString() || ''
+    })
+    expect(selectedText).toContain('负责前端开发与性能优化')
 
+    await expect(page.getByRole('button', { name: 'Quick Edit ⌘K' })).toBeVisible()
     await page.getByRole('button', { name: '添加至对话框' }).click()
-    await expect(page.getByPlaceholder('输入消息...')).toHaveValue('负责前端开发与性能优化')
+    const chatInputBox = page.getByTestId('resume-chat-input-box')
+    await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText('负责前端开发与性能优化')
+    const chatInput = page.getByPlaceholder('输入消息...')
+    await expect(chatInput).toBeFocused()
+    await chatInput.press('Backspace')
+    await expect(chatInputBox.getByTestId('selected-resume-context')).toBeHidden()
+    await expect(chatInput).toBeFocused()
+  })
+
+  test('智能一页会把不足一页的简历尽量撑满', async ({ page }) => {
+    await installEditorApiMock(page, buildResumeResponse(123))
+
+    await page.goto('/zh/resume/123/edit')
+    const exportContent = page.locator('#resume-export-content')
+    await expect(exportContent).toBeVisible()
+
+    const initialScale = await exportContent.evaluate((element) =>
+      Number(getComputedStyle(element).getPropertyValue('--spacing-scale'))
+    )
+    expect(initialScale).toBe(1)
+
+    await page.getByRole('button', { name: '智能一页' }).click()
+
+    await expect.poll(async () => (
+      exportContent.evaluate((element) =>
+        Number(getComputedStyle(element).getPropertyValue('--spacing-scale'))
+      )
+    )).toBeGreaterThan(1)
   })
 
   test('上传真实文件后轮询解析任务，完成后进入编辑页并加载简历', async ({ page }) => {

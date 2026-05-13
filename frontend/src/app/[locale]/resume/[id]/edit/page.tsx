@@ -113,6 +113,7 @@ export default function ResumeEditPage() {
     messages,
     inputMessage,
     setInputMessage,
+    selectedResumeContext,
     isSending,
     isClearingMessages,
     apiError,
@@ -187,7 +188,7 @@ export default function ResumeEditPage() {
 
     const rangeRect = range.getBoundingClientRect()
     const panelRect = previewPanel.getBoundingClientRect()
-    const actionWidth = 120
+    const actionWidth = 230
     const left = Math.min(
       Math.max(rangeRect.right - panelRect.left + 8, 8),
       panelRect.width - actionWidth - 8
@@ -204,6 +205,16 @@ export default function ResumeEditPage() {
     appendToInputMessage(resumeSelectionAction.text)
     setResumeSelectionAction(null)
   }, [appendToInputMessage, resumeSelectionAction])
+
+  /**
+   * 把选中文本作为快速编辑上下文，并预填明确的优化指令。
+   */
+  const quickEditResumeSelection = useCallback(() => {
+    if (!resumeSelectionAction) return
+    appendToInputMessage(resumeSelectionAction.text)
+    setInputMessage('请快速优化这段内容')
+    setResumeSelectionAction(null)
+  }, [appendToInputMessage, resumeSelectionAction, setInputMessage])
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -463,9 +474,8 @@ export default function ResumeEditPage() {
             style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
             {resumeSelectionAction && (
-              <button
-                type="button"
-                className="absolute z-30 inline-flex items-center whitespace-nowrap px-2 py-1 text-sm font-normal shadow-sm transition-colors print:hidden"
+              <div
+                className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm print:hidden"
                 style={{
                   top: resumeSelectionAction.top,
                   left: resumeSelectionAction.left,
@@ -475,10 +485,24 @@ export default function ResumeEditPage() {
                   color: '#ffffff',
                 }}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={pasteResumeSelectionToChat}
               >
-                {t('pasteSelectionToChat')}
-              </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+                  onClick={pasteResumeSelectionToChat}
+                >
+                  <span>{t('pasteSelectionToChat')}</span>
+                </button>
+                <div className="h-5 w-px" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+                  onClick={quickEditResumeSelection}
+                >
+                  <span>Quick Edit</span>
+                  <span style={{ color: 'rgba(255,255,255,0.7)' }}>⌘K</span>
+                </button>
+              </div>
             )}
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">
               <ResumePreview
@@ -768,30 +792,49 @@ export default function ResumeEditPage() {
 
                 {/* Input Area */}
                 <div className="pt-3 flex-shrink-0">
-                  <div className="relative">
-                    <textarea
-                      ref={chatInputRef}
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder={t('messagePlaceholder')}
-                      className="w-full min-h-[66px] max-h-[160px] p-3 pr-12 text-sm resize-none focus:outline-none"
-                      style={{
-                        border: '1px solid rgba(91,97,110,0.25)',
-                        borderRadius: '12px',
-                        color: '#0a0b0d',
-                        overflowY: 'hidden',
-                      }}
-                      rows={2}
-                      disabled={isSending || isStreaming}
-                    />
+                  <div
+                    data-testid="resume-chat-input-box"
+                    className="relative min-h-[66px] px-3 py-2 pr-12"
+                    style={{
+                      border: '1px solid rgba(91,97,110,0.25)',
+                      borderRadius: '12px',
+                    }}
+                  >
+                    <div className="flex min-h-[48px] flex-wrap items-start gap-1.5">
+                      {selectedResumeContext && (
+                        <span
+                          data-testid="selected-resume-context"
+                          className="max-w-full whitespace-pre-wrap break-words rounded-md px-2 py-1 text-sm leading-relaxed"
+                          style={{
+                            backgroundColor: 'rgba(0,82,255,0.08)',
+                            color: '#0667d0',
+                          }}
+                        >
+                          {selectedResumeContext}
+                        </span>
+                      )}
+                      <textarea
+                        ref={chatInputRef}
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        placeholder={t('messagePlaceholder')}
+                        className="min-h-[32px] min-w-[160px] flex-1 resize-none bg-transparent p-1 text-sm focus:outline-none"
+                        style={{
+                          color: '#0a0b0d',
+                          overflowY: 'hidden',
+                        }}
+                        rows={1}
+                        disabled={isSending || isStreaming}
+                      />
+                    </div>
                     <button
                       onClick={sendMessage}
-                      disabled={!inputMessage.trim() || isSending || isStreaming}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
+                      disabled={(!inputMessage.trim() && !selectedResumeContext.trim()) || isSending || isStreaming}
+                      className="absolute right-3 bottom-3 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
                       style={{
-                        backgroundColor: inputMessage.trim() ? '#0052ff' : '#eef0f3',
-                        color: inputMessage.trim() ? '#ffffff' : '#9ca3af',
+                        backgroundColor: (inputMessage.trim() || selectedResumeContext.trim()) ? '#0052ff' : '#eef0f3',
+                        color: (inputMessage.trim() || selectedResumeContext.trim()) ? '#ffffff' : '#9ca3af',
                       }}
                     >
                       <ArrowUpIcon className="w-4 h-4" />
