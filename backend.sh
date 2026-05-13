@@ -39,7 +39,7 @@ stop_port() {
     local port="$1"
     local pids
     pids="$(
-        lsof -nP -ti "tcp:${port}" 2>/dev/null \
+        { lsof -nP -ti "tcp:${port}" 2>/dev/null || true; } \
             | while read -r pid; do
                 [ -n "${pid}" ] || continue
                 command_line="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
