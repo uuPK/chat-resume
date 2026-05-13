@@ -4,6 +4,20 @@
 ## 本地可观测性栈
 - 当你需要程序的报错信息和性能信息时，请阅读docs/OBSERVABILITY.md。
 
+## Agent skills
+
+### Issue tracker
+
+Issues 通过 `849261680/chat-resume` 的 GitHub Issues 跟踪。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+本仓库使用默认的五类分诊标签词汇。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+本仓库使用 single-context 领域文档布局。详见 `docs/agents/domain.md`。
+
 # 开发规则
 
 - 测试驱动开发，在构建功能时，先打造一个微小的、端到端的功能切片，寻求反馈，然后在此基础上逐步扩展。 曳光弹的概念源自《程序员修炼之道》。在构建系统时，你希望编写能尽快获得反馈的代码。曳光弹是贯穿系统所有层的小功能切片，让你能尽早测试和验证方法。这有助于识别潜在问题，并确保在投入大量开发时间之前，整体架构是稳健的。
