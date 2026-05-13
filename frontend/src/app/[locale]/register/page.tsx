@@ -15,7 +15,6 @@ import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import { useTranslations } from 'next-intl'
 
 interface RegisterForm {
-  fullName: string
   email: string
   password: string
   confirmPassword: string
@@ -33,7 +32,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterForm) => {
     try {
-      const success = await registerUser(data.email, data.password, data.fullName)
+      const success = await registerUser(data.email, data.password)
       if (success) router.push('/dashboard')
     } catch (error) {
       console.error('register failed:', error)
@@ -82,20 +81,6 @@ export default function RegisterPage() {
             </div>
 
             <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-              <div>
-                <label className="label">{t('fields.name')}</label>
-                <input
-                  {...register('fullName', {
-                    required: t('validation.nameRequired'),
-                    minLength: { value: 2, message: t('validation.nameMin') }
-                  })}
-                  type="text"
-                  className={errors.fullName ? 'input-error' : 'input'}
-                  placeholder={t('placeholders.name')}
-                />
-                {errors.fullName && <p className="mt-1.5 text-sm text-red-600">{errors.fullName.message}</p>}
-              </div>
-
               <div>
                 <label className="label">{t('fields.email')}</label>
                 <input

@@ -24,7 +24,7 @@ interface LoginResponse {
 interface RegisterRequest {
   email: string
   password: string
-  full_name: string
+  full_name?: string
 }
 
 // 认证上下文接口
@@ -33,7 +33,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string, fullName: string) => Promise<boolean>
+  register: (email: string, password: string) => Promise<boolean>
   logout: () => void
   updateUser: (userData: Partial<User>) => void
   refreshUser: () => Promise<void>
@@ -157,12 +157,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // 注册函数
-  const register = async (email: string, password: string, fullName: string): Promise<boolean> => {
+  const register = async (email: string, password: string): Promise<boolean> => {
     try {
       await AuthAPI.register({
         email,
         password,
-        full_name: fullName,
       })
       
       // 注册成功后自动登录
