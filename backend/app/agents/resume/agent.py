@@ -9,7 +9,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
-from app.runtime.deepagents_runtime import DeepAgentRuntime
+from app.runtime.pi_agent_runtime import PiAgentRuntime
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 from app.types.stream import ResumeStreamEvent
 
@@ -74,7 +74,7 @@ class ResumeAgent:
         """用于初始化简历 Agent 运行所需的固定依赖。"""
         self.tool_executor = ResumeToolExecutor()
         self.prompt_spec = load_prompt("resume_agent")
-        self.runtime = DeepAgentRuntime()
+        self.runtime: Any = PiAgentRuntime()
         self.definition = AgentDefinition(
             prompt_spec=self.prompt_spec,
             tools_schema=RESUME_TOOLS_SCHEMA,

@@ -16,7 +16,7 @@ Chat Resume 是一个 AI 求职应用，核心流程是：上传简历 -> 上传
 
 - 前端：Next.js 16、React 18、TypeScript、Tailwind CSS
 - 后端：FastAPI、SQLAlchemy 2、Pydantic v2、Alembic、uv
-- AI：Deep Agents、LangChain OpenAI、OpenRouter
+- AI：pi-agent-core、OpenRouter
 - 语音：火山引擎实时语音对话、ASR、MiniMax TTS
 - 测试：pytest、Playwright
 
@@ -24,7 +24,7 @@ Chat Resume 是一个 AI 求职应用，核心流程是：上传简历 -> 上传
 
 ```text
 backend/app/entrypoints/http/  # FastAPI 路由
-backend/app/runtime/           # Deep Agents 运行时
+backend/app/runtime/           # pi-agent-core 运行时适配
 backend/app/tools/resume/      # 简历工具
 backend/app/services/          # 业务服务
 frontend/src/app/              # Next.js 页面

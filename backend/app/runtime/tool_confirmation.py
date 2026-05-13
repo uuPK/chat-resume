@@ -1,4 +1,4 @@
-"""用于集中处理 Deep Agents 工具确认等待规则。"""
+"""用于集中处理 Agent 工具确认等待规则。"""
 
 from __future__ import annotations
 

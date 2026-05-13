@@ -2,7 +2,6 @@ import json
 import logging
 import sys
 import unittest
-import warnings
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -21,26 +20,9 @@ from app.infra.langsmith_setup import configure_langsmith  # noqa: E402
 from app.infra.logging_setup import JsonFormatter, configure_logging  # noqa: E402
 from app.infra.request_context import log_context  # noqa: E402
 from app.infra.sentry_setup import _before_send  # noqa: E402
-from app.infra.warnings_setup import suppress_noisy_dependency_warnings  # noqa: E402
 
 
 class ObservabilitySetupTests(unittest.TestCase):
-    def test_langgraph_allowed_objects_warning_is_suppressed(self):
-        with warnings.catch_warnings(record=True) as caught:
-            suppress_noisy_dependency_warnings()
-            warnings.warn_explicit(
-                (
-                    "The default value of `allowed_objects` will change in a future "
-                    "version. Pass an explicit value to suppress this warning."
-                ),
-                Warning,
-                filename="encrypted.py",
-                lineno=5,
-                module="langgraph.checkpoint.serde.encrypted",
-            )
-
-        self.assertEqual(caught, [])
-
     def test_json_formatter_includes_correlation_fields(self):
         record = logging.LogRecord(
             name="test.logger",
@@ -157,7 +139,7 @@ class ObservabilitySetupTests(unittest.TestCase):
             patch.object(settings, "LOG_LEVEL", "INFO"),
         ):
             configure_logging()
-            logging.getLogger("app.runtime.deepagents_runtime").info(
+            logging.getLogger("app.runtime.pi_agent_runtime").info(
                 "agent.trace.tool.requested",
                 extra={
                     "agent_trace": True,
@@ -173,7 +155,7 @@ class ObservabilitySetupTests(unittest.TestCase):
             )
 
         line = stream.getvalue().strip()
-        self.assertIn("INFO deepagent", line)
+        self.assertIn("INFO piagent", line)
         self.assertNotIn("[req=", line)
         self.assertNotIn(" ses=", line)
         self.assertNotIn(" tool=-]", line)
@@ -273,47 +255,98 @@ class ObservabilitySetupTests(unittest.TestCase):
                 observer.on_runtime_event({"tool_pending": True})
                 observer.finish("done")
 
-    def test_langsmith_observer_scopes_native_deepagents_tracing(self):
+    def test_langsmith_observer_mirrors_pi_agent_runtime_events(self):
         calls = []
 
-        class FakeTraceContext:
-            def __enter__(self):
-                calls.append(("enter", None))
+        class FakeClient:
+            def create_run(self, **kwargs):
+                calls.append(("create", kwargs))
 
-            def __exit__(self, exc_type, exc, tb):
-                calls.append(("exit", exc_type))
+            def update_run(self, run_id, **kwargs):
+                calls.append(("update", run_id, kwargs))
 
-        def fake_tracing_context(**kwargs):
-            calls.append(("context", kwargs))
-            return FakeTraceContext()
-
-        fake_client = object()
         with (
             patch(
                 "app.infra.langsmith_observer.get_langsmith_client",
-                return_value=fake_client,
+                return_value=FakeClient(),
             ),
-            patch("langsmith.tracing_context", fake_tracing_context),
             patch.object(settings, "LANGSMITH_PROJECT", "chat-resume-test"),
         ):
             observer = LangSmithRunObserver(
-                run_id="run_test",
+                run_id="12345678123456781234567812345678",
                 agent_type="resume",
                 run_kind="chat_stream",
                 user_id=1,
-                input_text="hello",
+                input_text="优化简历",
                 metadata={"request_id": "req_test"},
             )
             with observer:
-                observer.on_runtime_event({"tool_pending": True})
-                observer.finish("done")
+                observer.on_runtime_event(
+                    {
+                        "event_type": "prompt_rendered",
+                        "prompt_rendered": True,
+                        "system_prompt": "system",
+                        "user_message_preview": "优化简历",
+                    }
+                )
+                observer.on_runtime_event(
+                    {
+                        "event_type": "llm_request",
+                        "llm_request": True,
+                        "agent_name": "resume_agent",
+                        "model": "moonshotai/kimi-k2.6",
+                        "messages": [{"role": "user", "content": "优化简历"}],
+                        "params": {"temperature": 0.4},
+                        "tool_names": ["update_bullet"],
+                    }
+                )
+                observer.on_runtime_event(
+                    {
+                        "event_type": "tool_pending",
+                        "tool_pending": True,
+                        "call_id": "call_1",
+                        "tool_id": "update_bullet",
+                        "tool_name": "优化要点",
+                        "tool_input": {"text": "新内容"},
+                        "diff_summary": "改动预览",
+                    }
+                )
+                observer.on_runtime_event(
+                    {
+                        "event_type": "tool_confirmed",
+                        "tool_confirmed": True,
+                        "call_id": "call_1",
+                        "tool_id": "update_bullet",
+                        "tool_name": "优化要点",
+                        "result": {"success": True},
+                    }
+                )
+                observer.on_runtime_event(
+                    {
+                        "event_type": "llm_response",
+                        "llm_response": True,
+                        "model": "moonshotai/kimi-k2.6",
+                        "response_content": "已完成",
+                        "tool_call_count": 1,
+                        "latency_ms": 123.0,
+                    }
+                )
+                observer.finish("已完成", metadata={"event_count": 1})
 
-        context_call = next(item for item in calls if item[0] == "context")[1]
-        self.assertEqual(context_call["project_name"], "chat-resume-test")
-        self.assertTrue(context_call["enabled"])
-        self.assertIs(context_call["client"], fake_client)
-        self.assertIn("agent:resume", context_call["tags"])
-        self.assertEqual(context_call["metadata"]["run_id"], "run_test")
-        self.assertEqual(context_call["metadata"]["request_id"], "req_test")
-        self.assertIn(("enter", None), calls)
-        self.assertIn(("exit", None), calls)
+        created_names = [
+            call[1]["name"] for call in calls if call[0] == "create"
+        ]
+        self.assertIn("resume.chat_stream", created_names)
+        self.assertIn("prompt.rendered", created_names)
+        self.assertIn("model.moonshotai/kimi-k2.6", created_names)
+        self.assertIn("tool.update_bullet", created_names)
+
+        update_payloads = [
+            call[2] for call in calls if call[0] == "update"
+        ]
+        self.assertTrue(
+            any(payload.get("outputs", {}).get("response") == "已完成" for payload in update_payloads)
+        )
+        self.assertTrue(
+            any(payload.get("outputs", {}).get("output") == "已完成" for payload in update_payloads)
+        )

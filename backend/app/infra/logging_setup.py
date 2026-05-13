@@ -28,11 +28,7 @@ _NOISY_LOGGERS = (
     "httpcore",
     "httpx",
     "openai",
-    "langchain",
-    "langchain_openai",
-    "langgraph",
     "langsmith",
-    "deepagents",
     "multipart",
     "passlib",
     "pdfminer",
@@ -168,8 +164,8 @@ def _patch_loguru_record(record: Any) -> None:
 
 
 def _logger_label(logger_name: str) -> str:
-    if logger_name == "app.runtime.deepagents_runtime":
-        return "deepagent"
+    if logger_name == "app.runtime.pi_agent_runtime":
+        return "piagent"
     if logger_name.startswith("app."):
         parts = logger_name.split(".")
         return ".".join(parts[-2:])

@@ -224,7 +224,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("做成了什么、影响了什么、提升了多少", rendered)
         self.assertIn("不允许编造不存在的数字", rendered)
 
-    def test_system_prompt_defers_memory_to_deep_agents(self):
+    def test_system_prompt_does_not_expose_memory_tools(self):
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
