@@ -768,7 +768,7 @@ export default function ResumeEditPage() {
                       className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className="max-w-[85%] px-4 py-3"
+                        className={`${message.type === 'user' ? 'max-w-[85%]' : 'max-w-[93%]'} px-4 py-3`}
                         style={message.type === 'user' ? {
                           borderRadius: '20px 20px 6px 20px',
                           backgroundColor: '#0052ff',
@@ -824,7 +824,7 @@ export default function ResumeEditPage() {
                   ))}
                   {isStreaming && streamEvents.length > 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] px-4 py-3" style={{ color: '#0a0b0d' }}>
+                      <div className="max-w-[93%] px-4 py-3" style={{ color: '#0a0b0d' }}>
                         {streamEvents.map((event: StreamEvent, idx: number) => {
                           if (event.type === 'tool_pending') {
                             const isActivePending = event.callId === latestPendingCallId
@@ -929,7 +929,7 @@ export default function ResumeEditPage() {
 
                   {(isSending || isStreaming) && streamEvents.length === 0 && (
                     <div className="flex w-full justify-start">
-                      <div className="max-w-[85%] px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
+                      <div className="max-w-[93%] px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
                         <span className="inline-block animate-pulse">{t('thinking')}</span>
                       </div>
                     </div>
