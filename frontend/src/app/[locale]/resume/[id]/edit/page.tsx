@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
@@ -13,7 +14,8 @@ import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  TrashIcon
+  TrashIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import { DiffGroupCards } from '@/components/editor/DiffReviewCard'
@@ -58,7 +60,36 @@ function ToolActivityRow({
 interface ResumeSelectionAction {
   text: string
   top: number
+  quickEditTop: number
   left: number
+  highlightRects: Array<{
+    top: number
+    left: number
+    width: number
+    height: number
+  }>
+  mode: 'toolbar' | 'quick_edit'
+}
+
+/** 清理浏览器原生选区，避免关闭快速优化后预览里残留蓝色选中态。 */
+function clearNativeSelection() {
+  window.getSelection()?.removeAllRanges()
+}
+
+/** 清理浏览器原生选区。自绘高亮由 React 状态卸载。 */
+function clearResumeSelectionVisuals() {
+  clearNativeSelection()
+}
+
+/** 多次清理选区视觉，覆盖浏览器在 pointerup/click 后恢复旧选区的时序。 */
+function clearResumeSelectionVisualsAfterEvents() {
+  clearResumeSelectionVisuals()
+  window.requestAnimationFrame(() => {
+    clearResumeSelectionVisuals()
+    window.requestAnimationFrame(clearResumeSelectionVisuals)
+  })
+  window.setTimeout(clearResumeSelectionVisuals, 40)
+  window.setTimeout(clearResumeSelectionVisuals, 250)
 }
 
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
@@ -68,6 +99,8 @@ export default function ResumeEditPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
+  const [quickEditPrompt, setQuickEditPrompt] = useState('')
+  const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
 
@@ -128,6 +161,7 @@ export default function ResumeEditPage() {
     handleClearMessages,
     handleKeyPress,
     appendToInputMessage,
+    sendMessageWithContext,
     sendMessage,
   } = useResumeChatPanel({
     resumeId,
@@ -158,6 +192,30 @@ export default function ResumeEditPage() {
     }
   }, [fetchResume, mounted, isAuthenticated])
 
+  useEffect(() => {
+    if (!resumeSelectionAction) clearResumeSelectionVisuals()
+  }, [resumeSelectionAction])
+
+  /**
+   * 关闭选区动作浮层，并同步清掉所有选区视觉状态。
+   */
+  const clearResumeSelectionAction = useCallback(() => {
+    setQuickEditPrompt('')
+    clearResumeSelectionVisualsAfterEvents()
+    setResumeSelectionAction(null)
+  }, [])
+
+  /**
+   * 在用户按下非选区浮层区域时立即取消选区，避免留下失焦后的蓝色选中态。
+   */
+  const handleMainPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (target.closest('[data-resume-selection-action="true"]')) return
+    if (!resumeSelectionAction && !window.getSelection()?.toString()) return
+    clearResumeSelectionAction()
+  }, [clearResumeSelectionAction, resumeSelectionAction])
+
   const latestPendingCallId = streamEvents.reduce<string | null>(
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
     null
@@ -170,7 +228,7 @@ export default function ResumeEditPage() {
     const previewPanel = previewPanelRef.current
     const selection = window.getSelection()
     if (!previewPanel || !selection || selection.rangeCount === 0) {
-      setResumeSelectionAction(null)
+      clearResumeSelectionAction()
       return
     }
 
@@ -182,20 +240,36 @@ export default function ResumeEditPage() {
       : rangeNode.parentElement
 
     if (!selectedText || !selectedElement || !previewPanel.contains(selectedElement)) {
-      setResumeSelectionAction(null)
+      clearResumeSelectionAction()
       return
     }
 
     const rangeRect = range.getBoundingClientRect()
     const panelRect = previewPanel.getBoundingClientRect()
-    const actionWidth = 230
+    const highlightRects = Array.from(range.getClientRects())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .map((rect) => ({
+        top: rect.top - panelRect.top,
+        left: rect.left - panelRect.left,
+        width: rect.width,
+        height: rect.height,
+      }))
+    const actionWidth = Math.min(560, Math.max(230, panelRect.width - 16))
+    const maxLeft = Math.max(8, panelRect.width - actionWidth - 8)
+    const selectionTop = rangeRect.top - panelRect.top
+    const selectionBottom = rangeRect.bottom - panelRect.top
     const left = Math.min(
       Math.max(rangeRect.right - panelRect.left + 8, 8),
-      panelRect.width - actionWidth - 8
+      maxLeft
     )
-    const top = Math.max(rangeRect.top - panelRect.top - 40, 8)
-    setResumeSelectionAction({ text: selectedText, top, left })
-  }, [])
+    const top = Math.max(selectionTop - 40, 8)
+    const quickEditHeight = 64
+    const quickEditGap = 8
+    const quickEditTop = selectionTop > quickEditHeight + quickEditGap
+      ? selectionTop - quickEditHeight - quickEditGap
+      : selectionBottom + quickEditGap
+    setResumeSelectionAction({ text: selectedText, top, quickEditTop, left, highlightRects, mode: 'toolbar' })
+  }, [clearResumeSelectionAction])
 
   /**
    * 把预览区选中文本放入聊天输入框，等待用户继续编辑或发送。
@@ -203,18 +277,29 @@ export default function ResumeEditPage() {
   const pasteResumeSelectionToChat = useCallback(() => {
     if (!resumeSelectionAction) return
     appendToInputMessage(resumeSelectionAction.text)
-    setResumeSelectionAction(null)
-  }, [appendToInputMessage, resumeSelectionAction])
+    clearResumeSelectionAction()
+  }, [appendToInputMessage, clearResumeSelectionAction, resumeSelectionAction])
 
   /**
    * 把选中文本作为快速编辑上下文，并预填明确的优化指令。
    */
   const quickEditResumeSelection = useCallback(() => {
     if (!resumeSelectionAction) return
-    appendToInputMessage(resumeSelectionAction.text)
-    setInputMessage('请快速优化这段内容')
-    setResumeSelectionAction(null)
-  }, [appendToInputMessage, resumeSelectionAction, setInputMessage])
+    setQuickEditPrompt('')
+    setResumeSelectionAction({ ...resumeSelectionAction, mode: 'quick_edit' })
+    window.requestAnimationFrame(() => {
+      quickEditInputRef.current?.focus()
+    })
+  }, [resumeSelectionAction])
+
+  /**
+   * 将选中文本和快速优化要求一起发送给右侧简历 Agent。
+   */
+  const submitQuickEditSelection = useCallback(async () => {
+    if (!resumeSelectionAction || !quickEditPrompt.trim()) return
+    await sendMessageWithContext(resumeSelectionAction.text, quickEditPrompt)
+    clearResumeSelectionAction()
+  }, [clearResumeSelectionAction, quickEditPrompt, resumeSelectionAction, sendMessageWithContext])
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -325,6 +410,7 @@ export default function ResumeEditPage() {
       {/* Main Content — 三栏布局 */}
       <main
         className="max-w-full mx-auto px-6 py-3"
+        onPointerDown={handleMainPointerDown}
         onMouseUp={updateResumeSelectionAction}
         onKeyUp={updateResumeSelectionAction}
       >
@@ -473,8 +559,9 @@ export default function ResumeEditPage() {
             className="preview-panel relative flex flex-col min-h-0 min-w-0 print:w-full print:h-auto print:absolute print:top-0 print:left-0 print:m-0 print:p-0"
             style={{ flex: `0 0 calc(${previewFlex}% - 16px)` }}
           >
-            {resumeSelectionAction && (
+            {resumeSelectionAction?.mode === 'toolbar' && (
               <div
+                data-resume-selection-action="true"
                 className="absolute z-30 inline-flex items-center overflow-hidden whitespace-nowrap text-sm font-normal shadow-sm print:hidden"
                 style={{
                   top: resumeSelectionAction.top,
@@ -484,6 +571,7 @@ export default function ResumeEditPage() {
                   border: '1px solid #0052ff',
                   color: '#ffffff',
                 }}
+                onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.preventDefault()}
               >
                 <button
@@ -501,6 +589,77 @@ export default function ResumeEditPage() {
                 >
                   <span>快速优化</span>
                 </button>
+              </div>
+            )}
+            {resumeSelectionAction?.mode === 'quick_edit' && resumeSelectionAction.highlightRects.map((rect, index) => (
+              <div
+                key={`${rect.top}-${rect.left}-${index}`}
+                data-testid="resume-selection-highlight"
+                className="pointer-events-none absolute z-20 rounded-[2px] print:hidden"
+                style={{
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  height: rect.height,
+                  backgroundColor: 'rgba(0,82,255,0.22)',
+                }}
+              />
+            ))}
+            {resumeSelectionAction?.mode === 'quick_edit' && (
+              <div
+                data-resume-selection-action="true"
+                className="absolute z-30 w-[min(360px,calc(100%-16px))] rounded-lg border bg-white px-2 py-1 shadow-lg print:hidden"
+                style={{
+                  top: resumeSelectionAction.quickEditTop,
+                  left: resumeSelectionAction.left,
+                  borderColor: 'rgba(91,97,110,0.25)',
+                }}
+                onMouseUp={(event) => event.stopPropagation()}
+                onKeyUp={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  aria-label="关闭快速优化"
+                  className="absolute right-2 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-gray-600"
+                  onPointerDown={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    clearResumeSelectionAction()
+                  }}
+                  onClick={clearResumeSelectionAction}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+                <textarea
+                  ref={quickEditInputRef}
+                  value={quickEditPrompt}
+                  onChange={(event) => setQuickEditPrompt(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      void submitQuickEditSelection()
+                    }
+                  }}
+                  placeholder="输入优化要求"
+                  rows={1}
+                  className="min-h-[30px] w-full resize-none bg-transparent py-1 pl-1 pr-8 text-sm leading-relaxed text-[#0a0b0d] placeholder:text-gray-400 focus:outline-none"
+                />
+                <div className="-mt-1 flex items-center justify-end">
+                  <button
+                    type="button"
+                    aria-label="发送快速优化"
+                    disabled={!quickEditPrompt.trim() || isSending || isStreaming}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: quickEditPrompt.trim() ? '#0052ff' : '#eef0f3',
+                      color: quickEditPrompt.trim() ? '#ffffff' : '#9ca3af',
+                    }}
+                    onClick={() => void submitQuickEditSelection()}
+                  >
+                    <ArrowUpIcon className="h-3 w-3" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="flex-1 overflow-y-auto min-h-0 hide-scrollbar print:overflow-visible print:h-auto">

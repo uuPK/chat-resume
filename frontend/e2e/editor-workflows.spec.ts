@@ -257,6 +257,68 @@ async function readResumeAgentConfirmCalls(page: Page) {
   })
 }
 
+/**
+ * 在预览页内选中一段可见文本，复用浏览器原生 Selection 触发浮动工具条。
+ */
+async function selectResumePreviewText(page: Page, text: string) {
+  const resumePage = page.locator('.resume-page').first()
+  await expect(resumePage).toContainText(text)
+  const selectedTextElement = resumePage.getByText(text, { exact: true })
+  await expect(selectedTextElement).toBeVisible()
+  const selectedText = await selectedTextElement.evaluate((targetElement) => {
+    const range = document.createRange()
+    range.selectNodeContents(targetElement)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    return selection?.toString() || ''
+  })
+  expect(selectedText).toContain(text)
+}
+
+/**
+ * 用真实鼠标拖拽选中多条预览内容，覆盖用户手动跨行选区的交互路径。
+ */
+async function dragSelectResumePreviewText(page: Page, startText: string, endText: string) {
+  const resumePage = page.locator('.resume-page').first()
+  const start = resumePage.getByText(startText, { exact: true })
+  const end = resumePage.getByText(endText, { exact: true })
+  await expect(start).toBeVisible()
+  await expect(end).toBeVisible()
+
+  const startBox = await start.boundingBox()
+  const endBox = await end.boundingBox()
+  expect(startBox, '拖拽选区起点应可见').toBeTruthy()
+  expect(endBox, '拖拽选区终点应可见').toBeTruthy()
+  if (!startBox || !endBox) return
+
+  await page.mouse.move(startBox.x + 2, startBox.y + startBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(endBox.x + endBox.width - 2, endBox.y + endBox.height / 2, { steps: 12 })
+  await page.mouse.up()
+
+  await expect.poll(() => (
+    page.evaluate(() => window.getSelection()?.toString() || '')
+  )).toContain(startText.slice(0, 8))
+}
+
+/**
+ * 读取预览区选区相关的全部视觉状态，避免只清掉原生 Selection 却漏掉自定义高亮。
+ */
+async function readResumeSelectionVisualState(page: Page) {
+  return page.evaluate(() => {
+    const highlightRegistry = CSS as typeof CSS & {
+      highlights?: { has?: (name: string) => boolean }
+    }
+    return {
+      selectedText: window.getSelection()?.toString() || '',
+      hasCustomHighlight: Boolean(highlightRegistry.highlights?.has?.('resume-preview-selection')),
+      drawnHighlightCount: document.querySelectorAll('[data-testid="resume-selection-highlight"]').length,
+    }
+  })
+}
+
 test.describe('编辑页工作流', () => {
   test('选中预览内容后可以粘贴到聊天输入框', async ({ page }) => {
     const resume = buildResumeResponse(123)
@@ -271,23 +333,13 @@ test.describe('编辑页工作流', () => {
     await installEditorApiMock(page, resume)
 
     await page.goto('/zh/resume/123/edit')
-    const resumePage = page.locator('.resume-page').first()
-    await expect(resumePage).toContainText('负责前端开发与性能优化')
-    const selectedTextElement = resumePage.getByText('负责前端开发与性能优化', { exact: true })
-    await expect(selectedTextElement).toBeVisible()
-    const selectedText = await selectedTextElement.evaluate((targetElement) => {
-      const range = document.createRange()
-      range.selectNodeContents(targetElement)
-      const selection = window.getSelection()
-      selection?.removeAllRanges()
-      selection?.addRange(range)
-      document.querySelector('main')?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-      return selection?.toString() || ''
-    })
-    expect(selectedText).toContain('负责前端开发与性能优化')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
 
     await expect(page.getByRole('button', { name: '快速优化' })).toBeVisible()
     await page.getByRole('button', { name: '添加至对话框' }).click()
+    await expect.poll(() => (
+      page.evaluate(() => window.getSelection()?.toString() || '')
+    )).toBe('')
     const chatInputBox = page.getByTestId('resume-chat-input-box')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText('负责前端开发与性能优化')
     const chatInput = page.getByPlaceholder('输入消息...')
@@ -295,6 +347,208 @@ test.describe('编辑页工作流', () => {
     await chatInput.press('Backspace')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toBeHidden()
     await expect(chatInput).toBeFocused()
+  })
+
+  test('点击预览区外部会取消选区颜色', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeVisible()
+
+    await page.getByText('简历智能体').click()
+
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeHidden()
+    await expect.poll(() => (
+      page.evaluate(() => window.getSelection()?.toString() || '')
+    )).toBe('')
+  })
+
+  test('按下预览区外部时会立刻取消选区颜色', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeVisible()
+
+    await page.getByText('简历智能体').dispatchEvent('pointerdown', { bubbles: true })
+
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeHidden()
+    await expect.poll(() => (
+      page.evaluate(() => window.getSelection()?.toString() || '')
+    )).toBe('')
+  })
+
+  test('快速优化会通过对话框 Agent 发送选区和要求', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    let streamPayload: { message?: string } | null = null
+    await installEditorApiMock(page, resume)
+    await page.route('**/api/ai/chat/stream', async (route) => {
+      const body = route.request().postData()
+      streamPayload = body ? JSON.parse(body) : null
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: 'data: {"done":true}\n\n',
+      })
+    })
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await page.getByRole('button', { name: '快速优化' }).click()
+    await expect(page.getByTestId('resume-selection-highlight').first()).toBeVisible()
+    await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
+      selectedText: '',
+      hasCustomHighlight: false,
+      drawnHighlightCount: 1,
+    })
+    const quickEditInput = page.getByPlaceholder('输入优化要求')
+    await expect(quickEditInput).toBeVisible()
+    await page.getByRole('button', { name: '关闭快速优化' }).click()
+    await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
+      selectedText: '',
+      hasCustomHighlight: false,
+      drawnHighlightCount: 0,
+    })
+
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await page.getByRole('button', { name: '快速优化' }).click()
+    await quickEditInput.fill('改得更有结果导向')
+    await page.getByRole('button', { name: '发送快速优化' }).click()
+
+    await expect.poll(() => streamPayload?.message || '').toContain('负责前端开发与性能优化')
+    expect(streamPayload?.message).toContain('改得更有结果导向')
+    await expect(quickEditInput).toBeHidden()
+  })
+
+  test('按下快速优化关闭按钮会立刻取消选区颜色', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await page.getByRole('button', { name: '快速优化' }).click()
+    const quickEditInput = page.getByPlaceholder('输入优化要求')
+    await expect(quickEditInput).toBeVisible()
+
+    await page.getByRole('button', { name: '关闭快速优化' }).dispatchEvent('pointerdown', { bubbles: true })
+
+    await expect(quickEditInput).toBeHidden()
+    await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
+      selectedText: '',
+      hasCustomHighlight: false,
+      drawnHighlightCount: 0,
+    })
+  })
+
+  test('关闭快速优化后不会在鼠标释放时恢复选区颜色', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await page.getByRole('button', { name: '快速优化' }).click()
+    const quickEditInput = page.getByPlaceholder('输入优化要求')
+    await expect(quickEditInput).toBeVisible()
+    await page.locator('.resume-page').first().getByText('负责前端开发与性能优化', { exact: true }).evaluate((targetElement) => {
+      const range = document.createRange()
+      range.selectNodeContents(targetElement)
+      ;(window as Window & { __restoreResumeSelection?: () => string }).__restoreResumeSelection = () => {
+        const nextSelection = window.getSelection()
+        nextSelection?.removeAllRanges()
+        nextSelection?.addRange(range.cloneRange())
+        return nextSelection?.toString() || ''
+      }
+    })
+
+    await page.getByRole('button', { name: '关闭快速优化' }).click()
+    await expect(page.evaluate(() => (
+      (window as Window & { __restoreResumeSelection?: () => string }).__restoreResumeSelection?.() || ''
+    ))).resolves.toContain('负责前端开发与性能优化')
+
+    await expect(quickEditInput).toBeHidden()
+    await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
+      selectedText: '',
+      hasCustomHighlight: false,
+      drawnHighlightCount: 0,
+    })
+  })
+
+  test('手动跨行选区关闭快速优化后会清掉选区颜色', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    const firstHighlight = '基于BOSS直聘MCP实现职位实时搜索，自动生成简历优化建议，打通求职-优化闭环'
+    const secondHighlight = '设计专用提示词驱动大模型完成简历结构化解析，准确率显著优于传统规则方法'
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [
+          { text: firstHighlight },
+          { text: secondHighlight },
+          { text: '集成语音识别与合成实现端到端语音交互，高度还原真实面试场景' },
+        ],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await dragSelectResumePreviewText(page, firstHighlight, secondHighlight)
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeVisible()
+    await page.getByRole('button', { name: '快速优化' }).click()
+    const quickEditInput = page.getByPlaceholder('输入优化要求')
+    await expect(quickEditInput).toBeVisible()
+
+    await page.getByRole('button', { name: '关闭快速优化' }).click()
+
+    await expect(quickEditInput).toBeHidden()
+    await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
+      selectedText: '',
+      hasCustomHighlight: false,
+      drawnHighlightCount: 0,
+    })
   })
 
   test('智能一页会把不足一页的简历尽量撑满', async ({ page }) => {

@@ -31,6 +31,12 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(91, 97, 110, 0.4);
   }
+
+  .preview-panel ::selection {
+    background: rgba(0, 82, 255, 0.22);
+    color: #0a0b0d;
+  }
+
 }
 
 @layer components {

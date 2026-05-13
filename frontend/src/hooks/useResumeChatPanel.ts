@@ -233,8 +233,8 @@ export function useResumeChatPanel({
   /**
    * 把选中的简历上下文和用户输入合并成发送给 Agent 的消息。
    */
-  const buildMessageContent = useCallback((messageContent: string) => {
-    const selectedContext = selectedResumeContext.trim()
+  const buildMessageContent = useCallback((messageContent: string, context = selectedResumeContext) => {
+    const selectedContext = context.trim()
     const userRequest = messageContent.trim()
     if (!selectedContext) return userRequest
     if (!userRequest) return `选中的简历内容：\n${selectedContext}`
@@ -247,6 +247,13 @@ export function useResumeChatPanel({
   const sendMessage = useCallback(async () => {
     await dispatchMessage(buildMessageContent(inputMessage), true)
   }, [buildMessageContent, dispatchMessage, inputMessage])
+
+  /**
+   * 直接发送一条带指定简历上下文的消息，供选区快速优化使用。
+   */
+  const sendMessageWithContext = useCallback(async (context: string, messageContent: string) => {
+    await dispatchMessage(buildMessageContent(messageContent, context), true)
+  }, [buildMessageContent, dispatchMessage])
 
   /**
    * 把选中的简历文本保存为彩色上下文，便于用户继续提问。
@@ -320,6 +327,7 @@ export function useResumeChatPanel({
     handleClearMessages,
     handleKeyPress,
     appendToInputMessage,
+    sendMessageWithContext,
     sendMessage,
   }
 }
