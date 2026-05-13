@@ -496,11 +496,10 @@ export default function ResumeEditPage() {
                 <div className="h-5 w-px" style={{ backgroundColor: 'rgba(255,255,255,0.35)' }} />
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 transition-colors"
+                  className="inline-flex items-center px-2.5 py-1 transition-colors"
                   onClick={quickEditResumeSelection}
                 >
-                  <span>Quick Edit</span>
-                  <span style={{ color: 'rgba(255,255,255,0.7)' }}>⌘K</span>
+                  <span>快速优化</span>
                 </button>
               </div>
             )}

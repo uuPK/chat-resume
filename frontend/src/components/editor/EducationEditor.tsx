@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import {
   AcademicCapIcon,
+  ChevronDownIcon,
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
@@ -14,14 +15,27 @@ interface EducationEditorProps {
   onChange: (data: Education[]) => void
 }
 
+/** 按内容高度撑开教育要点输入框，避免长课程列表被单行裁切。 */
+function fitTextareaToContent(element: HTMLTextAreaElement | null) {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight + 2}px`
+}
+
 export default function EducationEditor({ data, onChange }: EducationEditorProps) {
   const [educationList, setEducationList] = useState<Education[]>(Array.isArray(data) ? data : [])
+  const editorRootRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.forms.education')
   const degrees = t.raw('degrees') as string[]
 
   useEffect(() => {
     setEducationList(Array.isArray(data) ? data : [])
   }, [data])
+
+  useLayoutEffect(() => {
+    const textareas = editorRootRef.current?.querySelectorAll<HTMLTextAreaElement>('[data-autogrow="education-highlight"]')
+    textareas?.forEach(fitTextareaToContent)
+  }, [educationList])
 
   const commit = (next: Education[]) => {
     setEducationList(next)
@@ -90,7 +104,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={editorRootRef} className="space-y-6">
       {educationList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <AcademicCapIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -153,16 +167,19 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('degree')}
                   </label>
-                  <select
-                    value={education.degree}
-                    onChange={(e) => updateEducation(education.id!, 'degree', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">{t('selectDegree')}</option>
-                    {degrees.map((degree) => (
-                      <option key={degree} value={degree}>{degree}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={education.degree}
+                      onChange={(e) => updateEducation(education.id!, 'degree', e.target.value)}
+                      className="w-full appearance-none bg-white px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="">{t('selectDegree')}</option>
+                      {degrees.map((degree) => (
+                        <option key={degree} value={degree}>{degree}</option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                  </div>
                 </div>
 
                 {/* 就读时间 */}
@@ -211,11 +228,16 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   {(education.highlights || [{ id: `edu_hl_${education.id || '0'}`, text: '' }]).map((highlight, highlightIndex) => (
                     <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                       <textarea
+                        data-autogrow="education-highlight"
+                        ref={fitTextareaToContent}
                         value={highlight.text}
-                        onChange={(e) => updateBullet(education.id!, highlightIndex, e.target.value)}
+                        onChange={(e) => {
+                          updateBullet(education.id!, highlightIndex, e.target.value)
+                          fitTextareaToContent(e.currentTarget)
+                        }}
                         placeholder={t('highlightPlaceholder')}
-                        rows={1}
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                        rows={2}
+                        className="min-h-[72px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
                       {(education.highlights || []).length > 1 && (
                         <button

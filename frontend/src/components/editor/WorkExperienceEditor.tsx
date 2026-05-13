@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   BriefcaseIcon,
+  ChevronDownIcon,
   PlusIcon,
   TrashIcon
 } from '@heroicons/react/24/outline'
@@ -21,8 +22,16 @@ function normalizeBullets(work: WorkExperience): Bullet[] {
   return [{ id: `${work.id || 'work'}_hl_0`, text: '' }]
 }
 
+/** 按内容高度撑开主要成果输入框，避免长文本被单行裁切。 */
+function fitTextareaToContent(element: HTMLTextAreaElement | null) {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight + 2}px`
+}
+
 export default function WorkExperienceEditor({ data, onChange }: WorkExperienceEditorProps) {
   const [workList, setWorkList] = useState<WorkExperience[]>(Array.isArray(data) ? data : [])
+  const editorRootRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.forms.work')
   const employmentTypes = t.raw('employmentTypes') as string[]
 
@@ -36,6 +45,11 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
       : []
     setWorkList(next)
   }, [data])
+
+  useLayoutEffect(() => {
+    const textareas = editorRootRef.current?.querySelectorAll<HTMLTextAreaElement>('[data-autogrow="work-highlight"]')
+    textareas?.forEach(fitTextareaToContent)
+  }, [workList])
 
   const commit = (next: WorkExperience[]) => {
     setWorkList(next)
@@ -90,7 +104,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={editorRootRef} className="space-y-6">
       {workList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <BriefcaseIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -177,15 +191,18 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('employmentType')}
                     </label>
-                    <select
-                      value={work.employment_type || employmentTypes[0]}
-                      onChange={(e) => updateWork(work.id!, 'employment_type', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      {employmentTypes.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={work.employment_type || employmentTypes[0]}
+                        onChange={(e) => updateWork(work.id!, 'employment_type', e.target.value)}
+                        className="w-full appearance-none bg-white px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        {employmentTypes.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                      <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    </div>
                   </div>
                 </div>
 
@@ -206,11 +223,16 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                     {(work.highlights || []).map((highlight, highlightIndex) => (
                       <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
+                          data-autogrow="work-highlight"
+                          ref={fitTextareaToContent}
                           value={highlight.text}
-                          onChange={(e) => updateBullet(work.id!, highlightIndex, e.target.value)}
+                          onChange={(e) => {
+                            updateBullet(work.id!, highlightIndex, e.target.value)
+                            fitTextareaToContent(e.currentTarget)
+                          }}
                           placeholder={t('highlightPlaceholder')}
-                          rows={1}
-                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                          rows={2}
+                          className="min-h-[72px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(work.highlights || []).length > 1 && (
                           <button

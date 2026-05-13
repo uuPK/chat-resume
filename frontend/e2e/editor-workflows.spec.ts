@@ -286,7 +286,7 @@ test.describe('编辑页工作流', () => {
     })
     expect(selectedText).toContain('负责前端开发与性能优化')
 
-    await expect(page.getByRole('button', { name: 'Quick Edit ⌘K' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '快速优化' })).toBeVisible()
     await page.getByRole('button', { name: '添加至对话框' }).click()
     const chatInputBox = page.getByTestId('resume-chat-input-box')
     await expect(chatInputBox.getByTestId('selected-resume-context')).toContainText('负责前端开发与性能优化')
@@ -316,6 +316,76 @@ test.describe('编辑页工作流', () => {
         Number(getComputedStyle(element).getPropertyValue('--spacing-scale'))
       )
     )).toBeGreaterThan(1)
+  })
+
+  test('编辑器长文本输入框会按内容增高', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.education = [
+      {
+        school: '东北大学',
+        major: '信息安全',
+        degree: '硕士',
+        duration: '2018.09 - 2022.06',
+        highlights: [
+          {
+            text: '主要课程：计算机组成原理、计算机网络、数据结构与算法、计算机操作系统、数据库系统与信息安全工程实践',
+          },
+        ],
+      },
+    ]
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '销售智能体工程师',
+        duration: '2025',
+        highlights: [
+          {
+            text: '端侧集成 ASR 实现电话录音自动转文本与关键信息抽取，自动生成跟进任务，消除销售通话后的人工整理环节',
+          },
+        ],
+      },
+    ]
+    resume.content.projects = [
+      {
+        name: 'Chat Resume',
+        role: '全栈工程师',
+        duration: '2025',
+        overview: 'AI 驱动的求职辅导平台，提供简历诊断、模拟面试、能力评估功能。通过 BOSS 直聘 MCP 工具实时搜索职位并生成简历优化建议。',
+        highlights: [
+          {
+            text: '集成BOSS直聘MCP实现职位实时搜索与简历优化建议自动生成，打通求职-优化闭环',
+          },
+        ],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await page.getByRole('button', { name: '工作' }).click()
+    const highlightInput = page.getByPlaceholder('负责后端系统重构，接口平均响应时间下降 35%')
+    await expect(highlightInput).toBeVisible()
+    expect(await highlightInput.evaluate((element) =>
+      element.clientHeight >= element.scrollHeight - 1
+    )).toBe(true)
+
+    await page.getByRole('button', { name: '项目' }).click()
+    const overviewInput = page.getByPlaceholder('一句话说明项目背景、目标或你的角色...')
+    const projectHighlightInput = page.getByPlaceholder('实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%')
+    await expect(overviewInput).toBeVisible()
+    await expect(projectHighlightInput).toBeVisible()
+    expect(await overviewInput.evaluate((element) =>
+      element.clientHeight >= element.scrollHeight - 1
+    )).toBe(true)
+    expect(await projectHighlightInput.evaluate((element) =>
+      element.clientHeight >= element.scrollHeight - 1
+    )).toBe(true)
+
+    await page.getByRole('button', { name: '教育' }).click()
+    const educationHighlightInput = page.getByPlaceholder('985高校、主要课程、奖项、研究方向等')
+    await expect(educationHighlightInput).toBeVisible()
+    expect(await educationHighlightInput.evaluate((element) =>
+      element.clientHeight >= element.scrollHeight - 1
+    )).toBe(true)
   })
 
   test('上传真实文件后轮询解析任务，完成后进入编辑页并加载简历', async ({ page }) => {

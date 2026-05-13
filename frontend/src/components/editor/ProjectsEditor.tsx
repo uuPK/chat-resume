@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   FolderIcon,
   PlusIcon,
@@ -23,8 +23,16 @@ function normalizeBullets(project: Project): Bullet[] {
   return [{ id: `${project.id || 'proj'}_hl_0`, text: '' }]
 }
 
+/** 按内容高度撑开项目长文本输入框，避免简介和成果被单行裁切。 */
+function fitTextareaToContent(element: HTMLTextAreaElement | null) {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight + 2}px`
+}
+
 export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
+  const editorRootRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.forms.project')
 
   useEffect(() => {
@@ -38,6 +46,11 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
       : []
     setProjectsList(next)
   }, [data])
+
+  useLayoutEffect(() => {
+    const textareas = editorRootRef.current?.querySelectorAll<HTMLTextAreaElement>('[data-autogrow="project-text"]')
+    textareas?.forEach(fitTextareaToContent)
+  }, [projectsList])
 
   const commit = (next: Project[]) => {
     setProjectsList(next)
@@ -97,7 +110,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={editorRootRef} className="space-y-6">
       {projectsList.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <FolderIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -214,11 +227,16 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                     {t('overview')}
                   </label>
                   <textarea
+                    data-autogrow="project-text"
+                    ref={fitTextareaToContent}
                     value={project.overview || ''}
-                    onChange={(e) => updateProject(project.id!, 'overview', e.target.value)}
+                    onChange={(e) => {
+                      updateProject(project.id!, 'overview', e.target.value)
+                      fitTextareaToContent(e.currentTarget)
+                    }}
                     placeholder={t('overviewPlaceholder')}
-                    rows={1}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                    rows={2}
+                    className="min-h-[72px] w-full overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                   />
                 </div>
 
@@ -239,11 +257,16 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                     {(project.highlights || []).map((highlight, highlightIndex) => (
                       <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
                         <textarea
+                          data-autogrow="project-text"
+                          ref={fitTextareaToContent}
                           value={highlight.text}
-                          onChange={(e) => updateBullet(project.id!, highlightIndex, e.target.value)}
+                          onChange={(e) => {
+                            updateBullet(project.id!, highlightIndex, e.target.value)
+                            fitTextareaToContent(e.currentTarget)
+                          }}
                           placeholder={t('highlightPlaceholder')}
-                          rows={1}
-                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                          rows={2}
+                          className="min-h-[72px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(project.highlights || []).length > 1 && (
                           <button
