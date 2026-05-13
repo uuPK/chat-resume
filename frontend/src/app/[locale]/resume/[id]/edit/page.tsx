@@ -297,8 +297,10 @@ export default function ResumeEditPage() {
    */
   const submitQuickEditSelection = useCallback(async () => {
     if (!resumeSelectionAction || !quickEditPrompt.trim()) return
-    await sendMessageWithContext(resumeSelectionAction.text, quickEditPrompt)
+    const selectedText = resumeSelectionAction.text
+    const userPrompt = quickEditPrompt
     clearResumeSelectionAction()
+    await sendMessageWithContext(selectedText, userPrompt)
   }, [clearResumeSelectionAction, quickEditPrompt, resumeSelectionAction, sendMessageWithContext])
 
   if (!mounted || isLoading || resumeLoading) {

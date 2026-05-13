@@ -447,6 +447,42 @@ test.describe('编辑页工作流', () => {
     await expect(quickEditInput).toBeHidden()
   })
 
+  test('发送快速优化后会立刻关闭输入框', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    resume.content.work_experience = [
+      {
+        company: '测试公司',
+        position: '前端工程师',
+        duration: '2024',
+        highlights: [{ text: '负责前端开发与性能优化' }],
+      },
+    ]
+    let releaseStream: (() => void) | null = null
+    await installEditorApiMock(page, resume)
+    await page.route('**/api/ai/chat/stream', async (route) => {
+      await new Promise<void>((resolve) => {
+        releaseStream = resolve
+      })
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: 'data: {"done":true}\n\n',
+      })
+    })
+
+    await page.goto('/zh/resume/123/edit')
+    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await page.getByRole('button', { name: '快速优化' }).click()
+    const quickEditInput = page.getByPlaceholder('输入优化要求')
+    await expect(quickEditInput).toBeVisible()
+    await quickEditInput.fill('asd')
+
+    await page.getByRole('button', { name: '发送快速优化' }).click()
+
+    await expect(quickEditInput).toBeHidden()
+    releaseStream?.()
+  })
+
   test('按下快速优化关闭按钮会立刻取消选区颜色', async ({ page }) => {
     const resume = buildResumeResponse(123)
     resume.content.work_experience = [
