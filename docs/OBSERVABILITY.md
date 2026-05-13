@@ -57,6 +57,33 @@ sum(rate(chat_resume_http_requests_total[5m]))
 {app="chat-resume", service="backend"} |= "agent.trace.tool.executed"
 ```
 
+## 错误定位
+
+未处理异常会写入一条 `request.failed` 错误日志，并在 500 响应里返回同一个
+`request_id`。这条日志包含：
+
+- `request_id`
+- `http_method`
+- `http_path`
+- `http_route`
+- `http_status`
+- `query_params`，敏感参数会显示为 `[REDACTED]`
+- `user_id`，未登录时为 `-`
+- `release`
+- `error_type`
+
+用 request_id 查单次错误：
+
+```logql
+{app="chat-resume", service="backend"} |= "request.failed" |= "req_xxx"
+```
+
+看最近 5 分钟所有后端 500：
+
+```logql
+{app="chat-resume", service="backend"} |= "request.failed"
+```
+
 ## 常用端点
 
 - Prometheus: `http://localhost:19090`

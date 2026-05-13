@@ -6,6 +6,7 @@ FastAPI应用的初始化和配置入口点。
 """
 
 import logging
+import re
 from time import perf_counter
 from uuid import uuid4
 
@@ -45,6 +46,7 @@ configure_otel_tracing()
 
 
 def _truncate_log_value(value: str | None, limit: int = 240) -> str:
+    """用于压缩日志里的长文本字段，避免单条日志过大。"""
     if not value:
         return "-"
     normalized = " ".join(value.split())
@@ -75,6 +77,10 @@ _AUTH_EXEMPT_PATHS = {
     f"{settings.API_STR}/billing/paypal/webhook",
 }
 _SLOW_REQUEST_LOG_MS = 1000.0
+_SENSITIVE_PARAM_NAMES = re.compile(
+    r"(authorization|access[_-]?key|api[_-]?key|token|secret|password|cookie)",
+    re.IGNORECASE,
+)
 
 
 def _route_template(request: Request) -> str:
@@ -82,6 +88,68 @@ def _route_template(request: Request) -> str:
     route = request.scope.get("route")
     path = getattr(route, "path", None)
     return path if isinstance(path, str) and path else request.url.path
+
+
+def _safe_query_params(request: Request) -> dict[str, str | list[str]]:
+    """用于记录查询参数，同时遮蔽敏感参数值。"""
+    params: dict[str, str | list[str]] = {}
+    for key, value in sorted(request.query_params.multi_items()):
+        safe_value = _safe_param_value(key, value)
+        existing = params.get(key)
+        if existing is None:
+            params[key] = safe_value
+        elif isinstance(existing, list):
+            existing.append(safe_value)
+        else:
+            params[key] = [existing, safe_value]
+    return params
+
+
+def _safe_param_value(key: str, value: str) -> str:
+    """用于在日志参数里保留定位信息并隐藏敏感值。"""
+    if _SENSITIVE_PARAM_NAMES.search(key):
+        return "[REDACTED]"
+    return _truncate_log_value(value, limit=160)
+
+
+def _request_user_id(request: Request) -> str:
+    """用于从请求状态中提取当前用户 ID，没有登录则返回占位符。"""
+    current_user = getattr(request.state, "current_user", None)
+    user_id = getattr(current_user, "id", None)
+    return str(user_id) if user_id is not None else "-"
+
+
+def _release_identifier() -> str:
+    """用于返回能关联到部署版本的 release 标识。"""
+    return settings.SENTRY_RELEASE or "-"
+
+
+def _failure_log_context(
+    request: Request,
+    *,
+    request_id: str,
+    status_code: int,
+    exc: Exception,
+) -> dict[str, object]:
+    """用于生成未处理异常日志所需的定位上下文。"""
+    return {
+        "request_id": request_id,
+        "http_method": request.method,
+        "http_path": request.url.path,
+        "http_route": _route_template(request),
+        "http_status": status_code,
+        "query_params": _safe_query_params(request),
+        "user_id": _request_user_id(request),
+        "release": _release_identifier(),
+        "error_type": type(exc).__name__,
+    }
+
+
+def _mark_failed_span(span, context: dict[str, object]) -> None:
+    """用于把失败请求的定位上下文同步写入当前 trace span。"""
+    for key, value in context.items():
+        if isinstance(value, (str, int, float, bool)):
+            set_span_attribute(span, key.replace("_", "."), value)
 
 
 def _is_protected_api_path(path: str) -> bool:
@@ -159,8 +227,22 @@ async def log_requests(request: Request, call_next):
             try:
                 response = await call_next(request)
             except Exception as exc:
+                failure_context = _failure_log_context(
+                    request,
+                    request_id=request_id,
+                    status_code=500,
+                    exc=exc,
+                )
                 record_exception(span, exc)
-                raise
+                _mark_failed_span(span, failure_context)
+                logger.exception("request.failed", extra=failure_context)
+                response = JSONResponse(
+                    status_code=500,
+                    content={
+                        "detail": "Internal server error",
+                        "request_id": request_id,
+                    },
+                )
             response.headers["X-Request-ID"] = request_id
             set_span_attribute(span, "http.response.status_code", response.status_code)
             set_span_attribute(span, "http.route", _route_template(request))
