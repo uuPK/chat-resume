@@ -1,0 +1,440 @@
+"""OpenRouter stream adapter for pi-agent-core."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import Any
+
+import httpx
+from pi_agent_core import (
+    AgentContext,
+    AssistantMessage,
+    AssistantMessageEvent,
+    Model,
+    SimpleStreamOptions,
+    StreamDoneEvent,
+    StreamErrorEvent,
+    StreamResult,
+    StreamStartEvent,
+    StreamTextDeltaEvent,
+    StreamTextEndEvent,
+    StreamTextStartEvent,
+    StreamToolCallEndEvent,
+    StreamToolCallStartEvent,
+    TextContent,
+    ToolCall,
+    StopReason,
+    Usage,
+)
+
+from app.infra.config import settings
+
+
+async def stream_openrouter(
+    model: Model,
+    context: AgentContext,
+    options: SimpleStreamOptions,
+) -> StreamResult:
+    """Stream OpenRouter chat completions into pi-agent-core events."""
+    queue: asyncio.Queue[AssistantMessageEvent | None] = asyncio.Queue()
+    done = asyncio.Event()
+    state: dict[str, AssistantMessage | None] = {"final": None}
+    partial = AssistantMessage(api=model.api, provider=model.provider, model=model.id)
+
+    async def events_iter():
+        """Yield queued stream events until the adapter finishes."""
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            yield event
+
+    async def result() -> AssistantMessage:
+        """Return the final assistant message after streaming completes."""
+        await done.wait()
+        final = state["final"]
+        if final is None:
+            raise RuntimeError("OpenRouter stream ended without a final message")
+        return final
+
+    async def run_stream() -> None:
+        """Pump the OpenRouter SSE stream into the local event queue."""
+        try:
+            await _pump_openrouter_stream(model, context, options, partial, queue)
+            state["final"] = partial
+        except Exception as exc:
+            partial.stop_reason = "error"
+            partial.error_message = str(exc)
+            queue.put_nowait(StreamErrorEvent(reason="error", error=partial))
+            state["final"] = partial
+        finally:
+            done.set()
+            queue.put_nowait(None)
+
+    asyncio.create_task(run_stream())
+    return {"events": events_iter(), "result": result}
+
+
+async def _pump_openrouter_stream(
+    model: Model,
+    context: AgentContext,
+    options: SimpleStreamOptions,
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+) -> None:
+    """Send one OpenRouter request and translate streamed chunks."""
+    body = _openrouter_body(model, context, options)
+    headers = _openrouter_headers(options)
+    text_started = False
+    text_index = 0
+    text_buffer: list[str] = []
+    tool_buffers: dict[int, dict[str, Any]] = {}
+    finish_reason = "stop"
+
+    timeout = httpx.Timeout(
+        connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+        read=settings.OPENROUTER_READ_TIMEOUT_SECONDS,
+        write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
+        pool=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
+    )
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream(
+            "POST",
+            f"{settings.OPENROUTER_API_BASE.rstrip('/')}/chat/completions",
+            headers=headers,
+            json=body,
+        ) as response:
+            await _raise_for_openrouter_error(response)
+            queue.put_nowait(StreamStartEvent(partial=partial))
+            async for line in response.aiter_lines():
+                if _cancelled(options):
+                    raise RuntimeError("Request aborted by user")
+                chunk = _decode_sse_line(line)
+                if chunk is None:
+                    continue
+                if chunk == "[DONE]":
+                    break
+                if not isinstance(chunk, dict):
+                    continue
+                text_started = _apply_openrouter_chunk(
+                    chunk=chunk,
+                    partial=partial,
+                    queue=queue,
+                    tool_buffers=tool_buffers,
+                    text_buffer=text_buffer,
+                    text_started=text_started,
+                    text_index=text_index,
+                )
+                finish_reason = _finish_reason(chunk, finish_reason)
+
+    if text_started:
+        queue.put_nowait(
+            StreamTextEndEvent(
+                content_index=text_index,
+                content="".join(text_buffer),
+                partial=partial,
+            )
+        )
+    _emit_tool_calls(tool_buffers, partial, queue)
+    partial.stop_reason = "toolUse" if tool_buffers else _stop_reason(finish_reason)
+    queue.put_nowait(StreamDoneEvent(reason=partial.stop_reason, message=partial))
+
+
+def _openrouter_body(
+    model: Model,
+    context: AgentContext,
+    options: SimpleStreamOptions,
+) -> dict[str, Any]:
+    """Build the OpenAI-compatible request body for OpenRouter."""
+    body: dict[str, Any] = {
+        "model": model.id,
+        "messages": _openai_messages(context),
+        "tools": _openai_tools(context),
+        "stream": True,
+        "stream_options": {"include_usage": True},
+        "parallel_tool_calls": False,
+    }
+    if options.temperature is not None:
+        body["temperature"] = options.temperature
+    if options.max_tokens is not None:
+        body["max_tokens"] = options.max_tokens
+    return body
+
+
+def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
+    """Build OpenRouter headers without leaking credentials to logs."""
+    api_key = options.api_key or settings.OPENROUTER_API_KEY
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://chat-resume.com",
+        "X-Title": "Chat Resume AI Assistant",
+    }
+
+
+def _openai_messages(context: AgentContext) -> list[dict[str, Any]]:
+    """Convert pi-agent-core messages into OpenAI chat messages."""
+    messages: list[dict[str, Any]] = []
+    if context.system_prompt:
+        messages.append({"role": "system", "content": context.system_prompt})
+    for message in context.messages:
+        converted = _openai_message(message)
+        if converted is not None:
+            messages.append(converted)
+    return messages
+
+
+def _openai_message(message: Any) -> dict[str, Any] | None:
+    """Convert one pi-agent-core message into an OpenAI message."""
+    role = getattr(message, "role", "")
+    if role == "user":
+        return {"role": "user", "content": _text_content(message)}
+    if role == "assistant":
+        return _openai_assistant_message(message)
+    if role == "toolResult":
+        return {
+            "role": "tool",
+            "tool_call_id": message.tool_call_id,
+            "name": message.tool_name,
+            "content": _text_content(message),
+        }
+    return None
+
+
+def _openai_assistant_message(message: Any) -> dict[str, Any]:
+    """Convert assistant text and tool calls into OpenAI format."""
+    tool_calls = []
+    for block in getattr(message, "content", []):
+        if isinstance(block, ToolCall):
+            tool_calls.append(
+                {
+                    "id": block.id,
+                    "type": "function",
+                    "function": {
+                        "name": block.name,
+                        "arguments": json.dumps(
+                            block.arguments,
+                            ensure_ascii=False,
+                        ),
+                    },
+                }
+            )
+    content = _text_content(message)
+    payload: dict[str, Any] = {"role": "assistant", "content": content or None}
+    if tool_calls:
+        payload["tool_calls"] = tool_calls
+    return payload
+
+
+def _text_content(message: Any) -> str:
+    """Return concatenated textual content blocks from a pi message."""
+    parts: list[str] = []
+    for block in getattr(message, "content", []):
+        if isinstance(block, TextContent):
+            parts.append(block.text)
+    return "".join(parts)
+
+
+def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
+    """Convert pi-agent-core tools into OpenAI tool schemas."""
+    tools = []
+    for tool in context.tools:
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters.model_dump(),
+                },
+            }
+        )
+    return tools
+
+
+async def _raise_for_openrouter_error(response: httpx.Response) -> None:
+    """Raise a readable error when OpenRouter rejects the request."""
+    if response.status_code == 200:
+        return
+    body = await response.aread()
+    message = body.decode("utf-8", errors="replace")
+    raise RuntimeError(f"OpenRouter error {response.status_code}: {message}")
+
+
+def _decode_sse_line(line: str) -> dict[str, Any] | str | None:
+    """Decode one OpenAI-compatible SSE data line."""
+    if not line.startswith("data: "):
+        return None
+    data = line[6:].strip()
+    if not data:
+        return None
+    if data == "[DONE]":
+        return data
+    return json.loads(data)
+
+
+def _apply_openrouter_chunk(
+    *,
+    chunk: dict[str, Any],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+    tool_buffers: dict[int, dict[str, Any]],
+    text_buffer: list[str],
+    text_started: bool,
+    text_index: int,
+) -> bool:
+    """Apply one OpenRouter chunk to the partial assistant message."""
+    choice = _first_choice(chunk)
+    if not choice:
+        _apply_usage(chunk, partial)
+        return text_started
+    delta = choice.get("delta") or {}
+    text_started = _apply_text_delta(
+        delta=delta,
+        partial=partial,
+        queue=queue,
+        text_buffer=text_buffer,
+        text_started=text_started,
+        text_index=text_index,
+    )
+    _apply_tool_delta(delta, tool_buffers)
+    _apply_usage(chunk, partial)
+    return text_started
+
+
+def _first_choice(chunk: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the first streamed choice if one exists."""
+    choices = chunk.get("choices")
+    if isinstance(choices, list) and choices:
+        choice = choices[0]
+        return choice if isinstance(choice, dict) else None
+    return None
+
+
+def _apply_text_delta(
+    *,
+    delta: dict[str, Any],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+    text_buffer: list[str],
+    text_started: bool,
+    text_index: int,
+) -> bool:
+    """Append streamed text content to the partial assistant message."""
+    content = delta.get("content")
+    if not isinstance(content, str) or not content:
+        return text_started
+    if not text_started:
+        partial.content.append(TextContent())
+        queue.put_nowait(StreamTextStartEvent(content_index=text_index, partial=partial))
+        text_started = True
+    text_block = partial.content[text_index]
+    if isinstance(text_block, TextContent):
+        text_block.text += content
+    text_buffer.append(content)
+    queue.put_nowait(
+        StreamTextDeltaEvent(
+            content_index=text_index,
+            delta=content,
+            partial=partial,
+        )
+    )
+    return text_started
+
+
+def _apply_tool_delta(
+    delta: dict[str, Any],
+    tool_buffers: dict[int, dict[str, Any]],
+) -> None:
+    """Accumulate streamed OpenAI tool-call deltas by index."""
+    tool_calls = delta.get("tool_calls")
+    if not isinstance(tool_calls, list):
+        return
+    for raw_call in tool_calls:
+        if not isinstance(raw_call, dict):
+            continue
+        index = int(raw_call.get("index") or 0)
+        buffer = tool_buffers.setdefault(index, {"id": "", "name": "", "args": ""})
+        if isinstance(raw_call.get("id"), str):
+            buffer["id"] += raw_call["id"]
+        function = raw_call.get("function")
+        if not isinstance(function, dict):
+            continue
+        if isinstance(function.get("name"), str):
+            buffer["name"] += function["name"]
+        if isinstance(function.get("arguments"), str):
+            buffer["args"] += function["arguments"]
+
+
+def _emit_tool_calls(
+    tool_buffers: dict[int, dict[str, Any]],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+) -> None:
+    """Emit complete tool-call events after OpenRouter finishes the message."""
+    for index in sorted(tool_buffers):
+        raw_call = tool_buffers[index]
+        tool_call = ToolCall(
+            id=raw_call.get("id") or f"tool_{index}",
+            name=raw_call.get("name") or "",
+            arguments=_parse_tool_arguments(raw_call.get("args")),
+        )
+        content_index = len(partial.content)
+        partial.content.append(tool_call)
+        queue.put_nowait(
+            StreamToolCallStartEvent(content_index=content_index, partial=partial)
+        )
+        queue.put_nowait(
+            StreamToolCallEndEvent(
+                content_index=content_index,
+                tool_call=tool_call,
+                partial=partial,
+            )
+        )
+
+
+def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
+    """Parse a streamed tool-call argument string into a dict."""
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    parsed = json.loads(raw)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _apply_usage(chunk: dict[str, Any], partial: AssistantMessage) -> None:
+    """Copy final token usage when the provider includes it."""
+    usage = chunk.get("usage")
+    if not isinstance(usage, dict):
+        return
+    partial.usage = Usage(
+        input=int(usage.get("prompt_tokens") or 0),
+        output=int(usage.get("completion_tokens") or 0),
+        total_tokens=int(usage.get("total_tokens") or 0),
+    )
+
+
+def _finish_reason(chunk: dict[str, Any], current: str) -> str:
+    """Return the latest non-empty finish reason from a stream chunk."""
+    choice = _first_choice(chunk)
+    if not choice:
+        return current
+    reason = choice.get("finish_reason")
+    return reason if isinstance(reason, str) and reason else current
+
+
+def _stop_reason(finish_reason: str) -> StopReason:
+    """Map OpenAI finish reasons into pi-agent-core stop reasons."""
+    if finish_reason == "length":
+        return "length"
+    return "stop"
+
+
+def _cancelled(options: SimpleStreamOptions) -> bool:
+    """Return whether the caller has requested stream cancellation."""
+    return bool(options.cancel_event and options.cancel_event.is_set())
+
+
+__all__ = ["stream_openrouter"]

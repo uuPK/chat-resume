@@ -1,4 +1,4 @@
-"""用于隔离 Deep Agents runtime 的事件发布和可见事件适配。"""
+"""用于隔离 runtime 事件发布和可见事件适配。"""
 
 from __future__ import annotations
 

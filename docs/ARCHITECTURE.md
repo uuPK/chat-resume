@@ -6,7 +6,7 @@
 
 - 前端：Next.js App Router + React，负责用户界面、状态管理和 API 调用。
 - 后端：FastAPI，负责 HTTP API、业务服务、Agent 执行入口和数据库访问。
-- Agent 运行时：Deep Agents 相关契约位于 `backend/app/runtime/`。
+- Agent 运行时：pi-agent-core 相关适配和运行时契约位于 `backend/app/runtime/`。
 - 数据库：本地默认 SQLite，生产使用 PostgreSQL，迁移由 Alembic 管理。
 
 ## 目录边界
