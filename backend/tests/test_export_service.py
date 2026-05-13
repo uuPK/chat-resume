@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -231,6 +233,93 @@ def test_export_to_pdf_surfaces_playwright_failure(tmp_path, monkeypatch):
         assert "Executable doesn't exist" in str(exc)
     else:
         raise AssertionError("导出失败时应抛出 Playwright 原始异常")
+
+
+def test_export_to_pdf_falls_back_to_server_html_when_print_page_times_out(
+    tmp_path,
+    monkeypatch,
+):
+    """用于验证前端打印页超时时仍能导出 PDF。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    captured: dict[str, str] = {}
+
+    async def _raise_timeout(self, print_url: str, filepath: str) -> None:
+        """用于模拟前端打印页加载超时。"""
+        del self, print_url, filepath
+        raise PlaywrightTimeoutError("Timeout 30000ms exceeded")
+
+    async def _capture_html_render(self, html: str, filepath: str) -> None:
+        """用于捕获 HTML 兜底渲染输入，避免真实启动浏览器。"""
+        del self
+        captured["html"] = html
+        captured["filepath"] = filepath
+        Path(filepath).write_bytes(b"%PDF-fallback")
+
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_with_playwright",
+        _raise_timeout,
+    )
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_from_html",
+        _capture_html_render,
+        raising=False,
+    )
+
+    filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
+
+    assert Path(filepath).read_bytes() == b"%PDF-fallback"
+    assert captured["filepath"] == filepath
+    assert "张三" in captured["html"]
+
+
+def test_export_to_pdf_uses_server_html_when_print_url_is_too_large(
+    tmp_path,
+    monkeypatch,
+):
+    """用于验证超长打印页地址会直接走服务端 HTML 兜底。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    large_content = _sample_resume_content()
+    large_content["projects"] = [
+        {
+            "name": "超长项目",
+            "summary": "负责复杂系统。" * 5000,
+        }
+    ]
+    captured: dict[str, str] = {}
+
+    async def _fail_frontend_render(self, print_url: str, filepath: str) -> None:
+        """用于确保超长 URL 不再进入前端打印页渲染。"""
+        del self, print_url, filepath
+        raise AssertionError("超长 URL 不应进入前端打印页渲染")
+
+    async def _capture_html_render(self, html: str, filepath: str) -> None:
+        """用于捕获超长简历的 HTML 兜底渲染。"""
+        del self
+        captured["html"] = html
+        captured["filepath"] = filepath
+        Path(filepath).write_bytes(b"%PDF-large-fallback")
+
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_with_playwright",
+        _fail_frontend_render,
+    )
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_from_html",
+        _capture_html_render,
+        raising=False,
+    )
+
+    filepath = asyncio.run(export_service.export_to_pdf(large_content))
+
+    assert Path(filepath).read_bytes() == b"%PDF-large-fallback"
+    assert captured["filepath"] == filepath
+    assert "超长项目" in captured["html"]
 
 
 def test_get_file_url_returns_signed_download_path(tmp_path, monkeypatch):

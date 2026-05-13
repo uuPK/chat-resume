@@ -5,9 +5,9 @@ import { getTranslations } from 'next-intl/server'
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
-  searchParams?: {
+  searchParams?: Promise<{
     data?: string
-  }
+  }>
 }
 
 function decodePayload(data?: string) {
@@ -32,7 +32,8 @@ function normalizeTemplateStyle(template?: string): ResumeTemplateStyle {
 
 export default async function ResumePrintPage({ searchParams }: PageProps) {
   const t = await getTranslations({ locale: 'zh', namespace: 'resume.preview' })
-  const payload = decodePayload(searchParams?.data)
+  const resolvedSearchParams = await searchParams
+  const payload = decodePayload(resolvedSearchParams?.data)
   const content = payload?.content
   const templateStyle = normalizeTemplateStyle(payload?.template)
 

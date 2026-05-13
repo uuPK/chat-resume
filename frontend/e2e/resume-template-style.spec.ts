@@ -5,6 +5,37 @@ function encodePrintPayload(payload: Record<string, unknown>) {
 }
 
 test.describe('简历模板样式', () => {
+  test('打印页不触发登录态刷新', async ({ page }) => {
+    const authRequests: string[] = []
+    const payload = encodePrintPayload({
+      template: 'classic',
+      content: {
+        personal_info: {
+          name: '打印页',
+          email: 'print@example.com',
+        },
+        education: [],
+        skills: [],
+        work_experience: [],
+        projects: [],
+      },
+    })
+
+    await page.route('**/api/auth/**', async (route) => {
+      authRequests.push(route.request().url())
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Invalid refresh token' }),
+      })
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await expect(page.getByRole('heading', { name: '打印页' })).toBeVisible()
+
+    expect(authRequests).toEqual([])
+  })
+
   test('绿色页眉模板按截图风格渲染页眉和分隔标题', async ({ page }) => {
     const payload = encodePrintPayload({
       template: 'emerald',

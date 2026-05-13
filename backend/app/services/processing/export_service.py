@@ -7,12 +7,14 @@
 
 import base64
 import json
+import logging
 import os
 import uuid
 from html import escape
 from typing import Any, Dict
 from urllib.parse import quote
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -21,6 +23,9 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
 from app.infra.security import create_download_token
+
+logger = logging.getLogger(__name__)
+MAX_FRONTEND_PRINT_URL_CHARS = 8000
 
 
 class ExportService:
@@ -37,7 +42,38 @@ class ExportService:
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
         print_url = self._build_frontend_print_url(resume_content, template)
-        await self._render_pdf_with_playwright(print_url, filepath)
+        if len(print_url) > MAX_FRONTEND_PRINT_URL_CHARS:
+            logger.warning(
+                "pdf_export.frontend_print_url_too_large_fallback",
+                extra={
+                    "template": template,
+                    "print_url_length": len(print_url),
+                    "max_print_url_length": MAX_FRONTEND_PRINT_URL_CHARS,
+                },
+            )
+            await self._render_pdf_from_html(
+                self._build_html_content(resume_content),
+                filepath,
+            )
+            return filepath
+
+        try:
+            await self._render_pdf_with_playwright(print_url, filepath)
+        except PlaywrightTimeoutError:
+            logger.warning(
+                "pdf_export.frontend_print_timeout_fallback",
+                extra={
+                    "template": template,
+                    "print_url_length": len(print_url),
+                    "content_bytes": len(
+                        json.dumps(resume_content, ensure_ascii=False).encode("utf-8")
+                    ),
+                },
+            )
+            await self._render_pdf_from_html(
+                self._build_html_content(resume_content),
+                filepath,
+            )
         return filepath
 
     def export_to_docx(
@@ -171,16 +207,36 @@ class ExportService:
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
-            page = await browser.new_page(viewport={"width": 1280, "height": 1810})
-            await page.goto(print_url, wait_until="networkidle")
-            await page.emulate_media(media="print")
-            await page.pdf(
-                path=filepath,
-                format="A4",
-                print_background=True,
-                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
-            )
-            await browser.close()
+            try:
+                page = await browser.new_page(viewport={"width": 1280, "height": 1810})
+                await page.goto(print_url, wait_until="networkidle")
+                await page.emulate_media(media="print")
+                await page.pdf(
+                    path=filepath,
+                    format="A4",
+                    print_background=True,
+                    margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                )
+            finally:
+                await browser.close()
+
+    async def _render_pdf_from_html(self, html: str, filepath: str) -> None:
+        """使用服务端 HTML 兜底渲染 PDF。"""
+
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page(viewport={"width": 1280, "height": 1810})
+                await page.set_content(html, wait_until="networkidle")
+                await page.emulate_media(media="print")
+                await page.pdf(
+                    path=filepath,
+                    format="A4",
+                    print_background=True,
+                    margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                )
+            finally:
+                await browser.close()
 
     def _build_frontend_print_url(
         self, resume_content: Dict[str, Any], template: str

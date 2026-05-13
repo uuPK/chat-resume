@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
-import Providers from '../providers'
+import { NextIntlClientProvider } from 'next-intl'
 import '../globals.css'
 import '../../styles/markdown.css'
 
@@ -29,7 +29,7 @@ export default function PrintRootLayout({
   return (
     <html lang="zh" data-scroll-behavior="smooth">
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>
   )

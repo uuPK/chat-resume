@@ -1,3 +1,0 @@
-Design system reference for LLM-assisted implementation.
-
-TODO: Add project-specific design tokens, component rules, layout examples, and accessibility constraints.
