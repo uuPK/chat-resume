@@ -513,6 +513,31 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       const detail = await response.text()
       throw new Error(detail || `工具确认失败: ${response.status}`)
     }
+    const body = await response.json().catch(() => null)
+    if (body?.resumable === true) {
+      await resumePausedSession(sid)
+    }
+  }
+
+  // 用于恢复已经记录确认结果但原 SSE 连接已断开的 session。
+  const resumePausedSession = async (sid: string) => {
+    const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
+    const response = await fetch(apiUrl('/api/ai/chat/resume-session', apiBaseUrl), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ session_id: sid }),
+    })
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || `恢复 session 失败: ${response.status}`)
+    }
+    const body = await response.json()
+    if (body.resume_content) {
+      onResumeUpdate?.(body.resume_content)
+    }
   }
 
   return {

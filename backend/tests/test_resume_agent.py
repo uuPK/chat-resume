@@ -306,6 +306,9 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertNotIn("read_user_memory", rendered)
         self.assertNotIn("write_user_memory", rendered)
+        self.assertNotIn("${toolsList}", rendered)
+        self.assertNotIn("${guidelines}", rendered)
+        self.assertNotIn("Pi 文档", rendered)
 
     def test_system_prompt_enforces_optimize_first_default(self):
         """用于验证systempromptenforcesoptimizefirstdefault。"""

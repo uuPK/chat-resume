@@ -88,6 +88,7 @@ class PiAgentRuntime:
             event_queue=None,
             event_callback=event_callback,
             executed_tools=executed_tools,
+            stream_state=state,
         )
         self._trace_run_start(agent, run_id, "sync", user_message, conversation_history)
         self._trace_prompt(agent, run_id, pi_context.system_prompt)
@@ -142,6 +143,7 @@ class PiAgentRuntime:
             event_queue=event_queue,
             event_callback=event_callback,
             executed_tools=executed_tools,
+            stream_state=state,
         )
         self._trace_run_start(agent, run_id, "stream", user_message, conversation_history)
         self._trace_prompt(agent, run_id, pi_context.system_prompt)
@@ -205,6 +207,13 @@ class PiAgentRuntime:
                     run_id=run_id,
                     state=state,
                 )
+                if state.get("stop_after_confirmed_tool"):
+                    self._trace(
+                        "agent.trace.run.stopped_after_confirmation",
+                        run_id=run_id,
+                        agent_name=agent.prompt_spec.name,
+                    )
+                    break
         finally:
             response_event = self._llm_response_event(agent, state)
             self._trace_llm_response(agent, run_id, response_event)
@@ -227,6 +236,7 @@ class PiAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
     ) -> tuple[AgentContext, list[Message], AgentLoopConfig]:
         """用于构建循环输入。"""
         prompt_context = agent.prompt_context_builder(context)
@@ -239,6 +249,7 @@ class PiAgentRuntime:
             event_callback=event_callback,
             run_id=run_id,
             executed_tools=executed_tools,
+            stream_state=stream_state,
         )
         pi_context = AgentContext(
             system_prompt=system_prompt,
@@ -269,6 +280,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         run_id: str,
         executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
     ) -> list[AgentTool]:
         """用于构建工具列表。"""
         tools: list[AgentTool] = []
@@ -290,6 +302,7 @@ class PiAgentRuntime:
                     run_id=run_id,
                     executed_tools=executed_tools,
                     lock=lock,
+                    stream_state=stream_state,
                 )
             )
         return tools
@@ -307,6 +320,7 @@ class PiAgentRuntime:
         run_id: str,
         executed_tools: list[dict[str, Any]],
         lock: asyncio.Lock,
+        stream_state: dict[str, Any],
     ) -> AgentTool:
         """用于构建工具。"""
 
@@ -328,6 +342,7 @@ class PiAgentRuntime:
                     event_queue=event_queue,
                     event_callback=event_callback,
                     executed_tools=executed_tools,
+                    stream_state=stream_state,
                 )
             async with lock:
                 return await self._execute_tool_result(
@@ -341,6 +356,7 @@ class PiAgentRuntime:
                     event_queue=event_queue,
                     event_callback=event_callback,
                     executed_tools=executed_tools,
+                    stream_state=stream_state,
                 )
 
         return AgentTool(
@@ -363,6 +379,7 @@ class PiAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
     ) -> AgentToolResult:
         """用于处理执行工具结果。"""
         if confirmation_queue is not None and self._should_skip_extra_business_tool(
@@ -398,6 +415,7 @@ class PiAgentRuntime:
             event_queue=event_queue,
             event_callback=event_callback,
             executed_tools=executed_tools,
+            stream_state=stream_state,
         )
         return AgentToolResult(content=[TextContent(text=output)], details=output)
 
@@ -425,6 +443,7 @@ class PiAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
+        stream_state: dict[str, Any],
     ) -> str:
         """用于处理执行工具。"""
         tool_started_at = perf_counter()
@@ -463,6 +482,7 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             needs_confirmation=needs_confirmation,
             tool_started_at=tool_started_at,
+            stream_state=stream_state,
         )
         if isinstance(preview, str):
             return preview
@@ -478,6 +498,7 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             needs_confirmation=needs_confirmation,
             tool_started_at=tool_started_at,
+            stream_state=stream_state,
         )
 
     async def _maybe_confirm_tool(
@@ -496,6 +517,7 @@ class PiAgentRuntime:
         executed_tools: list[dict[str, Any]],
         needs_confirmation: bool,
         tool_started_at: float,
+        stream_state: dict[str, Any],
     ) -> dict[str, Any] | str | None:
         """用于处理maybeconfirm工具。"""
         if not needs_confirmation:
@@ -547,6 +569,15 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             tool_started_at=tool_started_at,
         )
+        stream_state["stop_after_confirmed_tool"] = True
+        await self._publish_terminal_text(
+            agent=agent,
+            run_id=run_id,
+            stream_state=stream_state,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            content="已取消这处修改。",
+        )
         return json.dumps(rejected, ensure_ascii=False)
 
     async def _run_confirmed_tool(
@@ -563,6 +594,7 @@ class PiAgentRuntime:
         executed_tools: list[dict[str, Any]],
         needs_confirmation: bool,
         tool_started_at: float,
+        stream_state: dict[str, Any],
     ) -> str:
         """用于处理run已确认工具。"""
         with start_span(
@@ -603,7 +635,44 @@ class PiAgentRuntime:
             context=context,
             needs_confirmation=needs_confirmation,
         )
+        if needs_confirmation:
+            stream_state["stop_after_confirmed_tool"] = True
+            await self._publish_terminal_text(
+                agent=agent,
+                run_id=run_id,
+                stream_state=stream_state,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                content="已应用这处修改。",
+            )
         return json.dumps(result, ensure_ascii=False)
+
+    async def _publish_terminal_text(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        stream_state: dict[str, Any],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        content: str,
+    ) -> None:
+        """用于在确认后用确定性文本结束当前轮次，避免再次调用模型。"""
+        stream_state["chunk_index"] += 1
+        stream_state["response_parts"].append(content)
+        self._trace(
+            "agent.trace.intermediate.chunk",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            chunk_index=stream_state["chunk_index"],
+            content_preview=self._preview_text(content),
+            content_chars=len(content),
+        )
+        await self._publish_event(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=text_delta_event(content=content),
+        )
 
     async def _handle_pi_event(
         self,
@@ -837,6 +906,7 @@ class PiAgentRuntime:
             "chunk_index": 0,
             "response_parts": [],
             "last_assistant_text": "",
+            "stop_after_confirmed_tool": False,
         }
 
     def _llm_request_event(
