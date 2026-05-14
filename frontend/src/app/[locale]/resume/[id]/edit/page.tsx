@@ -120,6 +120,19 @@ interface ResumeSelectionAction {
   mode: 'toolbar' | 'quick_edit'
 }
 
+/** 从 Next 路由参数中读取单个简历 ID。 */
+function getResumeIdParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+  return value
+}
+
+/** 判断路由简历 ID 是否能安全传给后端整数路径参数。 */
+function isValidResumeIdParam(value: string | undefined): value is string {
+  return Boolean(value && /^\d+$/.test(value))
+}
+
 /** 清理浏览器原生选区，避免关闭快速优化后预览里残留蓝色选中态。 */
 function clearNativeSelection() {
   window.getSelection()?.removeAllRanges()
@@ -153,7 +166,9 @@ export default function ResumeEditPage() {
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
 
-  const resumeId = params?.id as string
+  const routeResumeId = getResumeIdParam(params?.id)
+  const hasValidResumeId = isValidResumeIdParam(routeResumeId)
+  const resumeId = hasValidResumeId ? routeResumeId : ''
   const searchParams = useSearchParams()
   const isFirstRun = searchParams?.get('firstRun') === '1'
   const [firstRunPhase, setFirstRunPhase] = useState<'jd_input' | 'analyzing' | 'done' | null>(null)
@@ -162,7 +177,6 @@ export default function ResumeEditPage() {
   const [firstRunJdText, setFirstRunJdText] = useState('')
   const firstRunTriggeredRef = useRef(false)
   const firstRunSentRef = useRef(false)
-
   const {
     editorOpen,
     setEditorOpen,
@@ -233,6 +247,11 @@ export default function ResumeEditPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!mounted || isLoading || !isAuthenticated || hasValidResumeId) return
+    router.push('/dashboard')
+  }, [hasValidResumeId, isAuthenticated, isLoading, mounted, router])
 
   useEffect(() => {
     setApiError(null)
