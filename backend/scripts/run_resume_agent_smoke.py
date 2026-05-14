@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
+from copy import deepcopy
 from pathlib import Path
 from time import perf_counter
 
@@ -36,9 +37,15 @@ def build_sample_resume() -> dict:
     }
 
 
+def resume_changed(before: dict, after: dict) -> bool:
+    """用于判断 smoke 运行是否实际改动了任意简历字段。"""
+    return before != after
+
+
 async def run_once(agent: ResumeAgent, prompt: str) -> dict:
     """用于运行单次运行。"""
     resume = build_sample_resume()
+    before_resume = deepcopy(resume)
     started = perf_counter()
     result = await agent.optimize(prompt, resume, [])
     elapsed = perf_counter() - started
@@ -48,7 +55,7 @@ async def run_once(agent: ResumeAgent, prompt: str) -> dict:
         "tool_calls": result["tool_calls"],
         "mutated_resume": resume,
         "tool_call_count": len(result["tool_calls"]),
-        "changed": resume["work_experience"][0]["summary"] != "负责内部系统开发",
+        "changed": resume_changed(before_resume, resume),
     }
 
 

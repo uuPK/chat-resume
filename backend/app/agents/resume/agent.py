@@ -25,6 +25,19 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "query_metrics_promql",
 }
 _LOG_VALUE_LIMIT = 64
+_SECTION_ALIASES = {
+    "work": "work_experience",
+    "work_experiences": "work_experience",
+    "experience": "work_experience",
+    "project": "projects",
+    "project_experience": "projects",
+    "edu": "education",
+}
+_ARGUMENT_ALIASES_BY_TOOL = {
+    "update_bullet": {"highlight_id": "bullet_id"},
+    "remove_bullet": {"highlight_id": "bullet_id"},
+    "update_overview": {"text": "overview", "description": "overview"},
+}
 
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
@@ -66,6 +79,21 @@ def _summarize_log_value(value: Any) -> Any:
     if isinstance(value, list):
         return [_summarize_log_value(item) for item in value[:5]]
     return value
+
+
+def _normalize_tool_args(tool_name: str, tool_args: dict[str, Any]) -> dict[str, Any]:
+    """用于修正常见模型工具参数别名，不推断缺失事实。"""
+    normalized = dict(tool_args)
+    section = normalized.get("section")
+    if isinstance(section, str):
+        normalized["section"] = _SECTION_ALIASES.get(section, section)
+
+    for source, target in _ARGUMENT_ALIASES_BY_TOOL.get(tool_name, {}).items():
+        if target not in normalized and source in normalized:
+            normalized[target] = normalized[source]
+        if source in normalized and source != target:
+            normalized.pop(source)
+    return normalized
 
 
 class ResumeAgent:
@@ -176,6 +204,8 @@ class ResumeAgent:
                 recoverable=True,
                 expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
             )
+
+        tool_args = _normalize_tool_args(tool_name, tool_args)
 
         if tool_name == "update_overview" and not tool_args.get("section"):
             tool_args["section"] = "projects"

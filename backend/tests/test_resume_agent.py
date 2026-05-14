@@ -19,6 +19,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
+from scripts.run_resume_agent_smoke import resume_changed  # noqa: E402
 
 
 class ResumeAgentPromptContextTests(unittest.TestCase):
@@ -100,6 +101,29 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(result["diff_items"][0]["reason"], "补充量化结果")
         self.assertIn("35%", result["diff_items"][0]["after"])
 
+    def test_resume_agent_smoke_change_detector_checks_nested_highlights(self):
+        """用于验证resumeagentsmokechangedetectorchecks嵌套要点。"""
+        before = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "summary": "负责内部系统开发",
+                    "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+                }
+            ]
+        }
+        after = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "summary": "负责内部系统开发",
+                    "highlights": [{"id": "hl_1", "text": "优化多个后台服务"}],
+                }
+            ]
+        }
+
+        self.assertTrue(resume_changed(before, after))
+
     def test_update_bullet_tool_updates_existing_highlights_storage(self):
         """用于验证updatebullettoolupdatesexistinghighlightsstorage。"""
         agent = ResumeAgent()
@@ -131,6 +155,38 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertTrue(result["result"]["success"])
         self.assertEqual(result["tool_name"], "优化要点")
+        self.assertIn("下降 20%", resume_content["work_experience"][0]["highlights"][0]["text"])
+
+    def test_update_bullet_tool_accepts_common_model_argument_aliases(self):
+        """用于验证updatebullettoolaccepts常见模型参数别名。"""
+        agent = ResumeAgent()
+        resume_content = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "highlights": [
+                        {"id": "hl_1", "text": "负责后端开发"},
+                    ],
+                }
+            ]
+        }
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "update_bullet",
+                    "arguments": {
+                        "section": "work",
+                        "item_id": "work_1",
+                        "highlight_id": "hl_1",
+                        "text": "负责后端服务治理，接口错误率下降 20%",
+                    },
+                }
+            },
+            {"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
         self.assertIn("下降 20%", resume_content["work_experience"][0]["highlights"][0]["text"])
 
     def test_resume_stream_event_contract_keeps_structured_diff(self):
@@ -265,6 +321,23 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("默认执行 `optimize-first`", rendered)
         self.assertIn("必须直接调用工具产出改动", rendered)
         self.assertIn("首轮目标是“先产出改动”", rendered)
+
+    def test_system_prompt_names_tool_call_protocol(self):
+        """用于验证systempromptnames工具调用协议。"""
+        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
+        template = Template(prompt_path.read_text(encoding="utf-8"))
+        rendered = template.render(
+            target_title="前端工程师",
+            target_company="字节跳动",
+            jd_text="负责复杂前端交互与性能优化",
+            resume_json='{"projects": [{"id": "proj_1", "highlights": [{"id": "hl_1", "text": "负责前端开发"}]}]}',
+        )
+
+        self.assertIn("工具调用协议", rendered)
+        self.assertIn("update_bullet", rendered)
+        self.assertIn("bullet_id", rendered)
+        self.assertIn("update_overview", rendered)
+        self.assertIn("item_id", rendered)
 
     def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
         """用于验证systempromptlimitsfollowuptodefinedexception用例。"""
