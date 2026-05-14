@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   description: 'AI resume optimization and mock interview platform',
   keywords: 'resume optimization, AI resume, mock interview, job search',
   authors: [{ name: 'Chat Resume Team' }],
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
@@ -60,7 +64,11 @@ async function LocaleRootLayout({
   }
 
   return (
-    <html lang={locale as AppLocale} data-scroll-behavior="smooth">
+    <html
+      lang={locale as AppLocale}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body className={inter.className}>
         <NextIntlClientProvider>
           <Providers>{children}</Providers>

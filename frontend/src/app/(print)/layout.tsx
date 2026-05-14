@@ -29,7 +29,7 @@ export default function PrintRootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="zh" data-scroll-behavior="smooth">
+    <html lang="zh" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={inter.className}>
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
