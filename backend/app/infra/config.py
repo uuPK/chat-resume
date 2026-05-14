@@ -131,7 +131,7 @@ class Settings(BaseSettings):
         os.getenv("OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", "45")
     )
     OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS: float = float(
-        os.getenv("OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", "45")
+        os.getenv("OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", "0")
     )
     OPENROUTER_MAX_RETRIES: int = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
     OPENROUTER_RETRY_BACKOFF_SECONDS: float = float(

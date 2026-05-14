@@ -246,6 +246,30 @@ async def test_openrouter_stream_times_out_before_first_token(
 
 
 @pytest.mark.asyncio
+async def test_openrouter_first_token_timeout_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """首 token 超时设为 0 时应关闭该阶段限制。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{}}]}',
+        'data: {"choices":[{"delta":{"content":"慢一点"}}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.02
+    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", 0.0)
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    assert partial.stop_reason == "stop"
+
+
+@pytest.mark.asyncio
 async def test_429_retry_then_success():
     """429 后重试，第二次成功，最终不抛出异常。"""
     model, context, options, partial, queue = _make_args()

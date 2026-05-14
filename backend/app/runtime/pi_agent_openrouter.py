@@ -520,7 +520,7 @@ def _first_event_timeout_seconds() -> float:
 
 def _first_token_timeout_seconds() -> float:
     """用于读取首个模型文本或工具增量超时配置。"""
-    return max(float(settings.OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS), 0.001)
+    return float(settings.OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS)
 
 
 def _remaining_timeout_seconds(*, started_at: float, timeout_seconds: float) -> float:
@@ -567,9 +567,12 @@ def _line_wait_timeout_seconds(
             timeout_seconds=_first_event_timeout_seconds(),
         )
     if not first_delta_seen:
+        timeout_seconds = _first_token_timeout_seconds()
+        if timeout_seconds <= 0:
+            return None
         return _remaining_timeout_seconds(
             started_at=started_at,
-            timeout_seconds=_first_token_timeout_seconds(),
+            timeout_seconds=timeout_seconds,
         )
     return None
 
