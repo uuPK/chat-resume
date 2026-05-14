@@ -643,14 +643,6 @@ class PiAgentRuntime:
         )
         if needs_confirmation:
             stream_state["stop_after_confirmed_tool"] = True
-            await self._publish_terminal_text(
-                agent=agent,
-                run_id=run_id,
-                stream_state=stream_state,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                content="已应用这处修改。",
-            )
         return json.dumps(result, ensure_ascii=False)
 
     async def _publish_terminal_text(

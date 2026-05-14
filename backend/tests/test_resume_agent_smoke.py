@@ -607,10 +607,6 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
         )
-        self.assertEqual(
-            "".join(event.get("content", "") for event in events),
-            "已应用这处修改。",
-        )
         self.assertEqual(agent.runtime.stream_fn.calls, 1)
 
     async def test_optimize_stream_limits_first_round_to_one_business_confirmation(
@@ -668,10 +664,6 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             resume["projects"][0]["highlights"][0]["text"],
             "支持流式简历优化",
-        )
-        self.assertEqual(
-            "".join(event.get("content", "") for event in events),
-            "已应用这处修改。",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 1)
 
@@ -888,10 +880,6 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务，支撑日活 10 万用户",
         )
-        self.assertEqual(
-            "".join(event.get("content", "") for event in events),
-            "已应用这处修改。",
-        )
         self.assertEqual(agent.runtime.stream_fn.calls, 1)
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
@@ -941,10 +929,6 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         trace_messages = [record.getMessage() for record in trace_records]
 
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
-        self.assertEqual(
-            "".join(event.get("content", "") for event in events),
-            "已应用这处修改。",
-        )
         self.assertEqual(agent.runtime.stream_fn.calls, 1)
         self.assertIn("agent.trace.run.started", trace_messages)
         self.assertIn("agent.trace.prompt.rendered", trace_messages)
@@ -954,7 +938,6 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("agent.trace.tool.preview", trace_messages)
         self.assertIn("agent.trace.tool.confirmation", trace_messages)
         self.assertIn("agent.trace.tool.executed", trace_messages)
-        self.assertIn("agent.trace.intermediate.chunk", trace_messages)
         self.assertIn("agent.trace.llm.response", trace_messages)
         self.assertIn("agent.trace.run.stopped_after_confirmation", trace_messages)
         self.assertIn("agent.trace.run.completed", trace_messages)
