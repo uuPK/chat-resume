@@ -79,6 +79,7 @@ class ResumeStreamEvent(TypedDict, total=False):
     context: dict[str, Any] | None
     done: bool
     session_id: str
+    event_id: str
     error: str
 
 

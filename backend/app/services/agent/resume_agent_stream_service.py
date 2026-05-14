@@ -81,7 +81,6 @@ class ResumeAgentStreamService:
         confirmation_queue = confirmation_manager.create(session_id)
 
         with log_context(request_id=request.request_id, session_id=session_id):
-            yield session_started_event(session_id)
             final_content_parts: list[str] = []
             latest_resume_content: dict[str, Any] | None = None
             confirmed_diff_items: list[dict[str, Any]] = []
@@ -113,13 +112,19 @@ class ResumeAgentStreamService:
                     if self._should_ignore_history_for_request(request.message)
                     else request.chat_history
                 )
-                harness = AgentHarness(self.db)
+                store = AgentSessionStore(self.db)
+                harness = AgentHarness(self.db, session_store=store)
                 harness.create_resume_session(
                     session_id=session_id,
                     user_id=request.user_id,
                     resume_id=request.resume_id,
                     user_message=request.message,
                     visible_modules=request.visible_modules,
+                )
+                yield self._record_stream_event(
+                    store,
+                    session_id=session_id,
+                    event=session_started_event(session_id),
                 )
                 with langfuse_observer, langsmith_observer:
                     event_stream = harness.run_resume_stream(
@@ -146,7 +151,11 @@ class ResumeAgentStreamService:
                         content = event.get("content")
                         if content:
                             final_content_parts.append(content)
-                        yield event
+                        yield self._record_stream_event(
+                            store,
+                            session_id=session_id,
+                            event=event,
+                        )
 
                     final_content = "".join(final_content_parts)
                     langfuse_observer.finish(final_content)
@@ -162,12 +171,16 @@ class ResumeAgentStreamService:
                     original_resume=original_resume,
                 )
                 logger.debug("Resume agent stream completed")
-                yield stream_done_event(
-                    resume_content=latest_resume_content,
-                    job_match_summary=build_job_match_summary(
-                        original_resume=original_resume,
-                        latest_resume_content=latest_resume_content,
-                        confirmed_diff_items=confirmed_diff_items,
+                yield self._record_stream_event(
+                    store,
+                    session_id=session_id,
+                    event=stream_done_event(
+                        resume_content=latest_resume_content,
+                        job_match_summary=build_job_match_summary(
+                            original_resume=original_resume,
+                            latest_resume_content=latest_resume_content,
+                            confirmed_diff_items=confirmed_diff_items,
+                        ),
                     ),
                 )
             except HTTPException as exc:
@@ -244,6 +257,33 @@ class ResumeAgentStreamService:
             "message": result["message"],
             "resume_content": latest_resume_content,
         }
+
+    def replay_stream_events(
+        self,
+        *,
+        session_id: str,
+        user_id: int,
+        after_sequence: int,
+    ) -> list[ResumeStreamEvent]:
+        """用于按 SSE cursor 回放指定 session 的公开流事件。"""
+        store = AgentSessionStore(self.db)
+        session = store.get_session(session_id)
+        if not session or session.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} 不存在",
+            )
+        replayed: list[ResumeStreamEvent] = []
+        for event in store.list_stream_events(
+            session_id,
+            after_sequence=after_sequence,
+        ):
+            payload = event.payload if isinstance(event.payload, dict) else {}
+            replay_payload = dict(payload)
+            replay_payload.pop("observability", None)
+            replay_payload["event_id"] = f"{session_id}:{event.sequence}"
+            replayed.append(cast(ResumeStreamEvent, replay_payload))
+        return replayed
 
     @staticmethod
     def ensure_stream_supported(request: ResumeAgentStreamInput) -> None:
@@ -344,6 +384,19 @@ class ResumeAgentStreamService:
         if not isinstance(value, list):
             return []
         return [item for item in value if isinstance(item, dict)]
+
+    @staticmethod
+    def _record_stream_event(
+        store: AgentSessionStore,
+        *,
+        session_id: str,
+        event: ResumeStreamEvent,
+    ) -> ResumeStreamEvent:
+        """用于给公开 SSE 事件分配 cursor 并写入事件日志。"""
+        payload = dict(event)
+        stored = store.append_stream_event(session_id=session_id, payload=payload)
+        payload["event_id"] = f"{session_id}:{stored.sequence}"
+        return cast(ResumeStreamEvent, payload)
 
     @staticmethod
     def _build_observers(

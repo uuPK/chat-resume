@@ -148,6 +148,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const isStreamingLockRef = useRef(false)
   // 用 ref 跟踪当前 sessionId，以便在异步回调中读取最新值
   const sessionIdRef = useRef<string | null>(null)
+  const lastEventIdRef = useRef<string | null>(null)
   // tool_pending 超时计时器：key=callId, value=timerId
   const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const confirmingToolCallsRef = useRef<Set<string>>(new Set())
@@ -174,6 +175,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
     setIsStreaming(true)
     setCurrentStreamingMessage('')
+    lastEventIdRef.current = null
 
     // 创建中止控制器
     abortControllerRef.current = new AbortController()
@@ -184,13 +186,24 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         role: msg.type === 'ai' ? 'assistant' : 'user',
         content: msg.content
       }))
+      let replayAttempted = false
+      let buffer = ''
+      let streamingContent = ''
+      let eventsBuffer: StreamEvent[] = []
+      let pendingSseEventId: string | null = null
+
+      while (true) {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (lastEventIdRef.current) {
+        headers['Last-Event-ID'] = lastEventIdRef.current
+      }
 
       const response = await fetch(apiUrl('/api/ai/chat/stream', apiBaseUrl), {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message,
           resume_id: resumeId,
@@ -214,9 +227,6 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let buffer = ''
-      let streamingContent = ''
-      let eventsBuffer: StreamEvent[] = []
       // 用于处理complete工具callevent。
       const completeToolCallEvent = (
         callId: string,
@@ -260,9 +270,20 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
           buffer = lines.pop() || '' // 保留不完整的行
 
           for (const line of lines) {
+            if (line.startsWith('id: ')) {
+              pendingSseEventId = line.slice(4).trim()
+              continue
+            }
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
+                if (pendingSseEventId) {
+                  lastEventIdRef.current = pendingSseEventId
+                  pendingSseEventId = null
+                }
+                if (typeof data.event_id === 'string') {
+                  lastEventIdRef.current = data.event_id
+                }
 
                 if (data.error) {
                   onError?.(data.error)
@@ -424,6 +445,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         }
       } finally {
         reader.releaseLock()
+      }
+
+      if (!lastEventIdRef.current || replayAttempted) {
+        break
+      }
+      replayAttempted = true
+      buffer = ''
       }
 
     } catch (error) {

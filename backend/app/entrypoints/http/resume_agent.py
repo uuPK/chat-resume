@@ -33,6 +33,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def parse_sse_event_id(value: str | None) -> tuple[str, int] | None:
+    """用于把 Last-Event-ID 解析为 session_id 和事件序号。"""
+    if not value or ":" not in value:
+        return None
+    session_id, sequence_text = value.rsplit(":", 1)
+    if not session_id or not sequence_text.isdigit():
+        return None
+    return session_id, int(sequence_text)
+
+
+def format_sse_event(payload: dict, *, event_id: str | None = None) -> str:
+    """用于把事件 payload 格式化为 SSE 文本块。"""
+    data = json.dumps(payload, ensure_ascii=False)
+    if event_id:
+        return f"id: {event_id}\ndata: {data}\n\n"
+    return f"data: {data}\n\n"
+
+
 class ChatRequest(BaseModel):
     """用于承载简历 Agent 聊天请求体。"""
 
@@ -87,12 +105,48 @@ async def chat_with_resume_stream(
         },
     )
     stream_service = ResumeAgentStreamService(db)
+    last_event_id = request.headers.get("last-event-id") or request.headers.get(
+        "Last-Event-ID"
+    )
+    replay_cursor = parse_sse_event_id(last_event_id)
+
+    if replay_cursor is not None:
+        session_id, after_sequence = replay_cursor
+
+        async def replay_stream():
+            """用于根据 Last-Event-ID 回放已持久化的 SSE 事件。"""
+            for payload in stream_service.replay_stream_events(
+                session_id=session_id,
+                user_id=current_user["id"],
+                after_sequence=after_sequence,
+            ):
+                public_payload = public_resume_stream_event(payload)
+                event_id = public_payload.get("event_id")
+                yield format_sse_event(
+                    public_payload,
+                    event_id=event_id if isinstance(event_id, str) else None,
+                )
+
+        return StreamingResponse(
+            replay_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            },
+        )
 
     async def generate_stream():
         """用于生成简历 Agent 的流式响应。"""
         async for event in stream_service.stream_events(stream_input):
             payload = public_resume_stream_event(event)
-            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            event_id = payload.get("event_id")
+            yield format_sse_event(
+                payload,
+                event_id=event_id if isinstance(event_id, str) else None,
+            )
 
     return StreamingResponse(
         generate_stream(),

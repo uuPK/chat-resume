@@ -123,3 +123,33 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.assertEqual(event_observability["request_id"], "req_test_123")
         self.assertEqual(event_observability["session_id"], "session_ctx")
         self.assertEqual(event_observability["tool_call_id"], "tool_ctx")
+
+    def test_stream_events_can_be_replayed_after_cursor(self):
+        """用于验证stream事件可按cursor回放。"""
+        store = AgentSessionStore(self.db)
+        session = store.create_session(
+            session_id="stream_cursor_session",
+            user_id=self.user.id,
+            resume_id=self.resume.id,
+            task_type="resume_optimization",
+        )
+
+        first = store.append_stream_event(
+            session_id=session.id,
+            payload={"session_id": session.id},
+        )
+        store.append_event(
+            session_id=session.id,
+            event_type="tool_call_previewed",
+            source="resume_agent",
+            payload={"call_id": "call_1"},
+        )
+        second = store.append_stream_event(
+            session_id=session.id,
+            payload={"content": "继续输出"},
+        )
+
+        replayed = store.list_stream_events(session.id, after_sequence=first.sequence)
+
+        self.assertEqual([event.sequence for event in replayed], [second.sequence])
+        self.assertEqual(replayed[0].payload["content"], "继续输出")

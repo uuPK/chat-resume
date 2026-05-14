@@ -169,6 +169,42 @@ class AgentSessionStore:
             },
         )
 
+    def append_stream_event(
+        self,
+        *,
+        session_id: str,
+        payload: dict[str, Any],
+    ) -> AgentEvent:
+        """用于记录一条可被 SSE cursor 回放的公开流事件。"""
+        return self.append_event(
+            session_id=session_id,
+            event_type="stream_event",
+            source="sse",
+            payload=payload,
+        )
+
+    def list_stream_events(
+        self,
+        session_id: str,
+        *,
+        after_sequence: int | None = None,
+        limit: int | None = None,
+    ) -> list[AgentEvent]:
+        """用于读取某个 session 在 cursor 之后的公开流事件。"""
+        query = (
+            self.db.query(AgentEvent)
+            .filter(
+                AgentEvent.session_id == session_id,
+                AgentEvent.event_type == "stream_event",
+            )
+            .order_by(AgentEvent.sequence.asc())
+        )
+        if after_sequence is not None:
+            query = query.filter(AgentEvent.sequence > after_sequence)
+        if limit is not None:
+            query = query.limit(limit)
+        return list(query.all())
+
     def append_events(
         self,
         session_id: str,
