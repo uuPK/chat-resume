@@ -77,6 +77,11 @@ filter_terminal_logs() {
     fi
 
     awk '
+        /^\{"timestamp":/ && /"message"[[:space:]]*:[[:space:]]*"app.ready"/ {
+            print "✅ 后端应用已就绪 app.ready"
+            fflush()
+            next
+        }
         /^\{"timestamp":/ && /"level"[[:space:]]*:[[:space:]]*"INFO"/ {
             next
         }
@@ -110,7 +115,7 @@ echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
 echo "指标端点: http://localhost:${BACKEND_PORT}/metrics"
 echo "日志文件: backend/${BACKEND_LOG_FILE}"
 echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}; OTEL trace: ${OTEL_TRACES_ENABLED}"
-echo "终端默认隐藏 JSON INFO 日志；如需完整终端日志，设置 BACKEND_TERMINAL_VERBOSE=1。"
+echo "终端默认隐藏 JSON INFO 日志，但会显示 app.ready；如需完整终端日志，设置 BACKEND_TERMINAL_VERBOSE=1。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
