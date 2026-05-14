@@ -465,6 +465,7 @@ def _openrouter_body(
         "model": model.id,
         "messages": _openai_messages(context),
         "tools": _openai_tools(context),
+        "reasoning": {"effort": "none"},
         "stream": True,
         "stream_options": {"include_usage": True},
         "parallel_tool_calls": False,

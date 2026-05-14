@@ -19,6 +19,7 @@ from app.runtime.pi_agent_openrouter import (
     OpenRouterFirstTokenTimeoutError,
     OpenRouterHTTPError,
     _is_retryable_status,
+    _openrouter_body,
     _pump_openrouter_stream,
     _pump_with_retry,
     _retry_wait,
@@ -142,6 +143,15 @@ def _make_openrouter_stream_args() -> tuple[
     partial = AssistantMessage(api=model.api, provider=model.provider, model=model.id)
     queue: asyncio.Queue = asyncio.Queue()
     return model, context, options, partial, queue
+
+
+def test_openrouter_body_disables_reasoning_explicitly():
+    """OpenRouter 请求体应显式关闭 reasoning，避免 provider 默认开启深度推理。"""
+    model, context, options, _, _ = _make_openrouter_stream_args()
+
+    body = _openrouter_body(model, context, options)
+
+    assert body["reasoning"] == {"effort": "none"}
 
 
 @pytest.mark.asyncio
