@@ -317,7 +317,7 @@ class LangSmithRunObserver:
                 **kwargs,
             )
         except Exception as exc:
-            logger.warning(
+            logger.debug(
                 "LangSmith create_run failed run_id=%s error=%s",
                 self.run_id,
                 exc,
@@ -330,7 +330,7 @@ class LangSmithRunObserver:
         try:
             self.client.update_run(run_id, **kwargs)
         except Exception as exc:
-            logger.warning(
+            logger.debug(
                 "LangSmith update_run failed run_id=%s child_id=%s error=%s",
                 self.run_id,
                 run_id,

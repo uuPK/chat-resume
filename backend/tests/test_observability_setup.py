@@ -271,6 +271,41 @@ class ObservabilitySetupTests(unittest.TestCase):
                 observer.on_runtime_event({"tool_pending": True})
                 observer.finish("done")
 
+    def test_langsmith_write_failures_do_not_clutter_info_logs(self):
+        """用于验证LangSmith写入失败不会污染info级别终端日志。"""
+        class FailingClient:
+            def create_run(self, **kwargs):
+                """用于模拟LangSmith创建失败。"""
+                raise RuntimeError("invalid dotted_order")
+
+            def update_run(self, run_id, **kwargs):
+                """用于模拟LangSmith更新失败。"""
+                raise RuntimeError("invalid dotted_order")
+
+        stream = StringIO()
+        with (
+            patch("sys.stderr", stream),
+            patch.object(settings, "LOG_FORMAT", "json"),
+            patch.object(settings, "LOG_LEVEL", "INFO"),
+            patch(
+                "app.infra.langsmith_observer.get_langsmith_client",
+                return_value=FailingClient(),
+            ),
+            patch.object(settings, "LANGSMITH_PROJECT", "chat-resume-test"),
+        ):
+            configure_logging()
+            observer = LangSmithRunObserver(
+                run_id="run_test",
+                agent_type="resume",
+                run_kind="chat_stream",
+                user_id=1,
+                input_text="hello",
+            )
+            observer._create_run(name="child", run_type="chain", inputs={})
+            observer._update_run(observer._root_run_id, outputs={"output": "ok"})
+
+        self.assertEqual(stream.getvalue(), "")
+
     def test_langsmith_observer_mirrors_pi_agent_runtime_events(self):
         """用于验证LangSmithobservermirrorspiAgentruntime事件。"""
         calls = []
