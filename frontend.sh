@@ -58,6 +58,30 @@ stop_port() {
     fi
 }
 
+filter_terminal_logs() {
+    if [ "${FRONTEND_TERMINAL_VERBOSE:-0}" = "1" ]; then
+        cat
+        return
+    fi
+
+    awk '
+        /Ready in/ {
+            print "✅ 前端开发服务器已就绪 " $0
+            fflush()
+            next
+        }
+        /Compiled .* in|Compiled in|Compile ✓ Compiled in/ {
+            print "✅ 前端热更新已完成 " $0
+            fflush()
+            next
+        }
+        {
+            print
+            fflush()
+        }
+    '
+}
+
 # 检查是否已安装依赖
 if [ ! -d "node_modules" ]; then
     echo "📦 安装依赖包..."
@@ -69,7 +93,8 @@ stop_port "${FRONTEND_PORT}"
 
 echo "🌟 启动前端开发服务器..."
 echo "前端将在 http://localhost:${FRONTEND_PORT} 运行"
+echo "终端会显示 Ready 和 Compiled 热更新完成提示；如需原始日志，设置 FRONTEND_TERMINAL_VERBOSE=1。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-npm run dev -- --port "${FRONTEND_PORT}"
+npm run dev -- --port "${FRONTEND_PORT}" 2>&1 | filter_terminal_logs

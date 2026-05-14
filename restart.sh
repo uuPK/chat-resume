@@ -67,7 +67,12 @@ filter_frontend_logs() {
     fi
 
     awk '
-        /error|Error|failed|Failed|warning|Warning|Ready in|Local:|启动前端服务|启动前端开发服务器|Compiled .* in|GET .* [0-9][0-9][0-9] in/ {
+        /前端开发服务器已就绪|前端热更新已完成/ {
+            print "[frontend] " $0
+            fflush()
+            next
+        }
+        /error|Error|failed|Failed|warning|Warning|Ready in|Local:|启动前端服务|启动前端开发服务器|Compiled .* in|Compiled in|GET .* [0-9][0-9][0-9] in/ {
             print "[frontend] " $0
             fflush()
             next
