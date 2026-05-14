@@ -137,7 +137,7 @@ export default function ResumesPage() {
       toast.loading(t('uploadParsing'), { id: 'upload' })
       const resumeId = await waitForUploadJob(job.job_id)
       toast.success(t('uploadDone'), { id: 'upload' })
-      router.push(`/resume/${resumeId}/edit`)
+      router.push(`/resume/${resumeId}/edit?firstRun=1`)
     } catch (error: any) {
       toast.error(error.response?.data?.detail || error.message || t('uploadFailed'), { id: 'upload' })
     } finally {

@@ -4,7 +4,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
 import type { Resume } from '@/lib/api'
@@ -107,6 +107,15 @@ export default function ResumeEditPage() {
   const t = useTranslations('resume.editor')
 
   const resumeId = params?.id as string
+  const searchParams = useSearchParams()
+  const isFirstRun = searchParams?.get('firstRun') === '1'
+  const [firstRunPhase, setFirstRunPhase] = useState<'jd_input' | 'analyzing' | 'done' | null>(null)
+  const [firstRunTargetCompany, setFirstRunTargetCompany] = useState('')
+  const [firstRunTargetTitle, setFirstRunTargetTitle] = useState('')
+  const [firstRunJdText, setFirstRunJdText] = useState('')
+  const firstRunTriggeredRef = useRef(false)
+  const firstRunSentRef = useRef(false)
+
   const {
     editorOpen,
     setEditorOpen,
@@ -194,6 +203,31 @@ export default function ResumeEditPage() {
       void fetchResume()
     }
   }, [fetchResume, mounted, isAuthenticated])
+
+  useEffect(() => {
+    if (!isFirstRun || !resume || firstRunTriggeredRef.current) return
+    firstRunTriggeredRef.current = true
+    const jd = resume.content.job_application
+    if (jd?.jd_text?.trim()) {
+      setFirstRunPhase('analyzing')
+    } else {
+      setFirstRunPhase('jd_input')
+      setFirstRunTargetCompany(jd?.target_company || '')
+      setFirstRunTargetTitle(jd?.target_title || '')
+    }
+  }, [isFirstRun, resume])
+
+  useEffect(() => {
+    if (firstRunPhase !== 'analyzing' || firstRunSentRef.current || isSending || isStreaming) return
+    firstRunSentRef.current = true
+    void sendMessageWithContext('', '请分析我的简历与目标岗位的匹配情况。列出3个最主要的岗位差距，然后针对最重要的一个差距，给出一条具体的修改建议并生成可供我确认的修改。')
+  }, [firstRunPhase, isSending, isStreaming, sendMessageWithContext])
+
+  useEffect(() => {
+    if (firstRunPhase !== 'analyzing') return
+    const hasConfirmed = streamEvents.some(e => e.type === 'tool_confirmed')
+    if (hasConfirmed) setFirstRunPhase('done')
+  }, [streamEvents, firstRunPhase])
 
   /**
    * 关闭选区动作浮层，并同步清掉所有选区视觉状态。
@@ -308,6 +342,17 @@ export default function ResumeEditPage() {
     clearResumeSelectionAction()
     await sendMessageWithContext(selectedText, userPrompt)
   }, [clearResumeSelectionAction, quickEditPrompt, resumeSelectionAction, sendMessageWithContext])
+
+  const handleFirstRunJdSubmit = useCallback(async () => {
+    if (!resume || !firstRunJdText.trim()) return
+    updateResumeContent('job_application', {
+      ...(resume.content.job_application || {}),
+      target_company: firstRunTargetCompany.trim(),
+      target_title: firstRunTargetTitle.trim(),
+      jd_text: firstRunJdText.trim(),
+    })
+    setFirstRunPhase('analyzing')
+  }, [firstRunJdText, firstRunTargetCompany, firstRunTargetTitle, resume, updateResumeContent])
 
   if (!mounted || isLoading || resumeLoading) {
     return (
@@ -998,6 +1043,105 @@ export default function ResumeEditPage() {
           </motion.div>
         </div>
       </main>
+
+      {firstRunPhase === 'jd_input' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-md mx-4 bg-white rounded-2xl p-6 shadow-2xl"
+          >
+            <h2 className="text-xl font-semibold mb-1" style={{ color: '#0a0b0d' }}>补充目标岗位</h2>
+            <p className="text-sm mb-5" style={{ color: '#5b616e' }}>
+              简历上传成功！填写目标岗位和 JD，让 Agent 分析最大的岗位差距。
+            </p>
+            <div className="space-y-3 mb-5">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={firstRunTargetCompany}
+                  onChange={e => setFirstRunTargetCompany(e.target.value)}
+                  placeholder="目标公司（选填）"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg focus:outline-none"
+                  style={{ border: '1px solid rgba(91,97,110,0.25)' }}
+                />
+                <input
+                  type="text"
+                  value={firstRunTargetTitle}
+                  onChange={e => setFirstRunTargetTitle(e.target.value)}
+                  placeholder="目标岗位（选填）"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg focus:outline-none"
+                  style={{ border: '1px solid rgba(91,97,110,0.25)' }}
+                />
+              </div>
+              <textarea
+                value={firstRunJdText}
+                onChange={e => setFirstRunJdText(e.target.value)}
+                placeholder="粘贴职位描述 (JD)..."
+                rows={6}
+                className="w-full px-3 py-2 text-sm rounded-lg focus:outline-none resize-none"
+                style={{ border: '1px solid rgba(91,97,110,0.25)' }}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleFirstRunJdSubmit()}
+                disabled={!firstRunJdText.trim()}
+                className="flex-1 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-40"
+                style={{ borderRadius: '56px', backgroundColor: '#0052ff' }}
+                onMouseEnter={e => { if (firstRunJdText.trim()) e.currentTarget.style.backgroundColor = '#578bfa' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff' }}
+              >
+                开始分析
+              </button>
+              <button
+                onClick={() => setFirstRunPhase(null)}
+                className="px-5 py-2.5 text-sm font-semibold transition-colors"
+                style={{ borderRadius: '56px', border: '1px solid rgba(91,97,110,0.25)', color: '#5b616e' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#eef0f3')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              >
+                先跳过
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {firstRunPhase === 'done' && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="fixed bottom-6 right-6 z-40 max-w-xs bg-white rounded-2xl p-4 shadow-xl"
+          style={{ border: '1px solid rgba(91,97,110,0.15)' }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: '#e8f5e9' }}
+            >
+              <svg className="w-4 h-4" style={{ color: '#16a34a' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>第一轮岗位优化完成</p>
+              <p className="text-xs mt-0.5" style={{ color: '#5b616e' }}>可继续和 Agent 对话，或导出简历。</p>
+            </div>
+            <button
+              onClick={() => setFirstRunPhase(null)}
+              className="flex-shrink-0 p-0.5 transition-colors"
+              style={{ color: '#9ca3af' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#5b616e')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </motion.div>
+      )}
 
     </div>
   )
