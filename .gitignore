@@ -112,5 +112,6 @@ example/
 # Local agent tooling
 .agents/
 .vercel
+.gc/
 .beads/*
 !.beads/issues.jsonl
