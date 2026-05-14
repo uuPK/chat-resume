@@ -30,7 +30,7 @@
 - 服务端在公开事件发给浏览器前调用 `AgentSessionStore.append_stream_event()`，事件序号来自 `AgentEvent.sequence`。
 - SSE 文本块包含 `id: {session_id}:{sequence}`，JSON payload 也包含同一个 `event_id`。
 - `Last-Event-ID` 只能回放同一用户拥有的 session；session 不存在或不属于当前用户时返回 404。
-- 回放时会移除 `observability` 字段，避免把内部观察数据暴露给前端。
+- 回放时会移除 `log_context` 字段，避免把内部日志关联数据暴露给前端。
 - 前端只尝试一次 cursor 回放，避免网络抖动时进入无限重连循环。
 
 修改这条链路时，至少覆盖：
@@ -46,16 +46,15 @@ uv run --extra dev python -m pytest tests/test_agent_session_store.py tests/test
 - Resume Agent 异常：SSE 返回 `error` 事件，后端记录 `Resume agent stream failed`。
 - 外部语音供应商不可用：`digital_human.py` 返回 502/503，面试 session 仍保留在本地，可重试创建供应商会话。
 - PayPal 不可用：订阅 checkout/status 失败不应影响已登录用户查看已有简历。
-- 可观测性后端未启动：业务 API 仍应运行；本地排障时再启动 `docker-compose.observability.yml`。
+- 日志文件不可写：业务 API 仍应运行；本地排障时先检查 `backend/logs/backend.log` 和终端 stderr。
 
-## 日志与追踪
+## 日志
 
 - 所有 HTTP 请求都会获得 `X-Request-ID`。
 - 未处理异常会记录 `request.failed`，响应体包含相同 `request_id`。
 - 慢请求和错误请求会记录 `request.finished`，包含 DB checkout/query 次数和耗时。
 - Agent 流式会话通过 `log_context()` 绑定 `request_id` 和 `session_id`。
-- Langfuse/LangSmith observer 在 `ResumeAgentStreamService` 中按 run id 记录简历 Agent 运行。
-- Prometheus 指标从 `/metrics` 暴露，本地 Grafana/Loki/Tempo 入口见 `docs/OBSERVABILITY.md`。
+- Agent 运行时事件通过 `agent.trace.*` 日志记录；本地默认写入 `backend/logs/backend.log`。
 
 ## 验证命令
 

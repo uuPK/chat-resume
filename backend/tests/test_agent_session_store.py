@@ -92,8 +92,8 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.assertEqual(updated.failed_reason, "参数缺失")
         self.assertIsNotNone(updated.completed_at)
 
-    def test_session_and_events_capture_observability_context(self):
-        """用于验证会话and事件capture可观测性上下文。"""
+    def test_session_and_events_capture_log_context(self):
+        """用于验证会话和事件会记录日志关联上下文。"""
         store = AgentSessionStore(self.db)
 
         with log_context(
@@ -115,14 +115,14 @@ class AgentSessionStoreTests(unittest.TestCase):
                 payload={"result": {"success": True}},
             )
 
-        session_observability = session.metadata_json["observability"]
-        self.assertEqual(session_observability["request_id"], "req_test_123")
-        self.assertEqual(session_observability["session_id"], "session_ctx")
+        session_log_context = session.metadata_json["log_context"]
+        self.assertEqual(session_log_context["request_id"], "req_test_123")
+        self.assertEqual(session_log_context["session_id"], "session_ctx")
 
-        event_observability = event.payload["observability"]
-        self.assertEqual(event_observability["request_id"], "req_test_123")
-        self.assertEqual(event_observability["session_id"], "session_ctx")
-        self.assertEqual(event_observability["tool_call_id"], "tool_ctx")
+        event_log_context = event.payload["log_context"]
+        self.assertEqual(event_log_context["request_id"], "req_test_123")
+        self.assertEqual(event_log_context["session_id"], "session_ctx")
+        self.assertEqual(event_log_context["tool_call_id"], "tool_ctx")
 
     def test_stream_events_can_be_replayed_after_cursor(self):
         """用于验证stream事件可按cursor回放。"""

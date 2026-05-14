@@ -1,4 +1,4 @@
-"""请求失败观测链路的集成测试。"""
+"""请求失败日志链路的集成测试。"""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ if str(BACKEND_DIR) not in sys.path:
 from app.infra.config import settings
 from app.main import app
 
-_FAILURE_PATH = "/api/_observability-test/fail"
-_USER_FAILURE_PATH = "/api/_observability-test/user-fail"
+_FAILURE_PATH = "/api/_logging-test/fail"
+_USER_FAILURE_PATH = "/api/_logging-test/user-fail"
 
 
 def _install_failure_route() -> None:
@@ -28,14 +28,14 @@ def _install_failure_route() -> None:
     if _FAILURE_PATH not in existing_paths:
 
         @app.get(_FAILURE_PATH)
-        async def _observability_failure_endpoint(candidate_id: str):
-            """用于触发未处理异常并验证请求观测上下文。"""
+        async def _logging_failure_endpoint(candidate_id: str):
+            """用于触发未处理异常并验证请求日志上下文。"""
             raise RuntimeError(f"candidate {candidate_id} exploded")
 
     if _USER_FAILURE_PATH not in existing_paths:
 
         @app.get(_USER_FAILURE_PATH)
-        async def _observability_user_failure_endpoint(request: Request):
+        async def _logging_user_failure_endpoint(request: Request):
             """用于模拟已鉴权用户请求在业务层抛出异常。"""
             request.state.current_user = SimpleNamespace(id=7)
             raise RuntimeError("user scoped failure")
@@ -46,7 +46,7 @@ _install_failure_route()
 
 def test_unhandled_error_response_and_log_share_debug_context(caplog):
     """未处理异常应该返回 request_id，并记录足够定位的错误上下文。"""
-    request_id = "req-observe-123"
+    request_id = "req-log-123"
     client = TestClient(app, raise_server_exceptions=False)
 
     with caplog.at_level(logging.ERROR, logger="app.main"):
@@ -75,7 +75,7 @@ def test_unhandled_error_response_and_log_share_debug_context(caplog):
     assert record.http_status == 500
     assert record.error_type == "RuntimeError"
     assert record.user_id == "-"
-    assert record.release == (settings.SENTRY_RELEASE or "-")
+    assert record.release == (settings.RELEASE_IDENTIFIER or "-")
     assert record.query_params == {
         "access_token": "[REDACTED]",
         "candidate_id": "42",
@@ -84,7 +84,7 @@ def test_unhandled_error_response_and_log_share_debug_context(caplog):
 
 def test_unhandled_error_log_includes_authenticated_user_id(caplog):
     """已鉴权请求失败时，错误日志应该带上当前用户 ID。"""
-    request_id = "req-user-observe-123"
+    request_id = "req-user-log-123"
     client = TestClient(app, raise_server_exceptions=False)
 
     with caplog.at_level(logging.ERROR, logger="app.main"):

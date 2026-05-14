@@ -41,7 +41,6 @@ from app.agents.resume.stream_events import (
     tool_result_event,
 )
 from app.infra.config import settings
-from app.infra.otel_setup import record_exception, set_span_attribute, start_span
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.message_conversion import convert_resume_messages_to_llm
 from app.runtime.openrouter_adapter import (
@@ -623,21 +622,7 @@ class PiAgentRuntime:
         stream_state: dict[str, Any],
     ) -> str:
         """用于处理run已确认工具。"""
-        with start_span(
-            "agent.tool",
-            {
-                "agent.name": agent.prompt_spec.name,
-                "agent.run_id": run_id,
-                "tool.name": tool_name,
-                "tool.call_id": call_id,
-            },
-        ) as span:
-            try:
-                tool_result = agent.tool_executor(tool_call, context)
-            except Exception as exc:
-                record_exception(span, exc)
-                raise
-            set_span_attribute(span, "tool.confirmation_required", needs_confirmation)
+        tool_result = agent.tool_executor(tool_call, context)
         result = tool_result.get("result", {})
         if needs_confirmation:
             self._remember_confirmed_diff_items(stream_state, result)

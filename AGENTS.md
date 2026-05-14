@@ -1,8 +1,8 @@
 ## 项目概述
 一个AGENT驱动的简历优化和模拟面试网站
 
-## 本地可观测性栈
-- 当你需要程序的报错信息和性能信息时，请阅读docs/OBSERVABILITY.md。
+## 本地日志
+- 当你需要程序的报错信息和性能信息时，请阅读 `backend/logs/backend.log`。
 
 ## Agent skills
 

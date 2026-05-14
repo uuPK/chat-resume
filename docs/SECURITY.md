@@ -5,7 +5,7 @@
 ## 基本原则
 
 - 不在代码、文档、日志或测试夹具中提交真实密钥、令牌、生产密码、OAuth secret、支付 secret。
-- 用户简历、JD、面试文本、Agent 对话、导出文件和供应商 trace 都按敏感数据处理。
+- 用户简历、JD、面试文本、Agent 对话、导出文件和供应商调试数据都按敏感数据处理。
 - 后端受保护 API 不能信任前端登录态；必须依赖服务端 JWT、HttpOnly Cookie、数据库用户状态和资源归属校验。
 - 高成本能力必须经过订阅权限检查，不能只靠前端隐藏入口。
 - Webhook 和外部回调必须验签、幂等处理，并记录足够的非敏感审计信息。
@@ -44,7 +44,7 @@
 | OpenRouter | `OPENROUTER_API_KEY`、`OPENROUTER_API_BASE`、模型和超时/重试配置 | API key 只在后端保存；上传简历、JD、Agent 上下文会发给模型供应商 |
 | 火山引擎语音 | `DIGITAL_HUMAN_PROVIDER`、`VOLCENGINE_*`、`VOLCENGINE_DIALOGUE_*` | access key/token 只在后端保存；WebSocket 入口必须验证当前用户和订阅 |
 | MiniMax / Tavus / LiveAvatar | `MINIMAX_*`、`TAVUS_*`、`LIVEAVATAR_*` | 未启用供应商不要配置生产 key；开启前补充对应隐私和数据处理说明 |
-| 可观测性 | `SENTRY_*`、`LANGFUSE_*`、`LANGSMITH_*`、`OTEL_*`、`LOKI_BASE_URL`、`PROMETHEUS_BASE_URL` | 生产默认关闭 PII 上报；trace 和日志必须经过脱敏策略 |
+| 日志 | `LOG_LEVEL`、`LOG_FORMAT`、`AGENT_TRACE_LOG_ENABLED`、`RELEASE_IDENTIFIER` | 生产日志必须脱敏；调试日志不能包含真实密钥、Cookie、完整简历或 JD |
 
 ### 上传与 Agent 控制
 
@@ -118,16 +118,15 @@
 
 - 未实现用户自助数据导出或账号删除流程。
 - 未定义生产数据保留期限，例如上传任务、聊天记录、Agent event、导出文件的过期清理周期。
-- 未定义供应商侧数据处理和保留策略，需要结合 OpenRouter、Langfuse、LangSmith、Sentry、语音供应商的实际配置补充。
+- 未定义供应商侧数据处理和保留策略，需要结合 OpenRouter 和语音供应商的实际配置补充。
 - 未对所有历史日志做自动 PII 扫描；当前依赖日志脱敏和谨慎记录。
 
-## 日志、追踪与脱敏
+## 日志与脱敏
 
 - HTTP 请求统一生成 `X-Request-ID`，错误响应会返回同一个 `request_id`。
 - 查询参数中的 `authorization`、`key`、`token`、`secret`、`password`、`cookie` 等敏感字段会记录为 `[REDACTED]`。
 - 结构化日志会通过 `backend/app/infra/logging_setup.py` 对敏感 key 做脱敏。
-- `SENTRY_SEND_DEFAULT_PII` 默认是 `false`，生产不得随意打开。
-- Agent trace 可能包含简历和 JD 内容；生产开启 `LANGFUSE_*`、`LANGSMITH_*`、`OTEL_TRACES_ENABLED` 前，需要明确采样率、访问权限和供应商数据保留政策。
+- Agent 运行日志可能包含简历和 JD 摘要；生产开启 `AGENT_TRACE_LOG_ENABLED=true` 前，需要明确日志访问权限和保留政策。
 
 ## 第三方服务安全要求
 
@@ -135,7 +134,7 @@
 - PayPal：webhook 必须调用供应商验签接口，处理前记录幂等事件 id，旧事件不能覆盖较新的本地订阅状态。
 - OpenRouter：模型请求失败应走超时、重试和 circuit breaker；错误响应不能把 API key 或完整敏感 payload 返回给前端。
 - 语音供应商：WebSocket 必须先通过 Cookie access token 鉴权，再校验订阅和 session 归属。
-- 可观测性供应商：生产 key 不写入前端；默认不发送 PII；trace 示例不能包含真实简历。
+- 日志系统：生产 key 不写入前端；日志示例不能包含真实简历。
 
 ## 变更检查清单
 
@@ -144,6 +143,6 @@
 - 是否仍通过认证中间件或 `get_current_user()` 保护。
 - 是否校验当前用户和资源归属。
 - 是否需要 `require_active_subscription()`。
-- 是否会把简历、JD、token、secret、Cookie、支付 payload 写入日志或 trace。
+- 是否会把简历、JD、token、secret、Cookie、支付 payload 写入日志。
 - 是否需要更新 `backend/.env.example`、`README.md` 和本文档。
 - 是否有针对 401、403、404、签名失败、跨用户访问的回归测试。

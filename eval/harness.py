@@ -126,7 +126,7 @@ async def run_agent_target(
     agent: ResumeAgent,
     inputs: dict[str, Any],
 ) -> dict[str, Any]:
-    """用于执行 LangSmith 和本地 eval 共用的单条目标函数。"""
+    """用于执行本地 eval 的单条目标函数。"""
     resume = normalize_resume(inputs.get("resume"))
     jd = inputs.get("jd") if isinstance(inputs.get("jd"), dict) else None
     resume = inject_job_application(resume, jd)

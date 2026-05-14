@@ -26,7 +26,6 @@ _NOISY_LOGGERS = (
     "httpcore",
     "httpx",
     "openai",
-    "langsmith",
     "multipart",
     "passlib",
     "pdfminer",

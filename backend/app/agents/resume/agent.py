@@ -22,13 +22,10 @@ logger = logging.getLogger(__name__)
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "generate_job_match_summary",
-    "query_logs_logql",
-    "query_metrics_promql",
 }
 _TOOL_PROFILES: dict[str, set[str]] = {
     "read_only": set(),
     "job_match": {"generate_job_match_summary"},
-    "observability": {"query_logs_logql", "query_metrics_promql"},
     "resume_edit": {
         "update_overview",
         "update_bullet",
@@ -200,8 +197,6 @@ class ResumeAgent:
     def _select_tool_profile(user_message: str) -> str:
         """用于按用户意图选择最小必要工具集。"""
         text = user_message.lower()
-        if any(key in text for key in ("logql", "promql", "日志", "指标", "trace", "报错")):
-            return "observability"
         edit_terms = (
             "优化",
             "润色",

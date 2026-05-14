@@ -30,7 +30,7 @@ class AgentSessionStore:
         session_id: str | None = None,
     ) -> AgentSession:
         """用于创建一条新的 Agent session 记录。"""
-        merged_metadata = self._merge_observability_metadata(
+        merged_metadata = self._merge_log_context_metadata(
             metadata,
             session_id=session_id,
         )
@@ -87,7 +87,7 @@ class AgentSessionStore:
     ) -> AgentEvent:
         """用于向指定 session 追加一条有序事件。"""
         sequence = self._next_sequence(session_id)
-        enriched_payload = self._merge_observability_payload(
+        enriched_payload = self._merge_log_context_payload(
             payload,
             session_id=session_id,
         )
@@ -231,51 +231,51 @@ class AgentSessionStore:
         return int(current or 0) + 1
 
     @staticmethod
-    def _merge_observability_metadata(
+    def _merge_log_context_metadata(
         metadata: dict[str, Any] | None,
         *,
         session_id: str | None,
     ) -> dict[str, Any]:
-        """用于把观测上下文合并进 session 元数据。"""
+        """用于把日志上下文合并进 session 元数据。"""
         merged = dict(metadata or {})
-        observability = AgentSessionStore._current_observability(session_id=session_id)
-        if not observability:
+        log_context = AgentSessionStore._current_log_context(session_id=session_id)
+        if not log_context:
             return merged
-        existing = merged.get("observability")
+        existing = merged.get("log_context")
         base = dict(existing) if isinstance(existing, dict) else {}
-        base.update(observability)
-        merged["observability"] = base
+        base.update(log_context)
+        merged["log_context"] = base
         return merged
 
     @staticmethod
-    def _merge_observability_payload(
+    def _merge_log_context_payload(
         payload: dict[str, Any] | None,
         *,
         session_id: str,
     ) -> dict[str, Any]:
-        """用于把观测上下文合并进事件 payload。"""
+        """用于把日志上下文合并进事件 payload。"""
         merged = dict(payload or {})
-        observability = AgentSessionStore._current_observability(session_id=session_id)
-        if not observability:
+        log_context = AgentSessionStore._current_log_context(session_id=session_id)
+        if not log_context:
             return merged
-        existing = merged.get("observability")
+        existing = merged.get("log_context")
         base = dict(existing) if isinstance(existing, dict) else {}
-        base.update(observability)
-        merged["observability"] = base
+        base.update(log_context)
+        merged["log_context"] = base
         return merged
 
     @staticmethod
-    def _current_observability(*, session_id: str | None) -> dict[str, str]:
-        """用于从当前请求上下文提取观测字段。"""
+    def _current_log_context(*, session_id: str | None) -> dict[str, str]:
+        """用于从当前请求上下文提取日志关联字段。"""
         context = get_log_context()
-        observability = {
+        log_context = {
             "request_id": context["request_id"],
             "session_id": session_id or context["session_id"],
             "tool_call_id": context["tool_call_id"],
         }
         return {
             key: value
-            for key, value in observability.items()
+            for key, value in log_context.items()
             if isinstance(value, str) and value
         }
 

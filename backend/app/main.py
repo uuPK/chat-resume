@@ -7,6 +7,7 @@ FastAPI应用的初始化和配置入口点。
 
 import asyncio
 import logging
+import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -23,30 +24,16 @@ from app.entrypoints.http.deps import authenticate_token_with_db
 from app.entrypoints.http.router import api_router
 from app.infra.config import settings
 from app.infra.database import SessionLocal, get_db
-from app.infra.db_observability import (
+from app.infra.db_request_logging import (
     get_request_metrics,
     reset_request_metrics,
     start_request_metrics,
 )
-from app.infra.langfuse_setup import configure_langfuse, shutdown_langfuse
-from app.infra.langsmith_setup import configure_langsmith, shutdown_langsmith
 from app.infra.logging_setup import configure_logging
-from app.infra.otel_setup import (
-    configure_otel_tracing,
-    record_exception,
-    set_span_attribute,
-    start_span,
-)
-from app.infra.prometheus_metrics import record_http_request, render_metrics
 from app.infra.request_context import bind_log_context, reset_log_context
-from app.infra.sentry_setup import configure_sentry
 
 configure_logging()
 logger = logging.getLogger(__name__)
-configure_sentry()
-configure_langfuse()
-configure_langsmith()
-configure_otel_tracing()
 
 
 def _truncate_log_value(value: str | None, limit: int = 240) -> str:
@@ -139,8 +126,8 @@ def _request_user_id(request: Request) -> str:
 
 
 def _release_identifier() -> str:
-    """用于返回能关联到部署版本的 release 标识。"""
-    return settings.SENTRY_RELEASE or "-"
+    """用于返回能关联到部署版本的日志标识。"""
+    return settings.RELEASE_IDENTIFIER or os.getenv("RAILWAY_GIT_COMMIT_SHA", "") or "-"
 
 
 def _failure_log_context(
@@ -162,13 +149,6 @@ def _failure_log_context(
         "release": _release_identifier(),
         "error_type": type(exc).__name__,
     }
-
-
-def _mark_failed_span(span, context: dict[str, object]) -> None:
-    """用于把失败请求的定位上下文同步写入当前 trace span。"""
-    for key, value in context.items():
-        if isinstance(value, (str, int, float, bool)):
-            set_span_attribute(span, key.replace("_", "."), value)
 
 
 def _is_protected_api_path(path: str) -> bool:
@@ -225,7 +205,7 @@ async def authenticate_protected_api_requests(request: Request, call_next):
 # 添加中间件来记录请求
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """用于记录请求日志、Prometheus 指标和 OpenTelemetry span。"""
+    """用于记录请求日志和慢数据库访问上下文。"""
     request_id = request.headers.get("X-Request-ID") or uuid4().hex
     request.state.request_id = request_id
     context_tokens = bind_log_context(request_id=request_id)
@@ -233,52 +213,29 @@ async def log_requests(request: Request, call_next):
     metrics_token = start_request_metrics()
     response = None
     try:
-        with start_span(
-            f"{request.method} {request.url.path}",
-            {
-                "http.request.method": request.method,
-                "url.path": request.url.path,
-                "request.id": request_id,
-            },
-        ) as span:
-            try:
-                response = await call_next(request)
-            except Exception as exc:
-                failure_context = _failure_log_context(
-                    request,
-                    request_id=request_id,
-                    status_code=500,
-                    exc=exc,
-                )
-                record_exception(span, exc)
-                _mark_failed_span(span, failure_context)
-                logger.exception("request.failed", extra=failure_context)
-                response = JSONResponse(
-                    status_code=500,
-                    content={
-                        "detail": "Internal server error",
-                        "request_id": request_id,
-                    },
-                )
-            response.headers["X-Request-ID"] = request_id
-            set_span_attribute(span, "http.response.status_code", response.status_code)
-            set_span_attribute(span, "http.route", _route_template(request))
-            return response
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            failure_context = _failure_log_context(
+                request,
+                request_id=request_id,
+                status_code=500,
+                exc=exc,
+            )
+            logger.exception("request.failed", extra=failure_context)
+            response = JSONResponse(
+                status_code=500,
+                content={
+                    "detail": "Internal server error",
+                    "request_id": request_id,
+                },
+            )
+        response.headers["X-Request-ID"] = request_id
+        return response
     finally:
         request_elapsed_ms = (perf_counter() - request_started_at) * 1000
         metrics = get_request_metrics()
         status_code = response.status_code if response is not None else 500
-        route_path = _route_template(request)
-        record_http_request(
-            method=request.method,
-            path=route_path,
-            status=status_code,
-            duration_seconds=request_elapsed_ms / 1000,
-            db_query_count=metrics.query_count if metrics is not None else 0,
-            db_query_duration_seconds=(
-                metrics.query_ms_total / 1000 if metrics is not None else 0.0
-            ),
-        )
         should_log_request = (
             status_code >= 400 or request_elapsed_ms >= _SLOW_REQUEST_LOG_MS
         )
@@ -379,15 +336,6 @@ async def health_check(response: Response):
         db.close()
 
 
-@app.get("/metrics")
-async def metrics_endpoint():
-    """用于给本地 Prometheus 暴露文本指标。"""
-    return Response(
-        render_metrics(),
-        media_type="text/plain; version=0.0.4; charset=utf-8",
-    )
-
-
 @app.get("/api/test")
 async def test_endpoint():
     """用于返回测试接口响应。"""
@@ -433,13 +381,6 @@ async def startup_session_sweeper():
         logger.exception("session_sweeper.startup.error")
 
     _sweeper_task = asyncio.create_task(_sweeper_loop(timeout))
-
-
-@app.on_event("shutdown")
-async def shutdown_observability_clients():
-    """用于关闭可观测性客户端。"""
-    shutdown_langfuse()
-    shutdown_langsmith()
 
 
 @app.on_event("shutdown")

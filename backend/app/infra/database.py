@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.infra.config import settings
-from app.infra.db_observability import record_checkout, record_query
+from app.infra.db_request_logging import record_checkout, record_query
 
 connect_args: dict[str, Any] = {}
 if settings.DATABASE_URL.startswith("sqlite"):

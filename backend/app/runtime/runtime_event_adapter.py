@@ -25,7 +25,7 @@ def emit_runtime_event(
     event_callback: RuntimeEventCallback | None,
     event: ResumeStreamEvent,
 ) -> None:
-    """用于向可观测性 callback 发布 runtime 事件。"""
+    """用于向调用方 callback 发布 runtime 事件。"""
     if event_callback is not None:
         event_callback(event)
 

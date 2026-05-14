@@ -222,63 +222,10 @@ class Settings(BaseSettings):
     )
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-    # Observability
-    SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
-    SENTRY_ENVIRONMENT: str = os.getenv(
-        "SENTRY_ENVIRONMENT",
-        os.getenv("RAILWAY_ENVIRONMENT_NAME", "development"),
-    )
-    SENTRY_RELEASE: str = os.getenv(
-        "SENTRY_RELEASE",
+    # Runtime logs
+    RELEASE_IDENTIFIER: str = os.getenv(
+        "RELEASE_IDENTIFIER",
         os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
-    )
-    SENTRY_TRACES_SAMPLE_RATE: float = float(
-        os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
-    )
-    SENTRY_SEND_DEFAULT_PII: bool = (
-        os.getenv("SENTRY_SEND_DEFAULT_PII", "false").strip().lower() == "true"
-    )
-    LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-    LANGFUSE_SECRET_KEY: str = os.getenv("LANGFUSE_SECRET_KEY", "")
-    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-    LANGFUSE_SAMPLE_RATE: float = float(os.getenv("LANGFUSE_SAMPLE_RATE", "1.0"))
-    LANGFUSE_DEBUG: bool = (
-        os.getenv("LANGFUSE_DEBUG", "false").strip().lower() == "true"
-    )
-    LANGSMITH_TRACING: bool = (
-        os.getenv("LANGSMITH_TRACING", os.getenv("LANGCHAIN_TRACING_V2", "false"))
-        .strip()
-        .lower()
-        == "true"
-    )
-    LANGSMITH_API_KEY: str = os.getenv(
-        "LANGSMITH_API_KEY",
-        os.getenv("LANGCHAIN_API_KEY", ""),
-    )
-    LANGSMITH_ENDPOINT: str = os.getenv(
-        "LANGSMITH_ENDPOINT",
-        os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"),
-    )
-    LANGSMITH_PROJECT: str = os.getenv(
-        "LANGSMITH_PROJECT",
-        os.getenv("LANGCHAIN_PROJECT", "chat-resume-dev"),
-    )
-    LANGSMITH_WORKSPACE_ID: str = os.getenv("LANGSMITH_WORKSPACE_ID", "")
-    PROMETHEUS_BASE_URL: str = os.getenv(
-        "PROMETHEUS_BASE_URL",
-        "http://localhost:19090",
-    )
-    LOKI_BASE_URL: str = os.getenv("LOKI_BASE_URL", "http://localhost:13100")
-    OBSERVABILITY_QUERY_TIMEOUT_SECONDS: float = float(
-        os.getenv("OBSERVABILITY_QUERY_TIMEOUT_SECONDS", "5")
-    )
-    OTEL_TRACES_ENABLED: bool = (
-        os.getenv("OTEL_TRACES_ENABLED", "false").strip().lower() == "true"
-    )
-    OTEL_SERVICE_NAME: str = os.getenv("OTEL_SERVICE_NAME", "chat-resume-backend")
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str = os.getenv(
-        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-        "http://localhost:14318/v1/traces",
     )
 
     # Agent session 超时配置

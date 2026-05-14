@@ -11,7 +11,7 @@
 | 测试覆盖 | 20% | 7/10 | 后端测试覆盖 Agent、认证、账单、上传、评估等领域；前端主要依赖 type-check/build/e2e，组件级覆盖较少 |
 | 用户体验 | 15% | 7/10 | 简历编辑工作台、结构化预览、Agent 确认流已成型；上传、导出、语音异常态仍需要更多真实浏览器验证 |
 | 可维护性 | 10% | 7/10 | 后端模块边界已拆分为 entrypoints/services/runtime/state/tools；编辑页仍是前端最大复杂页面 |
-| 可观测性 | 10% | 8/10 | 已有 request id、错误日志、Prometheus、OTLP、Loki/Tempo/Grafana、Langfuse/LangSmith 接入；生产采样和 PII 策略需继续固化 |
+| 日志诊断 | 10% | 7/10 | 已有 request id、错误日志、慢请求、慢 SQL 和 Agent 运行日志；已移除外部观测栈，后续重点是日志检索和保留策略 |
 
 加权总分：`7.4 / 10`
 
@@ -26,13 +26,13 @@
 - Resume Agent 支持工具确认、暂停恢复、SSE cursor 回放和外部模型故障降级。
 - 面试链路已拆成本地结构化 session 和数字人/语音供应商代理。
 - 订阅能力由 PayPal checkout、status、webhook 和 `require_active_subscription()` 保护高成本入口。
-- 可观测性覆盖请求日志、慢请求、错误 request id、指标、trace 和本地 Grafana 栈。
+- 日志覆盖请求日志、慢请求、错误 request id、数据库耗时和 Agent 运行事件。
 
 ## 验证基线
 
 | 检查项 | 命令 | 结果 |
 | --- | --- | --- |
-| 后端测试 | `cd backend && uv run --extra dev python -m pytest tests -q` | 通过：346 passed，9 warnings，3 subtests passed，用时 205.59s |
+| 后端测试 | `cd backend && uv run --extra dev python -m pytest tests -q` | 通过：335 passed，7 warnings，3 subtests passed，用时 141.37s |
 | 后端类型检查 | `cd backend && uv run basedpyright` | 通过：0 errors，0 warnings，0 notes |
 | 前端类型检查 | `cd frontend && npm run type-check` | 通过：`tsc --noEmit -p tsconfig.typecheck.json` |
 | 前端生产构建 | `cd frontend && npm run build` | 通过：Next.js 16.2.6 Turbopack build 成功，生成 18 个静态页面 |
@@ -52,7 +52,7 @@
 2. 对语音面试补真实浏览器 smoke 脚本，至少验证 session 创建、供应商会话创建、WebSocket 认证失败和成功路径。
 3. 给 PayPal webhook 状态机补更多乱序、重复、签名失败、plan 不匹配测试。
 4. 建立上传任务、Agent event、导出文件、过期 refresh session 的生产清理策略。
-5. 把安全配置检查做成部署前 checklist，覆盖 `SECRET_KEY`、Cookie、CORS、OAuth redirect、PayPal API base、观测 PII 开关。
+5. 把安全配置检查做成部署前 checklist，覆盖 `SECRET_KEY`、Cookie、CORS、OAuth redirect、PayPal API base、日志脱敏开关。
 
 ## 验证命令
 

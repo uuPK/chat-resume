@@ -6,8 +6,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.tools.observability import query_logs_logql, query_metrics_promql
-
 from .add_highlight_tool import add_bullet, add_highlight
 from .job_match_summary_tool import generate_job_match_summary
 from .read_resume_tool import read_resume_content
@@ -59,69 +57,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["section", "item_id", "overview"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_logs_logql",
-            "description": (
-                "用 LogQL 查询本地 Loki 日志，只读。适合排查 agent trace、"
-                "请求错误、工具执行失败和指定 request_id/session_id 的日志。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": (
-                            'LogQL 查询，例如 {app="chat-resume",service="backend"}'
-                        ),
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 100,
-                        "description": "最多返回的日志行数，默认 20。",
-                    },
-                    "start": {
-                        "type": "string",
-                        "description": "可选，Loki 支持的开始时间戳或相对时间。",
-                    },
-                    "end": {
-                        "type": "string",
-                        "description": "可选，Loki 支持的结束时间戳或相对时间。",
-                    },
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_metrics_promql",
-            "description": (
-                "用 PromQL 查询本地 Prometheus 指标，只读。适合查看请求量、"
-                "延迟、错误率和数据库查询耗时。"
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": (
-                            "PromQL 查询，例如 "
-                            "rate(chat_resume_http_requests_total[5m])"
-                        ),
-                    },
-                    "time": {
-                        "type": "string",
-                        "description": "可选，Prometheus instant query 的时间点。",
-                    },
-                },
-                "required": ["query"],
             },
         },
     },
@@ -277,18 +212,6 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
     ResumeToolDefinition("update_highlight", update_highlight),
     ResumeToolDefinition("add_highlight", add_highlight),
     ResumeToolDefinition("remove_highlight", remove_highlight),
-    ResumeToolDefinition(
-        "query_logs_logql",
-        query_logs_logql,
-        _SCHEMA_BY_NAME.get("query_logs_logql"),
-        category="observability",
-    ),
-    ResumeToolDefinition(
-        "query_metrics_promql",
-        query_metrics_promql,
-        _SCHEMA_BY_NAME.get("query_metrics_promql"),
-        category="observability",
-    ),
 )
 
 RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [

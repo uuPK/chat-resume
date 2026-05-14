@@ -8,7 +8,7 @@
 - 后端：FastAPI，负责 HTTP API、业务服务、Agent 执行入口和数据库访问。
 - Agent 运行时：`backend/app/runtime/` 封装 pi-agent-core / OpenRouter 适配、工具权限、确认队列和恢复逻辑。
 - 数据库：本地默认 SQLite，生产使用 PostgreSQL，迁移由 Alembic 管理。
-- 可观测性：请求日志、Prometheus 指标、OTLP trace、Langfuse 和 LangSmith 初始化位于 `backend/app/main.py`。
+- 日志：请求日志、慢请求、慢 SQL 和 Agent 运行时事件由 `backend/app/infra/logging_setup.py` 与 `backend/app/main.py` 统一处理。
 
 ## 目录边界
 

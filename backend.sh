@@ -6,11 +6,9 @@ set -euo pipefail
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-logs/backend.log}"
 
-# 本地默认保留结构化日志和 Agent trace，不默认启用 OTLP trace exporter。
-# 如需完整可观测性栈，先启动 docker-compose.observability.yml，再显式设置 OTEL_TRACES_ENABLED=true。
+# 本地默认保留结构化日志和 Agent trace。
 export LOG_FORMAT="${LOG_FORMAT:-json}"
 export AGENT_TRACE_LOG_ENABLED="${AGENT_TRACE_LOG_ENABLED:-true}"
-export OTEL_TRACES_ENABLED="${OTEL_TRACES_ENABLED:-false}"
 
 echo "🚀 重启 Chat Resume 后端服务..."
 
@@ -112,9 +110,8 @@ stop_port "${BACKEND_PORT}"
 echo "🌟 启动后端服务..."
 echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
-echo "指标端点: http://localhost:${BACKEND_PORT}/metrics"
 echo "日志文件: backend/${BACKEND_LOG_FILE}"
-echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}; OTEL trace: ${OTEL_TRACES_ENABLED}"
+echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}"
 echo "终端默认隐藏 JSON INFO 日志，但会显示 app.ready；如需完整终端日志，设置 BACKEND_TERMINAL_VERBOSE=1。"
 echo "按 Ctrl+C 停止服务"
 echo ""

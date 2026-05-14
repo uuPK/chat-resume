@@ -68,7 +68,7 @@ def test_job_match_profile_exposes_only_match_summary_tool():
 
 
 def test_llm_request_event_records_profile_counts_and_prompt_size():
-    """用于验证 LLM 请求观测字段包含 profile、工具数量和 prompt 信息。"""
+    """用于验证 LLM 请求日志字段包含 profile、工具数量和 prompt 信息。"""
     agent = ResumeAgent()
     pi_context, state = _build_runtime_inputs(agent, "优化项目经历")
 
@@ -81,7 +81,7 @@ def test_llm_request_event_records_profile_counts_and_prompt_size():
 
 
 def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
-    """用于验证 LLM 响应观测字段包含首 token、usage 和确认等待耗时。"""
+    """用于验证 LLM 响应日志字段包含首 token、usage 和确认等待耗时。"""
     agent = ResumeAgent()
     state = agent.runtime._new_stream_state()
     state["first_token_latency_ms"] = 12.5

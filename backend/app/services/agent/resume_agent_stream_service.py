@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -13,8 +13,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.agents.resume.agent import ResumeAgent
-from app.infra.langfuse_observer import LangfuseRunObserver
-from app.infra.langsmith_observer import LangSmithRunObserver
 from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
@@ -76,22 +74,11 @@ class ResumeAgentStreamService:
         """用于驱动一次完整的简历 Agent SSE 事件流。"""
         self.ensure_stream_supported(request)
         session_id = uuid4().hex
-        run_id = uuid4().hex
         confirmation_queue = confirmation_manager.create(session_id)
 
         with log_context(request_id=request.request_id, session_id=session_id):
             final_content_parts: list[str] = []
             latest_resume_content: dict[str, Any] | None = None
-            langfuse_observer, langsmith_observer = self._build_observers(
-                request=request,
-                session_id=session_id,
-                run_id=run_id,
-            )
-
-            def observe_runtime_event(event: Mapping[str, Any]) -> None:
-                """用于处理observeruntime事件。"""
-                langfuse_observer.on_runtime_event(event)
-                langsmith_observer.on_runtime_event(event)
 
             try:
                 resume_service = ResumeService(self.db)
@@ -124,38 +111,30 @@ class ResumeAgentStreamService:
                     session_id=session_id,
                     event=session_started_event(session_id),
                 )
-                with langfuse_observer, langsmith_observer:
-                    event_stream = harness.run_resume_stream(
+                event_stream = harness.run_resume_stream(
+                    session_id=session_id,
+                    agent=ResumeAgent(),
+                    user_message=request.message,
+                    resume_content=resume_dict,
+                    conversation_history=conversation_history,
+                    confirmation_queue=confirmation_queue,
+                    allowed_sections=set(resume_dict.keys()),
+                    event_callback=None,
+                    user_id=request.user_id,
+                )
+                async for event in event_stream:
+                    if event.get("internal_only"):
+                        continue
+                    resume_content = event.get("resume_content")
+                    if isinstance(resume_content, dict):
+                        latest_resume_content = resume_content
+                    content = event.get("content")
+                    if content:
+                        final_content_parts.append(content)
+                    yield self._record_stream_event(
+                        store,
                         session_id=session_id,
-                        agent=ResumeAgent(),
-                        user_message=request.message,
-                        resume_content=resume_dict,
-                        conversation_history=conversation_history,
-                        confirmation_queue=confirmation_queue,
-                        allowed_sections=set(resume_dict.keys()),
-                        event_callback=observe_runtime_event,
-                        user_id=request.user_id,
-                    )
-                    async for event in event_stream:
-                        if event.get("internal_only"):
-                            continue
-                        resume_content = event.get("resume_content")
-                        if isinstance(resume_content, dict):
-                            latest_resume_content = resume_content
-                        content = event.get("content")
-                        if content:
-                            final_content_parts.append(content)
-                        yield self._record_stream_event(
-                            store,
-                            session_id=session_id,
-                            event=event,
-                        )
-
-                    final_content = "".join(final_content_parts)
-                    langfuse_observer.finish(final_content)
-                    langsmith_observer.finish(
-                        final_content,
-                        metadata={"event_count": len(final_content_parts)},
+                        event=event,
                     )
 
                 self._persist_resume_if_changed(
@@ -176,8 +155,6 @@ class ResumeAgentStreamService:
                 yield stream_error_event(str(exc.detail))
             except Exception as exc:
                 logger.exception("Resume agent stream failed")
-                langfuse_observer.fail(str(exc))
-                langsmith_observer.fail(str(exc))
                 yield stream_error_event(f"AI服务暂时不可用: {exc}")
             finally:
                 confirmation_manager.remove(session_id)
@@ -269,7 +246,7 @@ class ResumeAgentStreamService:
         ):
             payload = event.payload if isinstance(event.payload, dict) else {}
             replay_payload = dict(payload)
-            replay_payload.pop("observability", None)
+            replay_payload.pop("log_context", None)
             replay_payload["event_id"] = f"{session_id}:{event.sequence}"
             replayed.append(cast(ResumeStreamEvent, replay_payload))
         return replayed
@@ -379,38 +356,5 @@ class ResumeAgentStreamService:
         stored = store.append_stream_event(session_id=session_id, payload=payload)
         payload["event_id"] = f"{session_id}:{stored.sequence}"
         return cast(ResumeStreamEvent, payload)
-
-    @staticmethod
-    def _build_observers(
-        *,
-        request: ResumeAgentStreamInput,
-        session_id: str,
-        run_id: str,
-    ) -> tuple[LangfuseRunObserver, LangSmithRunObserver]:
-        """用于创建一次流式运行的可观测性观察器。"""
-        metadata = {
-            "session_id": session_id,
-            "resume_id": request.resume_id,
-            "request_id": request.request_id,
-        }
-        return (
-            LangfuseRunObserver(
-                run_id=run_id,
-                agent_type="resume",
-                run_kind="chat_stream",
-                user_id=request.user_id,
-                input_text=request.message,
-                metadata=metadata,
-            ),
-            LangSmithRunObserver(
-                run_id=run_id,
-                agent_type="resume",
-                run_kind="chat_stream",
-                user_id=request.user_id,
-                input_text=request.message,
-                metadata=metadata,
-            ),
-        )
-
 
 __all__ = ["ResumeAgentStreamInput", "ResumeAgentStreamService"]
