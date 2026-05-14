@@ -665,7 +665,7 @@ class PiAgentRuntime:
         """用于在确认后用确定性文本结束当前轮次，避免再次调用模型。"""
         stream_state["chunk_index"] += 1
         stream_state["response_parts"].append(content)
-        self._trace(
+        self._trace_chunk(
             "agent.trace.intermediate.chunk",
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
@@ -732,7 +732,7 @@ class PiAgentRuntime:
             )
         state["chunk_index"] += 1
         state["response_parts"].append(content)
-        self._trace(
+        self._trace_chunk(
             "agent.trace.intermediate.chunk",
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
@@ -1306,6 +1306,13 @@ class PiAgentRuntime:
         if not settings.AGENT_TRACE_LOG_ENABLED:
             return
         logger.info(message, extra={"agent_trace": True, **fields})
+
+    @staticmethod
+    def _trace_chunk(message: str, **fields: Any) -> None:
+        """用于在需要排查流式细节时记录单个 chunk。"""
+        if not settings.AGENT_TRACE_CHUNK_LOG_ENABLED:
+            return
+        PiAgentRuntime._trace(message, **fields)
 
     @staticmethod
     def _tool_names(agent: AgentDefinition) -> list[str]:

@@ -908,7 +908,9 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         confirmation_queue.put_nowait(True)
 
         original_trace_log_enabled = settings.AGENT_TRACE_LOG_ENABLED
+        original_chunk_log_enabled = settings.AGENT_TRACE_CHUNK_LOG_ENABLED
         settings.AGENT_TRACE_LOG_ENABLED = True
+        settings.AGENT_TRACE_CHUNK_LOG_ENABLED = False
         try:
             with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
                 events = []
@@ -922,6 +924,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     events.append(event)
         finally:
             settings.AGENT_TRACE_LOG_ENABLED = original_trace_log_enabled
+            settings.AGENT_TRACE_CHUNK_LOG_ENABLED = original_chunk_log_enabled
 
         trace_records = [
             record for record in logs.records if getattr(record, "agent_trace", False)
@@ -941,6 +944,39 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("agent.trace.llm.response", trace_messages)
         self.assertIn("agent.trace.run.stopped_after_confirmation", trace_messages)
         self.assertIn("agent.trace.run.completed", trace_messages)
+        self.assertNotIn("agent.trace.intermediate.chunk", trace_messages)
+
+    async def test_pi_agent_runtime_can_opt_into_chunk_trace_logs(self):
+        """用于验证流式 chunk 日志需要显式开启。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
+        resume = self._sample_resume()
+
+        original_trace_log_enabled = settings.AGENT_TRACE_LOG_ENABLED
+        original_chunk_log_enabled = settings.AGENT_TRACE_CHUNK_LOG_ENABLED
+        settings.AGENT_TRACE_LOG_ENABLED = True
+        settings.AGENT_TRACE_CHUNK_LOG_ENABLED = True
+        try:
+            with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
+                events = []
+                async for event in agent.optimize_stream(
+                    user_message="帮我看看简历",
+                    resume_content=resume,
+                    conversation_history=[],
+                    allowed_sections={"work_experience", "projects"},
+                ):
+                    events.append(event)
+        finally:
+            settings.AGENT_TRACE_LOG_ENABLED = original_trace_log_enabled
+            settings.AGENT_TRACE_CHUNK_LOG_ENABLED = original_chunk_log_enabled
+
+        trace_messages = [
+            record.getMessage()
+            for record in logs.records
+            if getattr(record, "agent_trace", False)
+        ]
+        self.assertTrue(any(event.get("content") == "你好" for event in events))
+        self.assertIn("agent.trace.intermediate.chunk", trace_messages)
 
 
 class ChatServiceChunkParsingTests(unittest.TestCase):

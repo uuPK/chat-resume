@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     AGENT_TRACE_LOG_ENABLED: bool = (
         os.getenv("AGENT_TRACE_LOG_ENABLED", "false").strip().lower() == "true"
     )
+    AGENT_TRACE_CHUNK_LOG_ENABLED: bool = (
+        os.getenv("AGENT_TRACE_CHUNK_LOG_ENABLED", "false").strip().lower() == "true"
+    )
 
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./chat_resume.db")
