@@ -100,7 +100,6 @@ function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
       <div className="grid grid-cols-1 gap-2">
         <SummaryList title="已命中关键词" items={summary.matched_keywords} tone="green" />
         <SummaryList title="缺失关键词" items={summary.missing_keywords} tone="amber" />
-        <SummaryList title="优化前后变化" items={summary.resume_changes} tone="blue" />
         <SummaryList title="需要补充事实" items={summary.fact_gaps} tone="slate" />
       </div>
     </div>
