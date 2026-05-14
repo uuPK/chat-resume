@@ -28,6 +28,7 @@ class AIResumeParser:
     """基于 OpenRouter 的智能简历解析器。"""
 
     def __init__(self):
+        """用于初始化当前对象。"""
         self.file_service = FileService()
         self.api_key = os.getenv("OPENROUTER_API_KEY", "")
         self.api_base = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")

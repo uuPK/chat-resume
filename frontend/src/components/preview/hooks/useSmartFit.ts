@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 useSmartFit.ts 对应的前端状态逻辑。
 
 import { useCallback, useRef, useState } from 'react'
 import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, RenderableLine } from './useLineBasedPagination'
@@ -34,6 +35,7 @@ function roundToSpacingStep(scale: number) {
   return Math.round(scale / SPACING_SCALE_STEP) * SPACING_SCALE_STEP
 }
 
+// 用于封装智能适配相关状态和行为。
 export function useSmartFit({
   currentScale,
   onComplete,

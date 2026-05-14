@@ -74,6 +74,7 @@ class ResumeUploadJobStatus(BaseModel):
 
 
 def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    """用于抛出服务HTTP错误。"""
     if isinstance(exc, ServicePayloadTooLargeError):
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -103,6 +104,7 @@ def _format_jd_ocr_error(exc: Exception) -> str:
 
 
 def _is_jd_ocr_provider_rejection(exc: Exception) -> bool:
+    """用于判断jdocr提供方拒绝响应。"""
     message = str(exc)
     return (
         "provider Terms Of Service" in message
@@ -125,6 +127,7 @@ def _validate_jd_image(file: UploadFile) -> None:
 
 
 def _build_upload_job_status(job: ResumeUploadJob) -> ResumeUploadJobStatus:
+    """用于构建上传任务状态。"""
     return ResumeUploadJobStatus(
         job_id=job.id,
         status=job.status,
@@ -140,6 +143,7 @@ def _mark_upload_job_failed(
     *,
     error: str,
 ) -> None:
+    """用于标记上传任务失败状态。"""
     job.status = _RESUME_UPLOAD_STATUS_FAILED
     job.error = error
     db.add(job)

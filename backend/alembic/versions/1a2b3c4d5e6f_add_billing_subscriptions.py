@@ -1,9 +1,4 @@
-"""add billing subscriptions
-
-Revision ID: 1a2b3c4d5e6f
-Revises: 0f4e3d2c1b0a
-Create Date: 2026-05-10 22:45:00.000000
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from typing import Sequence, Union
 
@@ -18,6 +13,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     op.create_table(
         "billing_subscriptions",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -107,6 +103,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     op.drop_index(
         op.f("ix_billing_webhook_events_event_type"),
         table_name="billing_webhook_events",

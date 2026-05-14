@@ -89,6 +89,7 @@ def _build_header(
     serial_method: int = JSON_SERIALIZATION,
     compression_type: int = NO_COMPRESSION,
 ) -> bytes:
+    """用于构建头部。"""
     header_size = 1
     return bytes([
         (PROTOCOL_VERSION << 4) | header_size,
@@ -99,6 +100,7 @@ def _build_header(
 
 
 def _build_json_frame(event_id: int, payload: Dict[str, Any]) -> bytes:
+    """用于构建JSON帧。"""
     header = _build_header()
     payload_bytes = json.dumps(payload).encode("utf-8")
     return (
@@ -112,6 +114,7 @@ def _build_json_frame(event_id: int, payload: Dict[str, Any]) -> bytes:
 def _build_session_json_frame(
     event_id: int, session_id: str, payload: Dict[str, Any]
 ) -> bytes:
+    """用于构建会话JSON帧。"""
     header = _build_header()
     sid_bytes = session_id.encode("utf-8")
     payload_bytes = json.dumps(payload).encode("utf-8")
@@ -126,6 +129,7 @@ def _build_session_json_frame(
 
 
 def _build_audio_frame(session_id: str, pcm_bytes: bytes) -> bytes:
+    """用于构建音频帧。"""
     header = _build_header(
         message_type=CLIENT_AUDIO_ONLY_REQUEST,
         message_type_specific_flags=MSG_WITH_EVENT,
@@ -144,10 +148,12 @@ def _build_audio_frame(session_id: str, pcm_bytes: bytes) -> bytes:
 
 
 def _build_start_connection() -> bytes:
+    """用于构建开始连接。"""
     return _build_json_frame(EVENT_START_CONNECTION, {})
 
 
 def _build_finish_connection() -> bytes:
+    """用于构建结束连接。"""
     return _build_json_frame(EVENT_FINISH_CONNECTION, {})
 
 
@@ -161,6 +167,7 @@ def _build_start_session(
     model: str = "O",
     input_mod: str = "keep_alive",
 ) -> bytes:
+    """用于构建开始会话。"""
     dialog: Dict[str, Any] = {
         "bot_name": bot_name,
         "extra": {
@@ -196,6 +203,7 @@ def _build_start_session(
 
 
 def _build_finish_session(session_id: str) -> bytes:
+    """用于构建结束会话。"""
     return _build_session_json_frame(EVENT_FINISH_SESSION, session_id, {})
 
 
@@ -205,7 +213,7 @@ def _build_say_hello_frame(session_id: str, content: str) -> bytes:
 
 
 def _describe_pcm16(pcm_bytes: bytes) -> Dict[str, float | int]:
-    """Return small PCM diagnostics so we can tell silence from speech."""
+    """用于描述pcm16。"""
     if len(pcm_bytes) < 2:
         return {"samples": 0, "rms": 0.0, "peak": 0}
 
@@ -301,13 +309,14 @@ def _parse_server_message(data: bytes) -> Optional[Dict[str, Any]]:
 
 
 def _coerce_ws_bytes(data: str | bytes) -> bytes:
-    """Normalize WebSocket frames before binary protocol parsing."""
+    """用于转换WebSocket字节。"""
     if isinstance(data, bytes):
         return data
     return data.encode("utf-8")
 
 
 def _event_has_session_id(event_id: int) -> bool:
+    """用于处理事件has会话标识。"""
     return event_id not in {
         EVENT_START_CONNECTION,
         EVENT_FINISH_CONNECTION,
@@ -318,6 +327,7 @@ def _event_has_session_id(event_id: int) -> bool:
 
 
 def _event_has_connect_id(event_id: int) -> bool:
+    """用于处理事件has连接标识。"""
     return event_id in {
         EVENT_CONNECTION_STARTED,
         EVENT_CONNECTION_FAILED,
@@ -326,7 +336,7 @@ def _event_has_connect_id(event_id: int) -> bool:
 
 
 def _extract_realtime_text(data: Dict[str, Any]) -> str:
-    """Normalize text fields used by Volcengine realtime events."""
+    """用于提取实时文本。"""
     for key in ("content", "text"):
         value = data.get(key)
         if isinstance(value, str) and value:
@@ -353,6 +363,7 @@ def _extract_realtime_text(data: Dict[str, Any]) -> str:
 
 
 def _extract_is_final(data: Dict[str, Any]) -> bool:
+    """用于提取isfinal。"""
     if isinstance(data.get("is_final"), bool):
         return data["is_final"]
     for nested_key in ("asr_info", "tts_info"):
@@ -544,6 +555,7 @@ class VolcengineVoiceService:
     _FIXED_APP_KEY = "PlgvMymc7f3tQnJ6"
 
     def __init__(self) -> None:
+        """用于初始化当前对象。"""
         self.ws_url = settings.VOLCENGINE_DIALOGUE_WS_URL
         self.app_id = settings.VOLCENGINE_DIALOGUE_APP_ID
         self.access_key = settings.VOLCENGINE_DIALOGUE_ACCESS_KEY
@@ -551,9 +563,11 @@ class VolcengineVoiceService:
         self.speaker_id = settings.VOLCENGINE_DIALOGUE_SPEAKER_ID.strip()
 
     def is_configured(self) -> bool:
+        """用于判断configured。"""
         return bool(self.app_id and self.access_key)
 
     def _ensure_configured(self) -> None:
+        """用于确保configured。"""
         if not self.is_configured():
             raise VolcengineConfigurationError(
                 "Volcengine dialogue is not configured. "
@@ -561,6 +575,7 @@ class VolcengineVoiceService:
             )
 
     def build_headers(self, connect_id: str) -> Dict[str, str]:
+        """用于构建请求头。"""
         self._ensure_configured()
         return {
             "X-Api-App-Key": self._FIXED_APP_KEY,
@@ -689,6 +704,7 @@ class VolcengineVoiceService:
             closing = asyncio.Event()
 
             async def forward_to_volcengine():
+                """用于转发to火山引擎。"""
                 chunk_count = 0
                 voiced_chunk_count = 0
                 try:
@@ -742,6 +758,7 @@ class VolcengineVoiceService:
                         pass
 
             async def forward_to_client():
+                """用于转发to客户端。"""
                 msg_count = 0
                 try:
                     async for msg in volc_ws:

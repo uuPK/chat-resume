@@ -1,3 +1,4 @@
+// 用于配置前端 ESLint 检查规则。
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import tseslint from 'typescript-eslint'
 

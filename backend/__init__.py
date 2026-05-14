@@ -1,1 +1,1 @@
-# Backend package initialization
+"""用于初始化后端顶层包。"""

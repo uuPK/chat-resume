@@ -1,3 +1,4 @@
+// 用于提供 proxy.ts 模块。
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import createIntlProxy from 'next-intl/middleware'
@@ -21,6 +22,7 @@ async function hasValidSession(accessToken: string): Promise<boolean> {
   }
 }
 
+// 用于处理proxy。
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const accessToken = request.cookies.get('access_token')?.value
@@ -78,12 +80,14 @@ export async function proxy(request: NextRequest) {
   return response
 }
 
+// 用于获取路径语言环境。
 function getPathLocale(pathname: string) {
   // Reads the first URL segment and treats it as locale only when supported.
   const firstSegment = pathname.split('/')[1]
   return isAppLocale(firstSegment) ? firstSegment : undefined
 }
 
+// 用于获取preferred语言环境。
 function getPreferredLocale(request: NextRequest) {
   // Prefers an explicit user cookie, then falls back to browser language.
   const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value
@@ -93,6 +97,7 @@ function getPreferredLocale(request: NextRequest) {
   return acceptLanguage.includes('zh') ? 'zh' : 'en'
 }
 
+// 用于去除语言环境prefix。
 function stripLocalePrefix(pathname: string) {
   // Normalizes localized paths so auth checks can keep their old route list.
   const locale = getPathLocale(pathname)
@@ -101,6 +106,7 @@ function stripLocalePrefix(pathname: string) {
   return stripped || '/'
 }
 
+// 用于判断redirect。
 function isRedirect(response: NextResponse) {
   // Identifies next-intl redirect responses before running auth checks.
   return response.status >= 300 && response.status < 400

@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/resume/[id]/interview/page.tsx 模块。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
@@ -43,6 +44,7 @@ interface VoicePanelProps {
   onStatusChange?: (status: VoiceStatus) => void
 }
 
+// 用于渲染 VoicePanel 组件。
 function VoicePanel({
   sessionId,
   interviewSession,
@@ -286,6 +288,7 @@ function VoicePanel({
 
     if (!isPlayingRef.current) {
       isPlayingRef.current = true
+      // 用于排空当前数据。
       const drain = () => {
         if (!ctx || ctx.state === 'closed') return
         const next = playbackQueueRef.current.shift()
@@ -778,6 +781,7 @@ function VoicePanel({
 
 // ── InterviewPage ──────────────────────────────────────────────────────────
 
+// 用于渲染 InterviewPage 组件。
 export default function InterviewPage() {
   const params = useParams()
   const router = useRouter()

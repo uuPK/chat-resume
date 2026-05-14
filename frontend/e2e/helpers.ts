@@ -18,6 +18,7 @@ export const DEFAULT_PASSWORD = 'Test@12345'
  * 填写：姓名、邮箱、密码×2、服务条款复选框，然后提交。
  * 注意：不在此函数内等待跳转，由调用方负责。
  */
+// 用于处理register用户。
 export async function registerUser(page: Page, email: string, password = DEFAULT_PASSWORD) {
   await page.goto('/register')
   await page.fill('input[placeholder="请输入您的姓名"]', '测试用户')

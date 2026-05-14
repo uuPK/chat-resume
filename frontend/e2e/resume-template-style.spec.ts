@@ -1,5 +1,7 @@
+// 用于提供 resume-template-style.spec.ts 端到端测试逻辑。
 import { expect, test } from '@playwright/test'
 
+// 用于处理encodeprintpayload。
 function encodePrintPayload(payload: Record<string, unknown>) {
   return Buffer.from(JSON.stringify(payload)).toString('base64url')
 }

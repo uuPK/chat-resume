@@ -20,6 +20,7 @@ class LiveAvatarService:
     """用于创建 HeyGen LiveAvatar Full mode 会话 token。"""
 
     def __init__(self) -> None:
+        """用于初始化当前对象。"""
         self.api_base = settings.LIVEAVATAR_API_BASE.rstrip("/")
         self.api_key = settings.LIVEAVATAR_API_KEY
         self.avatar_id = settings.LIVEAVATAR_AVATAR_ID

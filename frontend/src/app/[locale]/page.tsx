@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/page.tsx 模块。
 
 import { Link } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
@@ -283,6 +284,7 @@ export default function LandingPage() {
                 style={{ fontSize: 'clamp(2rem, 4vw, 2.25rem)', lineHeight: '1.11', color: '#0a0b0d' }}
               >
                 {t.rich('landing.insightTitle', {
+                  // 用于处理break。
                   break: () => <br />,
                 })}
               </h2>

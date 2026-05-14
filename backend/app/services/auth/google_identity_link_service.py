@@ -1,3 +1,5 @@
+"""用于提供google identity link service模块能力。"""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -8,6 +10,7 @@ from app.services.auth.google_oauth_client import GoogleIdentity
 
 class GoogleIdentityLinkError(Exception):
     def __init__(self, error_code: str):
+        """用于初始化当前对象。"""
         self.error_code = error_code
         super().__init__(error_code)
 
@@ -18,9 +21,11 @@ class GoogleIdentityLinkService:
     provider = "google"
 
     def __init__(self, db: Session):
+        """用于初始化当前对象。"""
         self.db = db
 
     def resolve_user(self, identity: GoogleIdentity) -> User:
+        """用于解析用户。"""
         if not identity.email_verified:
             raise GoogleIdentityLinkError("unverified_email")
 
@@ -49,6 +54,7 @@ class GoogleIdentityLinkService:
         return self._bind_identity(user, identity)
 
     def _bind_identity(self, user: User, identity: GoogleIdentity) -> User:
+        """用于绑定身份。"""
         existing_google_identity = (
             self.db.query(ProviderIdentity)
             .filter(

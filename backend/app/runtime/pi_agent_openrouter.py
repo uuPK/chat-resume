@@ -1,4 +1,4 @@
-"""OpenRouter stream adapter for pi-agent-core."""
+"""用于把 OpenRouter 流式响应适配为 pi-agent-core 事件。"""
 
 from __future__ import annotations
 
@@ -36,14 +36,14 @@ async def stream_openrouter(
     context: AgentContext,
     options: SimpleStreamOptions,
 ) -> StreamResult:
-    """Stream OpenRouter chat completions into pi-agent-core events."""
+    """用于处理流式OpenRouter。"""
     queue: asyncio.Queue[AssistantMessageEvent | None] = asyncio.Queue()
     done = asyncio.Event()
     state: dict[str, AssistantMessage | None] = {"final": None}
     partial = AssistantMessage(api=model.api, provider=model.provider, model=model.id)
 
     async def events_iter():
-        """Yield queued stream events until the adapter finishes."""
+        """用于按顺序输出适配后的流式事件。"""
         while True:
             event = await queue.get()
             if event is None:
@@ -51,7 +51,7 @@ async def stream_openrouter(
             yield event
 
     async def result() -> AssistantMessage:
-        """Return the final assistant message after streaming completes."""
+        """用于等待并返回最终助手消息。"""
         await done.wait()
         final = state["final"]
         if final is None:
@@ -59,7 +59,7 @@ async def stream_openrouter(
         return final
 
     async def run_stream() -> None:
-        """Pump the OpenRouter SSE stream into the local event queue."""
+        """用于拉取模型流并写入本地事件队列。"""
         try:
             await _pump_openrouter_stream(model, context, options, partial, queue)
             state["final"] = partial
@@ -83,7 +83,7 @@ async def _pump_openrouter_stream(
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
 ) -> None:
-    """Send one OpenRouter request and translate streamed chunks."""
+    """用于处理pumpOpenRouter流式。"""
     body = _openrouter_body(model, context, options)
     headers = _openrouter_headers(options)
     text_started = False
@@ -146,7 +146,7 @@ def _openrouter_body(
     context: AgentContext,
     options: SimpleStreamOptions,
 ) -> dict[str, Any]:
-    """Build the OpenAI-compatible request body for OpenRouter."""
+    """用于处理OpenRouter请求体。"""
     body: dict[str, Any] = {
         "model": model.id,
         "messages": _openai_messages(context),
@@ -163,7 +163,7 @@ def _openrouter_body(
 
 
 def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
-    """Build OpenRouter headers without leaking credentials to logs."""
+    """用于处理OpenRouter请求头。"""
     api_key = options.api_key or settings.OPENROUTER_API_KEY
     return {
         "Authorization": f"Bearer {api_key}",
@@ -174,7 +174,7 @@ def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
 
 
 def _openai_messages(context: AgentContext) -> list[dict[str, Any]]:
-    """Convert pi-agent-core messages into OpenAI chat messages."""
+    """用于处理OpenAI 兼容消息列表。"""
     messages: list[dict[str, Any]] = []
     if context.system_prompt:
         messages.append({"role": "system", "content": context.system_prompt})
@@ -186,7 +186,7 @@ def _openai_messages(context: AgentContext) -> list[dict[str, Any]]:
 
 
 def _openai_message(message: Any) -> dict[str, Any] | None:
-    """Convert one pi-agent-core message into an OpenAI message."""
+    """用于处理OpenAI 兼容消息。"""
     role = getattr(message, "role", "")
     if role == "user":
         return {"role": "user", "content": _text_content(message)}
@@ -203,7 +203,7 @@ def _openai_message(message: Any) -> dict[str, Any] | None:
 
 
 def _openai_assistant_message(message: Any) -> dict[str, Any]:
-    """Convert assistant text and tool calls into OpenAI format."""
+    """用于处理OpenAI 兼容助手消息。"""
     tool_calls = []
     for block in getattr(message, "content", []):
         if isinstance(block, ToolCall):
@@ -228,7 +228,7 @@ def _openai_assistant_message(message: Any) -> dict[str, Any]:
 
 
 def _text_content(message: Any) -> str:
-    """Return concatenated textual content blocks from a pi message."""
+    """用于处理文本content。"""
     parts: list[str] = []
     for block in getattr(message, "content", []):
         if isinstance(block, TextContent):
@@ -237,7 +237,7 @@ def _text_content(message: Any) -> str:
 
 
 def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
-    """Convert pi-agent-core tools into OpenAI tool schemas."""
+    """用于处理OpenAI 兼容工具列表。"""
     tools = []
     for tool in context.tools:
         tools.append(
@@ -254,7 +254,7 @@ def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
 
 
 async def _raise_for_openrouter_error(response: httpx.Response) -> None:
-    """Raise a readable error when OpenRouter rejects the request."""
+    """用于抛出forOpenRouter错误。"""
     if response.status_code == 200:
         return
     body = await response.aread()
@@ -263,7 +263,7 @@ async def _raise_for_openrouter_error(response: httpx.Response) -> None:
 
 
 def _decode_sse_line(line: str) -> dict[str, Any] | str | None:
-    """Decode one OpenAI-compatible SSE data line."""
+    """用于处理decodesseline。"""
     if not line.startswith("data: "):
         return None
     data = line[6:].strip()
@@ -284,7 +284,7 @@ def _apply_openrouter_chunk(
     text_started: bool,
     text_index: int,
 ) -> bool:
-    """Apply one OpenRouter chunk to the partial assistant message."""
+    """用于应用OpenRouterchunk。"""
     choice = _first_choice(chunk)
     if not choice:
         _apply_usage(chunk, partial)
@@ -304,7 +304,7 @@ def _apply_openrouter_chunk(
 
 
 def _first_choice(chunk: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the first streamed choice if one exists."""
+    """用于处理firstchoice。"""
     choices = chunk.get("choices")
     if isinstance(choices, list) and choices:
         choice = choices[0]
@@ -321,7 +321,7 @@ def _apply_text_delta(
     text_started: bool,
     text_index: int,
 ) -> bool:
-    """Append streamed text content to the partial assistant message."""
+    """用于应用文本增量。"""
     content = delta.get("content")
     if not isinstance(content, str) or not content:
         return text_started
@@ -347,7 +347,7 @@ def _apply_tool_delta(
     delta: dict[str, Any],
     tool_buffers: dict[int, dict[str, Any]],
 ) -> None:
-    """Accumulate streamed OpenAI tool-call deltas by index."""
+    """用于应用工具增量。"""
     tool_calls = delta.get("tool_calls")
     if not isinstance(tool_calls, list):
         return
@@ -372,7 +372,7 @@ def _emit_tool_calls(
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
 ) -> None:
-    """Emit complete tool-call events after OpenRouter finishes the message."""
+    """用于发送工具calls。"""
     for index in sorted(tool_buffers):
         raw_call = tool_buffers[index]
         tool_call = ToolCall(
@@ -395,7 +395,7 @@ def _emit_tool_calls(
 
 
 def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
-    """Parse a streamed tool-call argument string into a dict."""
+    """用于解析工具arguments。"""
     if isinstance(raw, dict):
         return raw
     if not isinstance(raw, str) or not raw.strip():
@@ -405,7 +405,7 @@ def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
 
 
 def _apply_usage(chunk: dict[str, Any], partial: AssistantMessage) -> None:
-    """Copy final token usage when the provider includes it."""
+    """用于应用用量。"""
     usage = chunk.get("usage")
     if not isinstance(usage, dict):
         return
@@ -417,7 +417,7 @@ def _apply_usage(chunk: dict[str, Any], partial: AssistantMessage) -> None:
 
 
 def _finish_reason(chunk: dict[str, Any], current: str) -> str:
-    """Return the latest non-empty finish reason from a stream chunk."""
+    """用于完成原因。"""
     choice = _first_choice(chunk)
     if not choice:
         return current
@@ -426,14 +426,14 @@ def _finish_reason(chunk: dict[str, Any], current: str) -> str:
 
 
 def _stop_reason(finish_reason: str) -> StopReason:
-    """Map OpenAI finish reasons into pi-agent-core stop reasons."""
+    """用于处理stop原因。"""
     if finish_reason == "length":
         return "length"
     return "stop"
 
 
 def _cancelled(options: SimpleStreamOptions) -> bool:
-    """Return whether the caller has requested stream cancellation."""
+    """用于处理取消状态。"""
     return bool(options.cancel_event and options.cancel_event.is_set())
 
 

@@ -26,12 +26,14 @@ _OPEN_PAYPAL_SUBSCRIPTION_STATUSES = {"APPROVAL_PENDING", "ACTIVE"}
 
 
 def _is_subscription_active(status_value: str | None) -> bool:
+    """用于判断订阅有效状态。"""
     return str(status_value or "").upper() == "ACTIVE"
 
 
 def _subscription_status_payload(
     subscription: BillingSubscription | None,
 ) -> dict[str, Any]:
+    """用于处理订阅状态载荷。"""
     if subscription is None:
         return {
             "provider": None,
@@ -50,6 +52,7 @@ def _subscription_status_payload(
 def _paypal_checkout_payload(
     subscription: BillingSubscription,
 ) -> dict[str, str] | None:
+    """用于处理PayPal连接取出载荷。"""
     payload = subscription.raw_payload
     if not isinstance(payload, dict):
         return None
@@ -68,6 +71,7 @@ def _open_paypal_subscription(
     db: Session,
     user_id: int,
 ) -> BillingSubscription | None:
+    """用于打开PayPal订阅。"""
     return (
         db.query(BillingSubscription)
         .filter(
@@ -84,6 +88,7 @@ def _paypal_subscription_by_provider_id(
     db: Session,
     subscription_id: str,
 ) -> BillingSubscription | None:
+    """用于处理PayPal订阅by提供方标识。"""
     return (
         db.query(BillingSubscription)
         .filter(
@@ -98,6 +103,7 @@ def _current_subscription_for_user(
     db: Session,
     user_id: int,
 ) -> BillingSubscription | None:
+    """用于处理当前订阅for用户。"""
     active_subscription = (
         db.query(BillingSubscription)
         .filter(
@@ -131,6 +137,7 @@ def _current_subscription_for_user(
 
 
 def _paypal_subscription_plan_matches(raw_payload: object) -> bool:
+    """用于处理PayPal订阅方案匹配关系。"""
     if not isinstance(raw_payload, dict):
         return False
     plan_id = raw_payload.get("plan_id")

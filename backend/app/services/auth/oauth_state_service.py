@@ -1,3 +1,5 @@
+"""用于提供oauth state service模块能力。"""
+
 from __future__ import annotations
 
 import secrets
@@ -28,6 +30,7 @@ class OAuthStateError(ValueError):
     error_code = "invalid_state"
 
     def __init__(self) -> None:
+        """用于初始化当前对象。"""
         super().__init__(self.error_code)
 
 
@@ -40,6 +43,7 @@ class OAuthStateService:
         expires_in: timedelta = timedelta(minutes=10),
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        """用于初始化当前对象。"""
         self._expires_in = expires_in
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._states: dict[str, _StoredOAuthState] = {}
@@ -69,6 +73,7 @@ class OAuthStateService:
         stored.consumed_at = self._now()
 
     def _now(self) -> datetime:
+        """用于处理当前时间。"""
         now = self._clock()
         if now.tzinfo is None:
             return now.replace(tzinfo=timezone.utc)

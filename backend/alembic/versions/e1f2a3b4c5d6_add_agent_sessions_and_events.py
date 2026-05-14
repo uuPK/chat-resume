@@ -1,10 +1,4 @@
-"""add agent sessions and events
-
-Revision ID: e1f2a3b4c5d6
-Revises: b1c2d3e4f5a6
-Create Date: 2026-04-12 00:00:00.000000
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -17,6 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = inspector.get_table_names()
@@ -69,6 +64,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = inspector.get_table_names()

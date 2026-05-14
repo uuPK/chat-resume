@@ -1,5 +1,7 @@
+// 用于提供 lib/httpClient.ts 模块。
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// 用于处理API地址。
 export function apiUrl(path: string, baseUrl = API_BASE_URL): string {
   return `${baseUrl}${path}`
 }

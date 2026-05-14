@@ -1,4 +1,4 @@
-"""Application service for Resume Agent session state transitions."""
+"""用于管理简历 Agent 会话状态和工具确认。"""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class ConfirmToolResult:
     message: str | None = None
 
     def to_response(self) -> dict[str, Any]:
-        """Return the public JSON response without unset optional fields."""
+        """用于转换为响应。"""
         response: dict[str, Any] = {"ok": self.ok}
         if self.duplicate:
             response["duplicate"] = True
@@ -47,6 +47,7 @@ class ResumeAgentSessionService:
         session_store: AgentSessionStore,
         confirmation_sessions: ConfirmationSessionManager = confirmation_manager,
     ):
+        """用于初始化当前对象。"""
         self.session_store = session_store
         self.confirmation_sessions = confirmation_sessions
 
@@ -58,7 +59,7 @@ class ResumeAgentSessionService:
         confirmed: bool,
         user_id: int,
     ) -> ConfirmToolResult:
-        """Record or dispatch a user's confirmation for the pending tool call."""
+        """用于确认工具。"""
         session = self.session_store.get_session(session_id)
         if not session or session.user_id != user_id:
             raise ResumeAgentSessionNotFound(f"Session {session_id} 不存在")
@@ -113,6 +114,7 @@ class ResumeAgentSessionService:
 
     @staticmethod
     def _pending_call_id(event: AgentEvent | None) -> str | None:
+        """用于处理待确认调用标识。"""
         if not event or not isinstance(event.payload, dict):
             return None
         call_id = event.payload.get("call_id")
@@ -120,6 +122,7 @@ class ResumeAgentSessionService:
 
     @staticmethod
     def _pending_tool_name(event: AgentEvent | None) -> str | None:
+        """用于处理待确认工具name。"""
         if not event or not isinstance(event.payload, dict):
             return None
         tool_name = event.payload.get("tool_name")

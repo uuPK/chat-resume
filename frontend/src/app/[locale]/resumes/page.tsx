@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/resumes/page.tsx 模块。
 
 import { motion } from 'framer-motion'
 import { useEffect, useState, useRef } from 'react'
@@ -32,6 +33,7 @@ interface Resume {
 const UPLOAD_JOB_POLL_INTERVAL_MS = 1500
 const UPLOAD_JOB_TIMEOUT_MS = 120000
 
+// 用于等待当前数据。
 function sleep(ms: number) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
@@ -78,6 +80,7 @@ export default function ResumesPage() {
     if (mounted && !isLoading && !isAuthenticated) router.push('/login')
   }, [mounted, isLoading, isAuthenticated, router])
 
+  // 用于请求简历。
   const fetchResumes = async () => {
     if (!isAuthenticated) return
     try {
@@ -95,6 +98,7 @@ export default function ResumesPage() {
     if (mounted && isAuthenticated) fetchResumes()
   }, [mounted, isAuthenticated])
 
+  // 用于等待foruploadjob。
   const waitForUploadJob = async (jobId: string) => {
     const startedAt = Date.now()
     while (Date.now() - startedAt < UPLOAD_JOB_TIMEOUT_MS) {
@@ -113,6 +117,7 @@ export default function ResumesPage() {
     throw new Error(t('parseTimeout'))
   }
 
+  // 用于处理fileupload。
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -141,6 +146,7 @@ export default function ResumesPage() {
     }
   }
 
+  // 用于处理delete简历。
   const handleDeleteResume = async (resumeId: number, title: string) => {
     if (!confirm(t('deleteConfirm', { title }))) return
     try {
@@ -153,6 +159,7 @@ export default function ResumesPage() {
     }
   }
 
+  // 用于处理confirmcreate。
   const handleConfirmCreate = async () => {
     setCreating(true)
     try {
@@ -172,6 +179,7 @@ export default function ResumesPage() {
     }
   }
 
+  // 用于打开简历editor。
   const openResumeEditor = (resumeId: number) => {
     router.push(`/resume/${resumeId}/edit`)
   }

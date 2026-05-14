@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/pricing/page.tsx 模块。
 
 import { Link } from '@/i18n/navigation'
 import { useRouter } from '@/i18n/navigation'
@@ -65,6 +66,7 @@ export default function PricingPage() {
       .catch(() => setPayPalPlan(null))
   }, [user, authLoading])
 
+  // 用于处理chooseplus。
   const handleChoosePlus = async () => {
     if (!user) {
       router.push('/login?next=/pricing')

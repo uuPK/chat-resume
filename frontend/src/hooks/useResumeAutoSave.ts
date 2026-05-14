@@ -5,6 +5,7 @@
  */
 
 'use client'
+// 用于提供 hooks/useResumeAutoSave.ts 模块。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
@@ -24,6 +25,7 @@ interface UseResumeAutoSaveOptions {
 /**
  * 提供简历自动保存所需的状态、草稿更新和手动触发保存能力。
  */
+// 用于封装简历自动保存相关状态和行为。
 export function useResumeAutoSave({ setResume, saveResume }: UseResumeAutoSaveOptions) {
   const t = useTranslations('resume.editor')
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle')

@@ -1,4 +1,4 @@
-"""Typed helpers for the resume agent streaming payload contract."""
+"""用于定义简历 Agent 流式事件的标准化工具。"""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _EVENT_TYPE_BY_NAME: dict[str, ResumeStreamEventType] = {
 
 
 def infer_event_type(event: Mapping[str, Any]) -> ResumeStreamEventType:
-    """Return the canonical event type for a legacy-compatible payload."""
+    """用于推断事件类型。"""
     if event.get("tool_pending"):
         return "tool_pending"
     if event.get("tool_call_started"):
@@ -57,7 +57,7 @@ def normalize_event_type(
     value: Any,
     event: Mapping[str, Any],
 ) -> ResumeStreamEventType:
-    """Coerce arbitrary runtime event type values into the public literal set."""
+    """用于标准化事件类型。"""
     if isinstance(value, str):
         event_type = _EVENT_TYPE_BY_NAME.get(value)
         if event_type is not None:
@@ -66,7 +66,7 @@ def normalize_event_type(
 
 
 def normalize_diff_items(value: Any) -> list[DiffItem]:
-    """Coerce tool diff data into the public structured diff shape."""
+    """用于标准化差异条目。"""
     if not isinstance(value, list):
         return []
     diff_items: list[DiffItem] = []
@@ -84,38 +84,38 @@ def normalize_diff_items(value: Any) -> list[DiffItem]:
 
 
 def _list_of_strings(value: Any) -> list[str]:
-    """Return only string values from a possibly untyped list."""
+    """用于处理列表of字符串。"""
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str)]
 
 
 def _list_of_optional_strings(value: Any) -> list[str | None]:
-    """Return only string or None values from a possibly untyped list."""
+    """用于处理列表of可选字符串。"""
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str) or item is None]
 
 
 def _list_of_dicts(value: Any) -> list[dict[str, Any]]:
-    """Return only dict values from a possibly untyped list."""
+    """用于处理列表of字典。"""
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
 
 
 def _dict_or_none(value: Any) -> dict[str, Any] | None:
-    """Return a dict only when the incoming value is actually dict-like."""
+    """用于处理字典ornone。"""
     return value if isinstance(value, dict) else None
 
 
 def _string_or_none(value: Any) -> str | None:
-    """Return a string only when the incoming value is already textual."""
+    """用于处理字符串ornone。"""
     return value if isinstance(value, str) else None
 
 
 def _float_or_none(value: Any) -> float | None:
-    """Return a float for numeric values, excluding bool."""
+    """用于处理浮点数ornone。"""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -124,7 +124,7 @@ def _float_or_none(value: Any) -> float | None:
 
 
 def _int_or_none(value: Any) -> int | None:
-    """Return an int for integer values, excluding bool."""
+    """用于处理整数ornone。"""
     if isinstance(value, bool):
         return None
     return value if isinstance(value, int) else None
@@ -135,7 +135,7 @@ def normalize_resume_stream_payload(
     *,
     resume_content: dict[str, Any] | None = None,
 ) -> ResumeStreamEvent:
-    """Normalize runtime event dicts into the resume stream contract."""
+    """用于标准化简历流式载荷。"""
     payload: ResumeStreamEvent = {
         "event_type": normalize_event_type(event.get("event_type"), event),
         "content": str(event.get("content") or ""),
@@ -221,6 +221,7 @@ def text_delta_event(
     tool_calls: list[dict[str, Any]] | None = None,
     context: dict[str, Any] | None = None,
 ) -> ResumeStreamEvent:
+    """用于处理文本增量事件。"""
     return {
         "event_type": "text_delta",
         "content": content,
@@ -236,6 +237,7 @@ def prompt_rendered_event(
     system_prompt: str,
     user_message_preview: str,
 ) -> ResumeStreamEvent:
+    """用于处理提示词渲染结果事件。"""
     return {
         "event_type": "prompt_rendered",
         "internal_only": True,
@@ -255,6 +257,7 @@ def llm_request_event(
     params: dict[str, Any],
     tool_names: list[str | None],
 ) -> ResumeStreamEvent:
+    """用于处理模型请求事件。"""
     return {
         "event_type": "llm_request",
         "internal_only": True,
@@ -276,6 +279,7 @@ def llm_response_event(
     tool_call_count: int,
     latency_ms: float,
 ) -> ResumeStreamEvent:
+    """用于处理模型响应事件。"""
     return {
         "event_type": "llm_response",
         "internal_only": True,
@@ -300,6 +304,7 @@ def tool_pending_event(
     diff_items: Any,
     tool_calls: list[dict[str, Any]],
 ) -> ResumeStreamEvent:
+    """用于处理工具待确认事件。"""
     return {
         "event_type": "tool_pending",
         "content": "",
@@ -327,6 +332,7 @@ def tool_call_event(
     display_message: str,
     tool_calls: list[dict[str, Any]],
 ) -> ResumeStreamEvent:
+    """用于处理工具调用事件。"""
     return {
         "event_type": "tool_call",
         "content": "",
@@ -353,6 +359,7 @@ def tool_rejected_event(
     result: dict[str, Any],
     tool_calls: list[dict[str, Any]],
 ) -> ResumeStreamEvent:
+    """用于处理工具rejected事件。"""
     return {
         "event_type": "tool_rejected",
         "content": "",
@@ -378,6 +385,7 @@ def tool_call_failed_event(
     result: Any,
     display_message: str | None,
 ) -> ResumeStreamEvent:
+    """用于处理工具调用失败状态事件。"""
     return {
         "event_type": "tool_call_failed",
         "content": "",
@@ -406,6 +414,7 @@ def tool_confirmed_event(
     diff_items: Any,
     context: dict[str, Any],
 ) -> ResumeStreamEvent:
+    """用于处理工具已确认事件。"""
     payload: ResumeStreamEvent = {
         "event_type": "tool_confirmed",
         "content": "",
@@ -437,6 +446,7 @@ def tool_result_event(
     display_message: str | None,
     context: dict[str, Any] | None,
 ) -> ResumeStreamEvent:
+    """用于处理工具结果事件。"""
     payload: ResumeStreamEvent = {
         "event_type": "tool_result",
         "content": "",
@@ -457,6 +467,7 @@ def tool_result_event(
 
 
 def _tool_id_from_event(event: Mapping[str, Any]) -> str | None:
+    """用于处理工具标识from事件。"""
     tool_call = event.get("tool_call")
     if not isinstance(tool_call, dict):
         return None

@@ -51,6 +51,7 @@ export const MODULE_LABELS: Record<ResumeModule, string> = {
 /**
  * 将布局配置转换成预览和编辑器共用的模块列表。
  */
+// 用于构建模块配置。
 export function buildModuleConfig(
   moduleOrder: ResumeModule[],
   visibleModules: Set<ResumeModule>,
@@ -98,6 +99,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 /**
  * 将服务端返回的 layout_config 原始对象转换为 ResumeLayoutConfig
  */
+// 用于反序列化布局配置。
 export function deserializeLayoutConfig(raw: Record<string, unknown> | null | undefined): ResumeLayoutConfig {
   if (!raw) return DEFAULT_LAYOUT_CONFIG
   try {
@@ -121,6 +123,7 @@ export function deserializeLayoutConfig(raw: Record<string, unknown> | null | un
 /**
  * 将 ResumeLayoutConfig 序列化为可存 JSON 的对象（Set → Array）
  */
+// 用于序列化布局配置。
 function serializeLayoutConfig(config: ResumeLayoutConfig) {
   return {
     density: config.density,
@@ -134,6 +137,7 @@ function serializeLayoutConfig(config: ResumeLayoutConfig) {
 /**
  * 保存布局配置到 localStorage（作为离线缓存）
  */
+// 用于保存布局配置。
 export function saveLayoutConfig(resumeId: number, config: ResumeLayoutConfig): void {
   const key = `resume_layout_${resumeId}`
   localStorage.setItem(key, JSON.stringify(serializeLayoutConfig(config)))
@@ -142,6 +146,7 @@ export function saveLayoutConfig(resumeId: number, config: ResumeLayoutConfig): 
 /**
  * 从 localStorage 加载布局配置（用于首次渲染前的占位，避免闪烁）
  */
+// 用于加载布局配置。
 export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
   const key = `resume_layout_${resumeId}`
   const stored = localStorage.getItem(key)
@@ -158,6 +163,7 @@ export function loadLayoutConfig(resumeId: number): ResumeLayoutConfig {
  * 将布局配置持久化到服务端，同时更新 localStorage 缓存
  * debounce 由调用方控制（edit/page.tsx 中 800ms）
  */
+// 用于保存布局配置to服务端。
 export async function saveLayoutConfigToServer(resumeId: number, config: ResumeLayoutConfig): Promise<void> {
   // 同步更新本地缓存
   saveLayoutConfig(resumeId, config)

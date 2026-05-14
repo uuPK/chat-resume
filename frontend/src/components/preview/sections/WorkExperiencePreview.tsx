@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/sections/WorkExperiencePreview.tsx 模块。
 
 import type { WorkExperience } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
@@ -102,6 +103,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
   )
 }
 
+// 用于渲染 WorkExperiencePreview 组件。
 export default function WorkExperiencePreview({
   data,
   renderLines,
@@ -112,6 +114,7 @@ export default function WorkExperiencePreview({
     return null
   }
 
+  // 用于处理shouldrender行。
   const shouldRenderLine = (lineIndex: number) => {
     return !renderLines || renderLines.includes(lineIndex)
   }

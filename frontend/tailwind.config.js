@@ -1,3 +1,4 @@
+// 用于配置 Tailwind CSS 扫描范围和主题扩展。
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [

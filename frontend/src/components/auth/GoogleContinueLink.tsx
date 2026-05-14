@@ -1,13 +1,16 @@
 'use client'
+// 用于提供 components/auth/GoogleContinueLink.tsx 模块。
 
 import { useTranslations } from 'next-intl'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+// 用于获取Google登录地址。
 export function getGoogleLoginUrl() {
   return `${API_BASE_URL}/api/auth/google/login`
 }
 
+// 用于渲染 GoogleContinueLink 组件。
 export default function GoogleContinueLink() {
   const t = useTranslations('auth.oauth')
 

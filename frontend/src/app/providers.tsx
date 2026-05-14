@@ -1,8 +1,10 @@
 'use client'
+// 用于提供 app/providers.tsx 模块。
 
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/lib/auth'
 
+// 用于渲染 Providers 组件。
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>

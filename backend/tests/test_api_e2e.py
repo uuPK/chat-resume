@@ -50,6 +50,7 @@ _TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
 
 def _override_get_db():
+    """用于覆盖get数据库。"""
     db = _TestingSession()
     try:
         yield db
@@ -73,6 +74,7 @@ def _create_tables():
 
 @pytest.fixture()
 def client():
+    """用于处理客户端。"""
     return TestClient(app)
 
 
@@ -85,6 +87,7 @@ def _register(
     password: str = "password123",
     full_name: str | None = None,
 ):
+    """用于处理register。"""
     payload = {"email": email, "password": password}
     if full_name:
         payload["full_name"] = full_name
@@ -92,6 +95,7 @@ def _register(
 
 
 def _login(client: TestClient, email: str, password: str = "password123") -> str:
+    """用于处理login。"""
     resp = client.post(
         "/api/auth/login",
         data={"username": email, "password": password},
@@ -106,6 +110,7 @@ def _login(client: TestClient, email: str, password: str = "password123") -> str
 
 
 def _auth_headers(token: str) -> dict:
+    """用于处理认证headers。"""
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -147,6 +152,7 @@ def _grant_active_subscription(email: str, subscription_id: str = "I-PLUS") -> N
 
 
 def _configure_google_oauth(monkeypatch):
+    """用于处理configureGoogleOAuth。"""
     from app.entrypoints.http import auth as auth_routes
 
     monkeypatch.setattr(
@@ -165,12 +171,14 @@ def _configure_google_oauth(monkeypatch):
 
 
 def _issue_google_state(client: TestClient) -> str:
+    """用于处理issueGooglestate。"""
     start_resp = client.get("/api/auth/google/login", follow_redirects=False)
     assert start_resp.status_code == 302
     return parse_qs(urlparse(start_resp.headers["location"]).query)["state"][0]
 
 
 def _empty_resume_content() -> dict:
+    """用于处理empty简历content。"""
     return {
         "job_application": {"target_company": "测试公司", "target_title": "后端工程师"},
         "personal_info": {"name": "张三", "email": "zhangsan@example.com"},
@@ -188,6 +196,7 @@ def _empty_resume_content() -> dict:
 
 class TestAuth:
     def test_register_creates_user(self, client):
+        """用于验证registercreates用户。"""
         resp = _register(client, "new_user@example.com", full_name="新用户")
         assert resp.status_code == 200
         body = resp.json()
@@ -197,12 +206,14 @@ class TestAuth:
         assert "hashed_password" not in body
 
     def test_register_duplicate_email_returns_400(self, client):
+        """用于验证registerduplicateemailreturns400。"""
         _register(client, "dup@example.com")
         resp = _register(client, "dup@example.com")
         assert resp.status_code == 400
         assert "already registered" in resp.json()["detail"].lower()
 
     def test_login_returns_token_and_user(self, client):
+        """用于验证loginreturns令牌and用户。"""
         _register(client, "login_test@example.com", full_name="登录测试")
         resp = client.post(
             "/api/auth/login",
@@ -219,6 +230,7 @@ class TestAuth:
         assert resp.cookies.get("refresh_token")
 
     def test_login_cookie_allows_get_me_without_authorization_header(self, client):
+        """用于验证logincookieallowsgetmewithoutauthorizationheader。"""
         _register(client, "cookie_me_user@example.com", full_name="Cookie用户")
         _login(client, "cookie_me_user@example.com")
         resp = client.get("/api/auth/me")
@@ -226,6 +238,7 @@ class TestAuth:
         assert resp.json()["email"] == "cookie_me_user@example.com"
 
     def test_login_wrong_password_returns_401(self, client):
+        """用于验证loginwrongpasswordreturns401。"""
         _register(client, "wrong_pw@example.com")
         resp = client.post(
             "/api/auth/login",
@@ -235,6 +248,7 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_login_unknown_user_returns_401(self, client):
+        """用于验证loginunknown用户returns401。"""
         resp = client.post(
             "/api/auth/login",
             data={"username": "nobody@example.com", "password": "password123"},
@@ -243,6 +257,7 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_google_only_user_without_password_cannot_password_login(self, client):
+        """用于验证Googleonly用户withoutpasswordcannotpasswordlogin。"""
         db = _TestingSession()
         try:
             db.add(
@@ -267,6 +282,7 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_provider_identity_provider_user_id_is_unique_per_provider(self, client):
+        """用于验证provideridentityprovider用户idisuniqueperprovider。"""
         db = _TestingSession()
         try:
             user = User(
@@ -306,6 +322,7 @@ class TestAuth:
     def test_google_login_redirects_to_google_authorization_url(
         self, client, monkeypatch
     ):
+        """用于验证GoogleloginredirectstoGoogleauthorizationurl。"""
         _configure_google_oauth(monkeypatch)
 
         resp = client.get("/api/auth/google/login", follow_redirects=False)
@@ -328,6 +345,7 @@ class TestAuth:
     def test_google_callback_success_issues_cookie_session_and_redirects(
         self, client, monkeypatch
     ):
+        """用于验证Googlecallbacksuccessissuescookie会话andredirects。"""
         from app.services.auth.google_oauth_client import (
             GoogleIdentity,
             GoogleOAuthTokens,
@@ -335,12 +353,15 @@ class TestAuth:
 
         class FakeGoogleOAuthClient:
             def __init__(self, config):
+                """用于处理init。"""
                 self.config = config
 
             def authorization_url(self, *, state: str) -> str:
+                """用于处理authorizationurl。"""
                 return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
 
             async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                """用于处理exchangecode。"""
                 assert code == "valid-code"
                 return GoogleOAuthTokens(
                     access_token="google-access-token",
@@ -348,6 +369,7 @@ class TestAuth:
                 )
 
             async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                """用于处理fetchidentity。"""
                 assert access_token == "google-access-token"
                 return GoogleIdentity(
                     sub="callback-google-sub",
@@ -380,6 +402,7 @@ class TestAuth:
     def test_google_callback_invalid_state_redirects_to_login_error(
         self, client, monkeypatch
     ):
+        """用于验证Googlecallbackinvalidstateredirectstologin错误。"""
         _configure_google_oauth(monkeypatch)
 
         resp = client.get(
@@ -395,6 +418,7 @@ class TestAuth:
     def test_google_callback_google_error_redirects_to_cancelled(
         self, client, monkeypatch
     ):
+        """用于验证GooglecallbackGoogle错误redirectstocancelled。"""
         _configure_google_oauth(monkeypatch)
         state = _issue_google_state(client)
 
@@ -411,16 +435,20 @@ class TestAuth:
     def test_google_callback_exchange_failure_redirects_to_login_error(
         self, client, monkeypatch
     ):
+        """用于验证Googlecallbackexchangefailureredirectstologin错误。"""
         from app.services.auth.google_oauth_client import GoogleOAuthAuthenticationError
 
         class FailingGoogleOAuthClient:
             def __init__(self, config):
+                """用于处理init。"""
                 self.config = config
 
             def authorization_url(self, *, state: str) -> str:
+                """用于处理authorizationurl。"""
                 return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
 
             async def exchange_code(self, code: str):
+                """用于处理exchangecode。"""
                 raise GoogleOAuthAuthenticationError("google_exchange_failed")
 
         auth_routes = _configure_google_oauth(monkeypatch)
@@ -440,6 +468,7 @@ class TestAuth:
     def test_google_callback_unverified_email_redirects_to_login_error(
         self, client, monkeypatch
     ):
+        """用于验证Googlecallbackunverifiedemailredirectstologin错误。"""
         from app.services.auth.google_oauth_client import (
             GoogleIdentity,
             GoogleOAuthTokens,
@@ -447,18 +476,22 @@ class TestAuth:
 
         class UnverifiedEmailGoogleOAuthClient:
             def __init__(self, config):
+                """用于处理init。"""
                 self.config = config
 
             def authorization_url(self, *, state: str) -> str:
+                """用于处理authorizationurl。"""
                 return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
 
             async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                """用于处理exchangecode。"""
                 return GoogleOAuthTokens(
                     access_token="google-access-token",
                     token_type="Bearer",
                 )
 
             async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                """用于处理fetchidentity。"""
                 return GoogleIdentity(
                     sub="unverified-google-sub",
                     email="unverified_google_callback@example.com",
@@ -487,6 +520,7 @@ class TestAuth:
     def test_google_callback_account_conflict_redirects_to_login_error(
         self, client, monkeypatch
     ):
+        """用于验证Googlecallbackaccountconflictredirectstologin错误。"""
         from app.services.auth.google_oauth_client import (
             GoogleIdentity,
             GoogleOAuthTokens,
@@ -517,18 +551,22 @@ class TestAuth:
 
         class ConflictingGoogleOAuthClient:
             def __init__(self, config):
+                """用于处理init。"""
                 self.config = config
 
             def authorization_url(self, *, state: str) -> str:
+                """用于处理authorizationurl。"""
                 return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
 
             async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                """用于处理exchangecode。"""
                 return GoogleOAuthTokens(
                     access_token="google-access-token",
                     token_type="Bearer",
                 )
 
             async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                """用于处理fetchidentity。"""
                 return GoogleIdentity(
                     sub="new-google-sub",
                     email="conflict_google_callback@example.com",
@@ -557,6 +595,7 @@ class TestAuth:
     def test_google_login_user_can_refresh_and_logout_with_existing_endpoints(
         self, client, monkeypatch
     ):
+        """用于验证Googlelogin用户canrefreshandlogoutwithexistingendpoints。"""
         from app.services.auth.google_oauth_client import (
             GoogleIdentity,
             GoogleOAuthTokens,
@@ -564,18 +603,22 @@ class TestAuth:
 
         class RefreshableGoogleOAuthClient:
             def __init__(self, config):
+                """用于处理init。"""
                 self.config = config
 
             def authorization_url(self, *, state: str) -> str:
+                """用于处理authorizationurl。"""
                 return "https://accounts.google.com/o/oauth2/v2/auth?" f"state={state}"
 
             async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+                """用于处理exchangecode。"""
                 return GoogleOAuthTokens(
                     access_token="google-access-token",
                     token_type="Bearer",
                 )
 
             async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+                """用于处理fetchidentity。"""
                 return GoogleIdentity(
                     sub="refreshable-google-sub",
                     email="refreshable_google@example.com",
@@ -616,6 +659,7 @@ class TestAuth:
         assert stale_refresh_resp.json()["detail"] == "Invalid refresh token"
 
     def test_get_me_returns_current_user(self, client):
+        """用于验证getmereturnscurrent用户。"""
         _register(client, "me_user@example.com", full_name="我")
         token = _login(client, "me_user@example.com")
         resp = client.get("/api/auth/me", headers=_auth_headers(token))
@@ -623,6 +667,7 @@ class TestAuth:
         assert resp.json()["email"] == "me_user@example.com"
 
     def test_get_me_returns_request_id_header(self, client):
+        """用于验证getmereturns请求idheader。"""
         _register(client, "request_id_user@example.com", full_name="请求头测试")
         token = _login(client, "request_id_user@example.com")
         resp = client.get("/api/auth/me", headers=_auth_headers(token))
@@ -630,10 +675,12 @@ class TestAuth:
         assert resp.headers.get("X-Request-ID")
 
     def test_get_me_without_token_returns_401(self, client):
+        """用于验证getmewithout令牌returns401。"""
         resp = client.get("/api/auth/me")
         assert resp.status_code == 401
 
     def test_get_me_with_token_for_deleted_user_returns_401(self, client):
+        """用于验证getmewith令牌fordeleted用户returns401。"""
         email = "deleted_user@example.com"
         _register(client, email, full_name="待删除用户")
         token = _login(client, email)
@@ -652,6 +699,7 @@ class TestAuth:
         assert resp.json()["detail"] == "Could not validate credentials"
 
     def test_inactive_user_cannot_login(self, client):
+        """用于验证inactive用户cannotlogin。"""
         email = "inactive_login@example.com"
         _register(client, email, full_name="被禁用用户")
 
@@ -673,6 +721,7 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_inactive_user_existing_token_is_rejected(self, client):
+        """用于验证inactive用户existing令牌isrejected。"""
         email = "inactive_token@example.com"
         _register(client, email, full_name="已失效登录态用户")
         token = _login(client, email)
@@ -692,6 +741,7 @@ class TestAuth:
         assert resp.json()["detail"] == "Could not validate credentials"
 
     def test_update_me_changes_full_name(self, client):
+        """用于验证updatemechangesfullname。"""
         _register(client, "update_me@example.com", full_name="旧名字")
         token = _login(client, "update_me@example.com")
         resp = client.put(
@@ -703,6 +753,7 @@ class TestAuth:
         assert resp.json()["full_name"] == "新名字"
 
     def test_refresh_rotates_refresh_session_and_rejects_reuse(self, client):
+        """用于验证refreshrotatesrefresh会话andrejectsreuse。"""
         email = "refresh_rotate@example.com"
         _register(client, email, full_name="刷新轮换用户")
         _login(client, email)
@@ -722,6 +773,7 @@ class TestAuth:
         assert stale_refresh_resp.json()["detail"] == "Invalid refresh token"
 
     def test_logout_revokes_refresh_session(self, client):
+        """用于验证logoutrevokesrefresh会话。"""
         email = "logout_revoke@example.com"
         _register(client, email, full_name="登出吊销用户")
         _login(client, email)
@@ -743,6 +795,7 @@ class TestAuth:
 
 class TestAuthenticationMiddleware:
     def test_invalid_token_cannot_access_resume_routes(self, client):
+        """用于验证invalid令牌cannotaccess简历routes。"""
         resp = client.get(
             "/api/resumes/",
             headers=_auth_headers("not-a-real-token"),
@@ -751,6 +804,7 @@ class TestAuthenticationMiddleware:
         assert resp.json()["detail"] == "Could not validate credentials"
 
     def test_invalid_token_cannot_access_interview_routes(self, client):
+        """用于验证invalid令牌cannotaccess面试routes。"""
         resp = client.get(
             "/api/interviews/",
             headers=_auth_headers("not-a-real-token"),
@@ -761,16 +815,19 @@ class TestAuthenticationMiddleware:
 
 class TestBilling:
     def test_create_paypal_subscription_requires_login(self, client):
+        """用于验证createPayPal订阅requireslogin。"""
         resp = _anonymous_client().post("/api/billing/paypal/subscriptions", json={})
 
         assert resp.status_code == 401
         assert resp.json()["detail"] == "Could not validate credentials"
 
     def test_create_paypal_subscription_returns_approval_url(self, client, monkeypatch):
+        """用于验证createPayPal订阅returnsapprovalurl。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 assert user_id > 0
                 return {
                     "provider": "paypal",
@@ -805,10 +862,12 @@ class TestBilling:
     def test_create_paypal_subscription_persists_checkout_status(
         self, client, monkeypatch
     ):
+        """用于验证createPayPal订阅persistscheckout状态。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 assert user_id > 0
                 return {
                     "provider": "paypal",
@@ -845,6 +904,7 @@ class TestBilling:
     def test_billing_status_prefers_active_subscription_over_latest_history(
         self, client
     ):
+        """用于验证计费状态prefersactive订阅overlatesthistory。"""
         email = "billing_priority@example.com"
         _register(client, email, full_name="Billing Priority")
         token = _login(client, email)
@@ -887,12 +947,14 @@ class TestBilling:
     def test_create_paypal_subscription_reuses_pending_checkout(
         self, client, monkeypatch
     ):
+        """用于验证createPayPal订阅reusespendingcheckout。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             calls = 0
 
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 self.__class__.calls += 1
                 return {
                     "provider": "paypal",
@@ -929,10 +991,12 @@ class TestBilling:
     def test_create_paypal_subscription_recovers_from_concurrent_insert(
         self, client, monkeypatch
     ):
+        """用于验证createPayPal订阅recoversfromconcurrentinsert。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-RACE123",
@@ -991,10 +1055,12 @@ class TestBilling:
         }
 
     def test_get_paypal_plan_returns_current_provider_price(self, client, monkeypatch):
+        """用于验证getPayPalplanreturnscurrentproviderprice。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def get_plan(self):
+                """用于获取plan。"""
                 return {
                     "id": "P-TESTPLAN",
                     "name": "Chat Resume Plus",
@@ -1024,11 +1090,13 @@ class TestBilling:
         }
 
     def test_paypal_webhook_rejects_invalid_signature_without_login(self, monkeypatch):
+        """用于验证PayPalwebhookrejectsinvalidsignaturewithoutlogin。"""
         from app.entrypoints.http import billing as billing_routes
         from app.services.paypal_billing_service import PayPalBillingError
 
         class FakePayPalBillingService:
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 assert event["event_type"] == "BILLING.SUBSCRIPTION.ACTIVATED"
                 raise PayPalBillingError("paypal_webhook_signature_invalid")
 
@@ -1060,10 +1128,12 @@ class TestBilling:
     def test_paypal_subscription_activated_webhook_updates_billing_status(
         self, client, monkeypatch
     ):
+        """用于验证PayPal订阅activatedwebhookupdates计费状态。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-ACTIVE123",
@@ -1072,6 +1142,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 assert headers["paypal-transmission-id"] == "transmission-id"
                 assert event["event_type"] == "BILLING.SUBSCRIPTION.ACTIVATED"
 
@@ -1125,10 +1196,12 @@ class TestBilling:
     def test_paypal_webhook_before_local_subscription_can_be_replayed(
         self, client, monkeypatch
     ):
+        """用于验证PayPalwebhookbeforelocal订阅canbereplayed。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-EARLY123",
@@ -1137,6 +1210,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 return None
 
         monkeypatch.setattr(
@@ -1201,10 +1275,12 @@ class TestBilling:
     def test_sync_paypal_subscription_updates_status_from_provider(
         self, client, monkeypatch
     ):
+        """用于验证syncPayPal订阅updates状态fromprovider。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-SYNC123",
@@ -1213,6 +1289,7 @@ class TestBilling:
                 }
 
             async def get_subscription(self, *, subscription_id: str):
+                """用于获取订阅。"""
                 assert subscription_id == "I-SYNC123"
                 return {
                     "provider": "paypal",
@@ -1259,10 +1336,12 @@ class TestBilling:
     def test_sync_paypal_subscription_rejects_unexpected_plan_id(
         self, client, monkeypatch
     ):
+        """用于验证syncPayPal订阅rejectsunexpectedplanid。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-WRONGPLAN",
@@ -1271,6 +1350,7 @@ class TestBilling:
                 }
 
             async def get_subscription(self, *, subscription_id: str):
+                """用于获取订阅。"""
                 assert subscription_id == "I-WRONGPLAN"
                 return {
                     "provider": "paypal",
@@ -1317,10 +1397,12 @@ class TestBilling:
         }
 
     def test_paypal_webhook_rejects_unexpected_plan_id(self, client, monkeypatch):
+        """用于验证PayPalwebhookrejectsunexpectedplanid。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-WEBHOOK-WRONGPLAN",
@@ -1329,6 +1411,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 return None
 
         monkeypatch.setattr(
@@ -1381,10 +1464,12 @@ class TestBilling:
         }
 
     def test_sync_does_not_erase_webhook_event_ordering(self, client, monkeypatch):
+        """用于验证syncdoesnoterasewebhook事件ordering。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-SYNCORDER123",
@@ -1393,6 +1478,7 @@ class TestBilling:
                 }
 
             async def get_subscription(self, *, subscription_id: str):
+                """用于获取订阅。"""
                 assert subscription_id == "I-SYNCORDER123"
                 return {
                     "provider": "paypal",
@@ -1406,6 +1492,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 return None
 
         monkeypatch.setattr(
@@ -1484,10 +1571,12 @@ class TestBilling:
         }
 
     def test_cancel_paypal_subscription_updates_local_status(self, client, monkeypatch):
+        """用于验证cancelPayPal订阅updateslocal状态。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def cancel_subscription(self, *, subscription_id: str):
+                """用于处理cancel订阅。"""
                 assert subscription_id == "I-CANCEL-ENDPOINT"
 
         monkeypatch.setattr(
@@ -1520,10 +1609,12 @@ class TestBilling:
     def test_paypal_subscription_cancelled_webhook_deactivates_billing_status(
         self, client, monkeypatch
     ):
+        """用于验证PayPal订阅cancelledwebhookdeactivates计费状态。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-CANCEL123",
@@ -1532,6 +1623,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 assert event["event_type"] == "BILLING.SUBSCRIPTION.CANCELLED"
 
         monkeypatch.setattr(
@@ -1589,10 +1681,12 @@ class TestBilling:
     def test_paypal_older_webhook_event_does_not_overwrite_newer_status(
         self, client, monkeypatch
     ):
+        """用于验证PayPalolderwebhook事件doesnotoverwritenewer状态。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-ORDER123",
@@ -1601,6 +1695,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 return None
 
         monkeypatch.setattr(
@@ -1658,10 +1753,12 @@ class TestBilling:
         }
 
     def test_paypal_duplicate_webhook_event_id_is_ignored(self, client, monkeypatch):
+        """用于验证PayPalduplicatewebhook事件idisignored。"""
         from app.entrypoints.http import billing as billing_routes
 
         class FakePayPalBillingService:
             async def create_subscription(self, *, user_id: int):
+                """用于创建订阅。"""
                 return {
                     "provider": "paypal",
                     "subscription_id": "I-DUPE123",
@@ -1670,6 +1767,7 @@ class TestBilling:
                 }
 
             async def verify_webhook(self, *, headers: dict, event: dict) -> None:
+                """用于处理verifywebhook。"""
                 return None
 
         monkeypatch.setattr(
@@ -1735,6 +1833,7 @@ class TestBilling:
 class TestJDOcrUpload:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
+        """用于设置当前数据。"""
         _register(client, "jd_ocr_user@example.com")
         self.token = _login(client, "jd_ocr_user@example.com")
         self.headers = _auth_headers(self.token)
@@ -1742,9 +1841,11 @@ class TestJDOcrUpload:
         _grant_active_subscription("jd_ocr_user@example.com", "I-JDOCRPLUS")
 
     def test_upload_jd_image_returns_ocr_text(self, monkeypatch):
+        """用于验证上传jdimagereturnsocrtext。"""
         async def _fake_extract_text_from_image(
             self, image_bytes: bytes, mime_type: str
         ) -> str:
+            """用于构造extracttextfromimage。"""
             assert image_bytes == b"fake-image-bytes"
             assert mime_type == "image/png"
             return "岗位职责\\n1. 负责后端开发"
@@ -1764,9 +1865,11 @@ class TestJDOcrUpload:
         assert resp.json()["text"] == "岗位职责\\n1. 负责后端开发"
 
     def test_upload_jd_image_sanitizes_provider_403_errors(self, monkeypatch):
+        """用于验证上传jdimagesanitizesprovider403errors。"""
         async def _fake_extract_text_from_image(
             self, image_bytes: bytes, mime_type: str
         ) -> str:
+            """用于构造extracttextfromimage。"""
             raise Exception(
                 'AI服务请求失败: 403 - {"error":{"message":"The request is '
                 'prohibited due to a violation of provider Terms Of Service."}}'
@@ -1788,6 +1891,7 @@ class TestJDOcrUpload:
         assert "provider Terms Of Service" not in resp.json()["detail"]
 
     def test_upload_jd_image_rejects_non_image_files(self):
+        """用于验证上传jdimagerejectsnonimagefiles。"""
         resp = self.client.post(
             "/api/upload/jd-ocr",
             files={"file": ("jd.txt", b"not-image", "text/plain")},
@@ -1925,6 +2029,7 @@ class TestResumeUpload:
         """服务层文件错误应由 HTTP 入口映射状态码，而不是泄漏 FastAPI 异常。"""
 
         async def _fake_save_uploaded_file(self, file):
+            """用于构造saveuploadedfile。"""
             assert file.filename == "sample_resume_upload.txt"
             raise ServicePayloadTooLargeError("File too large")
 
@@ -1948,15 +2053,19 @@ class TestResumeUpload:
         deleted_paths: list[str] = []
 
         async def _fake_save_uploaded_file(self, file):
+            """用于构造saveuploadedfile。"""
             return saved_file_path
 
         def _fake_extract_text_from_file(self, file_path: str, filename: str) -> str:
+            """用于构造extracttextfromfile。"""
             return "broken resume text"
 
         async def _fake_parse_resume_text_async(self, text: str) -> dict:
+            """用于构造parse简历textasync。"""
             raise RuntimeError("parser exploded")
 
         def _fake_delete_file(self, file_path: str) -> None:
+            """用于构造deletefile。"""
             deleted_paths.append(file_path)
 
         monkeypatch.setattr(
@@ -2037,12 +2146,14 @@ class TestResumeUpload:
 class TestResumeCRUD:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
+        """用于设置当前数据。"""
         _register(client, "resume_user@example.com")
         self.token = _login(client, "resume_user@example.com")
         self.headers = _auth_headers(self.token)
         self.client = client
 
     def _create_resume(self, title: str = "我的简历") -> dict:
+        """用于创建简历。"""
         resp = self.client.post(
             "/api/resumes/",
             json={"title": title, "content": _empty_resume_content()},
@@ -2052,12 +2163,14 @@ class TestResumeCRUD:
         return resp.json()
 
     def test_create_resume_returns_resume(self):
+        """用于验证create简历returns简历。"""
         body = self._create_resume("测试简历")
         assert body["title"] == "测试简历"
         assert "id" in body
         assert body["content"]["personal_info"]["name"] == "张三"
 
     def test_list_resumes_returns_created_items(self):
+        """用于验证listresumesreturnscreateditems。"""
         self._create_resume("简历A")
         self._create_resume("简历B")
         resp = self.client.get("/api/resumes/", headers=self.headers)
@@ -2067,6 +2180,7 @@ class TestResumeCRUD:
         assert "简历B" in titles
 
     def test_list_resumes_includes_inline_preview_content(self):
+        """用于验证listresumesincludesinlinepreviewcontent。"""
         self._create_resume("预览简历")
         resp = self.client.get("/api/resumes/", headers=self.headers)
         assert resp.status_code == 200
@@ -2075,6 +2189,7 @@ class TestResumeCRUD:
         assert "job_application" not in resume["preview_content"]
 
     def test_get_resume_by_id(self):
+        """用于验证get简历byid。"""
         created = self._create_resume("可查简历")
         resume_id = created["id"]
         resp = self.client.get(f"/api/resumes/{resume_id}", headers=self.headers)
@@ -2082,10 +2197,12 @@ class TestResumeCRUD:
         assert resp.json()["id"] == resume_id
 
     def test_get_nonexistent_resume_returns_404(self):
+        """用于验证getnonexistent简历returns404。"""
         resp = self.client.get("/api/resumes/9999999", headers=self.headers)
         assert resp.status_code == 404
 
     def test_update_resume_title(self):
+        """用于验证update简历title。"""
         created = self._create_resume("旧标题")
         resume_id = created["id"]
         resp = self.client.put(
@@ -2097,6 +2214,7 @@ class TestResumeCRUD:
         assert resp.json()["title"] == "新标题"
 
     def test_update_resume_content(self):
+        """用于验证update简历content。"""
         created = self._create_resume("内容更新测试")
         resume_id = created["id"]
         new_content = _empty_resume_content()
@@ -2110,6 +2228,7 @@ class TestResumeCRUD:
         assert resp.json()["content"]["personal_info"]["name"] == "李四"
 
     def test_update_resume_with_no_data_returns_400(self):
+        """用于验证update简历withnodatareturns400。"""
         created = self._create_resume("空更新测试")
         resume_id = created["id"]
         resp = self.client.put(
@@ -2120,6 +2239,7 @@ class TestResumeCRUD:
         assert resp.status_code == 400
 
     def test_delete_resume_removes_it(self):
+        """用于验证delete简历removesit。"""
         created = self._create_resume("待删除简历")
         resume_id = created["id"]
         del_resp = self.client.delete(f"/api/resumes/{resume_id}", headers=self.headers)
@@ -2128,6 +2248,7 @@ class TestResumeCRUD:
         assert get_resp.status_code == 404
 
     def test_delete_resume_removes_related_history(self):
+        """用于验证delete简历removesrelatedhistory。"""
         created = self._create_resume("带历史数据的简历")
         resume_id = created["id"]
         user_id = created["owner_id"]
@@ -2213,6 +2334,7 @@ class TestResumeCRUD:
 class TestInterviewSessions:
     @pytest.fixture(autouse=True)
     def _setup(self, client, monkeypatch):
+        """用于设置当前数据。"""
         _register(client, "interview_user@example.com")
         self.token = _login(client, "interview_user@example.com")
         self.headers = _auth_headers(self.token)
@@ -2228,6 +2350,7 @@ class TestInterviewSessions:
         self.resume_id = create_resp.json()["id"]
 
     def test_voice_interview_session_lifecycle(self):
+        """用于验证语音面试会话lifecycle。"""
         create_resp = self.client.post(
             "/api/interviews/",
             json={
@@ -2254,6 +2377,7 @@ class TestInterviewSessions:
         assert ended["status"] == "completed"
 
     def test_list_interviews_returns_lightweight_summary(self):
+        """用于验证listinterviewsreturnslightweightsummary。"""
         create_resp = self.client.post(
             "/api/interviews/",
             json={
@@ -2277,6 +2401,7 @@ class TestInterviewSessions:
         assert "current_turn" not in session
 
     def test_delete_interview_removes_only_current_user_session(self, client):
+        """用于验证delete面试removesonlycurrent用户会话。"""
         other_email = "other_interview_user@example.com"
         _register(client, other_email)
         other_token = _login(client, other_email)
@@ -2333,6 +2458,7 @@ class TestInterviewSessions:
         assert get_other_resp.status_code == 200, get_other_resp.text
 
     def test_removed_structured_interview_routes_return_404(self):
+        """用于验证removedstructured面试routesreturn404。"""
         create_resp = self.client.post(
             "/api/interviews/",
             json={
@@ -2384,12 +2510,14 @@ class TestInterviewSessions:
         )
 
     def test_list_resumes_without_auth_returns_401(self):
+        """用于验证listresumeswithout认证returns401。"""
         resp = _anonymous_client().get("/api/resumes/")
         assert resp.status_code == 401
 
 
 class TestPlusFeatureAccess:
     def test_free_user_cannot_create_interview_session(self, client):
+        """用于验证free用户cannotcreate面试会话。"""
         _register(client, "interview_free@example.com")
         token = _login(client, "interview_free@example.com")
         headers = _auth_headers(token)
@@ -2410,6 +2538,7 @@ class TestPlusFeatureAccess:
         assert resp.json()["detail"] == "active_subscription_required"
 
     def test_free_user_cannot_upload_jd_ocr_image(self, client):
+        """用于验证free用户cannot上传jdocrimage。"""
         _register(client, "jd_ocr_free@example.com")
         token = _login(client, "jd_ocr_free@example.com")
 
@@ -2426,13 +2555,16 @@ class TestPlusFeatureAccess:
 class TestDigitalHumanBillingAccess:
     class _FakeVolcengineVoiceService:
         def is_configured(self) -> bool:
+            """用于处理isconfigured。"""
             return True
 
         async def proxy_session(self, client_ws, **kwargs):
+            """用于处理proxy会话。"""
             await client_ws.send_json({"type": "ready"})
             await client_ws.close()
 
     def _create_interview_session(self, client, headers: dict, email: str) -> int:
+        """用于创建面试会话。"""
         resume_resp = client.post(
             "/api/resumes/",
             json={"title": "数字人权限简历", "content": _empty_resume_content()},
@@ -2458,6 +2590,7 @@ class TestDigitalHumanBillingAccess:
     def test_free_user_cannot_create_digital_human_conversation(
         self, client, monkeypatch
     ):
+        """用于验证free用户cannotcreatedigitalhumanconversation。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2484,6 +2617,7 @@ class TestDigitalHumanBillingAccess:
     def test_active_subscriber_can_create_digital_human_conversation(
         self, client, monkeypatch
     ):
+        """用于验证activesubscribercancreatedigitalhumanconversation。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2534,6 +2668,7 @@ class TestDigitalHumanBillingAccess:
     def test_voice_session_websocket_rejects_anonymous_client(
         self, client, monkeypatch
     ):
+        """用于验证语音会话websocketrejectsanonymous客户端。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2556,6 +2691,7 @@ class TestDigitalHumanBillingAccess:
         assert exc_info.value.code == 1008
 
     def test_voice_session_websocket_rejects_free_user(self, client, monkeypatch):
+        """用于验证语音会话websocketrejectsfree用户。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2579,6 +2715,7 @@ class TestDigitalHumanBillingAccess:
     def test_voice_session_websocket_rejects_other_users_session(
         self, client, monkeypatch
     ):
+        """用于验证语音会话websocketrejectsotherusers会话。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2611,6 +2748,7 @@ class TestDigitalHumanBillingAccess:
     def test_active_subscriber_can_open_owned_voice_session_websocket(
         self, client, monkeypatch
     ):
+        """用于验证activesubscribercanopenowned语音会话websocket。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -2639,6 +2777,7 @@ class TestResumePermissions:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
         # 用户 A
+        """用于设置当前数据。"""
         _register(client, "user_a@example.com")
         self.token_a = _login(client, "user_a@example.com")
         # 用户 B
@@ -2656,6 +2795,7 @@ class TestResumePermissions:
         self.resume_id = resp.json()["id"]
 
     def test_user_b_cannot_read_user_a_resume(self):
+        """用于验证用户bcannotread用户a简历。"""
         resp = self.client.get(
             f"/api/resumes/{self.resume_id}",
             headers=_auth_headers(self.token_b),
@@ -2663,6 +2803,7 @@ class TestResumePermissions:
         assert resp.status_code == 403
 
     def test_user_b_cannot_update_user_a_resume(self):
+        """用于验证用户bcannotupdate用户a简历。"""
         resp = self.client.put(
             f"/api/resumes/{self.resume_id}",
             json={"title": "非法修改"},
@@ -2671,6 +2812,7 @@ class TestResumePermissions:
         assert resp.status_code == 403
 
     def test_user_b_cannot_delete_user_a_resume(self):
+        """用于验证用户bcannotdelete用户a简历。"""
         resp = self.client.delete(
             f"/api/resumes/{self.resume_id}",
             headers=_auth_headers(self.token_b),
@@ -2678,6 +2820,7 @@ class TestResumePermissions:
         assert resp.status_code == 403
 
     def test_user_b_resume_list_does_not_include_user_a_resume(self):
+        """用于验证用户b简历listdoesnotinclude用户a简历。"""
         resp = self.client.get(
             "/api/resumes/",
             headers=_auth_headers(self.token_b),
@@ -2695,6 +2838,7 @@ class TestResumePermissions:
 class TestChatMessages:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
+        """用于设置当前数据。"""
         _register(client, "chat_user@example.com")
         self.token = _login(client, "chat_user@example.com")
         self.headers = _auth_headers(self.token)
@@ -2709,6 +2853,7 @@ class TestChatMessages:
         self.resume_id = resp.json()["id"]
 
     def test_append_and_get_messages(self):
+        """用于验证appendandgetmessages。"""
         msgs = [
             {"role": "user", "content": "帮我优化简历"},
             {"role": "assistant", "content": "好的，我来帮你优化"},
@@ -2733,6 +2878,7 @@ class TestChatMessages:
         assert len(all_msgs) == 2
 
     def test_messages_are_ordered_by_id(self):
+        """用于验证messagesareorderedbyid。"""
         for i in range(3):
             self.client.post(
                 f"/api/resumes/{self.resume_id}/chat-messages",
@@ -2748,6 +2894,7 @@ class TestChatMessages:
         assert ids == sorted(ids)
 
     def test_invalid_role_is_ignored(self):
+        """用于验证invalidroleisignored。"""
         resp = self.client.post(
             f"/api/resumes/{self.resume_id}/chat-messages",
             json=[{"role": "system", "content": "系统消息应被忽略"}],
@@ -2757,6 +2904,7 @@ class TestChatMessages:
         assert resp.json() == []
 
     def test_clear_messages(self):
+        """用于验证clearmessages。"""
         self.client.post(
             f"/api/resumes/{self.resume_id}/chat-messages",
             json=[{"role": "user", "content": "一条消息"}],
@@ -2775,6 +2923,7 @@ class TestChatMessages:
         assert get_resp.json() == []
 
     def test_append_messages_with_stream_events(self):
+        """用于验证appendmessageswithstream事件。"""
         stream_events = [
             {"type": "tool_confirmed", "diff": "添加了量化指标"},
         ]
@@ -2794,6 +2943,7 @@ class TestChatMessages:
         assert saved[0]["stream_events"] == stream_events
 
     def test_chat_messages_forbidden_for_other_user(self):
+        """用于验证chatmessagesforbiddenforother用户。"""
         _register(self.client, "other_chat@example.com")
         other_token = _login(self.client, "other_chat@example.com")
         resp = self.client.get(
@@ -2811,6 +2961,7 @@ class TestChatMessages:
 class TestAgentConfirmation:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
+        """用于设置当前数据。"""
         _register(client, "agent_confirm@example.com")
         self.token = _login(client, "agent_confirm@example.com")
         self.headers = _auth_headers(self.token)
@@ -2829,6 +2980,7 @@ class TestAgentConfirmation:
         self.resume_id = resume_resp.json()["id"]
 
     def _create_waiting_session(self, session_id: str, call_id: str = "call_1") -> None:
+        """用于创建waiting会话。"""
         db = _TestingSession()
         try:
             store = AgentSessionStore(db)
@@ -2855,6 +3007,7 @@ class TestAgentConfirmation:
             db.close()
 
     def test_confirm_tool_records_resumable_result_when_stream_queue_missing(self):
+        """用于验证confirmtoolrecordsresumable结果whenstreamqueuemissing。"""
         self._create_waiting_session("persisted_session")
 
         resp = self.client.post(
@@ -2884,6 +3037,7 @@ class TestAgentConfirmation:
             db.close()
 
     def test_confirm_tool_uses_active_queue_when_present(self):
+        """用于验证confirmtoolusesactivequeuewhenpresent。"""
         session_id = "active_session"
         self._create_waiting_session(session_id)
         queue = confirmation_manager.create(session_id)
@@ -2919,6 +3073,7 @@ class TestAgentConfirmation:
             confirmation_manager.remove(session_id)
 
     def test_confirm_tool_rejects_mismatched_call_id(self):
+        """用于验证confirmtoolrejectsmismatchedcallid。"""
         self._create_waiting_session("mismatched_session", call_id="call_real")
 
         resp = self.client.post(
@@ -2934,6 +3089,7 @@ class TestAgentConfirmation:
         assert resp.status_code == 409
 
     def test_resume_session_applies_recorded_confirmation(self):
+        """用于验证简历会话appliesrecordedconfirmation。"""
         session_id = "resume_http_session"
         db = _TestingSession()
         try:
@@ -3028,11 +3184,13 @@ class TestAgentConfirmation:
 
 class TestHealthEndpoints:
     def test_root_returns_200(self, client):
+        """用于验证rootreturns200。"""
         resp = client.get("/")
         assert resp.status_code == 200
         assert "Chat Resume" in resp.json()["message"]
 
     def test_health_check_returns_healthy(self, client):
+        """用于验证healthcheckreturnshealthy。"""
         resp = client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "healthy"
@@ -3053,6 +3211,7 @@ class TestHealthEndpoints:
 class TestNegativeCases:
     @pytest.fixture(autouse=True)
     def _setup(self, client):
+        """用于设置当前数据。"""
         _register(client, "negative_user@example.com")
         self.token = _login(client, "negative_user@example.com")
         self.client = client
@@ -3067,14 +3226,17 @@ class TestNegativeCases:
     # ── 未认证访问 ────────────────────────────────────────────────────────
 
     def test_get_resumes_without_token_returns_401(self):
+        """用于验证getresumeswithout令牌returns401。"""
         resp = _anonymous_client().get("/api/resumes/")
         assert resp.status_code == 401
 
     def test_get_resume_without_token_returns_401(self):
+        """用于验证get简历without令牌returns401。"""
         resp = _anonymous_client().get(f"/api/resumes/{self.resume_id}")
         assert resp.status_code == 401
 
     def test_update_resume_without_token_returns_401(self):
+        """用于验证update简历without令牌returns401。"""
         resp = _anonymous_client().put(
             f"/api/resumes/{self.resume_id}",
             json={"title": "无 token"},
@@ -3082,10 +3244,12 @@ class TestNegativeCases:
         assert resp.status_code == 401
 
     def test_delete_resume_without_token_returns_401(self):
+        """用于验证delete简历without令牌returns401。"""
         resp = _anonymous_client().delete(f"/api/resumes/{self.resume_id}")
         assert resp.status_code == 401
 
     def test_update_layout_without_token_returns_401(self):
+        """用于验证updatelayoutwithout令牌returns401。"""
         resp = _anonymous_client().put(
             f"/api/resumes/{self.resume_id}/layout",
             json={
@@ -3106,6 +3270,7 @@ class TestNegativeCases:
     # ── 资源不存在 ────────────────────────────────────────────────────────
 
     def test_get_nonexistent_resume_returns_404(self):
+        """用于验证getnonexistent简历returns404。"""
         resp = self.client.get(
             "/api/resumes/999999",
             headers=_auth_headers(self.token),
@@ -3113,6 +3278,7 @@ class TestNegativeCases:
         assert resp.status_code == 404
 
     def test_update_nonexistent_resume_returns_404(self):
+        """用于验证updatenonexistent简历returns404。"""
         resp = self.client.put(
             "/api/resumes/999999",
             json={"title": "不存在"},
@@ -3121,6 +3287,7 @@ class TestNegativeCases:
         assert resp.status_code == 404
 
     def test_delete_nonexistent_resume_returns_404(self):
+        """用于验证deletenonexistent简历returns404。"""
         resp = self.client.delete(
             "/api/resumes/999999",
             headers=_auth_headers(self.token),
@@ -3128,6 +3295,7 @@ class TestNegativeCases:
         assert resp.status_code == 404
 
     def test_update_layout_nonexistent_resume_returns_404(self):
+        """用于验证updatelayoutnonexistent简历returns404。"""
         resp = self.client.put(
             "/api/resumes/999999/layout",
             json={
@@ -3147,6 +3315,7 @@ class TestNegativeCases:
         assert resp.status_code == 404
 
     def test_update_layout_persists_template_style(self):
+        """用于验证updatelayoutpersiststemplatestyle。"""
         resp = self.client.put(
             f"/api/resumes/{self.resume_id}/layout",
             json={
@@ -3171,6 +3340,7 @@ class TestNegativeCases:
     # ── 无效输入 ──────────────────────────────────────────────────────────
 
     def test_update_resume_with_empty_body_returns_400(self):
+        """用于验证update简历withemptybodyreturns400。"""
         resp = self.client.put(
             f"/api/resumes/{self.resume_id}",
             json={},
@@ -3179,6 +3349,7 @@ class TestNegativeCases:
         assert resp.status_code == 400
 
     def test_register_with_invalid_email_returns_422(self):
+        """用于验证registerwithinvalidemailreturns422。"""
         resp = self.client.post(
             "/api/auth/register",
             json={"email": "not-an-email", "password": "password123"},
@@ -3186,6 +3357,7 @@ class TestNegativeCases:
         assert resp.status_code == 422
 
     def test_register_with_short_password_returns_422(self):
+        """用于验证registerwithshortpasswordreturns422。"""
         resp = self.client.post(
             "/api/auth/register",
             json={"email": "valid@example.com", "password": "123"},
@@ -3195,6 +3367,7 @@ class TestNegativeCases:
     # ── 跨用户布局配置权限 ────────────────────────────────────────────────
 
     def test_other_user_cannot_update_layout(self):
+        """用于验证other用户cannotupdatelayout。"""
         _register(self.client, "layout_attacker@example.com")
         attacker_token = _login(self.client, "layout_attacker@example.com")
         resp = self.client.put(

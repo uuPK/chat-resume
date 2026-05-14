@@ -12,6 +12,7 @@ import { registerUser, uniqueEmail } from './helpers'
 /**
  * 注册新用户并等待进入 dashboard，供编辑页相关场景复用。
  */
+// 用于登录as。
 async function loginAs(page: Page, email: string) {
   await registerUser(page, email)
   await page.waitForURL('**/dashboard', { timeout: 12_000 })
@@ -20,6 +21,7 @@ async function loginAs(page: Page, email: string) {
 /**
  * 从仪表板创建空白简历并返回新建后的简历 ID。
  */
+// 用于创建简历from仪表盘。
 async function createResumeFromDashboard(page: Page, email: string): Promise<string> {
   await loginAs(page, email)
   await page.getByRole('button', { name: '新建简历' }).click()
@@ -32,6 +34,7 @@ async function createResumeFromDashboard(page: Page, email: string): Promise<str
 /**
  * 构造一份最小可用的简历响应体，供上传和面试页面复用。
  */
+// 用于处理build简历响应。
 function buildResumeResponse(id: number) {
   return {
     id,
@@ -55,6 +58,7 @@ function buildResumeResponse(id: number) {
 /**
  * 为编辑页安装最小登录态和 API mock，避免测试依赖真实账号注册。
  */
+// 用于处理install编辑器APImock。
 async function installEditorApiMock(page: Page, resume = buildResumeResponse(123)) {
   const user = {
     id: 1,
@@ -124,6 +128,7 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
 /**
  * 在浏览器里注入一个可控的 Resume Agent mock，用于真实驱动流式 diff 确认交互。
  */
+// 用于处理install简历agentmock。
 async function installResumeAgentMock(page: Page) {
   await page.addInitScript(() => {
     const originalFetch = window.fetch.bind(window)
@@ -174,6 +179,7 @@ async function installResumeAgentMock(page: Page) {
       if (requestUrl.includes('/api/ai/chat/stream')) {
         const encoder = new TextEncoder()
         const stream = new ReadableStream({
+          // 用于处理start。
           async start(controller) {
             const runtimeWindow = window as Window & {
               __resumeAgentResolve?: (confirmed: boolean) => void
@@ -181,9 +187,11 @@ async function installResumeAgentMock(page: Page) {
             const decision = new Promise<boolean>((resolve) => {
               runtimeWindow.__resumeAgentResolve = resolve
             })
+            // 用于处理pushevent。
             const pushEvent = (payload: Record<string, unknown>) => {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
             }
+            // 用于处理sleep。
             const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
             pushEvent({ session_id: 'resume_session_e2e', content: '', done: false })
@@ -248,6 +256,7 @@ async function installResumeAgentMock(page: Page) {
 /**
  * 读取浏览器侧记录下来的确认请求，验证用户点击是否真的发出了对应确认结果。
  */
+// 用于处理read简历agentconfirmcalls。
 async function readResumeAgentConfirmCalls(page: Page) {
   return page.evaluate(() => {
     const runtimeWindow = window as Window & {
@@ -260,6 +269,7 @@ async function readResumeAgentConfirmCalls(page: Page) {
 /**
  * 在预览页内选中一段可见文本，复用浏览器原生 Selection 触发浮动工具条。
  */
+// 用于选择简历previewtext。
 async function selectResumePreviewText(page: Page, text: string) {
   const resumePage = page.locator('.resume-page').first()
   await expect(resumePage).toContainText(text)
@@ -280,6 +290,7 @@ async function selectResumePreviewText(page: Page, text: string) {
 /**
  * 用真实鼠标拖拽选中多条预览内容，覆盖用户手动跨行选区的交互路径。
  */
+// 用于处理dragselect简历previewtext。
 async function dragSelectResumePreviewText(page: Page, startText: string, endText: string) {
   const resumePage = page.locator('.resume-page').first()
   const start = resumePage.getByText(startText, { exact: true })
@@ -306,6 +317,7 @@ async function dragSelectResumePreviewText(page: Page, startText: string, endTex
 /**
  * 读取预览区选区相关的全部视觉状态，避免只清掉原生 Selection 却漏掉自定义高亮。
  */
+// 用于处理read简历selectionvisualstate。
 async function readResumeSelectionVisualState(page: Page) {
   return page.evaluate(() => {
     const highlightRegistry = CSS as typeof CSS & {

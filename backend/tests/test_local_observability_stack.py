@@ -1,3 +1,5 @@
+"""用于覆盖 test_local_observability_stack.py 对应的回归测试。"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -22,9 +24,11 @@ from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 
 class LocalObservabilityStackTests(unittest.TestCase):
     def tearDown(self):
+        """用于清理测试后置状态。"""
         reset_metrics_for_tests()
 
     def test_metrics_renderer_exports_http_and_db_metrics(self):
+        """用于验证指标rendererexportshttpand数据库指标。"""
         record_http_request(
             method="get",
             path="/health",
@@ -54,9 +58,11 @@ class LocalObservabilityStackTests(unittest.TestCase):
         )
 
     def test_promql_service_calls_prometheus_query_api(self):
+        """用于验证promqlservicecallsprometheusqueryAPI。"""
         seen = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
+            """用于处理handler。"""
             seen["path"] = request.url.path
             seen["query"] = dict(request.url.params)
             return httpx.Response(
@@ -85,9 +91,11 @@ class LocalObservabilityStackTests(unittest.TestCase):
         self.assertEqual(seen["query"]["time"], "1710000000")
 
     def test_logql_service_calls_loki_query_range_api(self):
+        """用于验证logqlservicecallslokiqueryrangeAPI。"""
         seen = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
+            """用于处理handler。"""
             seen["path"] = request.url.path
             seen["query"] = dict(request.url.params)
             return httpx.Response(
@@ -127,6 +135,7 @@ class LocalObservabilityStackTests(unittest.TestCase):
         self.assertEqual(seen["query"]["start"], "1710000000000000000")
 
     def test_resume_agent_exposes_readonly_observability_tools(self):
+        """用于验证简历Agentexposesreadonly可观测性tools。"""
         schema_names = {
             item["function"]["name"]
             for item in RESUME_TOOLS_SCHEMA
@@ -145,8 +154,10 @@ class LocalObservabilityStackTests(unittest.TestCase):
         )
 
     def test_resume_tool_executor_dispatches_promql_tool(self):
+        """用于验证简历toolexecutordispatchespromqltool。"""
         class FakeService:
             def query_promql(self, query, *, time=None):
+                """用于处理querypromql。"""
                 return {
                     "success": True,
                     "source": "prometheus",

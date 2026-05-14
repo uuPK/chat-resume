@@ -22,6 +22,7 @@ type DiffGroup = { remove?: string; add?: string; reason?: string }
 /**
  * 将 diffSummary 文本解析为可渲染的 diff 行。
  */
+// 用于解析差异摘要。
 function parseDiffSummary(raw: string): DiffLine[] {
   const lines = raw.split('\n')
   const result: DiffLine[] = []
@@ -47,6 +48,7 @@ function parseDiffSummary(raw: string): DiffLine[] {
 /**
  * 将平铺的 diff 行按一组改动重新整理，便于卡片化展示。
  */
+// 用于分组差异行。
 function groupDiffLines(lines: DiffLine[]): DiffGroup[] {
   const groups: DiffGroup[] = []
   let current: DiffGroup | null = null
@@ -66,6 +68,7 @@ function groupDiffLines(lines: DiffLine[]): DiffGroup[] {
   return groups
 }
 
+// 用于分组差异条目。
 function groupDiffItems(items: DiffItem[]): DiffGroup[] {
   return items
     .map((item) => {
@@ -83,6 +86,7 @@ const NUMBER_SPLIT_RE = /(\d[\d,，]*(?:\.\d+)?(?:%|％|万|亿|千|百|倍|x|X|
 /**
  * 将文本中的数字和量化词高亮，帮助用户快速看出量化优化结果。
  */
+// 用于渲染 HighlightNumbers 组件。
 function HighlightNumbers({ text, active }: { text: string; active: boolean }) {
   if (!active) return <>{text}</>
   const parts = text.split(NUMBER_SPLIT_RE)
@@ -104,6 +108,7 @@ function HighlightNumbers({ text, active }: { text: string; active: boolean }) {
 /**
  * 渲染一组改动卡片，供 Agent tool pending/confirmed/rejected 复用。
  */
+// 用于渲染 DiffGroupCards 组件。
 export function DiffGroupCards({
   diffSummary,
   diffItems = [],

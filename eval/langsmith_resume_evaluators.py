@@ -1,4 +1,4 @@
-"""LangSmith code evaluators for the Resume Agent eval dataset."""
+"""用于提供 langsmith_resume_evaluators.py 评测辅助逻辑。"""
 
 from __future__ import annotations
 
@@ -18,10 +18,11 @@ TOOL_NAME_ALIASES = {
 
 
 def _collect_text(value: Any) -> str:
-    """Collect nested strings so keyword checks can scan whole outputs."""
+    """用于收集text。"""
     parts: list[str] = []
 
     def collect(item: Any) -> None:
+        """用于收集当前数据。"""
         if isinstance(item, str):
             parts.append(item)
         elif isinstance(item, list):
@@ -36,14 +37,14 @@ def _collect_text(value: Any) -> str:
 
 
 def _strings(value: Any) -> list[str]:
-    """Normalize an arbitrary value into a list of strings."""
+    """用于处理strings。"""
     if not isinstance(value, list):
         return []
     return [str(item) for item in value]
 
 
 def _unique(values: list[str]) -> list[str]:
-    """Deduplicate values while preserving their first-seen order."""
+    """用于处理unique。"""
     seen = set()
     result = []
     for value in values:
@@ -55,7 +56,7 @@ def _unique(values: list[str]) -> list[str]:
 
 
 def _tool_calls(outputs: dict[str, Any]) -> list[str]:
-    """Read tool calls from common Resume Agent experiment output shapes."""
+    """用于处理toolcalls。"""
     raw_tool_calls = outputs.get("tool_calls")
     if raw_tool_calls is None:
         raw_tool_calls = outputs.get("toolCalls")
@@ -70,7 +71,7 @@ def _tool_calls(outputs: dict[str, Any]) -> list[str]:
 
 
 def resume_agent_regression_checks(outputs, reference_outputs):
-    """Score deterministic Resume Agent regression expectations."""
+    """用于处理简历Agentregressionchecks。"""
     tool_name_aliases = {
         "优化简介": "update_overview",
         "优化成果": "update_bullet",
@@ -83,9 +84,11 @@ def resume_agent_regression_checks(outputs, reference_outputs):
     }
 
     def collect_text(value):
+        """用于收集text。"""
         parts = []
 
         def collect(item):
+            """用于收集当前数据。"""
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, list):
@@ -99,11 +102,13 @@ def resume_agent_regression_checks(outputs, reference_outputs):
         return " ".join(parts)
 
     def strings(value):
+        """用于处理strings。"""
         if not isinstance(value, list):
             return []
         return [str(item) for item in value]
 
     def unique(values):
+        """用于处理unique。"""
         seen = set()
         result = []
         for value in values:
@@ -114,6 +119,7 @@ def resume_agent_regression_checks(outputs, reference_outputs):
         return result
 
     def tool_calls(value):
+        """用于处理toolcalls。"""
         raw_tool_calls = value.get("tool_calls") or value.get("toolCalls") or []
         normalized = []
         for item in raw_tool_calls:
@@ -179,7 +185,7 @@ def resume_agent_regression_checks(outputs, reference_outputs):
 
 
 def resume_tool_f1(outputs, reference_outputs):
-    """Score whether the Resume Agent selected the expected tools."""
+    """用于处理简历toolf1。"""
     tool_name_aliases = {
         "优化简介": "update_overview",
         "优化成果": "update_bullet",
@@ -192,6 +198,7 @@ def resume_tool_f1(outputs, reference_outputs):
     }
 
     def unique(values):
+        """用于处理unique。"""
         seen = set()
         result = []
         for value in values:
@@ -202,11 +209,13 @@ def resume_tool_f1(outputs, reference_outputs):
         return result
 
     def strings(value):
+        """用于处理strings。"""
         if not isinstance(value, list):
             return []
         return [str(item) for item in value]
 
     def tool_calls(value):
+        """用于处理toolcalls。"""
         raw_tool_calls = value.get("tool_calls") or value.get("toolCalls") or []
         normalized = []
         for item in raw_tool_calls:
@@ -227,7 +236,7 @@ def resume_tool_f1(outputs, reference_outputs):
 
 
 def resume_expected_tools_pass(outputs, reference_outputs):
-    """Score exact-match behavior for expected tool calls."""
+    """用于处理简历expectedtoolspass。"""
     tool_name_aliases = {
         "优化简介": "update_overview",
         "优化成果": "update_bullet",
@@ -240,6 +249,7 @@ def resume_expected_tools_pass(outputs, reference_outputs):
     }
 
     def unique(values):
+        """用于处理unique。"""
         seen = set()
         result = []
         for value in values:
@@ -250,11 +260,13 @@ def resume_expected_tools_pass(outputs, reference_outputs):
         return result
 
     def strings(value):
+        """用于处理strings。"""
         if not isinstance(value, list):
             return []
         return [str(item) for item in value]
 
     def tool_calls(value):
+        """用于处理toolcalls。"""
         raw_tool_calls = value.get("tool_calls") or value.get("toolCalls") or []
         normalized = []
         for item in raw_tool_calls:
@@ -271,11 +283,13 @@ def resume_expected_tools_pass(outputs, reference_outputs):
 
 
 def resume_forbidden_content_pass(outputs, reference_outputs):
-    """Score whether forbidden fabricated or unsafe content is absent."""
+    """用于处理简历forbiddencontentpass。"""
     def collect_text(value):
+        """用于收集text。"""
         parts = []
 
         def collect(item):
+            """用于收集当前数据。"""
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, list):
@@ -296,11 +310,13 @@ def resume_forbidden_content_pass(outputs, reference_outputs):
 
 
 def resume_required_keywords_pass(outputs, reference_outputs):
-    """Score whether required resume/JD keywords appear in the output."""
+    """用于处理简历requiredkeywordspass。"""
     def collect_text(value):
+        """用于收集text。"""
         parts = []
 
         def collect(item):
+            """用于收集当前数据。"""
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, list):
@@ -321,8 +337,9 @@ def resume_required_keywords_pass(outputs, reference_outputs):
 
 
 def resume_refusal_policy_pass(outputs, reference_outputs):
-    """Score whether refusal cases avoid making tool-driven edits."""
+    """用于处理简历refusalpolicypass。"""
     def unique(values):
+        """用于处理unique。"""
         seen = set()
         result = []
         for value in values:
@@ -343,11 +360,13 @@ def resume_refusal_policy_pass(outputs, reference_outputs):
 
 
 def resume_question_count_pass(outputs, reference_outputs):
-    """Score whether clarification questions stay within the expected limit."""
+    """用于处理简历questioncountpass。"""
     def collect_text(value):
+        """用于收集text。"""
         parts = []
 
         def collect(item):
+            """用于收集当前数据。"""
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, list):
@@ -370,7 +389,7 @@ def resume_question_count_pass(outputs, reference_outputs):
 
 
 def resume_decision_pass(outputs, reference_outputs):
-    """Score explicit execute-or-clarify decisions when a case declares one."""
+    """用于处理简历decisionpass。"""
     expected_decision = reference_outputs.get("expected_decision")
     actual_decision = outputs.get("decision")
     if expected_decision and actual_decision:

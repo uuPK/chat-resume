@@ -52,6 +52,7 @@ def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
 
 
 def _summarize_log_value(value: Any) -> Any:
+    """用于处理summarize日志值。"""
     if isinstance(value, str):
         normalized = " ".join(value.split())
         if len(normalized) <= _LOG_VALUE_LIMIT:

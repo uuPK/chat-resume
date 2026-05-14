@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/WorkExperienceEditor.tsx 模块。
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
@@ -15,6 +16,7 @@ interface WorkExperienceEditorProps {
   onChange: (data: WorkExperience[]) => void
 }
 
+// 用于标准化要点。
 function normalizeBullets(work: WorkExperience): Bullet[] {
   if (work.highlights && work.highlights.length > 0) {
     return work.highlights
@@ -29,6 +31,7 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`
 }
 
+// 用于渲染 WorkExperienceEditor 组件。
 export default function WorkExperienceEditor({ data, onChange }: WorkExperienceEditorProps) {
   const [workList, setWorkList] = useState<WorkExperience[]>(Array.isArray(data) ? data : [])
   const editorRootRef = useRef<HTMLDivElement>(null)
@@ -51,11 +54,13 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
     textareas?.forEach(fitTextareaToContent)
   }, [workList])
 
+  // 用于处理commit。
   const commit = (next: WorkExperience[]) => {
     setWorkList(next)
     onChange(next)
   }
 
+  // 用于新增工作。
   const addWork = () => {
     commit([
       ...workList,
@@ -71,22 +76,26 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
     ])
   }
 
+  // 用于删除工作。
   const removeWork = (id: string) => {
     commit(workList.filter(work => work.id !== id))
   }
 
+  // 用于更新工作。
   const updateWork = (id: string, field: keyof WorkExperience, value: unknown) => {
     commit(workList.map(work => (
       work.id === id ? { ...work, [field]: value } : work
     )))
   }
 
+  // 用于新增bullet。
   const addBullet = (workId: string) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return
     updateWork(workId, 'highlights', [...(work.highlights || []), { id: `hl_${Date.now()}`, text: '' }])
   }
 
+  // 用于更新bullet。
   const updateBullet = (workId: string, index: number, value: string) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return
@@ -95,6 +104,7 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
     updateWork(workId, 'highlights', next)
   }
 
+  // 用于删除bullet。
   const removeBullet = (workId: string, index: number) => {
     const work = workList.find(item => item.id === workId)
     if (!work) return

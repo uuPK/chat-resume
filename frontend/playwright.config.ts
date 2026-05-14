@@ -1,3 +1,4 @@
+// 用于配置前端 Playwright 端到端测试。
 import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({

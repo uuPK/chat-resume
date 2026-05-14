@@ -1,9 +1,4 @@
-"""Validate eval test case definitions.
-
-Usage:
-    cd backend
-    uv run python ../eval/validate_cases.py
-"""
+"""用于提供 validate_cases.py 评测辅助逻辑。"""
 
 from __future__ import annotations
 
@@ -25,6 +20,7 @@ BOOLEAN_FIELDS = ("expect_refusal", "expect_moderate_refusal")
 
 
 def load_json(path: Path) -> Any:
+    """用于加载json。"""
     with path.open(encoding="utf-8") as file:
         return json.load(file)
 
@@ -34,6 +30,7 @@ def validate_string_list(
     index: int,
     field: str,
 ) -> list[str]:
+    """用于校验stringlist。"""
     if field not in case:
         return []
 
@@ -49,6 +46,7 @@ def validate_string_list(
 
 
 def validate_cases(cases: Any, fixtures_dir: Path) -> list[str]:
+    """用于校验用例。"""
     if not isinstance(cases, list):
         return ["root must be a list of case objects"]
 
@@ -101,6 +99,7 @@ def validate_cases(cases: Any, fixtures_dir: Path) -> list[str]:
 
 
 def parse_args() -> argparse.Namespace:
+    """用于解析args。"""
     parser = argparse.ArgumentParser(description="Validate eval case schema")
     parser.add_argument(
         "--cases",
@@ -116,6 +115,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """用于执行脚本入口流程。"""
     args = parse_args()
     cases = load_json(Path(args.cases))
     errors = validate_cases(cases, Path(args.fixtures_dir))

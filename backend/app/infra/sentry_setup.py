@@ -1,6 +1,4 @@
-"""
-Sentry initialization helpers.
-"""
+"""用于初始化 Sentry 错误上报。"""
 
 from __future__ import annotations
 
@@ -32,6 +30,7 @@ def _before_send(event: Event, hint: Hint) -> Event | None:
 
 
 def configure_sentry() -> bool:
+    """用于配置Sentry。"""
     if not settings.SENTRY_DSN.strip():
         logger.debug("Sentry disabled: SENTRY_DSN is not configured")
         return False

@@ -1,3 +1,5 @@
+"""用于覆盖 test_evidence_report.py 对应的回归测试。"""
+
 import json
 import subprocess
 import sys
@@ -9,6 +11,7 @@ EVIDENCE_REPORT = ROOT_DIR / "eval" / "build_evidence_report.py"
 
 
 def run_evidence_report(args: list[str]):
+    """用于运行证据报告。"""
     return subprocess.run(
         [sys.executable, str(EVIDENCE_REPORT), *args],
         cwd=ROOT_DIR / "backend",
@@ -19,6 +22,7 @@ def run_evidence_report(args: list[str]):
 
 
 def test_evidence_report_consumes_eval_analysis_with_interview_metrics(tmp_path):
+    """用于验证证据报告consumes评测analysiswith面试指标。"""
     eval_analysis_path = tmp_path / "eval_analysis.json"
     interview_report_path = tmp_path / "interview_metrics.json"
     output_json_path = tmp_path / "evidence_summary.json"
@@ -161,6 +165,7 @@ def test_evidence_report_consumes_eval_analysis_with_interview_metrics(tmp_path)
 
 
 def test_evidence_report_handles_eval_analysis_missing_optional_fields(tmp_path):
+    """用于验证证据报告handles评测analysismissingoptionalfields。"""
     eval_analysis_path = tmp_path / "eval_analysis.json"
     output_json_path = tmp_path / "evidence_summary.json"
     output_md_path = tmp_path / "evidence_summary.md"
@@ -209,6 +214,7 @@ def test_evidence_report_handles_eval_analysis_missing_optional_fields(tmp_path)
 
 
 def test_evidence_report_keeps_legacy_eval_scores_input_compatible(tmp_path):
+    """用于验证证据报告keepslegacy评测scoresinputcompatible。"""
     eval_scores_path = tmp_path / "eval_scores.json"
     output_json_path = tmp_path / "evidence_summary.json"
 

@@ -1,1 +1,1 @@
-"""App package initialization."""
+"""用于初始化后端应用包。"""

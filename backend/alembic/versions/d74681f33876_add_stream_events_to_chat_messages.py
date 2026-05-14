@@ -1,10 +1,4 @@
-"""add stream_events to chat messages
-
-Revision ID: d74681f33876
-Revises: d4e2f1a3b567
-Create Date: 2026-04-06 20:51:07.536173
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 from alembic import op
 import sqlalchemy as sa
 
@@ -16,6 +10,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     op.add_column(
         'resume_chat_messages',
         sa.Column('stream_events', sa.JSON(), nullable=True),
@@ -23,4 +18,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     op.drop_column('resume_chat_messages', 'stream_events')

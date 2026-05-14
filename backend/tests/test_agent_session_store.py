@@ -1,3 +1,5 @@
+"""用于覆盖 test_agent_session_store.py 对应的回归测试。"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ from app.state.store import AgentSessionStore  # noqa: E402
 
 class AgentSessionStoreTests(unittest.TestCase):
     def setUp(self):
+        """用于准备测试前置状态。"""
         engine = create_engine(
             "sqlite:///:memory:", connect_args={"check_same_thread": False}
         )
@@ -37,9 +40,11 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.resume = resume
 
     def tearDown(self):
+        """用于清理测试后置状态。"""
         self.db.close()
 
     def test_create_session_append_events_and_update_status(self):
+        """用于验证create会话append事件andupdate状态。"""
         store = AgentSessionStore(self.db)
 
         session = store.create_session(
@@ -88,6 +93,7 @@ class AgentSessionStoreTests(unittest.TestCase):
         self.assertIsNotNone(updated.completed_at)
 
     def test_session_and_events_capture_observability_context(self):
+        """用于验证会话and事件capture可观测性上下文。"""
         store = AgentSessionStore(self.db)
 
         with log_context(

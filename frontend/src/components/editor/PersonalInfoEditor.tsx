@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/PersonalInfoEditor.tsx 模块。
 
 import { useState, useEffect } from 'react'
 import { 
@@ -15,6 +16,7 @@ interface PersonalInfoEditorProps {
   onChange: (data: PersonalInfo) => void
 }
 
+// 用于渲染 PersonalInfoEditor 组件。
 export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEditorProps) {
   const [formData, setFormData] = useState<PersonalInfo>(data || {})
   const t = useTranslations('resume.forms.personal')
@@ -23,6 +25,7 @@ export default function PersonalInfoEditor({ data, onChange }: PersonalInfoEdito
     setFormData(data || {})
   }, [data])
 
+  // 用于处理change。
   const handleChange = (field: keyof PersonalInfo, value: string) => {
     const newData = { ...formData, [field]: value }
     setFormData(newData)

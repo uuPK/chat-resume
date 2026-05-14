@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/JobApplicationEditor.tsx 模块。
 
 import { motion } from 'framer-motion'
 import type { ChangeEvent, ClipboardEvent } from 'react'
@@ -19,6 +20,7 @@ const ALLOWED_JD_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/w
 /**
  * 用于编辑目标岗位信息，并支持从 JD 图片中自动识别文字。
  */
+// 用于渲染 JobApplicationEditor 组件。
 export default function JobApplicationEditor({
   data,
   onChange,
@@ -49,6 +51,7 @@ export default function JobApplicationEditor({
   /**
    * 用于统一更新字段并把变更同步给父组件。
    */
+  // 用于处理inputchange。
   const handleInputChange = (field: keyof JobApplication, value: string) => {
     const newData = { ...formData, [field]: value }
     setFormData(newData)
@@ -58,6 +61,7 @@ export default function JobApplicationEditor({
   /**
    * 用于把 OCR 识别出的文本合并进当前 JD 内容。
    */
+  // 用于应用recognizedtext。
   const applyRecognizedText = (recognizedText: string) => {
     const cleanText = recognizedText.trim()
     if (!cleanText) {
@@ -76,6 +80,7 @@ export default function JobApplicationEditor({
   /**
    * 用于校验并触发一张 JD 图片的 OCR 识别。
    */
+  // 用于处理jdimageocr。
   const handleJdImageOcr = async (file: File) => {
     if (!ALLOWED_JD_IMAGE_TYPES.includes(file.type)) {
       toast.error(t('invalidImage'))
@@ -101,6 +106,7 @@ export default function JobApplicationEditor({
   /**
    * 用于响应手动上传的 JD 图片文件。
    */
+  // 用于处理fileinputchange。
   const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -112,6 +118,7 @@ export default function JobApplicationEditor({
   /**
    * 用于拦截粘贴到 JD 输入框中的图片并触发 OCR。
    */
+  // 用于处理jdpaste。
   const handleJdPaste = async (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const items = Array.from(event.clipboardData.items || [])
     const imageItem = items.find((item) => item.type.startsWith('image/'))

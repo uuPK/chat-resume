@@ -1,9 +1,4 @@
-"""add resume upload jobs
-
-Revision ID: 2b4c6d8e0f12
-Revises: 1a2b3c4d5e6f
-Create Date: 2026-05-11 11:20:00.000000
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from typing import Sequence, Union
 
@@ -18,6 +13,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     op.create_table(
         "resume_upload_jobs",
         sa.Column("id", sa.String(), nullable=False),
@@ -59,6 +55,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     op.drop_index(
         op.f("ix_resume_upload_jobs_user_id"), table_name="resume_upload_jobs"
     )

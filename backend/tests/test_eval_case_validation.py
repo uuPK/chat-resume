@@ -1,3 +1,5 @@
+"""用于覆盖 test_eval_case_validation.py 对应的回归测试。"""
+
 import json
 import subprocess
 import sys
@@ -8,11 +10,13 @@ VALIDATOR = ROOT_DIR / "eval" / "validate_cases.py"
 
 
 def write_fixture(fixtures_dir: Path, filename: str) -> None:
+    """用于写入测试夹具。"""
     fixtures_dir.mkdir(parents=True, exist_ok=True)
     (fixtures_dir / filename).write_text("{}", encoding="utf-8")
 
 
 def run_validator(cases_path: Path, fixtures_dir: Path):
+    """用于运行validator。"""
     return subprocess.run(
         [
             sys.executable,
@@ -30,6 +34,7 @@ def run_validator(cases_path: Path, fixtures_dir: Path):
 
 
 def test_validator_accepts_valid_cases(tmp_path):
+    """用于验证validatoracceptsvalid用例。"""
     fixtures_dir = tmp_path / "cases"
     write_fixture(fixtures_dir, "resume.json")
     write_fixture(fixtures_dir, "jd.json")
@@ -62,6 +67,7 @@ def test_validator_accepts_valid_cases(tmp_path):
 
 
 def test_validator_rejects_duplicate_and_blank_case_ids(tmp_path):
+    """用于验证validatorrejectsduplicateandblank用例ids。"""
     fixtures_dir = tmp_path / "cases"
     write_fixture(fixtures_dir, "resume.json")
     cases_path = tmp_path / "test_cases.json"
@@ -100,6 +106,7 @@ def test_validator_rejects_duplicate_and_blank_case_ids(tmp_path):
 
 
 def test_validator_rejects_missing_fixture_references(tmp_path):
+    """用于验证validatorrejectsmissing测试夹具references。"""
     fixtures_dir = tmp_path / "cases"
     write_fixture(fixtures_dir, "resume.json")
     cases_path = tmp_path / "test_cases.json"
@@ -133,6 +140,7 @@ def test_validator_rejects_missing_fixture_references(tmp_path):
 
 
 def test_validator_rejects_expectation_field_type_errors(tmp_path):
+    """用于验证validatorrejectsexpectationfieldtypeerrors。"""
     fixtures_dir = tmp_path / "cases"
     write_fixture(fixtures_dir, "resume.json")
     cases_path = tmp_path / "test_cases.json"
@@ -176,6 +184,7 @@ def test_validator_rejects_expectation_field_type_errors(tmp_path):
 
 
 def test_validator_rejects_invalid_expected_decision_enum(tmp_path):
+    """用于验证validatorrejectsinvalidexpecteddecisionenum。"""
     fixtures_dir = tmp_path / "cases"
     write_fixture(fixtures_dir, "resume.json")
     cases_path = tmp_path / "test_cases.json"

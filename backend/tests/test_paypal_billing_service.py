@@ -1,3 +1,5 @@
+"""用于覆盖 test_paypal_billing_service.py 对应的回归测试。"""
+
 import json
 from urllib.parse import parse_qs
 
@@ -12,9 +14,11 @@ from app.services.paypal_billing_service import (
 
 @pytest.mark.asyncio
 async def test_paypal_billing_service_creates_subscription_with_approval_url():
+    """用于验证PayPal计费servicecreates订阅withapprovalurl。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         if request.url.path == "/v1/oauth2/token":
             return httpx.Response(
@@ -87,9 +91,11 @@ async def test_paypal_billing_service_creates_subscription_with_approval_url():
 
 @pytest.mark.asyncio
 async def test_paypal_billing_service_reads_current_plan_price_from_paypal():
+    """用于验证PayPal计费servicereadscurrentplanpricefromPayPal。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         if request.url.path == "/v1/oauth2/token":
             return httpx.Response(
@@ -146,9 +152,11 @@ async def test_paypal_billing_service_reads_current_plan_price_from_paypal():
 
 @pytest.mark.asyncio
 async def test_paypal_billing_service_reads_subscription_status_from_paypal():
+    """用于验证PayPal计费servicereads订阅状态fromPayPal。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         if request.url.path == "/v1/oauth2/token":
             return httpx.Response(
@@ -199,9 +207,11 @@ async def test_paypal_billing_service_reads_subscription_status_from_paypal():
 
 @pytest.mark.asyncio
 async def test_paypal_billing_service_cancels_subscription():
+    """用于验证PayPal计费servicecancels订阅。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         if request.url.path == "/v1/oauth2/token":
             return httpx.Response(
@@ -241,9 +251,11 @@ async def test_paypal_billing_service_cancels_subscription():
 
 @pytest.mark.asyncio
 async def test_paypal_billing_service_verifies_webhook_signature():
+    """用于验证PayPal计费serviceverifieswebhooksignature。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         if request.url.path == "/v1/oauth2/token":
             return httpx.Response(

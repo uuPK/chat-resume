@@ -5,6 +5,7 @@
  */
 
 'use client'
+// 用于提供 hooks/useResumeEditor.ts 模块。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
@@ -42,6 +43,7 @@ interface UseResumeEditorOptions {
 /**
  * 提供编辑页主业务状态，减少 page.tsx 中的数据、副作用和保存逻辑。
  */
+// 用于封装简历editor相关状态和行为。
 export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOptions) {
   const router = useRouter()
   const t = useTranslations('resume')
@@ -63,6 +65,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     setAutoSaveStatus,
   } = useResumeAutoSave({
     setResume,
+    // 用于保存简历。
     saveResume: async (draftResume) => (
       resumeApi.updateResume(draftResume.id, {
         title: draftResume.title,

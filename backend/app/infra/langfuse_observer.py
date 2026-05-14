@@ -1,6 +1,4 @@
-"""
-Helpers for mirroring agent runs into Langfuse traces.
-"""
+"""用于把 Agent 运行过程同步到 Langfuse 追踪。"""
 
 from __future__ import annotations
 
@@ -26,6 +24,7 @@ class LangfuseRunObserver:
         input_text: str | None,
         metadata: dict[str, Any] | None = None,
     ):
+        """用于初始化当前对象。"""
         self.client = get_langfuse_client()
         self.run_id = run_id
         self.agent_type = agent_type

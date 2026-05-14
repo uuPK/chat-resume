@@ -169,6 +169,7 @@ class ResumeAPI {
   /**
    * 获取所有简历
    */
+  // 用于获取简历。
   static async getResumes(): Promise<ResumeListItem[]> {
     const response = await apiFetch('/api/resumes/')
 
@@ -178,6 +179,7 @@ class ResumeAPI {
   /**
    * 获取单个简历
    */
+  // 用于获取简历。
   static async getResume(id: number): Promise<Resume> {
     const response = await apiFetch(`/api/resumes/${id}`)
 
@@ -187,6 +189,7 @@ class ResumeAPI {
   /**
    * 创建新简历
    */
+  // 用于创建简历。
   static async createResume(data: CreateResumeData): Promise<Resume> {
     const response = await apiFetch('/api/resumes/', {
       method: 'POST',
@@ -202,6 +205,7 @@ class ResumeAPI {
   /**
    * 更新简历
    */
+  // 用于更新简历。
   static async updateResume(id: number, data: UpdateResumeData): Promise<Resume> {
     const response = await apiFetch(`/api/resumes/${id}`, {
       method: 'PUT',
@@ -217,6 +221,7 @@ class ResumeAPI {
   /**
    * 删除简历
    */
+  // 用于处理delete简历。
   static async deleteResume(id: number): Promise<void> {
     const response = await apiFetch(`/api/resumes/${id}`, {
       method: 'DELETE',
@@ -231,6 +236,7 @@ class ResumeAPI {
   /**
    * 上传简历文件
    */
+  // 用于处理upload简历。
   static async uploadResume(file: File): Promise<ResumeUploadJobCreated> {
     const formData = new FormData()
     formData.append('file', file)
@@ -246,6 +252,7 @@ class ResumeAPI {
   /**
    * 查询简历上传解析任务状态
    */
+  // 用于获取简历uploadjob。
   static async getResumeUploadJob(jobId: string): Promise<ResumeUploadJobStatus> {
     const response = await apiFetch(`/api/upload/resume-jobs/${jobId}`)
 
@@ -255,6 +262,7 @@ class ResumeAPI {
   /**
    * 识别 JD 图片中的文字
    */
+  // 用于处理ocrjobdescriptionimage。
   static async ocrJobDescriptionImage(file: File): Promise<JDOcrResponse> {
     const formData = new FormData()
     formData.append('file', file)
@@ -270,6 +278,7 @@ class ResumeAPI {
   /**
    * 导出简历
    */
+  // 用于处理export简历。
   static async exportResume(
     id: number,
     format: 'pdf' | 'docx' | 'html',
@@ -289,6 +298,7 @@ class ResumeAPI {
     return handleApiResponse<ExportResponse>(response)
   }
 
+  // 用于处理list面试会话。
   static async listInterviewSessions(): Promise<InterviewSessionSummary[]> {
     const response = await apiFetch('/api/interviews/')
     return handleApiResponse<InterviewSessionSummary[]>(response)
@@ -297,6 +307,7 @@ class ResumeAPI {
   /**
    * 删除一条面试记录
    */
+  // 用于处理delete面试会话。
   static async deleteInterviewSession(sessionId: number): Promise<void> {
     const response = await apiFetch(`/api/interviews/${sessionId}`, {
       method: 'DELETE',
@@ -307,6 +318,7 @@ class ResumeAPI {
     }
   }
 
+  // 用于创建面试会话。
   static async createInterviewSession(data: {
     resume_id: number
     target_title?: string
@@ -327,11 +339,13 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  // 用于获取面试会话。
   static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await apiFetch(`/api/interviews/${sessionId}`)
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  // 用于处理record面试消息。
   static async recordInterviewMessage(
     sessionId: number,
     data: { role: 'candidate' | 'interviewer'; text: string },
@@ -346,6 +360,7 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  // 用于处理end面试会话。
   static async endInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await apiFetch(`/api/interviews/${sessionId}/end`, {
       method: 'POST',
@@ -358,6 +373,7 @@ class DigitalHumanAPI {
   /**
    * 为实时语音面试创建数字人会话。
    */
+  // 用于创建conversation。
   static async createConversation(interviewSessionId: number): Promise<DigitalHumanConversation> {
     const response = await fetchWithTimeout('/api/digital-human/conversations', {
       method: 'POST',
@@ -372,6 +388,7 @@ class DigitalHumanAPI {
   /**
    * 结束供应商侧数字人会话，避免持续占用分钟数。
    */
+  // 用于处理endconversation。
   static async endConversation(conversationId: string): Promise<void> {
     const response = await apiFetch('/api/digital-human/conversations/end', {
       method: 'POST',
@@ -385,16 +402,19 @@ class DigitalHumanAPI {
 }
 
 class BillingAPI {
+  // 用于获取状态。
   static async getStatus(): Promise<BillingStatus> {
     const response = await apiFetch('/api/billing/status')
     return handleApiResponse<BillingStatus>(response)
   }
 
+  // 用于获取paypal套餐。
   static async getPayPalPlan(): Promise<PayPalPlan> {
     const response = await apiFetch('/api/billing/paypal/plan')
     return handleApiResponse<PayPalPlan>(response)
   }
 
+  // 用于创建paypalsubscription。
   static async createPayPalSubscription(): Promise<PayPalSubscriptionCheckout> {
     const response = await apiFetch('/api/billing/paypal/subscriptions', {
       method: 'POST',
@@ -406,11 +426,13 @@ class BillingAPI {
     return handleApiResponse<PayPalSubscriptionCheckout>(response)
   }
 
+  // 用于处理syncpaypalsubscription。
   static async syncPayPalSubscription(subscriptionId: string): Promise<BillingStatus> {
     const response = await apiFetch(`/api/billing/paypal/subscriptions/${subscriptionId}/sync`)
     return handleApiResponse<BillingStatus>(response)
   }
 
+  // 用于处理cancelpaypalsubscription。
   static async cancelPayPalSubscription(subscriptionId: string): Promise<BillingStatus> {
     const response = await apiFetch(`/api/billing/paypal/subscriptions/${subscriptionId}/cancel`, {
       method: 'POST',
@@ -433,11 +455,13 @@ interface ChatMessageRecord {
 }
 
 class ChatHistoryAPI {
+  // 用于获取消息。
   static async getMessages(resumeId: number): Promise<ChatMessageRecord[]> {
     const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`)
     return handleApiResponse<ChatMessageRecord[]>(res)
   }
 
+  // 用于处理append消息。
   static async appendMessages(
     resumeId: number,
     messages: { role: string; content: string; stream_events?: unknown }[]
@@ -450,6 +474,7 @@ class ChatHistoryAPI {
     return handleApiResponse<ChatMessageRecord[]>(res)
   }
 
+  // 用于清理消息。
   static async clearMessages(resumeId: number): Promise<void> {
     const res = await apiFetch(`/api/resumes/${resumeId}/chat-messages`, {
       method: 'DELETE',

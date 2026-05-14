@@ -1,4 +1,4 @@
-"""Helpers for scoping LangSmith traces around agent runs."""
+"""用于把 Agent 运行事件同步到 LangSmith 追踪。"""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ class LangSmithRunObserver:
         input_text: str | None,
         metadata: dict[str, Any] | None = None,
     ):
+        """用于初始化当前对象。"""
         self.client = get_langsmith_client()
         self.run_id = run_id
         self.agent_type = agent_type
@@ -56,9 +57,11 @@ class LangSmithRunObserver:
 
     @property
     def enabled(self) -> bool:
+        """用于判断是否启用当前数据。"""
         return self.client is not None
 
     def __enter__(self) -> "LangSmithRunObserver":
+        """用于进入当前上下文管理器。"""
         if not self.enabled:
             return self
         try:
@@ -83,6 +86,7 @@ class LangSmithRunObserver:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
+        """用于退出当前上下文管理器并收尾。"""
         if self._trace_context is None:
             return
         try:
@@ -95,6 +99,7 @@ class LangSmithRunObserver:
             )
 
     def finish(self, output: Any, *, metadata: dict[str, Any] | None = None) -> None:
+        """用于完成当前数据。"""
         if not self.enabled:
             return
         self._update_run(
@@ -106,6 +111,7 @@ class LangSmithRunObserver:
         )
 
     def fail(self, error: str, *, metadata: dict[str, Any] | None = None) -> None:
+        """用于标记失败当前数据。"""
         if not self.enabled:
             return
         self._close_open_child_runs(error)
@@ -118,6 +124,7 @@ class LangSmithRunObserver:
         )
 
     def on_runtime_event(self, event: Mapping[str, Any]) -> None:
+        """用于处理onruntime事件。"""
         if not self.enabled:
             return
         event_type = _event_type(event)

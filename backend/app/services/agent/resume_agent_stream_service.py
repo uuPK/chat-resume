@@ -90,6 +90,7 @@ class ResumeAgentStreamService:
             )
 
             def observe_runtime_event(event: Mapping[str, Any]) -> None:
+                """用于处理observeruntime事件。"""
                 langfuse_observer.on_runtime_event(event)
                 langsmith_observer.on_runtime_event(event)
 

@@ -1,3 +1,4 @@
+// 用于提供 app/(print)/resume/print/page.tsx 模块。
 import ResumePreview from '@/components/preview/ResumePreview'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { getTranslations } from 'next-intl/server'
@@ -10,6 +11,7 @@ interface PageProps {
   }>
 }
 
+// 用于解码载荷。
 function decodePayload(data?: string) {
   if (!data) {
     return null
@@ -26,10 +28,12 @@ function decodePayload(data?: string) {
   }
 }
 
+// 用于标准化templatestyle。
 function normalizeTemplateStyle(template?: string): ResumeTemplateStyle {
   return template === 'modern' || template === 'formal' || template === 'emerald' ? template : 'classic'
 }
 
+// 用于渲染 ResumePrintPage 组件。
 export default async function ResumePrintPage({ searchParams }: PageProps) {
   const t = await getTranslations({ locale: 'zh', namespace: 'resume.preview' })
   const resolvedSearchParams = await searchParams

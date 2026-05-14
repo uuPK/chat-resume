@@ -40,6 +40,7 @@ class AgentPromptSpec:
             raise ValueError(f"Prompt '{self.name}' 渲染失败，缺少变量: {e}") from e
 
     def __repr__(self) -> str:
+        """用于返回对象的调试展示文本。"""
         return f"AgentPromptSpec(name={self.name!r}, version={self.version!r})"
 
 

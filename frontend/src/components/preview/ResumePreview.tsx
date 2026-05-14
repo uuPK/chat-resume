@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/ResumePreview.tsx 模块。
 
 import { useEffect } from 'react'
 import React from 'react'
@@ -16,6 +17,7 @@ interface ResumePreviewProps {
   smartFitTriggerRef?: React.MutableRefObject<any>
 }
 
+// 用于渲染 ResumePreview 组件。
 export default function ResumePreview({ content, moduleOrder, spacingScale, templateStyle = 'classic', onSpacingScaleChange, onTotalPagesChange, smartFitTriggerRef }: ResumePreviewProps) {
   // 加载打印样式
   useEffect(() => {

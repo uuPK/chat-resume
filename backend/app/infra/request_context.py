@@ -1,6 +1,4 @@
-"""
-Lightweight request/session/tool correlation context for logs and events.
-"""
+"""用于维护请求、会话和工具调用的日志上下文。"""
 
 from __future__ import annotations
 
@@ -14,6 +12,7 @@ _tool_call_id_var: ContextVar[str | None] = ContextVar("tool_call_id", default=N
 
 
 def get_log_context() -> dict[str, str | None]:
+    """用于获取日志上下文。"""
     return {
         "request_id": _request_id_var.get(),
         "session_id": _session_id_var.get(),
@@ -27,6 +26,7 @@ def bind_log_context(
     session_id: str | None = None,
     tool_call_id: str | None = None,
 ) -> dict[str, Token[str | None]]:
+    """用于绑定日志上下文。"""
     tokens: dict[str, Token[str | None]] = {}
     if request_id is not None:
         tokens["request_id"] = _request_id_var.set(request_id)
@@ -38,6 +38,7 @@ def bind_log_context(
 
 
 def reset_log_context(tokens: dict[str, Token[str | None]]) -> None:
+    """用于处理reset日志上下文。"""
     if "tool_call_id" in tokens:
         _tool_call_id_var.reset(tokens["tool_call_id"])
     if "session_id" in tokens:
@@ -53,6 +54,7 @@ def log_context(
     session_id: str | None = None,
     tool_call_id: str | None = None,
 ) -> Iterator[None]:
+    """用于处理日志上下文。"""
     tokens = bind_log_context(
         request_id=request_id,
         session_id=session_id,

@@ -1,3 +1,5 @@
+"""用于覆盖 test_eval_score.py 对应的回归测试。"""
+
 import json
 import subprocess
 import sys
@@ -8,6 +10,7 @@ SCORER = ROOT_DIR / "eval" / "score.py"
 
 
 def run_scorer(input_path: Path, output_path: Path, extra_args: list[str] | None = None):
+    """用于运行scorer。"""
     return subprocess.run(
         [
             sys.executable,
@@ -26,6 +29,7 @@ def run_scorer(input_path: Path, output_path: Path, extra_args: list[str] | None
 
 
 def test_scorer_disables_llm_judge_by_default(tmp_path, monkeypatch):
+    """用于验证scorerdisablesllmjudgebydefault。"""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     input_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_scores.json"

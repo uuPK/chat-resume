@@ -1,3 +1,4 @@
+// 用于提供 components/preview/ResumePage.tsx 模块。
 import React, { forwardRef } from 'react'
 import { A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'

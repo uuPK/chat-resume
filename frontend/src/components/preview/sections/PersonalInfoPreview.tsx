@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/sections/PersonalInfoPreview.tsx 模块。
 
 import type { PersonalInfo } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
@@ -21,6 +22,7 @@ const iconWrap: React.CSSProperties = {
   flexShrink: 0,
 }
 
+// 用于渲染 EmailIcon 组件。
 const EmailIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -30,6 +32,7 @@ const EmailIcon = () => (
   </span>
 )
 
+// 用于渲染 PhoneIcon 组件。
 const PhoneIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -38,6 +41,7 @@ const PhoneIcon = () => (
   </span>
 )
 
+// 用于渲染 LocationIcon 组件。
 const LocationIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -47,6 +51,7 @@ const LocationIcon = () => (
   </span>
 )
 
+// 用于渲染 GithubIcon 组件。
 const GithubIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -55,6 +60,7 @@ const GithubIcon = () => (
   </span>
 )
 
+// 用于渲染 LinkedinIcon 组件。
 const LinkedinIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -64,6 +70,7 @@ const LinkedinIcon = () => (
   </span>
 )
 
+// 用于渲染 WebsiteIcon 组件。
 const WebsiteIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -73,12 +80,14 @@ const WebsiteIcon = () => (
   </span>
 )
 
+// 用于渲染 PersonalInfoPreview 组件。
 export default function PersonalInfoPreview({ data, renderLines, templateStyle = 'classic' }: PersonalInfoPreviewProps) {
   const t = useTranslations('resume.preview')
   if (!data || (!data.name && !data.email && !data.phone)) {
     return null
   }
 
+  // 用于处理shouldrender行。
   const shouldRenderLine = (lineIndex: number) => {
     return !renderLines || renderLines.includes(lineIndex)
   }

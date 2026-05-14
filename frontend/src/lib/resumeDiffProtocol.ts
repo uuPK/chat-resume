@@ -1,3 +1,4 @@
+// 用于提供 lib/resumeDiffProtocol.ts 模块。
 export const DIFF_SUMMARY_SECTION_SUFFIXES = [
   '\u4fee\u6539\u6458\u8981',
   '\u65b0\u589e',

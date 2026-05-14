@@ -49,12 +49,14 @@ def _decode_session_frame(frame: bytes) -> tuple[int, dict]:
 # ── 1. _build_say_hello_frame ────────────────────────────────────────────────
 
 def test_build_say_hello_frame_event_id():
+    """用于验证buildsayhelloframe事件id。"""
     frame = _build_say_hello_frame("sess-001", "你好，面试开始！")
     event_id, payload = _decode_session_frame(frame)
     assert event_id == EVENT_SAY_HELLO
 
 
 def test_build_say_hello_frame_content():
+    """用于验证buildsayhelloframecontent。"""
     frame = _build_say_hello_frame("sess-002", "欢迎来到模拟面试。")
     _, payload = _decode_session_frame(frame)
     assert payload["content"] == "欢迎来到模拟面试。"
@@ -71,12 +73,14 @@ def test_build_start_session_no_prologue_field():
 # ── 2. _build_greeting ───────────────────────────────────────────────────────
 
 def test_build_greeting_chinese_with_context():
+    """用于验证buildgreetingchinesewith上下文。"""
     text = _build_greeting(target_title="后端工程师", target_company="字节跳动", language="zh-CN")
     assert "后端工程师" in text
     assert "字节跳动" in text
 
 
 def test_build_greeting_english_with_context():
+    """用于验证buildgreetingenglishwith上下文。"""
     text = _build_greeting(target_title="Backend Engineer", target_company="ByteDance", language="en")
     assert "Backend Engineer" in text
     assert "ByteDance" in text
@@ -96,6 +100,7 @@ import struct as _struct
 
 
 def _make_server_frame(event_id: int, body: bytes) -> bytes:
+    """用于处理makeserverframe。"""
     from app.services.digital_human.volcengine_service import (
         MSG_WITH_EVENT, JSON_SERIALIZATION, NO_COMPRESSION,
         PROTOCOL_VERSION, SERVER_FULL_RESPONSE,
@@ -116,6 +121,7 @@ def _make_server_frame(event_id: int, body: bytes) -> bytes:
 
 
 async def _run_proxy(monkeypatch, greeting: str):
+    """用于运行proxy。"""
     from app.infra.config import settings
     from app.services.digital_human.volcengine_service import (
         VolcengineVoiceService, EVENT_CONNECTION_STARTED, EVENT_SESSION_STARTED,
@@ -137,6 +143,7 @@ async def _run_proxy(monkeypatch, greeting: str):
     mock_volc_ws.__aiter__ = MagicMock(return_value=iter([]))
 
     async def fake_send(data):
+        """用于构造send。"""
         if isinstance(data, bytes):
             captured_frames.append(data)
 
@@ -149,6 +156,7 @@ async def _run_proxy(monkeypatch, greeting: str):
     mock_client_ws.receive = AsyncMock(side_effect=[{"type": "websocket.disconnect"}])
 
     async def capture_json(payload):
+        """用于处理capturejson。"""
         client_json_calls.append(payload)
 
     mock_client_ws.send_json = AsyncMock(side_effect=capture_json)

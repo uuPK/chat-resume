@@ -78,6 +78,7 @@ class JDOcrService:
 
     @staticmethod
     def _candidate_models() -> list[str]:
+        """用于处理candidate模型列表。"""
         models = [
             settings.OPENROUTER_VISION_MODEL,
             *settings.OPENROUTER_VISION_FALLBACK_MODELS.split(","),
@@ -91,6 +92,7 @@ class JDOcrService:
 
     @staticmethod
     def _is_provider_rejection(exc: Exception) -> bool:
+        """用于判断提供方拒绝响应。"""
         message = str(exc)
         return (
             "provider Terms Of Service" in message

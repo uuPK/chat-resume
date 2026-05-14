@@ -531,6 +531,7 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     ]
 
     def count_success(step_name: str) -> int:
+        """用于处理countsuccess。"""
         return sum(
             1 for result in results if result["steps"].get(step_name, {}).get("success")
         )
@@ -562,6 +563,7 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     chain_completion = sum(1 for result in results if result.get("chainCompleted"))
 
     def rate(numerator: int, denominator: int) -> float:
+        """用于处理rate。"""
         if denominator <= 0:
             return 0.0
         return round((numerator / denominator) * 100, 1)

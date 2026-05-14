@@ -89,6 +89,7 @@ async def chat_with_resume_stream(
     stream_service = ResumeAgentStreamService(db)
 
     async def generate_stream():
+        """用于生成简历 Agent 的流式响应。"""
         async for event in stream_service.stream_events(stream_input):
             payload = public_resume_stream_event(event)
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"

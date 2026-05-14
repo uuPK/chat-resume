@@ -39,11 +39,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def before_cursor_execute(
     _conn, _cursor, _statement, _parameters, context, _executemany
 ):
+    """用于处理before游标执行。"""
     context._query_started_at = perf_counter()
 
 
 @event.listens_for(engine, "after_cursor_execute")
 def after_cursor_execute(_conn, _cursor, statement, _parameters, context, _executemany):
+    """用于处理after游标执行。"""
     query_started_at = getattr(context, "_query_started_at", None)
     if query_started_at is None:
         return

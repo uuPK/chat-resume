@@ -21,6 +21,7 @@ class TavusService:
     """用于创建和结束 Tavus 实时数字人会话。"""
 
     def __init__(self) -> None:
+        """用于初始化当前对象。"""
         self.api_base = settings.TAVUS_API_BASE.rstrip("/")
         self.api_key = settings.TAVUS_API_KEY
         self.replica_id = settings.TAVUS_REPLICA_ID

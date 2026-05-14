@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// 用于提供 measure-production.mjs 前端脚本逻辑。
 
 import fs from 'node:fs/promises'
 import { performance } from 'node:perf_hooks'
@@ -11,6 +12,7 @@ const DEFAULT_RUNS = 3
 const DEFAULT_TIMEOUT_MS = 20000
 const BENCHMARK_RESUME_TITLE = '性能测速基准简历'
 
+// 用于处理printhelp。
 function printHelp() {
   console.log(`
 用法:
@@ -34,6 +36,7 @@ function printHelp() {
 `)
 }
 
+// 用于处理parseargs。
 function parseArgs(argv) {
   const args = {
     frontendUrl: DEFAULT_FRONTEND_URL,
@@ -69,15 +72,18 @@ function parseArgs(argv) {
   return args
 }
 
+// 用于处理sleep。
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// 用于处理avg。
 function avg(values) {
   if (!values.length) return 0
   return values.reduce((sum, value) => sum + value, 0) / values.length
 }
 
+// 用于处理percentile。
 function percentile(values, p) {
   if (!values.length) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -85,6 +91,7 @@ function percentile(values, p) {
   return sorted[index]
 }
 
+// 用于处理summarize。
 function summarize(values) {
   return {
     count: values.length,
@@ -95,10 +102,12 @@ function summarize(values) {
   }
 }
 
+// 用于处理formatms。
 function formatMs(value) {
   return `${value.toFixed(1)} ms`
 }
 
+// 用于处理shortpath。
 function shortPath(urlString) {
   try {
     const url = new URL(urlString)
@@ -109,6 +118,7 @@ function shortPath(urlString) {
 }
 
 // Split a combined Set-Cookie header without breaking Expires-style commas.
+// 用于处理splitsetcookieheader。
 function splitSetCookieHeader(headerValue) {
   if (!headerValue) return []
   return headerValue
@@ -118,6 +128,7 @@ function splitSetCookieHeader(headerValue) {
 }
 
 // Read Set-Cookie values across Node versions.
+// 用于获取setcookieheaders。
 function getSetCookieHeaders(response) {
   if (typeof response.headers.getSetCookie === 'function') {
     return response.headers.getSetCookie()
@@ -126,10 +137,12 @@ function getSetCookieHeaders(response) {
 }
 
 // Keep backend HttpOnly session cookies available to API and browser probes.
+// 用于创建cookiejar。
 function createCookieJar() {
   const cookies = new Map()
 
   return {
+    // 用于处理capture。
     capture(response) {
       for (const headerValue of getSetCookieHeaders(response)) {
         const [cookiePair, ...attributes] = headerValue
@@ -169,12 +182,14 @@ function createCookieJar() {
       }
     },
 
+    // 用于处理header。
     header() {
       return [...cookies.values()]
         .map((cookie) => `${cookie.name}=${cookie.value}`)
         .join('; ')
     },
 
+    // 用于处理browsercookies。
     browserCookies(urls) {
       const result = []
       const seen = new Set()
@@ -199,6 +214,7 @@ function createCookieJar() {
   }
 }
 
+// 用于处理请求json。
 async function requestJson(
   baseUrl,
   path,
@@ -254,6 +270,7 @@ async function requestJson(
   }
 }
 
+// 用于处理请求form。
 async function requestForm(
   baseUrl,
   path,
@@ -300,6 +317,7 @@ async function requestForm(
   }
 }
 
+// 用于处理buildseed简历content。
 function buildSeedResumeContent(email) {
   return {
     job_application: {
@@ -362,6 +380,7 @@ function buildSeedResumeContent(email) {
   }
 }
 
+// 用于处理ensure用户。
 async function ensureUser(config, cookieJar) {
   try {
     await requestJson(config.apiUrl, '/api/auth/register', {
@@ -387,6 +406,7 @@ async function ensureUser(config, cookieJar) {
   return login.data
 }
 
+// 用于处理ensure简历。
 async function ensureResume(config, cookieJar) {
   const list = await requestJson(config.apiUrl, '/api/resumes/', {
     timeoutMs: config.timeoutMs,
@@ -410,6 +430,7 @@ async function ensureResume(config, cookieJar) {
   return created.data
 }
 
+// 用于处理ensureinterview会话。
 async function ensureInterviewSession(config, cookieJar, resume) {
   const list = await requestJson(config.apiUrl, '/api/interviews/', {
     timeoutMs: config.timeoutMs,
@@ -506,6 +527,7 @@ async function ensureInterviewSession(config, cookieJar, resume) {
   }
 }
 
+// 用于测量APIprobe。
 async function measureApiProbe(config, cookieJar, probe) {
   const samples = []
 
@@ -525,12 +547,14 @@ async function measureApiProbe(config, cookieJar, probe) {
   }
 }
 
+// 用于处理buildstoragescript。
 function buildStorageScript(authState) {
   return ({ user }) => {
     localStorage.setItem('auth_user', JSON.stringify(user))
   }
 }
 
+// 用于测量browserroute。
 async function measureBrowserRoute(browser, config, authState, cookieJar, routeConfig) {
   const samples = []
   const url = `${config.frontendUrl}${routeConfig.path}`
@@ -606,6 +630,7 @@ async function measureBrowserRoute(browser, config, authState, cookieJar, routeC
   }
 }
 
+// 用于处理printAPIsection。
 function printApiSection(results) {
   console.log('\n=== API 探针 ===')
   for (const result of results) {
@@ -615,6 +640,7 @@ function printApiSection(results) {
   }
 }
 
+// 用于处理printbrowsersection。
 function printBrowserSection(results) {
   console.log('\n=== 浏览器页面测速 ===')
   for (const result of results) {
@@ -638,6 +664,7 @@ function printBrowserSection(results) {
   }
 }
 
+// 用于执行当前数据。
 async function main() {
   const config = parseArgs(process.argv.slice(2))
   if (config.help) {

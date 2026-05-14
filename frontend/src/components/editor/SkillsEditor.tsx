@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/SkillsEditor.tsx 模块。
 
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -14,6 +15,7 @@ interface SkillsEditorProps {
   onChange: (data: SkillGroup[]) => void
 }
 
+// 用于创建空白分组。
 function createEmptyGroup(category: string): SkillGroup {
   return {
     id: `skill_group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -22,6 +24,7 @@ function createEmptyGroup(category: string): SkillGroup {
   }
 }
 
+// 用于渲染 SkillsEditor 组件。
 export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([])
   const focusChipRef = useRef<{ groupId: string; index: number } | null>(null)
@@ -47,6 +50,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     }
   })
 
+  // 用于处理commit。
   const commit = (next: SkillGroup[]) => {
     setSkillGroups(next)
     onChange(
@@ -58,20 +62,24 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     )
   }
 
+  // 用于新增分组。
   const addGroup = () => {
     const existing = new Set(skillGroups.map(g => g.category))
     const nextCategory = defaultCategories.find(c => !existing.has(c)) || t('newCategory')
     commit([...skillGroups, createEmptyGroup(nextCategory)])
   }
 
+  // 用于删除分组。
   const removeGroup = (groupId: string) => {
     commit(skillGroups.filter(g => g.id !== groupId))
   }
 
+  // 用于更新category。
   const updateCategory = (groupId: string, category: string) => {
     commit(skillGroups.map(g => g.id === groupId ? { ...g, category } : g))
   }
 
+  // 用于新增item。
   const addItem = (groupId: string) => {
     const next = skillGroups.map(g => (
       g.id === groupId ? { ...g, items: [...g.items, ''] } : g
@@ -81,6 +89,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     commit(next)
   }
 
+  // 用于更新item。
   const updateItem = (groupId: string, itemIndex: number, value: string) => {
     commit(skillGroups.map(g => {
       if (g.id !== groupId) return g
@@ -90,6 +99,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
     }))
   }
 
+  // 用于删除item。
   const removeItem = (groupId: string, itemIndex: number) => {
     commit(skillGroups.map(g => (
       g.id === groupId

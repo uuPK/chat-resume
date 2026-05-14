@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/sections/ProjectsPreview.tsx 模块。
 
 import type { Project } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
@@ -21,6 +22,7 @@ const iconWrap: React.CSSProperties = {
   flexShrink: 0,
 }
 
+// 用于渲染 GithubIcon 组件。
 const GithubIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -29,6 +31,7 @@ const GithubIcon = () => (
   </span>
 )
 
+// 用于渲染 DemoIcon 组件。
 const DemoIcon = () => (
   <span style={iconWrap}>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -198,6 +201,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
   )
 }
 
+// 用于渲染 ProjectsPreview 组件。
 export default function ProjectsPreview({
   data,
   renderLines,
@@ -208,6 +212,7 @@ export default function ProjectsPreview({
     return null
   }
 
+  // 用于处理shouldrender行。
   const shouldRenderLine = (lineIndex: number) => {
     return !renderLines || renderLines.includes(lineIndex)
   }

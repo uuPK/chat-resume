@@ -1,3 +1,4 @@
+// 用于提供 types/resume.ts 模块。
 export interface ResumeBullet {
   id?: string
   text: string
