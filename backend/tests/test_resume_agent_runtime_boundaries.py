@@ -37,7 +37,6 @@ def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, d
     state = agent.runtime._new_stream_state()
     context = {
         "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
-        "tool_profile": agent._select_tool_profile(user_message),
     }
     pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
         agent=agent.definition,
@@ -54,24 +53,36 @@ def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, d
     return pi_context, state
 
 
-def test_read_only_message_exposes_no_edit_tools():
-    """用于验证只读问题不会暴露简历编辑工具。"""
+def test_plain_message_exposes_resume_tools_for_model_choice():
+    """用于验证普通消息也由模型自行决定是否调用工具。"""
     agent = ResumeAgent()
 
     pi_context, state = _build_runtime_inputs(agent, "这份简历有哪些问题？")
 
-    assert state["tool_profile"] == "read_only"
-    assert [tool.name for tool in pi_context.tools] == []
+    assert state["tool_profile"] == "resume_edit"
+    assert {tool.name for tool in pi_context.tools} == {
+        "update_overview",
+        "update_bullet",
+        "add_bullet",
+        "remove_bullet",
+        "generate_job_match_summary",
+    }
 
 
-def test_job_match_profile_exposes_only_match_summary_tool():
-    """用于验证岗位匹配意图只暴露岗位摘要工具。"""
+def test_job_match_message_still_exposes_resume_tools_for_model_choice():
+    """用于验证岗位匹配消息不再由后端收窄工具集。"""
     agent = ResumeAgent()
 
     pi_context, state = _build_runtime_inputs(agent, "这个 JD 的岗位匹配度怎么样？")
 
-    assert state["tool_profile"] == "job_match"
-    assert [tool.name for tool in pi_context.tools] == ["generate_job_match_summary"]
+    assert state["tool_profile"] == "resume_edit"
+    assert {tool.name for tool in pi_context.tools} == {
+        "update_overview",
+        "update_bullet",
+        "add_bullet",
+        "remove_bullet",
+        "generate_job_match_summary",
+    }
 
 
 def test_llm_request_event_records_profile_counts_and_prompt_size():
@@ -102,15 +113,15 @@ def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
     assert event["usage"]["total_tokens"] == 15
 
 
-def test_unexpected_tool_call_is_logged_once_for_read_only_profile(
+def test_allowed_tool_call_uses_normal_detection_trace(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """用于验证 read_only 未暴露工具时不会重复刷工具调用日志。"""
+    """用于验证默认工具集下模型工具调用不再被判为 unexpected。"""
     agent = ResumeAgent()
     state = agent.runtime._new_stream_state()
-    state["tool_profile"] = "read_only"
-    state["tool_names"] = []
+    state["tool_profile"] = "resume_edit"
+    state["tool_names"] = ["update_bullet"]
     event = ToolExecutionStartEvent(
         tool_call_id="call_1",
         tool_name="update_bullet",
@@ -123,8 +134,8 @@ def test_unexpected_tool_call_is_logged_once_for_read_only_profile(
         agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
 
     messages = [record.getMessage() for record in caplog.records]
-    assert messages.count("agent.trace.reasoning.unexpected_tool_call") == 1
-    assert "agent.trace.reasoning.tool_call_detected" not in messages
+    assert "agent.trace.reasoning.unexpected_tool_call" not in messages
+    assert messages.count("agent.trace.reasoning.tool_call_detected") == 2
 
 
 def test_convert_resume_messages_filters_internal_only_messages():

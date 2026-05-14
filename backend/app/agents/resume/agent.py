@@ -24,8 +24,6 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "generate_job_match_summary",
 }
 _TOOL_PROFILES: dict[str, set[str]] = {
-    "read_only": set(),
-    "job_match": {"generate_job_match_summary"},
     "resume_edit": {
         "update_overview",
         "update_bullet",
@@ -141,7 +139,6 @@ class ResumeAgent:
                 "resume_content": resume_content,
                 "allowed_sections": allowed_sections,
                 "user_id": user_id,
-                "tool_profile": self._select_tool_profile(user_message),
             },
             conversation_history=conversation_history,
         )
@@ -167,7 +164,6 @@ class ResumeAgent:
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,
             "user_id": user_id,
-            "tool_profile": self._select_tool_profile(user_message),
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,
@@ -192,27 +188,6 @@ class ResumeAgent:
     def _build_prompt_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """用于生成提示词渲染所需的简历上下文字段。"""
         return build_resume_prompt_context(context)
-
-    @staticmethod
-    def _select_tool_profile(user_message: str) -> str:
-        """用于按用户意图选择最小必要工具集。"""
-        text = user_message.lower()
-        edit_terms = (
-            "优化",
-            "润色",
-            "修改",
-            "改",
-            "新增",
-            "删除",
-            "补充",
-            "增强",
-            "改写",
-        )
-        if any(key in text for key in edit_terms):
-            return "resume_edit"
-        if any(key in text for key in ("jd", "岗位匹配", "匹配度", "关键词", "缺失关键词")):
-            return "job_match"
-        return "read_only"
 
     def _prepare_tool_args(
         self,
