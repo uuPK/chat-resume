@@ -467,8 +467,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
-    async def test_optimize_executes_all_pi_agent_tool_calls(self):
-        """用于验证optimizeexecutesallpiAgenttoolcalls。"""
+    async def test_optimize_runs_react_one_tool_per_model_turn(self):
+        """用于验证 runtime 按 ReAct 方式每轮只执行一个工具。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -489,9 +489,23 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                             args={
                                 "section": "projects",
                                 "item_id": "proj_1",
-                                "text": "这条不应在同一轮被执行",
+                                "text": "同一轮多发出的工具调用不应被执行",
                             },
                         ),
+                    ],
+                ),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="add_bullet",
+                            call_id="call_after_feedback",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "text": "读取工具结果后继续新增亮点",
+                            },
+                        )
                     ],
                 ),
                 FakeModelResponse(content="已先完成第一步修改。"),
@@ -507,8 +521,9 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
-            "这条不应在同一轮被执行",
+            "读取工具结果后继续新增亮点",
         )
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
 
     async def test_optimize_retries_recoverable_tool_error(self):
         """用于验证optimizeretriesrecoverabletool错误。"""
@@ -607,12 +622,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
         )
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_optimize_stream_limits_first_round_to_one_business_confirmation(
+    async def test_optimize_stream_runs_one_tool_per_model_turn(
         self,
     ):
-        """用于验证optimizestream首轮只展示一个业务工具确认。"""
+        """用于验证流式 runtime 不执行同一模型响应里的第二个工具。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -665,10 +680,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["projects"][0]["highlights"][0]["text"],
             "支持流式简历优化",
         )
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_optimize_stream_allows_summary_tool_after_confirmed_change(self):
-        """用于验证确认改动后同一工具批次仍可生成岗位匹配摘要。"""
+    async def test_optimize_stream_continues_to_summary_after_confirmed_change(self):
+        """用于验证确认改动结果回到模型后可继续调用岗位匹配摘要。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -692,7 +707,17 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                         ),
                     ],
                 ),
-                FakeModelResponse(content="不应触发第二次模型回复。"),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="generate_job_match_summary",
+                            call_id="call_stream_summary_after_feedback",
+                            args={},
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已完成优化并说明岗位匹配情况。"),
             ]
         )
         resume = self._sample_resume()
@@ -719,7 +744,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             and event["result"].get("job_match_summary")
         ]
 
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
         self.assertEqual(len(summary_events), 1)
         summary = summary_events[0]["result"]["job_match_summary"]
         self.assertIn("Agent", summary["matched_keywords"])
@@ -880,7 +905,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
             "维护多个后台服务，支撑日活 10 万用户",
         )
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""
@@ -932,7 +957,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         trace_messages = [record.getMessage() for record in trace_records]
 
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
         self.assertIn("agent.trace.run.started", trace_messages)
         self.assertIn("agent.trace.prompt.rendered", trace_messages)
         self.assertIn("agent.trace.llm.request", trace_messages)
@@ -942,7 +967,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("agent.trace.tool.confirmation", trace_messages)
         self.assertIn("agent.trace.tool.executed", trace_messages)
         self.assertIn("agent.trace.llm.response", trace_messages)
-        self.assertIn("agent.trace.run.stopped_after_confirmation", trace_messages)
+        self.assertNotIn("agent.trace.run.stopped_after_confirmation", trace_messages)
         self.assertIn("agent.trace.run.completed", trace_messages)
         self.assertNotIn("agent.trace.intermediate.chunk", trace_messages)
 

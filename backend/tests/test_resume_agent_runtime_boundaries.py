@@ -155,8 +155,8 @@ def test_convert_resume_messages_filters_internal_only_messages():
 
 
 @pytest.mark.asyncio
-async def test_confirmation_policy_confirms_rejects_and_terminates_turn():
-    """用于验证确认 hook 能区分确认、拒绝和本轮终止语义。"""
+async def test_confirmation_policy_returns_feedback_without_terminating_turn():
+    """用于验证确认 hook 将确认结果交还给模型继续 ReAct。"""
     policy = ToolConfirmationPolicy()
     queue: asyncio.Queue[bool] = asyncio.Queue()
 
@@ -171,7 +171,7 @@ async def test_confirmation_policy_confirms_rejects_and_terminates_turn():
 
     assert decision.requires_confirmation is True
     assert result.confirmed is False
-    assert result.terminate_turn is True
+    assert result.terminate_turn is False
 
 
 def test_openrouter_adapter_preserves_business_model_defaults():

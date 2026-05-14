@@ -46,8 +46,8 @@ class ToolConfirmationPolicy:
         return await wait_for_tool_confirmation(confirmation_queue)
 
     def after_tool_decision(self, *, confirmed: bool) -> ToolConfirmationResult:
-        """用于在用户确认或拒绝后决定当前轮次是否应终止。"""
-        return ToolConfirmationResult(confirmed=confirmed, terminate_turn=True)
+        """用于在用户确认或拒绝后把结果交还给模型继续 ReAct。"""
+        return ToolConfirmationResult(confirmed=confirmed, terminate_turn=False)
 
 
 def requires_tool_confirmation(

@@ -324,7 +324,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("默认执行 `optimize-first`", rendered)
         self.assertIn("必须直接调用工具产出改动", rendered)
         self.assertIn("首轮目标是“先产出改动”", rendered)
-        self.assertIn("首轮只调用 1 个业务工具", rendered)
+        self.assertIn("按 ReAct 方式工作", rendered)
+        self.assertIn("每轮最多调用 1 个工具", rendered)
         self.assertIn("generate_job_match_summary", rendered)
 
     def test_system_prompt_names_tool_call_protocol(self):
