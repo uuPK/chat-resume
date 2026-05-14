@@ -128,6 +128,16 @@ class Settings(BaseSettings):
     OPENROUTER_RETRY_BACKOFF_SECONDS: float = float(
         os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "1")
     )
+    OPENROUTER_CIRCUIT_BREAKER_ENABLED: bool = (
+        os.getenv("OPENROUTER_CIRCUIT_BREAKER_ENABLED", "true").strip().lower()
+        == "true"
+    )
+    OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(
+        os.getenv("OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD", "3")
+    )
+    OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS: float = float(
+        os.getenv("OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS", "30")
+    )
 
     # MiniMax TTS API
     MINIMAX_API_KEY: str = os.getenv("MINIMAX_API_KEY", "")

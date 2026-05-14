@@ -6,6 +6,8 @@ import asyncio
 import json
 import logging
 import random
+from dataclasses import dataclass
+from time import monotonic
 from typing import Any
 
 import httpx
@@ -96,6 +98,48 @@ class OpenRouterHTTPError(Exception):
         self.retry_after = retry_after
 
 
+class OpenRouterCircuitOpenError(Exception):
+    """表示 OpenRouter circuit breaker 已打开，当前请求被快速拒绝。"""
+
+
+@dataclass
+class _OpenRouterCircuitBreaker:
+    """用于记录 OpenRouter 调用失败状态并决定是否快速失败。"""
+
+    failure_count: int = 0
+    opened_at: float | None = None
+
+    def before_request(self, *, enabled: bool, cooldown_seconds: float) -> None:
+        """请求前检查 circuit 是否仍处于 open 冷却期。"""
+        if not enabled or self.opened_at is None:
+            return
+        if monotonic() - self.opened_at >= cooldown_seconds:
+            self.opened_at = None
+            return
+        raise OpenRouterCircuitOpenError("OpenRouter circuit breaker is open")
+
+    def record_success(self) -> None:
+        """请求成功后清空失败状态。"""
+        self.failure_count = 0
+        self.opened_at = None
+
+    def record_failure(self, *, enabled: bool, threshold: int) -> None:
+        """请求最终失败后累加失败次数并在达到阈值时打开 circuit。"""
+        if not enabled:
+            return
+        self.failure_count += 1
+        if self.failure_count >= threshold:
+            self.opened_at = monotonic()
+
+
+_OPENROUTER_CIRCUIT_BREAKER = _OpenRouterCircuitBreaker()
+
+
+def _reset_openrouter_circuit_breaker() -> None:
+    """用于测试或进程内恢复时重置 OpenRouter circuit breaker。"""
+    _OPENROUTER_CIRCUIT_BREAKER.record_success()
+
+
 def _retry_wait(attempt: int, retry_after: float | None) -> float:
     """根据重试次数计算指数退避等待时间，优先使用 Retry-After 头的值。"""
     if retry_after is not None:
@@ -118,11 +162,20 @@ async def _pump_with_retry(
 ) -> None:
     """包装 _pump_openrouter_stream，对可重试错误执行指数退避重试。"""
     max_retries = settings.OPENROUTER_MAX_RETRIES
+    circuit_enabled = settings.OPENROUTER_CIRCUIT_BREAKER_ENABLED
+    circuit_failure_threshold = settings.OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+    circuit_cooldown_seconds = settings.OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS
     last_exc: Exception | None = None
+
+    _OPENROUTER_CIRCUIT_BREAKER.before_request(
+        enabled=circuit_enabled,
+        cooldown_seconds=circuit_cooldown_seconds,
+    )
 
     for attempt in range(max_retries + 1):
         try:
             await _pump_openrouter_stream(model, context, options, partial, queue)
+            _OPENROUTER_CIRCUIT_BREAKER.record_success()
             return
         except OpenRouterHTTPError as exc:
             if not _is_retryable_status(exc.status_code):
@@ -150,6 +203,10 @@ async def _pump_with_retry(
         await asyncio.sleep(wait)
 
     assert last_exc is not None
+    _OPENROUTER_CIRCUIT_BREAKER.record_failure(
+        enabled=circuit_enabled,
+        threshold=circuit_failure_threshold,
+    )
     raise last_exc
 
 

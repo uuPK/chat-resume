@@ -9,10 +9,12 @@ import httpx
 import pytest
 
 from app.runtime.pi_agent_openrouter import (
+    OpenRouterCircuitOpenError,
     OpenRouterHTTPError,
     _is_retryable_status,
     _pump_with_retry,
     _retry_wait,
+    _reset_openrouter_circuit_breaker,
 )
 
 
@@ -85,6 +87,7 @@ async def test_429_retry_then_success():
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
         OPENROUTER_MAX_RETRIES=3,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -108,6 +111,7 @@ async def test_503_all_retries_exhausted_raises():
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
         OPENROUTER_MAX_RETRIES=3,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -140,6 +144,7 @@ async def test_429_with_retry_after_header_uses_header_value():
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
         OPENROUTER_MAX_RETRIES=3,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         side_effect=fake_sleep,
@@ -167,6 +172,7 @@ async def test_400_non_retryable_raises_immediately():
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
         OPENROUTER_MAX_RETRIES=3,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -195,6 +201,7 @@ async def test_connect_error_retried():
     ), patch(
         "app.runtime.pi_agent_openrouter.settings",
         OPENROUTER_MAX_RETRIES=2,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=False,
     ), patch(
         "asyncio.sleep",
         new_callable=AsyncMock,
@@ -204,3 +211,82 @@ async def test_connect_error_retried():
 
     # 初始 1 次 + 2 次重试 = 3 次总调用
     assert call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_opens_after_repeated_failures():
+    """连续请求失败达到阈值后应快速失败，不再调用 OpenRouter。"""
+    _reset_openrouter_circuit_breaker()
+    model, context, options, partial, queue = _make_args()
+    call_count = 0
+
+    async def fake_pump(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        raise OpenRouterHTTPError(status_code=503, message="service unavailable")
+
+    with patch(
+        "app.runtime.pi_agent_openrouter._pump_openrouter_stream",
+        side_effect=fake_pump,
+    ), patch(
+        "app.runtime.pi_agent_openrouter.settings",
+        OPENROUTER_MAX_RETRIES=0,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=True,
+        OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
+        OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
+    ), patch(
+        "asyncio.sleep",
+        new_callable=AsyncMock,
+    ):
+        for _ in range(2):
+            with pytest.raises(OpenRouterHTTPError):
+                await _pump_with_retry(model, context, options, partial, queue)
+
+        with pytest.raises(OpenRouterCircuitOpenError):
+            await _pump_with_retry(model, context, options, partial, queue)
+
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_circuit_breaker_allows_probe_after_cooldown():
+    """open 冷却期结束后应允许一次探测请求，成功后恢复 closed。"""
+    _reset_openrouter_circuit_breaker()
+    model, context, options, partial, queue = _make_args()
+    call_count = 0
+    now = 1000.0
+
+    async def fake_pump(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            raise OpenRouterHTTPError(status_code=503, message="service unavailable")
+
+    with patch(
+        "app.runtime.pi_agent_openrouter._pump_openrouter_stream",
+        side_effect=fake_pump,
+    ), patch(
+        "app.runtime.pi_agent_openrouter.settings",
+        OPENROUTER_MAX_RETRIES=0,
+        OPENROUTER_CIRCUIT_BREAKER_ENABLED=True,
+        OPENROUTER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=2,
+        OPENROUTER_CIRCUIT_BREAKER_COOLDOWN_SECONDS=60,
+    ), patch(
+        "app.runtime.pi_agent_openrouter.monotonic",
+        side_effect=lambda: now,
+    ), patch(
+        "asyncio.sleep",
+        new_callable=AsyncMock,
+    ):
+        for _ in range(2):
+            with pytest.raises(OpenRouterHTTPError):
+                await _pump_with_retry(model, context, options, partial, queue)
+
+        with pytest.raises(OpenRouterCircuitOpenError):
+            await _pump_with_retry(model, context, options, partial, queue)
+
+        now = 1061.0
+        await _pump_with_retry(model, context, options, partial, queue)
+        await _pump_with_retry(model, context, options, partial, queue)
+
+    assert call_count == 4
