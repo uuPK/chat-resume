@@ -18,6 +18,7 @@ from app.infra.langsmith_observer import LangSmithRunObserver
 from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
+from app.services.agent.job_match_summary import build_job_match_summary
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore
 from app.types.stream import (
@@ -83,6 +84,7 @@ class ResumeAgentStreamService:
             yield session_started_event(session_id)
             final_content_parts: list[str] = []
             latest_resume_content: dict[str, Any] | None = None
+            confirmed_diff_items: list[dict[str, Any]] = []
             langfuse_observer, langsmith_observer = self._build_observers(
                 request=request,
                 session_id=session_id,
@@ -137,6 +139,10 @@ class ResumeAgentStreamService:
                         resume_content = event.get("resume_content")
                         if isinstance(resume_content, dict):
                             latest_resume_content = resume_content
+                        if event.get("tool_confirmed"):
+                            confirmed_diff_items.extend(
+                                self._extract_diff_items(event.get("diff_items"))
+                            )
                         content = event.get("content")
                         if content:
                             final_content_parts.append(content)
@@ -156,7 +162,14 @@ class ResumeAgentStreamService:
                     original_resume=original_resume,
                 )
                 logger.debug("Resume agent stream completed")
-                yield stream_done_event(resume_content=latest_resume_content)
+                yield stream_done_event(
+                    resume_content=latest_resume_content,
+                    job_match_summary=build_job_match_summary(
+                        original_resume=original_resume,
+                        latest_resume_content=latest_resume_content,
+                        confirmed_diff_items=confirmed_diff_items,
+                    ),
+                )
             except HTTPException as exc:
                 yield stream_error_event(str(exc.detail))
             except Exception as exc:
@@ -324,6 +337,13 @@ class ResumeAgentStreamService:
         if latest_resume_content is None or latest_resume_content == original_resume:
             return
         resume_service.update(resume_id, {"content": latest_resume_content})
+
+    @staticmethod
+    def _extract_diff_items(value: Any) -> list[dict[str, Any]]:
+        """用于从流事件中提取已确认的结构化 diff 条目。"""
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
 
     @staticmethod
     def _build_observers(

@@ -9,9 +9,17 @@ export type DiffItem = {
   reason?: string
 }
 
+export type JobMatchSummary = {
+  matched_keywords: string[]
+  missing_keywords: string[]
+  resume_changes: string[]
+  fact_gaps: string[]
+}
+
 export type StreamEvent =
   | { type: 'tool'; name: string }
   | { type: 'text'; content: string }
+  | { type: 'job_match_summary'; summary: JobMatchSummary }
   | {
       type: 'tool_call'
       callId: string
@@ -62,6 +70,27 @@ interface StreamingChatOptions {
   onResumeUpdate?: (resumeContent: Record<string, unknown>) => void
   visibleModules?: string[]
   agentType?: 'resume'
+}
+
+// 用于标准化字符串列表。
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+}
+
+// 用于标准化岗位匹配摘要。
+function normalizeJobMatchSummary(value: unknown): JobMatchSummary | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  const summary = {
+    matched_keywords: normalizeStringList(record.matched_keywords),
+    missing_keywords: normalizeStringList(record.missing_keywords),
+    resume_changes: normalizeStringList(record.resume_changes),
+    fact_gaps: normalizeStringList(record.fact_gaps),
+  }
+  return Object.values(summary).some((items) => items.length > 0) ? summary : null
 }
 
 // 用于标准化差异条目。
@@ -245,6 +274,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   if (data.resume_content) {
                     console.log('[useStreamingChat] done 事件收到 resume_content', Object.keys(data.resume_content))
                     onResumeUpdate?.(data.resume_content)
+                  }
+                  const jobMatchSummary = normalizeJobMatchSummary(data.job_match_summary)
+                  if (jobMatchSummary) {
+                    eventsBuffer = [...eventsBuffer, {
+                      type: 'job_match_summary',
+                      summary: jobMatchSummary,
+                    }]
                   }
                   // 流式传输完成，创建完整的AI消息（携带工具事件快照，用于历史渲染）
                   const aiMessage: ChatMessage = {

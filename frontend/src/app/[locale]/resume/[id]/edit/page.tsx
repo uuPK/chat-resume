@@ -29,7 +29,7 @@ import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import type { ChatMessage, StreamEvent } from '@/hooks/useStreamingChat'
+import type { ChatMessage, JobMatchSummary, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
@@ -55,6 +55,54 @@ function ToolActivityRow({
       />
       <span className="font-semibold text-[#0a0b0d]">{actionText}</span>
       <code className="min-w-0 truncate font-mono text-[#3f4654]">{event.toolName}</code>
+    </div>
+  )
+}
+
+// 用于渲染岗位匹配摘要的一组条目。
+function SummaryList({
+  title,
+  items,
+  tone,
+}: {
+  title: string
+  items: string[]
+  tone: 'green' | 'amber' | 'blue' | 'slate'
+}) {
+  if (items.length === 0) return null
+  const toneClass = {
+    green: 'border-green-100 bg-green-50 text-green-700',
+    amber: 'border-amber-100 bg-amber-50 text-amber-700',
+    blue: 'border-blue-100 bg-blue-50 text-blue-700',
+    slate: 'border-slate-100 bg-slate-50 text-slate-700',
+  }[tone]
+
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <div className="mb-1 text-xs font-semibold text-[#0a0b0d]">{title}</div>
+      <ul className="space-y-1">
+        {items.map((item) => (
+          <li key={item} className="text-xs leading-relaxed">{item}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
+function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
+  return (
+    <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-3 text-xs shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold text-[#0a0b0d]">岗位匹配摘要</div>
+        <div className="text-[11px] text-[#5b616e]">基于 JD、简历和已确认改动</div>
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        <SummaryList title="已命中关键词" items={summary.matched_keywords} tone="green" />
+        <SummaryList title="缺失关键词" items={summary.missing_keywords} tone="amber" />
+        <SummaryList title="优化前后变化" items={summary.resume_changes} tone="blue" />
+        <SummaryList title="需要补充事实" items={summary.fact_gaps} tone="slate" />
+      </div>
     </div>
   )
 }
@@ -853,6 +901,9 @@ export default function ResumeEditPage() {
                                 if (event.type === 'tool_call' || event.type === 'tool_result') {
                                   return <ToolActivityRow key={idx} event={event} />
                                 }
+                                if (event.type === 'job_match_summary') {
+                                  return <JobMatchSummaryCard key={idx} summary={event.summary} />
+                                }
                                 if (event.type === 'text') return (
                                   <div key={idx}>
                                     <MarkdownMessage content={event.content} />
@@ -949,6 +1000,9 @@ export default function ResumeEditPage() {
                           }
                           if (event.type === 'tool_call' || event.type === 'tool_result') {
                             return <ToolActivityRow key={idx} event={event} live />
+                          }
+                          if (event.type === 'job_match_summary') {
+                            return <JobMatchSummaryCard key={idx} summary={event.summary} />
                           }
                           if (event.type === 'tool') {
                             return (
