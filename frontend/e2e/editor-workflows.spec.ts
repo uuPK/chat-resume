@@ -332,6 +332,32 @@ async function readResumeSelectionVisualState(page: Page) {
 }
 
 test.describe('编辑页工作流', () => {
+  test('路由 ID 无效时不会请求 NaN 简历接口', async ({ page }) => {
+    const invalidResumeApiCalls: string[] = []
+
+    await installEditorApiMock(page, buildResumeResponse(123))
+    await page.route('**/api/resumes/NaN**', async (route) => {
+      invalidResumeApiCalls.push(route.request().url())
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: [{ msg: 'invalid integer' }] }),
+      })
+    })
+    await page.route('**/api/resumes/', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '[]',
+      })
+    })
+
+    await page.goto('/zh/resume/NaN/edit')
+    await page.waitForURL('**/dashboard', { timeout: 12_000 })
+
+    expect(invalidResumeApiCalls).toEqual([])
+  })
+
   test('选中预览内容后可以粘贴到聊天输入框', async ({ page }) => {
     const resume = buildResumeResponse(123)
     resume.content.work_experience = [
