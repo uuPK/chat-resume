@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import random
 from typing import Any
 
 import httpx
@@ -61,7 +63,7 @@ async def stream_openrouter(
     async def run_stream() -> None:
         """用于拉取模型流并写入本地事件队列。"""
         try:
-            await _pump_openrouter_stream(model, context, options, partial, queue)
+            await _pump_with_retry(model, context, options, partial, queue)
             state["final"] = partial
         except Exception as exc:
             partial.stop_reason = "error"
@@ -74,6 +76,81 @@ async def stream_openrouter(
 
     asyncio.create_task(run_stream())
     return {"events": events_iter(), "result": result}
+
+
+_logger = logging.getLogger(__name__)
+
+# 需要重试的 HTTP 状态码
+_RETRY_STATUS_CODES = {429, 502, 503, 504}
+_RETRY_BASE_SECONDS = 1.0
+_RETRY_MAX_WAIT_SECONDS = 30.0
+
+
+class OpenRouterHTTPError(Exception):
+    """携带 HTTP 状态码和可选 Retry-After 的 OpenRouter 错误。"""
+
+    def __init__(self, status_code: int, message: str, retry_after: float | None = None) -> None:
+        """初始化并保存状态码和 Retry-After 值。"""
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
+
+
+def _retry_wait(attempt: int, retry_after: float | None) -> float:
+    """根据重试次数计算指数退避等待时间，优先使用 Retry-After 头的值。"""
+    if retry_after is not None:
+        return min(retry_after, _RETRY_MAX_WAIT_SECONDS)
+    backoff = _RETRY_BASE_SECONDS * (2 ** attempt) + random.uniform(0, 1)
+    return min(backoff, _RETRY_MAX_WAIT_SECONDS)
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    """判断 HTTP 状态码是否应该触发重试。"""
+    return status_code in _RETRY_STATUS_CODES
+
+
+async def _pump_with_retry(
+    model: Model,
+    context: AgentContext,
+    options: SimpleStreamOptions,
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+) -> None:
+    """包装 _pump_openrouter_stream，对可重试错误执行指数退避重试。"""
+    max_retries = settings.OPENROUTER_MAX_RETRIES
+    last_exc: Exception | None = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            await _pump_openrouter_stream(model, context, options, partial, queue)
+            return
+        except OpenRouterHTTPError as exc:
+            if not _is_retryable_status(exc.status_code):
+                raise
+            last_exc = exc
+            retry_after = exc.retry_after
+            status_code: int | None = exc.status_code
+        except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+            last_exc = exc
+            retry_after = None
+            status_code = None
+
+        if attempt >= max_retries:
+            break
+
+        wait = _retry_wait(attempt, retry_after)
+        _logger.warning(
+            "OpenRouter 请求失败，准备重试 attempt=%d/%d status=%s wait=%.1fs error=%s",
+            attempt + 1,
+            max_retries,
+            status_code,
+            wait,
+            last_exc,
+        )
+        await asyncio.sleep(wait)
+
+    assert last_exc is not None
+    raise last_exc
 
 
 async def _pump_openrouter_stream(
@@ -254,12 +331,23 @@ def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
 
 
 async def _raise_for_openrouter_error(response: httpx.Response) -> None:
-    """用于抛出forOpenRouter错误。"""
+    """读取错误响应体并抛出携带状态码和 Retry-After 的 OpenRouterHTTPError。"""
     if response.status_code == 200:
         return
+    retry_after_header = response.headers.get("Retry-After")
+    retry_after: float | None = None
+    if retry_after_header is not None:
+        try:
+            retry_after = float(retry_after_header)
+        except ValueError:
+            pass
     body = await response.aread()
     message = body.decode("utf-8", errors="replace")
-    raise RuntimeError(f"OpenRouter error {response.status_code}: {message}")
+    raise OpenRouterHTTPError(
+        status_code=response.status_code,
+        message=f"OpenRouter error {response.status_code}: {message}",
+        retry_after=retry_after,
+    )
 
 
 def _decode_sse_line(line: str) -> dict[str, Any] | str | None:
@@ -437,4 +525,4 @@ def _cancelled(options: SimpleStreamOptions) -> bool:
     return bool(options.cancel_event and options.cancel_event.is_set())
 
 
-__all__ = ["stream_openrouter"]
+__all__ = ["stream_openrouter", "OpenRouterHTTPError"]

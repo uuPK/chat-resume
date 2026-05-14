@@ -365,6 +365,28 @@ class PiAgentRuntime:
         executed_tools: list[dict[str, Any]],
     ) -> AgentToolResult:
         """用于处理执行工具结果。"""
+        if confirmation_queue is not None and self._should_skip_extra_business_tool(
+            agent,
+            tool_name,
+            executed_tools,
+        ):
+            output = json.dumps(
+                {
+                    "success": True,
+                    "skipped": True,
+                    "message": "首轮已产出一个可确认修改，等待用户确认后再继续优化。",
+                },
+                ensure_ascii=False,
+            )
+            self._trace(
+                "agent.trace.tool.skipped",
+                run_id=run_id,
+                agent_name=agent.prompt_spec.name,
+                tool_name=tool_name,
+                reason="first_round_business_tool_limit",
+            )
+            return AgentToolResult(content=[TextContent(text=output)], details=output)
+
         output = await self._execute_tool(
             agent=agent,
             run_id=run_id,
@@ -378,6 +400,17 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
         )
         return AgentToolResult(content=[TextContent(text=output)], details=output)
+
+    @staticmethod
+    def _should_skip_extra_business_tool(
+        agent: AgentDefinition,
+        tool_name: str,
+        executed_tools: list[dict[str, Any]],
+    ) -> bool:
+        """用于限制首轮只展示一个需要确认的业务工具修改。"""
+        if tool_name in agent.auto_execute_tool_names:
+            return False
+        return any(item.get("success") is True for item in executed_tools)
 
     async def _execute_tool(
         self,
@@ -1084,6 +1117,7 @@ class PiAgentRuntime:
         return {
             "name": tool_result["tool_name"],
             "result": result.get("diff_summary") if isinstance(result, dict) else tool_result.get("display_message"),
+            "success": result.get("success") if isinstance(result, dict) else None,
         }
 
     @staticmethod

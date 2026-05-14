@@ -124,9 +124,9 @@ class Settings(BaseSettings):
     OPENROUTER_WRITE_TIMEOUT_SECONDS: float = float(
         os.getenv("OPENROUTER_WRITE_TIMEOUT_SECONDS", "30")
     )
-    OPENROUTER_MAX_RETRIES: int = int(os.getenv("OPENROUTER_MAX_RETRIES", "2"))
+    OPENROUTER_MAX_RETRIES: int = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
     OPENROUTER_RETRY_BACKOFF_SECONDS: float = float(
-        os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "1.5")
+        os.getenv("OPENROUTER_RETRY_BACKOFF_SECONDS", "1")
     )
 
     # MiniMax TTS API
@@ -269,6 +269,11 @@ class Settings(BaseSettings):
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: str = os.getenv(
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
         "http://localhost:14318/v1/traces",
+    )
+
+    # Agent session 超时配置
+    AGENT_SESSION_CONFIRMATION_TIMEOUT_SECONDS: int = int(
+        os.getenv("AGENT_SESSION_CONFIRMATION_TIMEOUT_SECONDS", "600")
     )
 
     model_config = {"case_sensitive": True, "env_file": ".env", "extra": "ignore"}

@@ -5,6 +5,7 @@ FastAPI应用的初始化和配置入口点。
 负责路由注册、中间件配置、错误处理和启动逻辑。
 """
 
+import asyncio
 import logging
 import re
 from collections.abc import Iterator
@@ -393,10 +394,45 @@ async def test_endpoint():
     return {"message": "API is working", "cors": "enabled"}
 
 
+_sweeper_task: asyncio.Task | None = None
+_SWEEPER_INTERVAL_SECONDS = 60
+
+
+async def _sweeper_loop(timeout_seconds: int) -> None:
+    """用于定期扫描超时 paused session 的后台循环。"""
+    from app.runtime.session_sweeper import sweep_timed_out_sessions
+
+    while True:
+        await asyncio.sleep(_SWEEPER_INTERVAL_SECONDS)
+        try:
+            count = await sweep_timed_out_sessions(SessionLocal, timeout_seconds)
+            if count:
+                logger.info("session_sweeper.periodic", extra={"cleaned": count})
+        except Exception:
+            logger.exception("session_sweeper.periodic.error")
+
+
 @app.on_event("startup")
 async def log_application_ready():
     """用于处理日志应用就绪状态。"""
     logger.info("app.ready")
+
+
+@app.on_event("startup")
+async def startup_session_sweeper():
+    """用于启动时清理残留 paused session 并启动后台定时扫描任务。"""
+    global _sweeper_task
+    from app.runtime.session_sweeper import sweep_timed_out_sessions
+
+    timeout = settings.AGENT_SESSION_CONFIRMATION_TIMEOUT_SECONDS
+    try:
+        count = await sweep_timed_out_sessions(SessionLocal, timeout)
+        if count:
+            logger.info("session_sweeper.startup", extra={"cleaned": count})
+    except Exception:
+        logger.exception("session_sweeper.startup.error")
+
+    _sweeper_task = asyncio.create_task(_sweeper_loop(timeout))
 
 
 @app.on_event("shutdown")
@@ -404,6 +440,14 @@ async def shutdown_observability_clients():
     """用于关闭可观测性客户端。"""
     shutdown_langfuse()
     shutdown_langsmith()
+
+
+@app.on_event("shutdown")
+async def shutdown_session_sweeper():
+    """用于关闭时取消后台扫描任务。"""
+    global _sweeper_task
+    if _sweeper_task is not None:
+        _sweeper_task.cancel()
 
 
 # 移除手动OPTIONS处理，让CORS中间件自动处理

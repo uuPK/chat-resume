@@ -612,10 +612,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "已完成优化，重点突出系统规模和性能成果。",
         )
 
-    async def test_optimize_stream_serializes_multiple_business_tool_confirmations(
+    async def test_optimize_stream_limits_first_round_to_one_business_confirmation(
         self,
     ):
-        """用于验证optimizestreamserializesmultiplebusinesstoolconfirmations。"""
+        """用于验证optimizestream首轮只展示一个业务工具确认。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -660,13 +660,13 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         pending_events = [event for event in events if event.get("tool_pending")]
         confirmed_events = [event for event in events if event.get("tool_confirmed")]
-        self.assertEqual(len(pending_events), 2)
-        self.assertEqual(len(confirmed_events), 2)
+        self.assertEqual(len(pending_events), 1)
+        self.assertEqual(len(confirmed_events), 1)
         self.assertEqual(resume["projects"][0]["overview"], "先优化项目简介")
-        self.assertEqual(len(resume["projects"][0]["highlights"]), 2)
+        self.assertEqual(len(resume["projects"][0]["highlights"]), 1)
         self.assertEqual(
-            resume["projects"][0]["highlights"][-1]["text"],
-            "同一轮不应继续新增亮点",
+            resume["projects"][0]["highlights"][0]["text"],
+            "支持流式简历优化",
         )
         self.assertEqual(
             "".join(event.get("content", "") for event in events),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 from uuid import uuid4
 
@@ -133,6 +133,19 @@ class AgentSessionStore:
         if event_type is not None:
             query = query.filter(AgentEvent.event_type == event_type)
         return query.order_by(AgentEvent.sequence.desc()).first()
+
+    def get_timed_out_paused_sessions(self, timeout_seconds: int) -> list[str]:
+        """返回所有超过 timeout_seconds 仍处于 paused 状态的 session_id 列表。"""
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
+        rows = (
+            self.db.query(AgentSession.id)
+            .filter(
+                AgentSession.status == "paused",
+                AgentSession.updated_at <= cutoff,
+            )
+            .all()
+        )
+        return [row.id for row in rows]
 
     def append_confirmation_event(
         self,
