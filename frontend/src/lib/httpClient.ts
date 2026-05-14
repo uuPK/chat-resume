@@ -41,7 +41,14 @@ export async function handleApiResponse<T>(
 ): Promise<T> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || fallbackMessage)
+    const detail = errorData.detail
+    const message =
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((e: { msg?: string }) => e.msg ?? String(e)).join('; ')
+          : fallbackMessage
+    throw new Error(message)
   }
 
   if (response.status === 204) {
