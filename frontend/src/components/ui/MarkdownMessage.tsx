@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
 import { DocumentDuplicateIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { useTranslations } from 'next-intl'
+import { normalizeAiMarkdown } from '@/lib/markdown'
 
 interface MarkdownMessageProps {
   content: string
@@ -14,6 +15,7 @@ interface MarkdownMessageProps {
 export default function MarkdownMessage({ content, className = '' }: MarkdownMessageProps) {
   const [copied, setCopied] = useState(false)
   const t = useTranslations('resume.preview')
+  const displayContent = normalizeAiMarkdown(content)
 
   // 用于处理复制。
   const handleCopy = async () => {
@@ -153,7 +155,7 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
           ),
         }}
       >
-        {content}
+        {displayContent}
       </ReactMarkdown>
     </div>
   )

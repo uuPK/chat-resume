@@ -2,6 +2,7 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { normalizeAiMarkdown } from '@/lib/markdown'
 
 interface StreamingMessageProps {
   content: string
@@ -15,6 +16,8 @@ export default function StreamingMessage({
   isComplete = false, 
   className = '' 
 }: StreamingMessageProps) {
+  const displayContent = normalizeAiMarkdown(content)
+
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
@@ -98,7 +101,7 @@ export default function StreamingMessage({
           ),
         }}
       >
-        {content}
+        {displayContent}
       </ReactMarkdown>
       
       {/* 显示流式传输光标 */}
