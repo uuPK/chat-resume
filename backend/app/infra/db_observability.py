@@ -44,6 +44,7 @@ def reset_request_metrics(token: Token[RequestDBMetrics | None]) -> None:
 
 
 def record_checkout(elapsed_ms: float) -> None:
+    """用于记录连接取出。"""
     metrics = _request_metrics.get()
     if metrics is None:
         return
@@ -52,6 +53,7 @@ def record_checkout(elapsed_ms: float) -> None:
 
 
 def record_query(statement: str, elapsed_ms: float) -> None:
+    """用于记录查询。"""
     metrics = _request_metrics.get()
     if metrics is None:
         return

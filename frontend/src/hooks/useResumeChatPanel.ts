@@ -5,6 +5,7 @@
  */
 
 'use client'
+// 用于提供 hooks/useResumeChatPanel.ts 模块。
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
@@ -24,6 +25,7 @@ interface UseResumeChatPanelOptions {
 /**
  * 提供简历 Agent 面板需要的消息状态、滚动控制和交互方法。
  */
+// 用于封装简历聊天面板相关状态和行为。
 export function useResumeChatPanel({
   resumeId,
   visibleModules,
@@ -67,6 +69,7 @@ export function useResumeChatPanel({
   } = useStreamingChat(parseInt(resumeId || '0', 10), {
     visibleModules,
     agentType: 'resume',
+    // 用于处理on消息。
     onMessage: (message) => {
       appendMessage(message)
       if (resumeId) {
@@ -79,6 +82,7 @@ export function useResumeChatPanel({
         ])
       }
     },
+    // 用于处理on错误。
     onError: (error) => {
       setApiError(error)
       appendMessage({

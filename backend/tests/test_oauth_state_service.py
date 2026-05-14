@@ -1,3 +1,5 @@
+"""用于覆盖 test_oauth_state_service.py 对应的回归测试。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -11,6 +13,7 @@ from app.services.auth.oauth_state_service import (
 
 
 def test_generated_state_can_be_consumed_once():
+    """用于验证generatedstatecanbeconsumed单次运行。"""
     now = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
     service = OAuthStateService(clock=lambda: now)
 
@@ -28,6 +31,7 @@ def test_generated_state_can_be_consumed_once():
 
 @pytest.mark.parametrize("raw_state", [None, ""])
 def test_missing_state_is_rejected(raw_state):
+    """用于验证missingstateisrejected。"""
     service = OAuthStateService()
 
     with pytest.raises(OAuthStateError) as exc_info:
@@ -37,6 +41,7 @@ def test_missing_state_is_rejected(raw_state):
 
 
 def test_tampered_state_is_rejected():
+    """用于验证tamperedstateisrejected。"""
     service = OAuthStateService()
     issued = service.issue_state()
     tampered_state = f"{issued.value}x"
@@ -48,6 +53,7 @@ def test_tampered_state_is_rejected():
 
 
 def test_expired_state_is_rejected():
+    """用于验证expiredstateisrejected。"""
     current_time = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
     service = OAuthStateService(
         expires_in=timedelta(minutes=10),

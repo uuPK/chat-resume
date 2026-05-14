@@ -1,3 +1,5 @@
+"""用于封装 PayPal 订阅计费接口。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,6 +18,7 @@ class PayPalBillingConfigurationError(Exception):
     """Raised when required PayPal settings are missing."""
 
     def __init__(self, missing_names: list[str]):
+        """用于初始化当前对象。"""
         self.missing_names = missing_names
         super().__init__(
             "Missing PayPal billing configuration: " + ", ".join(missing_names)
@@ -34,6 +37,7 @@ class PayPalBillingConfig:
 
     @classmethod
     def from_settings(cls, settings_obj: object) -> PayPalBillingConfig:
+        """用于从应用配置创建服务实例。"""
         required = {
             "PAYPAL_CLIENT_ID": str(
                 getattr(settings_obj, "PAYPAL_CLIENT_ID", "")
@@ -80,10 +84,12 @@ class PayPalBillingService:
         *,
         http_client: httpx.AsyncClient | None = None,
     ):
+        """用于初始化当前对象。"""
         self.config = config or PayPalBillingConfig.from_settings(settings)
         self.http_client = http_client or httpx.AsyncClient(timeout=15.0)
 
     async def create_subscription(self, *, user_id: int) -> dict[str, str]:
+        """用于创建订阅。"""
         access_token = await self._fetch_access_token()
         try:
             response = await self.http_client.post(
@@ -115,6 +121,7 @@ class PayPalBillingService:
         }
 
     async def get_plan(self) -> dict[str, str]:
+        """用于获取方案。"""
         access_token = await self._fetch_access_token()
         try:
             response = await self.http_client.get(
@@ -135,6 +142,7 @@ class PayPalBillingService:
         }
 
     async def get_subscription(self, *, subscription_id: str) -> dict[str, Any]:
+        """用于获取订阅。"""
         access_token = await self._fetch_access_token()
         try:
             response = await self.http_client.get(
@@ -159,6 +167,7 @@ class PayPalBillingService:
         subscription_id: str,
         reason: str = "User requested cancellation",
     ) -> None:
+        """用于取消订阅。"""
         access_token = await self._fetch_access_token()
         try:
             response = await self.http_client.post(
@@ -176,6 +185,7 @@ class PayPalBillingService:
     async def verify_webhook(
         self, *, headers: dict[str, str], event: dict[str, object]
     ) -> None:
+        """用于校验webhook。"""
         access_token = await self._fetch_access_token()
         try:
             response = await self.http_client.post(
@@ -205,6 +215,7 @@ class PayPalBillingService:
             raise PayPalBillingError("paypal_webhook_signature_invalid")
 
     async def _fetch_access_token(self) -> str:
+        """用于获取accesstoken。"""
         try:
             response = await self.http_client.post(
                 f"{self.config.api_base}{self.token_endpoint}",
@@ -217,6 +228,7 @@ class PayPalBillingService:
         return self._required_string(response.json(), "access_token")
 
     def _approval_url(self, payload: dict[str, object]) -> str:
+        """用于处理批准地址。"""
         links = payload.get("links")
         if not isinstance(links, list):
             raise PayPalBillingError("paypal_approval_url_missing")
@@ -228,12 +240,14 @@ class PayPalBillingService:
         raise PayPalBillingError("paypal_approval_url_missing")
 
     def _required_string(self, payload: dict[str, object], field: str) -> str:
+        """用于处理必填字符串。"""
         value = payload.get(field)
         if not isinstance(value, str) or not value.strip():
             raise PayPalBillingError(f"paypal_{field}_missing")
         return value
 
     def _regular_fixed_price(self, payload: dict[str, object]) -> dict[str, object]:
+        """用于处理常规固定价格。"""
         billing_cycles = payload.get("billing_cycles")
         if not isinstance(billing_cycles, list):
             raise PayPalBillingError("paypal_plan_price_missing")
@@ -251,12 +265,14 @@ class PayPalBillingService:
         raise PayPalBillingError("paypal_plan_price_missing")
 
     def _required_nested_string(self, payload: dict[str, object], field: str) -> str:
+        """用于处理必填嵌套字符串。"""
         value = payload.get(field)
         if not isinstance(value, str) or not value.strip():
             raise PayPalBillingError(f"paypal_plan_{field}_missing")
         return value
 
     def _required_header(self, headers: dict[str, str], name: str) -> str:
+        """用于处理必填头部。"""
         value = headers.get(name)
         if not value:
             raise PayPalBillingError(f"{name}_missing")

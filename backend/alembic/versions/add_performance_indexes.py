@@ -18,11 +18,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
     # Helper to check if index exists
     def index_exists(table_name, index_name):
+        """用于处理indexexists。"""
         indexes = inspector.get_indexes(table_name)
         return any(idx["name"] == index_name for idx in indexes)
 

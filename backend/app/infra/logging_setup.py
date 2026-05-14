@@ -1,6 +1,4 @@
-"""
-Logging configuration helpers.
-"""
+"""用于配置应用日志格式、脱敏和上下文注入。"""
 
 from __future__ import annotations
 
@@ -61,6 +59,7 @@ _TRACE_KEY_LABELS = {
 
 
 def _sanitize(value: Any) -> Any:
+    """用于处理sanitize。"""
     if isinstance(value, dict):
         return {
             key: (
@@ -76,6 +75,7 @@ def _sanitize(value: Any) -> Any:
 
 
 def _context_defaults() -> dict[str, str]:
+    """用于处理上下文默认值。"""
     context = get_log_context()
     return {
         "request_id": context["request_id"] or "-",
@@ -86,9 +86,11 @@ def _context_defaults() -> dict[str, str]:
 
 class JsonFormatter(logging.Formatter):
     def _sanitize(self, value: Any) -> Any:
+        """用于处理sanitize。"""
         return _sanitize(value)
 
     def format(self, record: logging.LogRecord) -> str:
+        """用于处理format。"""
         context = _context_defaults()
         payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -124,6 +126,7 @@ class InterceptHandler(logging.Handler):
     """Forward standard-library logging records into Loguru."""
 
     def emit(self, record: logging.LogRecord) -> None:
+        """用于发送当前数据。"""
         try:
             level: str | int = loguru_logger.level(record.levelname).name
         except ValueError:
@@ -151,6 +154,7 @@ class InterceptHandler(logging.Handler):
 
 
 def _patch_loguru_record(record: Any) -> None:
+    """用于处理patchlogururecord。"""
     extra = record["extra"]
     extra.setdefault("logger_name", record["name"])
     for key, value in _context_defaults().items():
@@ -164,6 +168,7 @@ def _patch_loguru_record(record: Any) -> None:
 
 
 def _logger_label(logger_name: str) -> str:
+    """用于处理日志器标签。"""
     if logger_name == "app.runtime.pi_agent_runtime":
         return "piagent"
     if logger_name.startswith("app."):
@@ -173,6 +178,7 @@ def _logger_label(logger_name: str) -> str:
 
 
 def _short_identifier(value: Any, limit: int = 6) -> str:
+    """用于处理short标识。"""
     text = str(value or "-")
     if text == "-" or len(text) <= limit:
         return text
@@ -180,12 +186,14 @@ def _short_identifier(value: Any, limit: int = 6) -> str:
 
 
 def _message_label(message: str, extra: dict[str, Any]) -> str:
+    """用于处理消息标签。"""
     if extra.get("agent_trace") and message.startswith("agent.trace."):
         return message.removeprefix("agent.")
     return message
 
 
 def _agent_trace_suffix(extra: dict[str, Any]) -> str:
+    """用于处理agent追踪后缀。"""
     if not extra.get("agent_trace"):
         return ""
     trace_fields = {
@@ -234,11 +242,13 @@ def _agent_trace_suffix(extra: dict[str, Any]) -> str:
 
 
 def _format_trace_pair(key: str, value: Any) -> str:
+    """用于处理format追踪键值对。"""
     label = _TRACE_KEY_LABELS.get(key, key)
     return f"{label}={_format_trace_value(key, value)}"
 
 
 def _format_trace_value(key: str, value: Any) -> str:
+    """用于处理format追踪值。"""
     sanitized = _compact_trace_value(_sanitize(value))
     if key.endswith("_id") and isinstance(sanitized, str):
         sanitized = _short_identifier(sanitized, limit=8)
@@ -260,6 +270,7 @@ def _format_trace_value(key: str, value: Any) -> str:
 
 
 def _compact_trace_value(value: Any) -> Any:
+    """用于处理压缩结果追踪值。"""
     if isinstance(value, str):
         normalized = " ".join(value.split())
         if len(normalized) <= _TRACE_VALUE_LIMIT:
@@ -276,6 +287,7 @@ def _compact_trace_value(value: Any) -> Any:
 
 
 def _json_sink(message: Any) -> None:
+    """用于处理JSON输出端。"""
     record = message.record
     extra = record["extra"]
     payload: dict[str, Any] = {
@@ -309,6 +321,7 @@ def _json_sink(message: Any) -> None:
 
 
 def configure_logging() -> None:
+    """用于配置日志。"""
     log_level_name = settings.LOG_LEVEL.upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
 

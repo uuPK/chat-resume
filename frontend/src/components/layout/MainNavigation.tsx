@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/layout/MainNavigation.tsx 模块。
 
 import { Link } from '@/i18n/navigation'
 import { useRouter, usePathname } from '@/i18n/navigation'
@@ -21,6 +22,7 @@ export default function MainNavigation() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // 用于处理clickoutside。
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false)

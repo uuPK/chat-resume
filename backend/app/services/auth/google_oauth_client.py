@@ -1,3 +1,5 @@
+"""用于提供google oauth client模块能力。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +16,7 @@ class GoogleOAuthConfig:
 
     @classmethod
     def from_settings(cls, settings: object) -> GoogleOAuthConfig:
+        """用于从应用配置创建服务实例。"""
         required = {
             "GOOGLE_OAUTH_CLIENT_ID": str(
                 getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "")
@@ -54,11 +57,13 @@ class GoogleIdentity:
 
     @property
     def can_use_for_login(self) -> bool:
+        """用于判断当前 OAuth 配置是否可用于登录。"""
         return self.email_verified
 
 
 class GoogleOAuthAuthenticationError(Exception):
     def __init__(self, error_code: str):
+        """用于初始化当前对象。"""
         self.error_code = error_code
         super().__init__(error_code)
 
@@ -67,6 +72,7 @@ class GoogleOAuthConfigurationError(Exception):
     error_code = "config_missing"
 
     def __init__(self, missing_names: list[str]):
+        """用于初始化当前对象。"""
         self.missing_names = missing_names
         joined_names = ", ".join(missing_names)
         super().__init__(f"Missing Google OAuth configuration: {joined_names}")
@@ -84,10 +90,12 @@ class GoogleOAuthClient:
         *,
         http_client: httpx.AsyncClient | None = None,
     ):
+        """用于初始化当前对象。"""
         self.config = config
         self.http_client = http_client or httpx.AsyncClient(timeout=10.0)
 
     def authorization_url(self, *, state: str) -> str:
+        """用于处理授权地址。"""
         params = {
             "client_id": self.config.client_id,
             "redirect_uri": self.config.redirect_uri,
@@ -98,6 +106,7 @@ class GoogleOAuthClient:
         return f"{self.authorization_endpoint}?{urlencode(params)}"
 
     async def exchange_code(self, code: str) -> GoogleOAuthTokens:
+        """用于处理exchange授权码。"""
         try:
             response = await self.http_client.post(
                 self.token_endpoint,
@@ -124,6 +133,7 @@ class GoogleOAuthClient:
         )
 
     async def fetch_identity(self, access_token: str) -> GoogleIdentity:
+        """用于获取身份。"""
         try:
             response = await self.http_client.get(
                 self.userinfo_endpoint,
@@ -144,6 +154,7 @@ class GoogleOAuthClient:
         )
 
     def _required_string(self, payload: dict[str, object], field: str) -> str:
+        """用于处理必填字符串。"""
         value = payload.get(field)
         if not isinstance(value, str) or not value.strip():
             raise GoogleOAuthAuthenticationError("google_exchange_failed")

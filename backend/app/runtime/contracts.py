@@ -1,4 +1,4 @@
-"""Runtime contracts shared by business agents and execution kernels."""
+"""用于定义业务 Agent 和运行时之间的共享契约。"""
 
 from __future__ import annotations
 

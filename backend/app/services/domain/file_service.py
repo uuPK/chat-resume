@@ -27,6 +27,7 @@ class UploadedFileContent:
 
 class FileService:
     def __init__(self):
+        """用于初始化当前对象。"""
         self.upload_dir = settings.UPLOAD_DIR
         os.makedirs(self.upload_dir, exist_ok=True)
 

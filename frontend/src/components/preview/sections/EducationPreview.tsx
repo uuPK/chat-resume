@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/sections/EducationPreview.tsx 模块。
 
 import type { Education } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
@@ -96,6 +97,7 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
   )
 }
 
+// 用于渲染 EducationPreview 组件。
 export default function EducationPreview({
   data,
   renderLines,
@@ -106,6 +108,7 @@ export default function EducationPreview({
     return null
   }
 
+  // 用于处理shouldrender行。
   const shouldRenderLine = (lineIndex: number) => {
     return !renderLines || renderLines.includes(lineIndex)
   }

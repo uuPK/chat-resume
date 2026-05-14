@@ -38,6 +38,7 @@ TOOL_NAME_ALIASES = {
 
 
 def _count_question_marks(text: str) -> int:
+    """用于处理countquestionmarks。"""
     return text.count("?") + text.count("？")
 
 
@@ -99,6 +100,7 @@ def _resume_text(resume: dict) -> str:
     parts = []
 
     def collect(obj):
+        """用于收集当前数据。"""
         if isinstance(obj, str):
             parts.append(obj)
         elif isinstance(obj, list):
@@ -230,6 +232,7 @@ JUDGE_USER_TEMPLATE = """请评估以下 Agent 的简历优化表现：
 def _summarize_resume(resume: dict, max_chars: int = 400) -> str:
     """生成简历摘要，用于 LLM-as-Judge 提示。"""
     def normalize_highlights(highlights) -> list[str]:
+        """用于标准化highlights。"""
         values = []
         for item in (highlights or [])[:2]:
             if isinstance(item, str):
@@ -282,6 +285,7 @@ async def llm_judge_single(chat_service: ChatService, result: dict) -> dict:
         )
 
         def extract_text(payload) -> str:
+            """用于提取text。"""
             if isinstance(payload, str):
                 return payload
             if isinstance(payload, dict):
@@ -319,6 +323,7 @@ async def llm_judge_single(chat_service: ChatService, result: dict) -> dict:
 # ─────────────────────────────────────────────────────────────
 
 async def score_all(results: list[dict], enable_llm_judge: bool = False) -> list[dict]:
+    """用于评分all。"""
     chat_service = ChatService() if enable_llm_judge else None
     scored = []
 
@@ -446,6 +451,7 @@ def print_summary(scored: list[dict]):
 
 
 def main():
+    """用于执行脚本入口流程。"""
     parser = argparse.ArgumentParser(description="Agent 评测评分器")
     parser.add_argument("--input", default="eval_results.json", help="run_eval.py 的输出文件")
     parser.add_argument("--output", default="eval_scores.json", help="评分结果输出文件")

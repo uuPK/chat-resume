@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/EducationEditor.tsx 模块。
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import {
@@ -22,6 +23,7 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`
 }
 
+// 用于渲染 EducationEditor 组件。
 export default function EducationEditor({ data, onChange }: EducationEditorProps) {
   const [educationList, setEducationList] = useState<Education[]>(Array.isArray(data) ? data : [])
   const editorRootRef = useRef<HTMLDivElement>(null)
@@ -37,11 +39,13 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     textareas?.forEach(fitTextareaToContent)
   }, [educationList])
 
+  // 用于处理commit。
   const commit = (next: Education[]) => {
     setEducationList(next)
     onChange(next.map(({ description: _description, ...education }) => education))
   }
 
+  // 用于新增教育经历。
   const addEducation = () => {
     const newEducation: Education = {
       id: `edu_${Date.now()}`,
@@ -55,10 +59,12 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     commit([...educationList, newEducation])
   }
 
+  // 用于删除教育经历。
   const removeEducation = (id: string) => {
     commit(educationList.filter(edu => edu.id !== id))
   }
 
+  // 用于更新教育经历。
   const updateEducation = (id: string, field: keyof Education, value: string) => {
     const newList = educationList.map(edu =>
       edu.id === id ? { ...edu, [field]: value } : edu
@@ -66,6 +72,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     commit(newList)
   }
 
+  // 用于新增bullet。
   const addBullet = (educationId: string) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
@@ -75,6 +82,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     )
   }
 
+  // 用于更新bullet。
   const updateBullet = (educationId: string, index: number, value: string) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
@@ -85,6 +93,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     )
   }
 
+  // 用于删除bullet。
   const removeBullet = (educationId: string, index: number) => {
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
@@ -99,6 +108,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     )
   }
 
+  // 用于更新教育经历list。
   const updateEducationList = (next: Education[]) => {
     commit(next)
   }

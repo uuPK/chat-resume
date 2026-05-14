@@ -1,4 +1,4 @@
-"""pi-agent-core backed runtime for business agents."""
+"""用于提供基于 pi-agent-core 的业务 Agent 运行时。"""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ class PiAgentRuntime:
     """Runtime adapter that uses pi-agent-core as the execution loop."""
 
     def __init__(self, stream_fn: StreamFn | None = None):
-        """Initialize with an optional stream function for tests or providers."""
+        """用于初始化当前对象。"""
         self.stream_fn = stream_fn or stream_openrouter
 
     async def run(
@@ -74,7 +74,7 @@ class PiAgentRuntime:
         conversation_history: list[dict[str, str]] | None = None,
         event_callback: RuntimeEventCallback | None = None,
     ) -> dict[str, Any]:
-        """Execute one full pi-agent-core turn and return final text."""
+        """用于处理run。"""
         run_id = uuid4().hex
         executed_tools: list[dict[str, Any]] = []
         state = self._new_stream_state()
@@ -127,7 +127,7 @@ class PiAgentRuntime:
         confirmation_queue: asyncio.Queue | None = None,
         event_callback: RuntimeEventCallback | None = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
-        """Stream pi-agent-core model output and business tool events."""
+        """用于拉取模型流并写入本地事件队列。"""
         run_id = uuid4().hex
         executed_tools: list[dict[str, Any]] = []
         event_queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -189,7 +189,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
     ) -> None:
-        """Run pi-agent-core in the background and forward visible events."""
+        """用于处理produce流式events。"""
         try:
             async for event in agent_loop(
                 prompts,
@@ -228,7 +228,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
     ) -> tuple[AgentContext, list[Message], AgentLoopConfig]:
-        """Build pi-agent-core context, prompt messages, and loop config."""
+        """用于构建循环输入。"""
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
         tools = self._build_tools(
@@ -270,7 +270,7 @@ class PiAgentRuntime:
         run_id: str,
         executed_tools: list[dict[str, Any]],
     ) -> list[AgentTool]:
-        """Convert OpenAI-style business tool schemas into pi-agent-core tools."""
+        """用于构建工具列表。"""
         tools: list[AgentTool] = []
         lock = asyncio.Lock()
         for schema in agent.tools_schema:
@@ -308,14 +308,14 @@ class PiAgentRuntime:
         executed_tools: list[dict[str, Any]],
         lock: asyncio.Lock,
     ) -> AgentTool:
-        """Wrap one business tool for pi-agent-core execution."""
+        """用于构建工具。"""
 
         async def execute(
             tool_call_id: str,
             params: dict[str, Any],
             *_args: Any,
         ) -> AgentToolResult:
-            """Execute one pi-agent-core tool call through the business executor."""
+            """用于执行一次业务工具调用。"""
             if tool_name in agent.auto_execute_tool_names:
                 return await self._execute_tool_result(
                     agent=agent,
@@ -364,7 +364,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
     ) -> AgentToolResult:
-        """Run a business tool and return a pi-agent-core tool result."""
+        """用于处理执行工具结果。"""
         output = await self._execute_tool(
             agent=agent,
             run_id=run_id,
@@ -393,7 +393,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         executed_tools: list[dict[str, Any]],
     ) -> str:
-        """Execute one business tool with preview and confirmation events."""
+        """用于处理执行工具。"""
         tool_started_at = perf_counter()
         needs_confirmation = requires_tool_confirmation(
             confirmation_queue=confirmation_queue,
@@ -464,7 +464,7 @@ class PiAgentRuntime:
         needs_confirmation: bool,
         tool_started_at: float,
     ) -> dict[str, Any] | str | None:
-        """Publish preview events and return a rejection payload when rejected."""
+        """用于处理maybeconfirm工具。"""
         if not needs_confirmation:
             return None
         assert confirmation_queue is not None
@@ -531,7 +531,7 @@ class PiAgentRuntime:
         needs_confirmation: bool,
         tool_started_at: float,
     ) -> str:
-        """Run the confirmed business tool and publish the result event."""
+        """用于处理run已确认工具。"""
         with start_span(
             "agent.tool",
             {
@@ -582,7 +582,7 @@ class PiAgentRuntime:
         run_id: str,
         state: dict[str, Any],
     ) -> None:
-        """Translate pi-agent-core events into the existing resume stream events."""
+        """用于处理pi事件。"""
         if isinstance(event, MessageUpdateEvent):
             await self._handle_message_update(
                 event=event,
@@ -609,7 +609,7 @@ class PiAgentRuntime:
         run_id: str,
         state: dict[str, Any],
     ) -> None:
-        """Publish text deltas from pi-agent-core message update events."""
+        """用于处理消息update。"""
         raw = event.assistant_message_event
         if getattr(raw, "type", None) != "text_delta":
             return
@@ -641,7 +641,7 @@ class PiAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
     ) -> None:
-        """Publish a visible tool-call start event before business execution."""
+        """用于发布visible工具调用。"""
         tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
         await self._publish_event(
             event_queue=event_queue,
@@ -671,7 +671,7 @@ class PiAgentRuntime:
         context: dict[str, Any],
         needs_confirmation: bool,
     ) -> None:
-        """Publish success or failure events for a finished business tool."""
+        """用于发布工具结果。"""
         if self._is_tool_failure(tool_result):
             event = tool_call_failed_event(
                 call_id=call_id,
@@ -726,7 +726,7 @@ class PiAgentRuntime:
         executed_tools: list[dict[str, Any]],
         tool_started_at: float,
     ) -> None:
-        """Publish a rejected confirmation event and trace record."""
+        """用于发布rejected工具。"""
         self._trace(
             "agent.trace.tool.rejected",
             run_id=run_id,
@@ -751,12 +751,12 @@ class PiAgentRuntime:
         )
 
     def _build_model(self) -> Model:
-        """Build the pi-agent-core model identifier for OpenRouter."""
+        """用于构建模型。"""
         return Model(api="openai-compatible", provider="openrouter", id=settings.OPENROUTER_MODEL)
 
     @staticmethod
     def _tool_schema(value: Any) -> AgentToolSchema:
-        """Convert an OpenAI parameters object into a pi-agent-core schema."""
+        """用于处理工具结构。"""
         if not isinstance(value, dict):
             return AgentToolSchema()
         properties = value.get("properties")
@@ -772,7 +772,7 @@ class PiAgentRuntime:
         conversation_history: list[dict[str, str]] | None,
         max_history_messages: int,
     ) -> list[Message]:
-        """Convert stored chat history into pi-agent-core messages."""
+        """用于处理历史消息列表。"""
         messages: list[Message] = []
         for item in (conversation_history or [])[-max_history_messages:]:
             role = item.get("role")
@@ -789,7 +789,7 @@ class PiAgentRuntime:
         tool_name: str,
         tool_input: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build the local OpenAI-style tool-call payload."""
+        """用于处理工具调用载荷。"""
         return {
             "id": call_id,
             "type": "function",
@@ -798,7 +798,7 @@ class PiAgentRuntime:
 
     @staticmethod
     def _new_stream_state() -> dict[str, Any]:
-        """Create mutable per-run stream accounting state."""
+        """用于处理new流式state。"""
         return {
             "started_at": perf_counter(),
             "chunk_index": 0,
@@ -812,7 +812,7 @@ class PiAgentRuntime:
         context: AgentContext,
         prompts: list[Message],
     ) -> ResumeStreamEvent:
-        """Build an internal LLM request event for observability."""
+        """用于处理模型请求事件。"""
         messages = [self._message_to_dict(message) for message in context.messages + prompts]
         return llm_request_event(
             agent_name=agent.prompt_spec.name,
@@ -830,7 +830,7 @@ class PiAgentRuntime:
         agent: AgentDefinition,
         state: dict[str, Any],
     ) -> ResumeStreamEvent:
-        """Build an internal LLM response event for observability."""
+        """用于处理模型响应事件。"""
         return llm_response_event(
             agent_name=agent.prompt_spec.name,
             model=self._chat_model_name(),
@@ -845,7 +845,7 @@ class PiAgentRuntime:
         system_prompt: str,
         user_message: str,
     ) -> ResumeStreamEvent:
-        """Build an internal prompt-rendered event."""
+        """用于处理提示词渲染结果事件。"""
         return prompt_rendered_event(
             agent_name=agent.prompt_spec.name,
             system_prompt=system_prompt,
@@ -854,14 +854,14 @@ class PiAgentRuntime:
 
     @staticmethod
     def _message_to_dict(message: Message) -> dict[str, Any]:
-        """Convert one pi-agent-core message into a compact trace dict."""
+        """用于处理消息to字典。"""
         role = getattr(message, "role", "unknown")
         content = PiAgentRuntime._assistant_text(message)
         return {"role": role, "content": content}
 
     @staticmethod
     def _assistant_text(message: Any) -> str:
-        """Return concatenated text content from a pi-agent-core message."""
+        """用于处理助手文本。"""
         parts = []
         for block in getattr(message, "content", []):
             if isinstance(block, TextContent):
@@ -876,7 +876,7 @@ class PiAgentRuntime:
         user_message: str,
         conversation_history: list[dict[str, str]] | None,
     ) -> None:
-        """Trace the beginning of one runtime turn."""
+        """用于处理追踪run开始。"""
         self._trace(
             "agent.trace.run.started",
             run_id=run_id,
@@ -893,7 +893,7 @@ class PiAgentRuntime:
         run_id: str,
         system_prompt: str,
     ) -> None:
-        """Trace rendered prompt size."""
+        """用于处理追踪提示词。"""
         self._trace(
             "agent.trace.prompt.rendered",
             run_id=run_id,
@@ -907,7 +907,7 @@ class PiAgentRuntime:
         run_id: str,
         event: ResumeStreamEvent,
     ) -> None:
-        """Trace the model request metadata for one agent turn."""
+        """用于处理追踪模型请求。"""
         self._trace(
             "agent.trace.llm.request",
             run_id=run_id,
@@ -924,7 +924,7 @@ class PiAgentRuntime:
         run_id: str,
         event: ResumeStreamEvent,
     ) -> None:
-        """Trace the model response metadata for one agent turn."""
+        """用于处理追踪模型响应。"""
         self._trace(
             "agent.trace.llm.response",
             run_id=run_id,
@@ -942,7 +942,7 @@ class PiAgentRuntime:
         mode: str,
         state: dict[str, Any],
     ) -> None:
-        """Trace the end of one runtime turn."""
+        """用于处理追踪runcompleted。"""
         self._trace(
             "agent.trace.run.completed",
             run_id=run_id,
@@ -960,7 +960,7 @@ class PiAgentRuntime:
         tool_input: dict[str, Any],
         needs_confirmation: bool,
     ) -> None:
-        """Trace a requested business tool call."""
+        """用于处理追踪工具requested。"""
         self._trace(
             "agent.trace.tool.requested",
             run_id=run_id,
@@ -979,7 +979,7 @@ class PiAgentRuntime:
         tool_name: str,
         preview_result: dict[str, Any],
     ) -> None:
-        """Trace generated tool preview information."""
+        """用于处理追踪工具preview。"""
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
         self._trace(
@@ -1003,7 +1003,7 @@ class PiAgentRuntime:
         display_name: str,
         confirmed: bool,
     ) -> None:
-        """Trace the user's confirmation decision."""
+        """用于处理追踪工具confirmation。"""
         self._trace(
             "agent.trace.tool.confirmation",
             run_id=run_id,
@@ -1023,7 +1023,7 @@ class PiAgentRuntime:
         tool_result: dict[str, Any],
         tool_started_at: float,
     ) -> None:
-        """Trace a completed business tool execution."""
+        """用于处理追踪工具executed。"""
         self._trace(
             "agent.trace.tool.executed",
             run_id=run_id,
@@ -1043,7 +1043,7 @@ class PiAgentRuntime:
         run_id: str,
         event: ToolExecutionStartEvent,
     ) -> None:
-        """Trace the first visible model tool call for the turn."""
+        """用于处理追踪工具调用detected。"""
         self._trace(
             "agent.trace.reasoning.tool_call_detected",
             run_id=run_id,
@@ -1060,7 +1060,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        """Publish a runtime event to callback and optional stream queue."""
+        """用于发布事件。"""
         await publish_runtime_event(
             event_queue=event_queue,
             event_callback=event_callback,
@@ -1072,7 +1072,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        """Emit a runtime event to the callback only."""
+        """用于发送事件。"""
         emit_runtime_event(event_callback, event)
 
     @staticmethod
@@ -1080,7 +1080,7 @@ class PiAgentRuntime:
         tool_result: dict[str, Any],
         result: Any,
     ) -> dict[str, Any]:
-        """Return the compact executed-tool summary used by the UI."""
+        """用于处理executed工具summary。"""
         return {
             "name": tool_result["tool_name"],
             "result": result.get("diff_summary") if isinstance(result, dict) else tool_result.get("display_message"),
@@ -1088,13 +1088,13 @@ class PiAgentRuntime:
 
     @staticmethod
     def _is_tool_failure(tool_result: dict[str, Any]) -> bool:
-        """Return whether a tool result is an explicit business failure."""
+        """用于判断工具failure。"""
         result = tool_result.get("result")
         return isinstance(result, dict) and result.get("success") is False
 
     @staticmethod
     def _tool_success(tool_result: dict[str, Any]) -> bool | None:
-        """Return explicit success value from a business tool result."""
+        """用于处理工具success。"""
         result = tool_result.get("result")
         if isinstance(result, dict) and "success" in result:
             return bool(result["success"])
@@ -1102,7 +1102,7 @@ class PiAgentRuntime:
 
     @classmethod
     def _result_summary(cls, result: Any) -> dict[str, Any]:
-        """Build a safe compact result summary for logs."""
+        """用于处理结果summary。"""
         if not isinstance(result, dict):
             return {"type": type(result).__name__, "preview": cls._preview_text(result)}
         summary: dict[str, Any] = {"keys": sorted(str(key) for key in result.keys())}
@@ -1118,7 +1118,7 @@ class PiAgentRuntime:
 
     @classmethod
     def _safe_tool_input(cls, tool_input: dict[str, Any]) -> dict[str, Any]:
-        """Remove large or sensitive fields from tool-call trace payloads."""
+        """用于处理安全工具input。"""
         return {
             key: cls._summarize_value(value)
             for key, value in tool_input.items()
@@ -1127,7 +1127,7 @@ class PiAgentRuntime:
 
     @classmethod
     def _summarize_value(cls, value: Any) -> Any:
-        """Summarize nested values for structured logs."""
+        """用于处理summarize值。"""
         if isinstance(value, str):
             return cls._preview_text(value)
         if isinstance(value, (int, float, bool)) or value is None:
@@ -1140,7 +1140,7 @@ class PiAgentRuntime:
 
     @staticmethod
     def _preview_text(value: Any, limit: int = 240) -> str:
-        """Return a single-line bounded text preview."""
+        """用于处理preview文本。"""
         if value is None:
             return ""
         text = " ".join(str(value).split())
@@ -1150,14 +1150,14 @@ class PiAgentRuntime:
 
     @staticmethod
     def _trace(message: str, **fields: Any) -> None:
-        """Emit an agent trace log when trace logging is enabled."""
+        """用于处理追踪。"""
         if not settings.AGENT_TRACE_LOG_ENABLED:
             return
         logger.info(message, extra={"agent_trace": True, **fields})
 
     @staticmethod
     def _tool_names(agent: AgentDefinition) -> list[str]:
-        """Return configured business tool names."""
+        """用于处理工具名称。"""
         names: list[str] = []
         for schema in agent.tools_schema:
             name = schema.get("function", {}).get("name")
@@ -1167,12 +1167,12 @@ class PiAgentRuntime:
 
     @staticmethod
     def _optional_tool_names(agent: AgentDefinition) -> list[str | None]:
-        """Return configured business tool names for stream event payloads."""
+        """用于处理可选工具名称。"""
         return list(PiAgentRuntime._tool_names(agent))
 
     @staticmethod
     def _chat_model_name() -> str:
-        """Return the configured chat model name."""
+        """用于处理聊天模型name。"""
         return settings.OPENROUTER_MODEL
 
 

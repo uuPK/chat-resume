@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/i18n/LocaleSwitcher.tsx 模块。
 
 import { useLocale, useTranslations } from 'next-intl'
 import { useTransition } from 'react'
@@ -9,6 +10,7 @@ import { LanguageIcon } from '@heroicons/react/24/outline'
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 
 // Lets users change UI language without leaving the current route.
+// 用于渲染 LocaleSwitcher 组件。
 export default function LocaleSwitcher({ compact = false }: { compact?: boolean }) {
   const locale = useLocale() as AppLocale
   const pathname = usePathname()
@@ -17,6 +19,7 @@ export default function LocaleSwitcher({ compact = false }: { compact?: boolean 
   const [isPending, startTransition] = useTransition()
   const nextLocale: AppLocale = locale === 'zh' ? 'en' : 'zh'
 
+  // 用于切换语言环境。
   const switchLocale = () => {
     document.cookie = `${localeCookieName}=${nextLocale}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`
     startTransition(() => {

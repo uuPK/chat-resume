@@ -1,3 +1,5 @@
+"""用于覆盖 test_resume_agent_session_service.py 对应的回归测试。"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -22,6 +24,7 @@ from app.state.store import AgentSessionStore  # noqa: E402
 
 class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        """用于准备测试前置状态。"""
         engine = create_engine(
             "sqlite:///:memory:", connect_args={"check_same_thread": False}
         )
@@ -51,6 +54,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.resume = resume
 
     def tearDown(self):
+        """用于清理测试后置状态。"""
         self.db.close()
 
     def _create_waiting_session(
@@ -58,6 +62,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         session_id: str = "session_1",
         call_id: str = "call_1",
     ) -> None:
+        """用于创建waiting会话。"""
         self.store.create_session(
             session_id=session_id,
             user_id=self.user.id,
@@ -77,6 +82,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_confirm_tool_dispatches_to_active_queue(self):
+        """用于验证confirmtooldispatchestoactivequeue。"""
         self._create_waiting_session()
         queue = self.confirmations.create("session_1")
 
@@ -92,6 +98,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.get_session("session_1").status, "running")
 
     async def test_confirm_tool_records_resumable_result_without_queue(self):
+        """用于验证confirmtoolrecordsresumable结果withoutqueue。"""
         self._create_waiting_session()
 
         result = await self.service.confirm_tool(
@@ -109,6 +116,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(latest.payload["active_stream"])
 
     async def test_confirm_tool_treats_processed_status_as_duplicate(self):
+        """用于验证confirmtooltreatsprocessed状态asduplicate。"""
         self._create_waiting_session()
         self.store.update_status("session_1", "running", clear_current_step=True)
 
@@ -125,6 +133,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_confirm_tool_rejects_mismatched_call_id(self):
+        """用于验证confirmtoolrejectsmismatchedcallid。"""
         self._create_waiting_session(call_id="call_real")
 
         with self.assertRaises(ResumeAgentConfirmationConflict):
@@ -136,6 +145,7 @@ class ResumeAgentSessionServiceTests(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_confirm_tool_rejects_other_user(self):
+        """用于验证confirmtoolrejectsother用户。"""
         self._create_waiting_session()
 
         with self.assertRaises(ResumeAgentSessionNotFound):

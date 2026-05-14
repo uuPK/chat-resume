@@ -1,1 +1,1 @@
-"""Infrastructure package."""
+"""用于声明基础设施支持包。"""

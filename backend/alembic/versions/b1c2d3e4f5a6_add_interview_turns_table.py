@@ -1,10 +1,4 @@
-"""add interview_turns table
-
-Revision ID: b1c2d3e4f5a6
-Revises: d74681f33876
-Create Date: 2026-04-09 04:45:00.000000
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -18,6 +12,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = inspector.get_table_names()
@@ -79,6 +74,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = inspector.get_table_names()

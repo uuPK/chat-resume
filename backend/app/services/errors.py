@@ -1,4 +1,4 @@
-"""Service-layer errors that are independent of HTTP frameworks."""
+"""用于定义独立于 HTTP 框架的服务层错误。"""
 
 from __future__ import annotations
 

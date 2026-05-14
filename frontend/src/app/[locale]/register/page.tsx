@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/register/page.tsx 模块。
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ export default function RegisterPage() {
   const password = watch('password')
   const t = useTranslations('auth')
 
+  // 用于处理onsubmit。
   const onSubmit = async (data: RegisterForm) => {
     try {
       const success = await registerUser(data.email, data.password)
@@ -125,6 +127,7 @@ export default function RegisterPage() {
                   <input
                     {...register('confirmPassword', {
                       required: t('validation.confirmPasswordRequired'),
+                      // 用于校验当前数据。
                       validate: value => value === password || t('validation.passwordMismatch')
                     })}
                     type={showConfirmPassword ? 'text' : 'password'}

@@ -19,10 +19,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 def _stable_id(prefix: str) -> str:
+    """用于处理稳定标识。"""
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
 def _parse_json_if_needed(value: Any) -> Any:
+    """用于解析JSONifneeded。"""
     if isinstance(value, str):
         stripped = value.strip()
         if not stripped:
@@ -38,6 +40,7 @@ def _parse_json_if_needed(value: Any) -> Any:
 
 
 def _split_text_items(value: str) -> list[str]:
+    """用于拆分文本条目。"""
     normalized = value.replace("；", "\n").replace("•", "\n").replace("·", "\n")
     parts = [item.strip(" -\n\t\r") for item in normalized.splitlines()]
     return [item for item in parts if item]
@@ -86,6 +89,7 @@ class PersonalInfo(ResumeBaseModel):
 
     @model_validator(mode="after")
     def populate_links(self) -> "PersonalInfo":
+        """用于填充链接。"""
         existing = {item.label.lower(): item for item in self.links}
         for label, url in (
             ("GitHub", self.github),
@@ -103,6 +107,7 @@ class Summary(ResumeBaseModel):
     @model_validator(mode="before")
     @classmethod
     def from_string(cls, value: Any) -> Any:
+        """用于从配置创建字符串。"""
         if isinstance(value, str):
             return {"text": value}
         return value
@@ -123,6 +128,7 @@ class EducationItem(ResumeBaseModel):
 
     @model_validator(mode="after")
     def migrate_description(self) -> "EducationItem":
+        """用于迁移description。"""
         if self.description:
             lines = [
                 line.strip("• ").strip()
@@ -152,6 +158,7 @@ class WorkExperienceItem(ResumeBaseModel):
 
     @model_validator(mode="after")
     def migrate_description(self) -> "WorkExperienceItem":
+        """用于迁移description。"""
         if self.description:
             lines = [
                 line.strip("• ").strip()
@@ -173,6 +180,7 @@ class SkillItem(ResumeBaseModel):
     @model_validator(mode="before")
     @classmethod
     def migrate_legacy_shape(cls, value: Any) -> Any:
+        """用于迁移legacy结构。"""
         if isinstance(value, dict):
             incoming_id = value.get("id") or _stable_id("skill")
             if "items" in value:
@@ -226,6 +234,7 @@ class ProjectItem(ResumeBaseModel):
     @field_validator("technologies", mode="before")
     @classmethod
     def ensure_technologies(cls, value: Any) -> list[str]:
+        """用于确保technologies。"""
         if value is None:
             return []
         if isinstance(value, list):
@@ -235,6 +244,7 @@ class ProjectItem(ResumeBaseModel):
     @field_validator("achievements", mode="before")
     @classmethod
     def ensure_achievements(cls, value: Any) -> list[str]:
+        """用于确保achievements。"""
         if value is None:
             return []
         if isinstance(value, list):
@@ -243,6 +253,7 @@ class ProjectItem(ResumeBaseModel):
 
     @model_validator(mode="after")
     def migrate_fields(self) -> "ProjectItem":
+        """用于迁移字段。"""
         if self.summary and not self.overview:
             self.overview = self.summary
         if self.description and not self.overview:
@@ -295,6 +306,7 @@ class ResumeContent(ResumeBaseModel):
     )
     @classmethod
     def parse_object_json(cls, value: Any) -> Any:
+        """用于解析对象JSON。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return {}
@@ -311,6 +323,7 @@ class ResumeContent(ResumeBaseModel):
     )
     @classmethod
     def parse_list_json(cls, value: Any) -> Any:
+        """用于解析列表JSON。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return []
@@ -319,6 +332,7 @@ class ResumeContent(ResumeBaseModel):
     @field_validator("skills", mode="before")
     @classmethod
     def normalize_skills(cls, value: Any) -> Any:
+        """用于标准化技能。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return []
@@ -357,6 +371,7 @@ class ResumeContent(ResumeBaseModel):
     @field_validator("projects", mode="before")
     @classmethod
     def normalize_projects(cls, value: Any) -> Any:
+        """用于标准化项目。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return []
@@ -379,6 +394,7 @@ class ResumeContent(ResumeBaseModel):
     @field_validator("work_experience", mode="before")
     @classmethod
     def normalize_work_experience(cls, value: Any) -> Any:
+        """用于标准化工作经历经历。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return []
@@ -401,6 +417,7 @@ class ResumeContent(ResumeBaseModel):
     @field_validator("education", mode="before")
     @classmethod
     def normalize_education(cls, value: Any) -> Any:
+        """用于标准化教育经历。"""
         parsed = _parse_json_if_needed(value)
         if parsed in (None, ""):
             return []
@@ -441,6 +458,7 @@ _RESUME_LIST_PREVIEW_INCLUDE = {
 
 
 def _prune_empty_frontend_value(value: Any) -> Any:
+    """用于裁剪emptyfrontend值。"""
     if isinstance(value, dict):
         pruned = {key: _prune_empty_frontend_value(item) for key, item in value.items()}
         pruned = {

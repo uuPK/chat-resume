@@ -26,6 +26,7 @@ import {
 /**
  * 用于把服务端时间格式化成北京时间展示。
  */
+// 用于格式化日期。
 function formatDate(dateString: string, locale: string) {
   const d = new Date(dateString.includes('Z') || dateString.includes('+') ? dateString : `${dateString}Z`)
   return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
@@ -42,6 +43,7 @@ function formatDate(dateString: string, locale: string) {
 /**
  * 用于把面试状态映射成界面上的标签文案和颜色。
  */
+// 用于处理状态标签。
 function statusLabel(status: string, t: ReturnType<typeof useTranslations>) {
   if (status === 'completed') return { text: t('status.completed'), bg: '#eef0f3', color: '#0a0b0d' }
   if (status === 'waiting_user_answer') return { text: t('status.active'), bg: '#eef0f3', color: '#0052ff' }
@@ -51,6 +53,7 @@ function statusLabel(status: string, t: ReturnType<typeof useTranslations>) {
 /**
  * 用于从简历列表和详情中提取岗位与 JD 的默认值。
  */
+// 用于读取面试默认值。
 function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resume | null) {
   const jobApplication = resumeDetail?.content?.job_application || {}
   return {
@@ -65,6 +68,7 @@ function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resum
  *
  * 用于承接新建面试和查看历史面试这两个核心入口。
  */
+// 用于渲染 InterviewsPage 组件。
 export default function InterviewsPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
@@ -155,6 +159,7 @@ export default function InterviewsPage() {
     setTargetTitle(initialDefaults.targetTitle)
     setJdText(initialDefaults.jdText)
 
+    // 用于应用简历默认值。
     const applyResumeDefaults = (resumeDetail?: Resume | null) => {
       if (!active) return
       const defaults = readInterviewDefaults(resumeItem, resumeDetail)
@@ -194,6 +199,7 @@ export default function InterviewsPage() {
   /**
    * 用于根据当前配置创建新的结构化面试 session 并跳转到面试页。
    */
+  // 用于处理create面试。
   const handleCreateInterview = async () => {
     if (!selectedResumeId) {
       setFormError(t('center.selectResumeFirst'))
@@ -226,6 +232,7 @@ export default function InterviewsPage() {
   /**
    * 用于删除一条历史面试记录，并在成功后同步更新列表状态。
    */
+  // 用于处理delete面试。
   const handleDeleteInterview = async (sessionId: number) => {
     const confirmed = window.confirm(t('center.deleteConfirm'))
     if (!confirmed) return
@@ -245,6 +252,7 @@ export default function InterviewsPage() {
   /**
    * 用于打开创建面试弹层，让用户在不离开当前页面布局的情况下完成配置。
    */
+  // 用于打开create面试modal。
   const openCreateInterviewModal = () => {
     setShowCreateInterviewPanel(true)
   }
@@ -258,6 +266,7 @@ export default function InterviewsPage() {
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
+    // 用于处理键down。
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setShowCreateInterviewPanel(false)

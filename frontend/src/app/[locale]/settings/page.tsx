@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/settings/page.tsx 模块。
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
@@ -13,12 +14,14 @@ import toast from 'react-hot-toast'
 import { billingApi, type BillingStatus, type PayPalPlan } from '@/lib/api'
 import { useTranslations } from 'next-intl'
 
+// 用于格式化套餐卡片价格。
 function formatPlanCardPrice(plan: PayPalPlan | null): string {
   if (!plan) return 'PayPal'
   if (plan.currency_code === 'USD') return `$${plan.price}`
   return `${plan.price} ${plan.currency_code}`
 }
 
+// 用于格式化结账金额。
 function formatCheckoutAmount(plan: PayPalPlan | null): string {
   if (!plan) return 'PayPal'
   if (plan.currency_code === 'USD') return `US$${plan.price}`
@@ -110,6 +113,7 @@ export default function SettingsPage() {
     }
   }, [])
 
+  // 用于关闭套餐picker。
   const closePlanPicker = () => {
     setIsPlanPickerOpen(false)
     setPlanPickerStep('plans')
@@ -119,6 +123,7 @@ export default function SettingsPage() {
     }
   }
 
+  // 用于处理保存settings。
   const handleSaveSettings = async () => {
     if (!userSettings.fullName.trim()) {
       toast.error(t('settings.nameRequired'))
@@ -150,6 +155,7 @@ export default function SettingsPage() {
     }
   }
 
+  // 用于处理upgradewithpaypal。
   const handleUpgradeWithPayPal = async () => {
     setIsBillingLoading(true)
     try {

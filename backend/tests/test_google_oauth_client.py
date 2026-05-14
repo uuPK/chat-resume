@@ -1,3 +1,5 @@
+"""用于覆盖 test_google_oauth_client.py 对应的回归测试。"""
+
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -12,6 +14,7 @@ from app.services.auth.google_oauth_client import (
 
 
 def test_google_oauth_client_builds_authorization_url():
+    """用于验证GoogleOAuth客户端buildsauthorizationurl。"""
     client = GoogleOAuthClient(
         GoogleOAuthConfig(
             client_id="google-client-id",
@@ -37,6 +40,7 @@ def test_google_oauth_client_builds_authorization_url():
 
 
 def test_google_oauth_config_requires_google_oauth_settings(monkeypatch):
+    """用于验证GoogleOAuthconfigrequiresGoogleOAuth配置。"""
     from app.infra.config import settings
 
     monkeypatch.setattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "")
@@ -56,9 +60,11 @@ def test_google_oauth_config_requires_google_oauth_settings(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_google_oauth_client_exchanges_code_for_tokens():
+    """用于验证GoogleOAuth客户端exchangescodefortokens。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         return httpx.Response(
             200,
@@ -106,7 +112,9 @@ async def test_google_oauth_client_exchanges_code_for_tokens():
 
 @pytest.mark.asyncio
 async def test_google_oauth_client_normalizes_token_exchange_errors():
+    """用于验证GoogleOAuth客户端normalizes令牌exchangeerrors。"""
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         return httpx.Response(
             400,
             json={"error": "invalid_grant", "error_description": "Bad code"},
@@ -132,9 +140,11 @@ async def test_google_oauth_client_normalizes_token_exchange_errors():
 
 @pytest.mark.asyncio
 async def test_google_oauth_client_fetches_verified_identity():
+    """用于验证GoogleOAuth客户端fetchesverifiedidentity。"""
     seen_requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         seen_requests.append(request)
         return httpx.Response(
             200,
@@ -175,7 +185,9 @@ async def test_google_oauth_client_fetches_verified_identity():
 
 @pytest.mark.asyncio
 async def test_google_oauth_client_marks_unverified_email_unusable():
+    """用于验证GoogleOAuth客户端marksunverifiedemailunusable。"""
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         return httpx.Response(
             200,
             json={
@@ -206,7 +218,9 @@ async def test_google_oauth_client_marks_unverified_email_unusable():
 
 @pytest.mark.asyncio
 async def test_google_oauth_client_rejects_identity_without_required_fields():
+    """用于验证GoogleOAuth客户端rejectsidentitywithoutrequiredfields。"""
     def handler(request: httpx.Request) -> httpx.Response:
+        """用于处理handler。"""
         return httpx.Response(
             200,
             json={

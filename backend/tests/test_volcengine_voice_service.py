@@ -1,8 +1,11 @@
+"""用于覆盖 test_volcengine_voice_service.py 对应的回归测试。"""
+
 from app.infra.config import settings
 from app.services.digital_human.volcengine_service import VolcengineVoiceService
 
 
 def test_volcengine_voice_service_requires_app_id_and_access_key(monkeypatch):
+    """用于验证volcengine语音servicerequiresappidandaccesskey。"""
     monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_APP_ID", "")
     monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_ACCESS_KEY", "access-key")
 
@@ -12,6 +15,7 @@ def test_volcengine_voice_service_requires_app_id_and_access_key(monkeypatch):
 
 
 def test_volcengine_voice_service_builds_correct_headers(monkeypatch):
+    """用于验证volcengine语音servicebuildscorrectheaders。"""
     monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_APP_ID", "123456789")
     monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_ACCESS_KEY", "access-key")
     monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_RESOURCE_ID", "resource-id")

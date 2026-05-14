@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 /**
  * 提供编辑页三栏布局状态和拖拽处理函数。
  */
+// 用于封装面板布局相关状态和行为。
 export function usePanelLayout() {
   const [editorOpen, setEditorOpen] = useState(true)
   const [editorFlex, setEditorFlex] = useState(30)
@@ -27,6 +28,7 @@ export function usePanelLayout() {
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
 
+    // 用于处理onpointermove。
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (!mainPanelsRef.current) return
       const containerWidth = mainPanelsRef.current.offsetWidth
@@ -39,6 +41,7 @@ export function usePanelLayout() {
       }
     }
 
+    // 用于处理onpointerup。
     const onPointerUp = () => {
       document.body.style.userSelect = ''
       document.body.style.cursor = ''
@@ -60,6 +63,7 @@ export function usePanelLayout() {
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
 
+    // 用于处理onpointermove。
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (!mainPanelsRef.current) return
       const containerWidth = mainPanelsRef.current.offsetWidth
@@ -72,6 +76,7 @@ export function usePanelLayout() {
       }
     }
 
+    // 用于处理onpointerup。
     const onPointerUp = () => {
       document.body.style.userSelect = ''
       document.body.style.cursor = ''

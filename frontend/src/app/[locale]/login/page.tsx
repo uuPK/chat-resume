@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/login/page.tsx 模块。
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,7 @@ function getSafeNextPath(): string {
   return stripLocaleFromPath(nextPath)
 }
 
+// 用于去除语言环境from路径。
 function stripLocaleFromPath(path: string): string {
   // Keeps legacy localized next params compatible with the locale-aware router.
   const [pathname, query = ''] = path.split('?')
@@ -50,6 +52,7 @@ export default function LoginPage() {
   const router = useRouter()
   const t = useTranslations('auth')
 
+  // 用于处理onsubmit。
   const onSubmit = async (data: LoginForm) => {
     try {
       toast.loading(t('login.loadingToast'), { id: 'login' })
@@ -170,6 +173,7 @@ export default function LoginPage() {
   )
 }
 
+// 用于渲染 OAuthErrorAlert 组件。
 function OAuthErrorAlert() {
   const searchParams = useSearchParams()
   const t = useTranslations('auth.oauth.errors')

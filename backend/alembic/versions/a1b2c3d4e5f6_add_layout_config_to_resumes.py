@@ -1,10 +1,4 @@
-"""add layout_config to resumes
-
-Revision ID: b2c3d4e5f6a1
-Revises: a1b2c3d4e5f6
-Create Date: 2026-04-13 00:00:00.000000
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 from typing import Sequence, Union
 
 from alembic import op
@@ -18,8 +12,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     op.add_column('resumes', sa.Column('layout_config', sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     op.drop_column('resumes', 'layout_config')

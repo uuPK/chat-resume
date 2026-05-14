@@ -1,10 +1,4 @@
-"""drop agent runs and run events
-
-Revision ID: f8a9b0c1d2e3
-Revises: e7f8a9b0c1d2
-Create Date: 2026-04-16 22:20:00.000000
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -17,6 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = inspector.get_table_names()
@@ -43,6 +38,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = inspector.get_table_names()

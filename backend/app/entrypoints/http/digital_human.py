@@ -79,6 +79,7 @@ class DigitalHumanConversationResponse(BaseModel):
 
 
 def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    """用于抛出服务HTTP错误。"""
     if isinstance(exc, ServicePermissionError):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -291,10 +292,12 @@ def _prefers_chinese(language: str) -> bool:
 
 
 async def _close_ws_policy_violation(websocket: WebSocket, reason: str) -> None:
+    """用于关闭WebSocket策略违规。"""
     await websocket.close(code=_WS_POLICY_VIOLATION, reason=reason)
 
 
 def _user_has_active_subscription(db: Session, user_id: int) -> bool:
+    """用于处理用户has有效状态订阅。"""
     return (
         db.query(BillingSubscription.id)
         .filter(
@@ -312,6 +315,7 @@ async def _authorize_voice_session_ws(
     session_id: int,
     db: Session,
 ) -> InterviewSession | None:
+    """用于鉴权语音会话WebSocket。"""
     token = websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
     if not token:
         await _close_ws_policy_violation(websocket, "Missing access token")
@@ -511,6 +515,7 @@ async def voice_session_ws(
 
     try:
         def persist_message(role: str, text: str) -> None:
+            """用于持久化语音面试消息。"""
             record_voice_interview_message(
                 db=db,
                 session_id=session_id,

@@ -1,3 +1,5 @@
+"""用于覆盖 test_observability_setup.py 对应的回归测试。"""
+
 import json
 import logging
 import sys
@@ -24,6 +26,7 @@ from app.infra.sentry_setup import _before_send  # noqa: E402
 
 class ObservabilitySetupTests(unittest.TestCase):
     def test_json_formatter_includes_correlation_fields(self):
+        """用于验证jsonformatterincludescorrelationfields。"""
         record = logging.LogRecord(
             name="test.logger",
             level=logging.INFO,
@@ -44,6 +47,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["tool_call_id"], "tool_123")
 
     def test_loguru_json_sink_includes_context_and_redacts_sensitive_extra(self):
+        """用于验证logurujsonsinkincludes上下文andredactssensitiveextra。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -67,6 +71,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["answer"], 42)
 
     def test_standard_logging_is_intercepted_by_loguru(self):
+        """用于验证standardloggingisinterceptedbyloguru。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -88,6 +93,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(payload["safe_value"], "ok")
 
     def test_uvicorn_access_info_logging_is_suppressed(self):
+        """用于验证uvicornaccessinfologgingissuppressed。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -102,6 +108,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(stream.getvalue(), "")
 
     def test_uvicorn_error_info_logging_is_suppressed(self):
+        """用于验证uvicorn错误infologgingissuppressed。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -114,6 +121,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(stream.getvalue(), "")
 
     def test_text_logging_does_not_emit_extra_blank_line(self):
+        """用于验证textloggingdoesnotemitextrablankline。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -132,6 +140,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertTrue(lines[0].endswith("single line"))
 
     def test_text_logging_appends_agent_trace_fields(self):
+        """用于验证textloggingappendsAgenttracefields。"""
         stream = StringIO()
         with (
             patch("sys.stderr", stream),
@@ -168,6 +177,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertIn('"api_key":"[REDACTED]"', line)
 
     def test_before_send_enriches_event_with_request_context(self):
+        """用于验证beforesendenriches事件with请求上下文。"""
         with log_context(
             request_id="req_ctx",
             session_id="sess_ctx",
@@ -182,6 +192,7 @@ class ObservabilitySetupTests(unittest.TestCase):
         self.assertEqual(event["extra"]["request_id"], "req_ctx")
 
     def test_configure_langfuse_is_disabled_without_credentials(self):
+        """用于验证configurelangfuseisdisabledwithoutcredentials。"""
         with (
             patch("app.infra.langfuse_setup._langfuse_client", None),
             patch.object(settings, "LANGFUSE_PUBLIC_KEY", ""),
@@ -190,6 +201,7 @@ class ObservabilitySetupTests(unittest.TestCase):
             self.assertFalse(configure_langfuse())
 
     def test_configure_langsmith_is_disabled_without_credentials(self):
+        """用于验证configureLangSmithisdisabledwithoutcredentials。"""
         with (
             patch("app.infra.langsmith_setup._langsmith_client", None),
             patch.object(settings, "LANGSMITH_TRACING", True),
@@ -198,8 +210,10 @@ class ObservabilitySetupTests(unittest.TestCase):
             self.assertFalse(configure_langsmith())
 
     def test_configure_langsmith_sets_langchain_environment(self):
+        """用于验证configureLangSmithsetslangchainenvironment。"""
         class FakeClient:
             def __init__(self, **kwargs):
+                """用于处理init。"""
                 self.kwargs = kwargs
 
         with (
@@ -224,6 +238,7 @@ class ObservabilitySetupTests(unittest.TestCase):
             self.assertEqual(os.environ["LANGCHAIN_PROJECT"], "chat-resume-test")
 
     def test_langfuse_observer_is_noop_when_client_missing(self):
+        """用于验证langfuseobserverisnoopwhen客户端missing。"""
         with patch(
             "app.infra.langfuse_observer.get_langfuse_client", return_value=None
         ):
@@ -241,6 +256,7 @@ class ObservabilitySetupTests(unittest.TestCase):
                 observer.finish("done")
 
     def test_langsmith_observer_is_noop_when_client_missing(self):
+        """用于验证LangSmithobserverisnoopwhen客户端missing。"""
         with patch(
             "app.infra.langsmith_observer.get_langsmith_client", return_value=None
         ):
@@ -256,13 +272,16 @@ class ObservabilitySetupTests(unittest.TestCase):
                 observer.finish("done")
 
     def test_langsmith_observer_mirrors_pi_agent_runtime_events(self):
+        """用于验证LangSmithobservermirrorspiAgentruntime事件。"""
         calls = []
 
         class FakeClient:
             def create_run(self, **kwargs):
+                """用于创建run。"""
                 calls.append(("create", kwargs))
 
             def update_run(self, run_id, **kwargs):
+                """用于处理updaterun。"""
                 calls.append(("update", run_id, kwargs))
 
         with (

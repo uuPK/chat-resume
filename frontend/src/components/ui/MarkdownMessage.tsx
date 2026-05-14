@@ -1,3 +1,4 @@
+// 用于提供 components/ui/MarkdownMessage.tsx 模块。
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useState } from 'react'
@@ -9,10 +10,12 @@ interface MarkdownMessageProps {
   className?: string
 }
 
+// 用于渲染 MarkdownMessage 组件。
 export default function MarkdownMessage({ content, className = '' }: MarkdownMessageProps) {
   const [copied, setCopied] = useState(false)
   const t = useTranslations('resume.preview')
 
+  // 用于处理复制。
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content)
@@ -44,9 +47,11 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
           h1: ({ children }) => (
             <h1 className="text-[18px] font-bold mb-3 text-gray-900">{children}</h1>
           ),
+          // 用于处理h2。
           h2: ({ children }) => (
             <h2 className="text-[16px] font-semibold mb-2 text-gray-800">{children}</h2>
           ),
+          // 用于处理h3。
           h3: ({ children }) => (
             <h3 className="text-[15px] font-medium mb-2 text-gray-700">{children}</h3>
           ),
@@ -60,9 +65,11 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
           ul: ({ children }) => (
             <ul className="mb-3 ml-4 space-y-1">{children}</ul>
           ),
+          // 用于处理ol。
           ol: ({ children }) => (
             <ol className="mb-3 ml-4 space-y-1 list-decimal">{children}</ol>
           ),
+          // 用于处理li。
           li: ({ children }) => (
             <li className="text-[14px] text-gray-700 leading-relaxed">{children}</li>
           ),
@@ -71,6 +78,7 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
           strong: ({ children }) => (
             <strong className="font-semibold text-gray-900">{children}</strong>
           ),
+          // 用于处理em。
           em: ({ children }) => (
             <em className="italic text-gray-800">{children}</em>
           ),
@@ -115,6 +123,7 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
               {children}
             </a>
           ),
+          // 用于处理table。
           table: ({ children }) => (
             <div className="mb-3 w-full overflow-x-auto rounded-lg border border-gray-200">
               <table className="min-w-full border-collapse text-xs">
@@ -122,16 +131,19 @@ export default function MarkdownMessage({ content, className = '' }: MarkdownMes
               </table>
             </div>
           ),
+          // 用于处理th。
           th: ({ children }) => (
             <th className="border border-gray-200 bg-gray-50 px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">
               {children}
             </th>
           ),
+          // 用于处理td。
           td: ({ children }) => (
             <td className="border border-gray-200 px-3 py-2 align-top text-gray-700">
               {children}
             </td>
           ),
+          // 用于处理img。
           img: ({ src = '', alt = '' }) => (
             <img
               src={src}

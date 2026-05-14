@@ -1,3 +1,5 @@
+"""用于覆盖 test_eval_trend_comparison.py 对应的回归测试。"""
+
 import json
 import subprocess
 import sys
@@ -8,6 +10,7 @@ TREND = ROOT_DIR / "eval" / "compare_trends.py"
 
 
 def run_trend(baseline_path: Path, current_path: Path, output_path: Path):
+    """用于运行trend。"""
     return subprocess.run(
         [
             sys.executable,
@@ -27,10 +30,12 @@ def run_trend(baseline_path: Path, current_path: Path, output_path: Path):
 
 
 def write_summary(path: Path, payload: dict):
+    """用于写入summary。"""
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 def test_trend_comparison_reports_improvements_and_fixed_cases(tmp_path):
+    """用于验证trendcomparisonreportsimprovementsandfixed用例。"""
     baseline_path = tmp_path / "baseline.json"
     current_path = tmp_path / "current.json"
     output_path = tmp_path / "trend.json"
@@ -180,6 +185,7 @@ def test_trend_comparison_reports_improvements_and_fixed_cases(tmp_path):
 
 
 def test_trend_comparison_reports_regressions_and_case_set_changes(tmp_path):
+    """用于验证trendcomparisonreportsregressionsand用例setchanges。"""
     baseline_path = tmp_path / "baseline.json"
     current_path = tmp_path / "current.json"
     output_path = tmp_path / "trend.json"
@@ -268,6 +274,7 @@ def test_trend_comparison_reports_regressions_and_case_set_changes(tmp_path):
 
 
 def test_trend_comparison_marks_missing_optional_metrics(tmp_path):
+    """用于验证trendcomparisonmarksmissingoptional指标。"""
     baseline_path = tmp_path / "baseline.json"
     current_path = tmp_path / "current.json"
     output_path = tmp_path / "trend.json"

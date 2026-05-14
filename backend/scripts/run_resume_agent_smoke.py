@@ -1,3 +1,5 @@
+"""用于提供 run_resume_agent_smoke.py 脚本入口。"""
+
 import argparse
 import asyncio
 import json
@@ -14,6 +16,7 @@ from app.agents.resume.agent import ResumeAgent  # noqa: E402
 
 
 def build_sample_resume() -> dict:
+    """用于构建示例简历。"""
     return {
         "personal_info": {"name": "张三", "position": "后端开发"},
         "summary": {"text": "3年 Python 后端开发经验"},
@@ -34,6 +37,7 @@ def build_sample_resume() -> dict:
 
 
 async def run_once(agent: ResumeAgent, prompt: str) -> dict:
+    """用于运行单次运行。"""
     resume = build_sample_resume()
     started = perf_counter()
     result = await agent.optimize(prompt, resume, [])
@@ -49,6 +53,7 @@ async def run_once(agent: ResumeAgent, prompt: str) -> dict:
 
 
 async def main() -> int:
+    """用于执行脚本入口流程。"""
     parser = argparse.ArgumentParser(
         description="Run an end-to-end smoke test for ResumeAgent via OpenRouter."
     )

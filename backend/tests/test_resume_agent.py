@@ -1,3 +1,5 @@
+"""用于覆盖 test_resume_agent.py 对应的回归测试。"""
+
 import json
 import sys
 import unittest
@@ -21,6 +23,7 @@ from app.types.stream import public_resume_stream_event  # noqa: E402
 
 class ResumeAgentPromptContextTests(unittest.TestCase):
     def test_prompt_context_includes_job_application_fields(self):
+        """用于验证prompt上下文includes任务applicationfields。"""
         agent = ResumeAgent()
         context = agent._build_prompt_context(
             {
@@ -41,6 +44,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn('"job_application"', context["resume_json"])
 
     def test_resume_tools_schema_exposes_optional_reason_field(self):
+        """用于验证简历toolsschemaexposesoptionalreasonfield。"""
         schema = RESUME_TOOLS_SCHEMA
         update_bullet = next(
             tool for tool in schema if tool["function"]["name"] == "update_bullet"
@@ -51,6 +55,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(properties["reason"]["type"], "string")
 
     def test_resume_tools_schema_exposes_bullet_tools(self):
+        """用于验证简历toolsschemaexposesbullettools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
 
         self.assertIn("update_bullet", tool_names)
@@ -61,12 +66,14 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("remove_highlight", tool_names)
 
     def test_resume_tools_schema_does_not_expose_custom_memory_tools(self):
+        """用于验证简历toolsschemadoesnotexposecustommemorytools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
 
         self.assertNotIn("read_user_memory", tool_names)
         self.assertNotIn("write_user_memory", tool_names)
 
     def test_resume_tool_result_includes_structured_diff_reason(self):
+        """用于验证简历tool结果includesstructureddiffreason。"""
         resume_content = {
             "projects": [
                 {
@@ -94,6 +101,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("35%", result["diff_items"][0]["after"])
 
     def test_update_bullet_tool_updates_existing_highlights_storage(self):
+        """用于验证updatebullettoolupdatesexistinghighlightsstorage。"""
         agent = ResumeAgent()
         resume_content = {
             "work_experience": [
@@ -126,6 +134,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("下降 20%", resume_content["work_experience"][0]["highlights"][0]["text"])
 
     def test_resume_stream_event_contract_keeps_structured_diff(self):
+        """用于验证简历stream事件contractkeepsstructureddiff。"""
         event = tool_pending_event(
             call_id="call_1",
             tool_id="update_bullet",
@@ -155,6 +164,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(event["diff_items"][0]["reason"], "补充量化结果")
 
     def test_resume_stream_event_normalizes_legacy_payload(self):
+        """用于验证简历stream事件normalizeslegacypayload。"""
         event = normalize_resume_stream_payload(
             {
                 "tool_pending": True,
@@ -175,6 +185,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(event["diff_items"][0]["reason"], "123")
 
     def test_resume_stream_event_does_not_expose_runtime_context(self):
+        """用于验证简历stream事件doesnotexposeruntime上下文。"""
         resume_content = {"projects": [{"id": "proj_1", "highlights": []}]}
 
         event = normalize_resume_stream_payload(
@@ -194,6 +205,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         json.dumps({k: v for k, v in event.items() if v is not None})
 
     def test_public_resume_stream_event_strips_internal_fields(self):
+        """用于验证public简历stream事件stripsinternalfields。"""
         event = public_resume_stream_event(
             {
                 "event_type": "tool_result",
@@ -211,6 +223,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(event["event_type"], "tool_result")
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
+        """用于验证systempromptincludesquantifiedrewriteguidance。"""
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
@@ -225,6 +238,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("不允许编造不存在的数字", rendered)
 
     def test_system_prompt_does_not_expose_memory_tools(self):
+        """用于验证systempromptdoesnotexposememorytools。"""
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
@@ -238,6 +252,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("write_user_memory", rendered)
 
     def test_system_prompt_enforces_optimize_first_default(self):
+        """用于验证systempromptenforcesoptimizefirstdefault。"""
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
@@ -252,6 +267,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("首轮目标是“先产出改动”", rendered)
 
     def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
+        """用于验证systempromptlimitsfollowuptodefinedexception用例。"""
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(
@@ -268,6 +284,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("禁止泛泛地问“要不要我帮你优化”", rendered)
 
     def test_system_prompt_explicitly_blocks_high_risk_fabrication_requests(self):
+        """用于验证systempromptexplicitlyblockshighriskfabricationrequests。"""
         prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
         template = Template(prompt_path.read_text(encoding="utf-8"))
         rendered = template.render(

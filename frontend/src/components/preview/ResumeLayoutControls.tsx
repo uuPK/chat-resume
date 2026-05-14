@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/ResumeLayoutControls.tsx 模块。
 
 import { useState } from 'react'
 import { 
@@ -19,6 +20,7 @@ interface ResumeLayoutControlsProps {
   className?: string
 }
 
+// 用于渲染 ResumeLayoutControls 组件。
 export default function ResumeLayoutControls({
   config,
   onConfigChange,
@@ -28,6 +30,7 @@ export default function ResumeLayoutControls({
   const [activeTab, setActiveTab] = useState<'template' | 'density' | 'modules'>('template')
   const t = useTranslations('resume.layout')
 
+  // 用于处理templatestylechange。
   const handleTemplateStyleChange = (templateStyle: ResumeTemplateStyle) => {
     onConfigChange({
       density: config.density,
@@ -38,6 +41,7 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于处理密度change。
   const handleDensityChange = (density: LayoutDensity) => {
     const spacingScale = DENSITY_SPACING_SCALE[density as Exclude<LayoutDensity, 'custom'>] ?? config.spacingScale
     onConfigChange({
@@ -49,6 +53,7 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于处理间距缩放change。
   const handleSpacingScaleChange = (value: number) => {
     onConfigChange({
       density: 'custom',
@@ -59,6 +64,7 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于处理间距缩放reset。
   const handleSpacingScaleReset = () => {
     onConfigChange({
       density: 'normal',
@@ -69,6 +75,7 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于切换模块可见性。
   const toggleModuleVisibility = (module: ResumeModule) => {
     const newVisible = new Set(config.visibleModules)
     if (newVisible.has(module)) {
@@ -85,6 +92,7 @@ export default function ResumeLayoutControls({
     })
   }
 
+  // 用于移动模块。
   const moveModule = (module: ResumeModule, direction: 'up' | 'down') => {
     const currentIndex = config.moduleOrder.indexOf(module)
     if (currentIndex === -1) return

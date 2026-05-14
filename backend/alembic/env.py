@@ -1,3 +1,5 @@
+"""用于配置 Alembic 数据库迁移环境。"""
+
 from __future__ import annotations
 
 import os
@@ -24,10 +26,12 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
+    """用于获取url。"""
     return str(settings.DATABASE_URL)
 
 
 def run_migrations_offline() -> None:
+    """用于运行migrationsoffline。"""
     context.configure(
         url=get_url(),
         target_metadata=target_metadata,
@@ -40,6 +44,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """用于运行migrationsonline。"""
     configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = get_url()
     connectable = engine_from_config(

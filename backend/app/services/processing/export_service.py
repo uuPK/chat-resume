@@ -32,6 +32,7 @@ class ExportService:
     """处理简历导出。"""
 
     def __init__(self):
+        """用于初始化当前对象。"""
         self.export_dir = os.path.join(settings.UPLOAD_DIR, "exports")
         os.makedirs(self.export_dir, exist_ok=True)
 

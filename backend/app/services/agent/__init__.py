@@ -1,3 +1,5 @@
+"""用于声明services。agent包。"""
+
 from .resume_agent_session_service import (
     ConfirmToolResult,
     ResumeAgentConfirmationConflict,

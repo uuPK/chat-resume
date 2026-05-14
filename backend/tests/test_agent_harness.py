@@ -1,3 +1,5 @@
+"""用于覆盖 test_agent_harness.py 对应的回归测试。"""
+
 import asyncio
 import sys
 import unittest
@@ -28,6 +30,7 @@ class FakeResumeAgent:
         event_callback=None,
         user_id: int | None = None,
     ):
+        """用于处理optimizestream。"""
         del (
             user_message,
             conversation_history,
@@ -55,6 +58,7 @@ class FakeResumeAgent:
 
 class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        """用于准备测试前置状态。"""
         engine = create_engine(
             "sqlite:///:memory:", connect_args={"check_same_thread": False}
         )
@@ -75,9 +79,11 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
         self.resume = resume
 
     def tearDown(self):
+        """用于清理测试后置状态。"""
         self.db.close()
 
     async def test_resume_stream_records_session_events(self):
+        """用于验证简历streamrecords会话事件。"""
         harness = AgentHarness(self.db)
         store = AgentSessionStore(self.db)
         session_id = "harness_session_1"
@@ -121,6 +127,7 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_resume_session_applies_confirmed_paused_tool_call(self):
+        """用于验证简历会话appliesconfirmedpausedtoolcall。"""
         harness = AgentHarness(self.db)
         store = AgentSessionStore(self.db)
         session_id = "resume_paused_session"

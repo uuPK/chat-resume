@@ -1,9 +1,11 @@
+// 用于提供 i18n/request.ts 模块。
 import { hasLocale } from 'next-intl'
 import { getRequestConfig } from 'next-intl/server'
 import { routing } from './routing'
 
 const namespaces = ['common', 'auth', 'dashboard', 'interview', 'resume'] as const
 
+// 用于加载消息。
 async function loadMessages(locale: string) {
   // Loads all configured namespaces into the shape expected by next-intl.
   const entries = await Promise.all(

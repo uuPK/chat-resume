@@ -1,3 +1,5 @@
+"""用于覆盖 test_resume_agent_smoke.py 对应的回归测试。"""
+
 import asyncio
 import sys
 import unittest
@@ -35,6 +37,7 @@ class FakeModelResponse:
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
     ):
+        """用于处理init。"""
         self.content = content
         self.tool_calls = tool_calls or []
 
@@ -43,6 +46,7 @@ class FakePiAgentStream:
     """用于给 pi-agent-core runtime 提供确定性的模型事件。"""
 
     def __init__(self, messages: list[AssistantMessage]):
+        """用于处理init。"""
         self.messages = list(messages)
         self.calls = 0
 
@@ -153,11 +157,13 @@ def fake_tool_call(
     args: dict,
     call_id: str,
 ) -> dict:
+    """用于构造toolcall。"""
     return {"name": name, "args": args, "id": call_id}
 
 
 class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
     def _build_agent(self, responses):
+        """用于构建Agent。"""
         agent = ResumeAgent()
         agent.runtime = PiAgentRuntime(
             stream_fn=FakePiAgentStream(
@@ -167,6 +173,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         return agent
 
     def _sample_resume(self):
+        """用于处理示例简历。"""
         return {
             "personal_info": {"name": "张三", "position": "后端开发"},
             "summary": {"text": "3年 Python 后端开发经验"},
@@ -195,6 +202,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         }
 
     def test_strip_redundant_fields_removes_empty_summary(self):
+        """用于验证stripredundantfieldsremovesemptysummary。"""
         cleaned = ResumeAgent._strip_redundant_fields(
             {
                 "personal_info": {"name": "张三"},
@@ -207,6 +215,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("summary", cleaned)
 
     def test_strip_redundant_fields_drops_summary_even_when_non_empty(self):
+        """用于验证stripredundantfieldsdropssummaryevenwhennonempty。"""
         cleaned = ResumeAgent._strip_redundant_fields(
             {
                 "personal_info": {"name": "张三"},
@@ -219,6 +228,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("summary", cleaned)
 
     def test_run_tool_rejects_hidden_section(self):
+        """用于验证runtoolrejectshiddensection。"""
         agent = ResumeAgent()
         result = agent._run_tool(
             {
@@ -241,6 +251,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["updated_section_name"], "技能专长")
 
     def test_update_overview_tool_updates_project_overview(self):
+        """用于验证updateoverviewtoolupdatesprojectoverview。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -265,6 +276,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_update_overview_defaults_missing_section_to_projects(self):
+        """用于验证updateoverviewdefaultsmissingsectiontoprojects。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -288,6 +300,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_update_overview_missing_item_id_returns_recoverable_error(self):
+        """用于验证updateoverviewmissingitemidreturnsrecoverable错误。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -313,6 +326,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("item_id", result["display_message"])
 
     def test_invalid_tool_arguments_json_returns_recoverable_error(self):
+        """用于验证invalidtoolargumentsjsonreturnsrecoverable错误。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -334,6 +348,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["result"]["error"]["recoverable"])
 
     def test_update_bullet_tool_updates_single_highlight(self):
+        """用于验证updatebullettoolupdatessinglehighlight。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -359,6 +374,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_add_bullet_tool_appends_highlight(self):
+        """用于验证addbullettoolappendshighlight。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -384,6 +400,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_remove_bullet_tool_deletes_highlight(self):
+        """用于验证removebullettooldeleteshighlight。"""
         agent = ResumeAgent()
         resume = self._sample_resume()
 
@@ -405,6 +422,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resume["projects"][0]["highlights"], [])
 
     async def test_optimize_returns_plain_text_without_mutation(self):
+        """用于验证optimizereturnsplaintextwithoutmutation。"""
         agent = self._build_agent(
             [FakeModelResponse(content="我建议优先强化项目结果和量化指标。")]
         )
@@ -417,6 +435,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resume["summary"]["text"], "3年 Python 后端开发经验")
 
     async def test_optimize_updates_resume_via_tool_call(self):
+        """用于验证optimizeupdates简历viatoolcall。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -449,6 +468,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_executes_all_pi_agent_tool_calls(self):
+        """用于验证optimizeexecutesallpiAgenttoolcalls。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -491,6 +511,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_retries_recoverable_tool_error(self):
+        """用于验证optimizeretriesrecoverabletool错误。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -529,6 +550,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("修正参数", result["content"])
 
     async def test_optimize_stream_applies_change_after_confirmation(self):
+        """用于验证optimizestreamapplieschangeafterconfirmation。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -593,6 +615,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
     async def test_optimize_stream_serializes_multiple_business_tool_confirmations(
         self,
     ):
+        """用于验证optimizestreamserializesmultiplebusinesstoolconfirmations。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -651,6 +674,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_stream_reject_keeps_resume_unchanged(self):
+        """用于验证optimizestreamrejectkeeps简历unchanged。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -691,6 +715,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_optimize_stream_emits_tool_call_failed_then_recovers(self):
+        """用于验证optimizestreamemitstoolcallfailedthenrecovers。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -740,6 +765,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
 class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def _sample_resume(self):
+        """用于处理示例简历。"""
         return {
             "work_experience": [
                 {
@@ -752,11 +778,13 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         }
 
     async def test_resume_agent_uses_pi_agent_runtime_by_default(self):
+        """用于验证简历AgentusespiAgentruntimebydefault。"""
         agent = ResumeAgent()
 
         self.assertIsInstance(agent.runtime, PiAgentRuntime)
 
     async def test_pi_agent_runtime_stream_preserves_confirmation_flow(self):
+        """用于验证piAgentruntimestreampreservesconfirmationflow。"""
         agent = ResumeAgent()
         agent.runtime = PiAgentRuntime(
             stream_fn=FakePiAgentStream(
@@ -802,6 +830,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
+        """用于验证piAgentruntimestreamemitsAgenttracelogs。"""
         agent = ResumeAgent()
         agent.runtime = PiAgentRuntime(
             stream_fn=FakePiAgentStream(
@@ -866,12 +895,14 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
 class ChatServiceChunkParsingTests(unittest.TestCase):
     def test_extract_sse_data_accepts_data_prefix_without_space(self):
+        """用于验证extractssedataacceptsdataprefixwithoutspace。"""
         self.assertEqual(
             ChatService._extract_sse_data('data:{"choices":[{"text":"ok"}]}'),
             '{"choices":[{"text":"ok"}]}',
         )
 
     def test_extract_stream_delta_accepts_message_content(self):
+        """用于验证extractstreamdeltaacceptsmessagecontent。"""
         chunk = {
             "choices": [
                 {
@@ -890,6 +921,7 @@ class ChatServiceChunkParsingTests(unittest.TestCase):
         )
 
     def test_extract_stream_delta_flattens_content_parts(self):
+        """用于验证extractstreamdeltaflattenscontentparts。"""
         chunk = {
             "choices": [
                 {
@@ -919,6 +951,7 @@ class ChatServiceChunkParsingTests(unittest.TestCase):
 
 class RuntimePublicApiTests(unittest.TestCase):
     def test_agent_runtime_compatibility_entrypoint_is_removed(self):
+        """用于验证Agentruntimecompatibilityentrypointisremoved。"""
         import app.runtime as runtime
 
         self.assertNotIn("AgentRuntime", runtime.__all__)
@@ -926,6 +959,7 @@ class RuntimePublicApiTests(unittest.TestCase):
             getattr(runtime, "AgentRuntime")
 
     def test_agent_definition_lives_in_runtime_contracts(self):
+        """用于验证Agentdefinitionlivesinruntimecontracts。"""
         from app.runtime.contracts import AgentDefinition
 
         agent = ResumeAgent()

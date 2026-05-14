@@ -1,3 +1,5 @@
+"""用于覆盖 test_resume_schema_normalization.py 对应的回归测试。"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -14,6 +16,7 @@ from app.schemas.resume import (  # noqa: E402
 
 class ResumeSchemaNormalizationTests(unittest.TestCase):
     def test_work_experience_description_is_normalized_to_summary_and_highlights(self):
+        """用于验证workexperiencedescriptionisnormalizedtosummaryandhighlights。"""
         content = ResumeContent.model_validate(
             {
                 "work_experience": [
@@ -35,6 +38,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(work["description"], "")
 
     def test_project_achievements_are_merged_into_highlights(self):
+        """用于验证projectachievementsaremergedintohighlights。"""
         content = ResumeContent.model_validate(
             {
                 "projects": [
@@ -60,6 +64,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(project["achievements"], [])
 
     def test_education_description_is_normalized_to_summary_and_highlights(self):
+        """用于验证educationdescriptionisnormalizedtosummaryandhighlights。"""
         content = ResumeContent.model_validate(
             {
                 "education": [
@@ -82,6 +87,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(education["description"], "")
 
     def test_string_education_is_normalized_into_single_item(self):
+        """用于验证stringeducationisnormalizedintosingleitem。"""
         content = ResumeContent.model_validate(
             {
                 "education": "北京大学 计算机科学与技术",
@@ -97,6 +103,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(education["description"], "")
 
     def test_string_work_experience_is_normalized_into_single_item(self):
+        """用于验证stringworkexperienceisnormalizedintosingleitem。"""
         content = ResumeContent.model_validate(
             {
                 "work_experience": "负责核心后台开发\n优化异步任务调度",
@@ -113,6 +120,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(work["description"], "")
 
     def test_dump_resume_content_for_frontend_drops_non_frontend_sections(self):
+        """用于验证dump简历contentforfrontenddropsnonfrontendsections。"""
         content = dump_resume_content_for_frontend(
             {
                 "meta": {"language": "zh-CN"},

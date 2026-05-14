@@ -1,9 +1,4 @@
-"""add refresh sessions table
-
-Revision ID: f1a2b3c4d5e6
-Revises: d9e0f1a2b3c4
-Create Date: 2026-04-20 00:00:00.000000
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from typing import Sequence, Union
 

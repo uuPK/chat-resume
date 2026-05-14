@@ -1,4 +1,4 @@
-"""Run the Resume Agent against the LangSmith evaluation dataset."""
+"""用于提供 run_langsmith_experiment.py 评测辅助逻辑。"""
 
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ def _make_target(agent):
     """用于构造 LangSmith aevaluate 消费的异步 target。"""
 
     async def target(inputs: dict[str, Any]) -> dict[str, Any]:
+        """用于处理target。"""
         result = await run_agent_target(agent, inputs)
         result.pop("runtime_events", None)
         return result

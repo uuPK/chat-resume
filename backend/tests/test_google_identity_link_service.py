@@ -1,3 +1,5 @@
+"""用于覆盖 test_google_identity_link_service.py 对应的回归测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -17,6 +19,7 @@ from app.services.auth.google_oauth_client import GoogleIdentity
 
 @pytest.fixture()
 def db() -> Generator[Session, None, None]:
+    """用于处理数据库。"""
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -39,6 +42,7 @@ def _google_identity(
     email_verified: bool = True,
     name: str | None = "Google User",
 ) -> GoogleIdentity:
+    """用于处理Googleidentity。"""
     return GoogleIdentity(
         sub=sub,
         email=email,
@@ -48,6 +52,7 @@ def _google_identity(
 
 
 def test_existing_google_identity_returns_bound_local_user(db: Session):
+    """用于验证existingGoogleidentityreturnsboundlocal用户。"""
     user = User(
         email="bound@example.com",
         hashed_password=None,
@@ -76,6 +81,7 @@ def test_existing_google_identity_returns_bound_local_user(db: Session):
 
 
 def test_verified_google_email_binds_existing_local_user(db: Session):
+    """用于验证verifiedGoogleemailbindsexistinglocal用户。"""
     user = User(
         email="existing@example.com",
         hashed_password="hashed-local-password",
@@ -99,6 +105,7 @@ def test_verified_google_email_binds_existing_local_user(db: Session):
 
 
 def test_verified_google_email_creates_google_only_user(db: Session):
+    """用于验证verifiedGoogleemailcreatesGoogleonly用户。"""
     resolved_user = GoogleIdentityLinkService(db).resolve_user(
         _google_identity(
             sub="fresh-google-sub",
@@ -118,6 +125,7 @@ def test_verified_google_email_creates_google_only_user(db: Session):
 
 
 def test_unverified_google_email_is_rejected_without_creating_records(db: Session):
+    """用于验证unverifiedGoogleemailisrejectedwithoutcreatingrecords。"""
     with pytest.raises(GoogleIdentityLinkError) as exc_info:
         GoogleIdentityLinkService(db).resolve_user(
             _google_identity(
@@ -133,6 +141,7 @@ def test_unverified_google_email_is_rejected_without_creating_records(db: Sessio
 
 
 def test_unverified_google_email_is_rejected_even_when_sub_is_bound(db: Session):
+    """用于验证unverifiedGoogleemailisrejectedevenwhensubisbound。"""
     user = User(
         email="bound-unverified@example.com",
         hashed_password=None,
@@ -169,6 +178,7 @@ def test_unverified_google_email_is_rejected_even_when_sub_is_bound(db: Session)
 def test_existing_google_identity_for_email_rejects_different_google_sub(
     db: Session,
 ):
+    """用于验证existingGoogleidentityforemailrejectsdifferentGooglesub。"""
     user = User(
         email="conflict@example.com",
         hashed_password="hashed-local-password",
@@ -201,6 +211,7 @@ def test_existing_google_identity_for_email_rejects_different_google_sub(
 
 
 def test_existing_google_sub_does_not_rebind_to_email_matched_user(db: Session):
+    """用于验证existingGooglesubdoesnotrebindtoemailmatched用户。"""
     bound_user = User(
         email="bound-owner@example.com",
         hashed_password=None,

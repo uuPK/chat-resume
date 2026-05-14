@@ -58,6 +58,7 @@ class InterviewMessageRecordRequest(BaseModel):
 
 
 def _raise_service_http_error(exc: ServiceError) -> NoReturn:
+    """用于抛出服务HTTP错误。"""
     if isinstance(exc, ServicePermissionError):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)

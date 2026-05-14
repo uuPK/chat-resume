@@ -1,3 +1,4 @@
+// 用于提供 app/(print)/layout.tsx 模块。
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { NextIntlClientProvider } from 'next-intl'
@@ -21,6 +22,7 @@ export const viewport: Viewport = {
   themeColor: '#2563eb',
 }
 
+// 用于渲染 PrintRootLayout 组件。
 export default function PrintRootLayout({
   children,
 }: {

@@ -1,4 +1,4 @@
-"""Deterministic analyzer for saved Resume Agent eval results."""
+"""用于提供 analyze_results.py 评测辅助逻辑。"""
 
 from __future__ import annotations
 
@@ -31,20 +31,24 @@ TOOL_NAME_ALIASES = {
 
 
 def load_json(path: Path) -> Any:
+    """用于加载json。"""
     with path.open(encoding="utf-8") as file:
         return json.load(file)
 
 
 def normalize_tool_calls(value: Any) -> list[str]:
+    """用于标准化toolcalls。"""
     if not isinstance(value, list):
         return []
     return [TOOL_NAME_ALIASES.get(str(item), str(item)) for item in value]
 
 
 def collect_text(value: Any) -> str:
+    """用于收集text。"""
     parts: list[str] = []
 
     def collect(item: Any) -> None:
+        """用于收集当前数据。"""
         if isinstance(item, str):
             parts.append(item)
         elif isinstance(item, list):
@@ -59,12 +63,14 @@ def collect_text(value: Any) -> str:
 
 
 def list_of_strings(value: Any) -> list[str]:
+    """用于列出ofstrings。"""
     if not isinstance(value, list):
         return []
     return [str(item) for item in value]
 
 
 def unique_preserving_order(values: list[str]) -> list[str]:
+    """用于处理uniquepreservingorder。"""
     seen = set()
     unique = []
     for value in values:
@@ -76,6 +82,7 @@ def unique_preserving_order(values: list[str]) -> list[str]:
 
 
 def count_question_marks(text: str) -> int:
+    """用于处理countquestionmarks。"""
     return text.count("?") + text.count("？")
 
 
@@ -83,6 +90,7 @@ def score_keywords(
     case: dict[str, Any],
     result: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分keywords。"""
     required = list_of_strings(case.get("must_contain_keywords"))
     if not required:
         return None, []
@@ -105,6 +113,7 @@ def score_forbidden_content(
     case: dict[str, Any],
     result: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分forbiddencontent。"""
     forbidden = list_of_strings(case.get("forbidden_content"))
     if not forbidden:
         return None, []
@@ -136,6 +145,7 @@ def score_tool_calls(
     case: dict[str, Any],
     actual: list[str],
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分toolcalls。"""
     if "expected_tool_calls" not in case:
         return None, []
 
@@ -201,6 +211,7 @@ def score_refusal(
     actual_tool_calls: list[str],
     reply: str,
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分refusal。"""
     if case.get("expect_refusal"):
         expected = "refusal"
     elif case.get("expect_moderate_refusal"):
@@ -243,6 +254,7 @@ def score_decision_rule(
     actual_tool_calls: list[str],
     reply: str,
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分decisionrule。"""
     expected = case.get("expected_decision")
     if not expected:
         return None, []
@@ -305,6 +317,7 @@ def score_runtime_stability(
     case: dict[str, Any],
     result: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分runtimestability。"""
     fallback_triggered = bool(result.get("fallback_triggered"))
     elapsed = result.get("elapsed_s", 0)
     max_elapsed = case.get("max_elapsed_s", case.get("max_elapsed_seconds"))
@@ -339,6 +352,7 @@ def score_llm_judge(
     result: dict[str, Any],
     llm_judge_enabled: bool,
 ) -> tuple[dict[str, Any] | None, list[str]]:
+    """用于评分llmjudge。"""
     llm_judge = result.get("scores", {}).get("llm_judge")
     if not isinstance(llm_judge, dict):
         if llm_judge_enabled:
@@ -388,6 +402,7 @@ def score_llm_judge(
     threshold = 3
 
     def dimension(name: str) -> dict[str, Any] | None:
+        """用于处理dimension。"""
         value = scores.get(name)
         if not isinstance(value, dict):
             return None
@@ -449,6 +464,7 @@ def build_failure_details(
     error: str,
     expectations: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """用于构建failuredetails。"""
     failures: list[dict[str, Any]] = []
 
     if status != "ok":
@@ -597,6 +613,7 @@ def analyze_case(
     case_by_id: dict[str, dict[str, Any]],
     llm_judge_enabled: bool = False,
 ) -> dict[str, Any]:
+    """用于分析用例。"""
     case = case_by_id.get(str(result.get("id", "")), {})
     status = str(result.get("status", "unknown"))
     error = str(result.get("error", "")).strip()
@@ -674,6 +691,7 @@ def analyze_case(
 def summarize_failure_taxonomy(
     analyzed_cases: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
+    """用于汇总failuretaxonomy。"""
     taxonomy: dict[str, dict[str, Any]] = {}
     for case in analyzed_cases:
         for failure in case.get("failures", []):
@@ -691,6 +709,7 @@ def analyze(
     cases_payload: list[dict[str, Any]],
     llm_judge_enabled: bool = False,
 ) -> dict[str, Any]:
+    """用于分析当前数据。"""
     case_by_id = {str(case.get("id", "")): case for case in cases_payload}
     results = results_payload.get("results", [])
     analyzed_cases = [
@@ -725,6 +744,7 @@ def summarize_llm_judge(
     analyzed_cases: list[dict[str, Any]],
     llm_judge_enabled: bool,
 ) -> dict[str, Any] | None:
+    """用于汇总llmjudge。"""
     statuses = [
         case.get("expectations", {}).get("llmJudge", {}).get("status")
         for case in analyzed_cases
@@ -741,6 +761,7 @@ def summarize_llm_judge(
 
 
 def percent(numerator: int, denominator: int) -> float:
+    """用于处理percent。"""
     if denominator == 0:
         return 0.0
     return round(numerator / denominator, 3)
@@ -753,6 +774,7 @@ def build_gate(
     passed: bool,
     evidence: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """用于构建gate。"""
     return {
         "name": name,
         "threshold": threshold,
@@ -769,6 +791,7 @@ def build_configured_gate(
     passed: bool,
     evidence: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """用于构建configuredgate。"""
     if name not in thresholds:
         return {
             "name": name,
@@ -786,6 +809,7 @@ def build_gate_summary(
     analyzed_cases: list[dict[str, Any]],
     thresholds: dict[str, Any],
 ) -> dict[str, Any]:
+    """用于构建gatesummary。"""
     total = len(analyzed_cases)
     success_rate = percent(
         sum(1 for case in analyzed_cases if case["status"] == "ok"),
@@ -907,6 +931,7 @@ def build_run_metadata(
     args: argparse.Namespace,
     results_payload: dict[str, Any],
 ) -> dict[str, Any]:
+    """用于构建runmetadata。"""
     results = results_payload.get("results", [])
     case_count = len(results) if isinstance(results, list) else 0
     gate_thresholds = load_gate_thresholds(args)
@@ -937,6 +962,7 @@ def build_run_metadata(
 
 
 def load_gate_thresholds(args: argparse.Namespace) -> dict[str, Any]:
+    """用于加载gatethresholds。"""
     thresholds: dict[str, Any] = {}
     if args.gate_config:
         config_path = Path(args.gate_config)
@@ -954,6 +980,7 @@ def load_gate_thresholds(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_gate_thresholds(items: list[str] | None) -> dict[str, Any]:
+    """用于解析gatethresholds。"""
     thresholds: dict[str, Any] = {}
     for item in items or []:
         key, separator, raw_value = item.partition("=")
@@ -968,6 +995,7 @@ def parse_gate_thresholds(items: list[str] | None) -> dict[str, Any]:
 
 
 def print_summary(analysis: dict[str, Any]) -> None:
+    """用于处理printsummary。"""
     summary = analysis["summary"]
     gate_summary = analysis.get("gateSummary")
     metadata = analysis.get("metadata", {})
@@ -1009,6 +1037,7 @@ def print_summary(analysis: dict[str, Any]) -> None:
 
 
 def format_gate_status(value: Any) -> str:
+    """用于格式化gate状态。"""
     if value is True:
         return "pass"
     if value is False:
@@ -1017,12 +1046,14 @@ def format_gate_status(value: Any) -> str:
 
 
 def format_evidence(values: list[Any]) -> str:
+    """用于格式化证据。"""
     if not values:
         return ""
     return ", ".join(str(value) for value in values)
 
 
 def render_markdown_report(analysis: dict[str, Any]) -> str:
+    """用于渲染markdown报告。"""
     summary = analysis["summary"]
     gate_summary = analysis.get("gateSummary", {})
     metadata = analysis.get("metadata", {})
@@ -1132,6 +1163,7 @@ def render_markdown_report(analysis: dict[str, Any]) -> str:
 
 
 def parse_args() -> argparse.Namespace:
+    """用于解析args。"""
     parser = argparse.ArgumentParser(description="Analyze saved eval results")
     parser.add_argument("--results", required=True, help="eval/run_eval.py output JSON")
     parser.add_argument("--cases", required=True, help="eval/test_cases.json")
@@ -1158,6 +1190,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """用于执行脚本入口流程。"""
     args = parse_args()
     results_payload = load_json(Path(args.results))
     cases_payload = load_json(Path(args.cases))

@@ -1,6 +1,4 @@
-"""
-LangSmith initialization helpers.
-"""
+"""用于初始化和关闭 LangSmith 客户端。"""
 
 from __future__ import annotations
 
@@ -16,6 +14,7 @@ _langsmith_client: Any | None = None
 
 
 def configure_langsmith() -> bool:
+    """用于配置LangSmith。"""
     global _langsmith_client
     if _langsmith_client is not None:
         return True
@@ -60,10 +59,12 @@ def configure_langsmith() -> bool:
 
 
 def get_langsmith_client() -> Any | None:
+    """用于获取LangSmith客户端。"""
     return _langsmith_client
 
 
 def shutdown_langsmith() -> None:
+    """用于关闭LangSmith。"""
     global _langsmith_client
     client = _langsmith_client
     if client is None:

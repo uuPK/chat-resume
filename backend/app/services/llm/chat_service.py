@@ -61,7 +61,9 @@ class ChatService:
         stream: Literal[False] = False,
         tools: Optional[List[Dict[str, Any]]] = None,
         system_prompt: Optional[str] = None,
-    ) -> Dict[str, Any]: ...
+    ) -> Dict[str, Any]:
+        """用于声明非流式聊天完成调用类型。"""
+        ...
 
     @overload
     async def chat_completion(
@@ -72,7 +74,9 @@ class ChatService:
         stream: Literal[True] = True,
         tools: Optional[List[Dict[str, Any]]] = None,
         system_prompt: Optional[str] = None,
-    ) -> AsyncGenerator[str, None]: ...
+    ) -> AsyncGenerator[str, None]:
+        """用于声明流式聊天完成调用类型。"""
+        ...
 
     async def chat_completion(
         self,
@@ -250,6 +254,7 @@ class ChatService:
 
     @staticmethod
     def _extract_sse_data(line: str) -> Optional[str]:
+        """用于提取ssedata。"""
         if not line:
             return None
         if line.startswith("data: "):
@@ -260,6 +265,7 @@ class ChatService:
 
     @staticmethod
     def _coerce_content_text(value: Any) -> Optional[str]:
+        """用于转换content文本。"""
         if isinstance(value, str):
             return value
         if isinstance(value, list):
@@ -329,6 +335,7 @@ class ChatService:
     async def _post_with_retries(
         self, url: str, payload: Dict[str, Any]
     ) -> httpx.Response:
+        """用于处理POST 请求with重试。"""
         last_error: Exception | None = None
 
         for attempt in range(self.max_retries + 1):

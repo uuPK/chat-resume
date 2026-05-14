@@ -1,3 +1,5 @@
+"""用于覆盖 test_eval_analyzer.py 对应的回归测试。"""
+
 import json
 import subprocess
 import sys
@@ -13,6 +15,7 @@ def run_analyzer(
     output_path: Path,
     extra_args: list[str] | None = None,
 ):
+    """用于运行analyzer。"""
     return subprocess.run(
         [
             sys.executable,
@@ -33,6 +36,7 @@ def run_analyzer(
 
 
 def test_analyzer_writes_basic_summary_without_llm_key(tmp_path, monkeypatch):
+    """用于验证analyzerwritesbasicsummarywithoutllmkey。"""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
@@ -121,6 +125,7 @@ def test_analyzer_writes_basic_summary_without_llm_key(tmp_path, monkeypatch):
 
 
 def test_analyzer_writes_default_run_metadata(tmp_path, monkeypatch):
+    """用于验证analyzerwritesdefaultrunmetadata。"""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
@@ -183,6 +188,7 @@ def test_analyzer_writes_default_run_metadata(tmp_path, monkeypatch):
 
 
 def test_analyzer_records_explicit_judge_and_gate_metadata(tmp_path):
+    """用于验证analyzerrecordsexplicitjudgeandgatemetadata。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -251,6 +257,7 @@ def test_analyzer_records_explicit_judge_and_gate_metadata(tmp_path):
 
 
 def test_analyzer_keeps_judge_case_output_disabled_by_default(tmp_path):
+    """用于验证analyzerkeepsjudge用例outputdisabledbydefault。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -285,6 +292,7 @@ def test_analyzer_keeps_judge_case_output_disabled_by_default(tmp_path):
 
 
 def test_analyzer_outputs_enabled_judge_scores_skips_and_errors(tmp_path):
+    """用于验证analyzeroutputsenabledjudgescoresskipsanderrors。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -404,6 +412,7 @@ def test_analyzer_outputs_enabled_judge_scores_skips_and_errors(tmp_path):
 
 
 def test_analyzer_outputs_passing_gate_summary_with_default_thresholds(tmp_path):
+    """用于验证analyzeroutputspassinggatesummarywithdefaultthresholds。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -501,6 +510,7 @@ def test_analyzer_outputs_passing_gate_summary_with_default_thresholds(tmp_path)
 
 
 def test_analyzer_outputs_failing_gate_summary_with_case_evidence(tmp_path):
+    """用于验证analyzeroutputsfailinggatesummarywith用例证据。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -605,6 +615,7 @@ def test_analyzer_outputs_failing_gate_summary_with_case_evidence(tmp_path):
 
 
 def test_analyzer_marks_gates_skipped_when_thresholds_are_missing(tmp_path):
+    """用于验证analyzermarksgatesskippedwhenthresholdsaremissing。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -669,6 +680,7 @@ def test_analyzer_marks_gates_skipped_when_thresholds_are_missing(tmp_path):
 
 
 def test_analyzer_gate_summary_fails_empty_results(tmp_path):
+    """用于验证analyzergatesummaryfailsempty结果。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -698,6 +710,7 @@ def test_analyzer_gate_summary_fails_empty_results(tmp_path):
 
 
 def test_analyzer_loads_gate_thresholds_from_config_file(tmp_path):
+    """用于验证analyzerloadsgatethresholdsfromconfigfile。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -763,6 +776,7 @@ def test_analyzer_loads_gate_thresholds_from_config_file(tmp_path):
 
 
 def test_analyzer_writes_markdown_eval_report_with_failure_details(tmp_path):
+    """用于验证analyzerwritesmarkdown评测报告withfailuredetails。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -846,6 +860,7 @@ def test_analyzer_writes_markdown_eval_report_with_failure_details(tmp_path):
 
 
 def test_analyzer_writes_markdown_report_for_passing_gates_with_residual_risk(tmp_path):
+    """用于验证analyzerwritesmarkdown报告forpassinggateswithresidualrisk。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -902,6 +917,7 @@ def test_analyzer_writes_markdown_report_for_passing_gates_with_residual_risk(tm
 
 
 def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_path):
+    """用于验证analyzerscoreskeywordsforbiddencontentandtoolexpectations。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -984,6 +1000,7 @@ def test_analyzer_scores_keywords_forbidden_content_and_tool_expectations(tmp_pa
 
 
 def test_analyzer_scores_refusal_expectations_with_uncertain_evidence(tmp_path):
+    """用于验证analyzerscoresrefusalexpectationswithuncertain证据。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1072,6 +1089,7 @@ def test_analyzer_scores_refusal_expectations_with_uncertain_evidence(tmp_path):
 
 
 def test_analyzer_fails_expected_no_tool_cases_with_unexpected_tools(tmp_path):
+    """用于验证analyzerfailsexpectednotool用例withunexpectedtools。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1126,6 +1144,7 @@ def test_analyzer_fails_expected_no_tool_cases_with_unexpected_tools(tmp_path):
 
 
 def test_analyzer_deduplicates_tool_calls_for_precision_and_recall(tmp_path):
+    """用于验证analyzerdeduplicatestoolcallsforprecisionandrecall。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1174,6 +1193,7 @@ def test_analyzer_deduplicates_tool_calls_for_precision_and_recall(tmp_path):
 
 
 def test_analyzer_groups_failure_taxonomy_and_case_diagnostics(tmp_path):
+    """用于验证analyzergroupsfailuretaxonomyand用例diagnostics。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1252,6 +1272,7 @@ def test_analyzer_groups_failure_taxonomy_and_case_diagnostics(tmp_path):
 
 
 def test_analyzer_maps_execution_errors_to_failure_taxonomy(tmp_path):
+    """用于验证analyzermapsexecutionerrorstofailuretaxonomy。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1297,6 +1318,7 @@ def test_analyzer_maps_execution_errors_to_failure_taxonomy(tmp_path):
 
 
 def test_analyzer_maps_decision_rule_and_fallback_failures(tmp_path):
+    """用于验证analyzermapsdecisionruleandfallbackfailures。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"
@@ -1387,6 +1409,7 @@ def test_analyzer_maps_decision_rule_and_fallback_failures(tmp_path):
 
 
 def test_analyzer_maps_refusal_and_judge_failures_to_taxonomy(tmp_path):
+    """用于验证analyzermapsrefusalandjudgefailurestotaxonomy。"""
     cases_path = tmp_path / "test_cases.json"
     results_path = tmp_path / "eval_results.json"
     output_path = tmp_path / "eval_analysis.json"

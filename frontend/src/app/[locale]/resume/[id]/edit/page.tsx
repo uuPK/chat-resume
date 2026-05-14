@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 app/[locale]/resume/[id]/edit/page.tsx 模块。
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -34,6 +35,7 @@ import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import { useTranslations } from 'next-intl'
 
+// 用于渲染 ToolActivityRow 组件。
 function ToolActivityRow({
   event,
   live = false,
@@ -167,6 +169,7 @@ export default function ResumeEditPage() {
     resumeId,
     visibleModules: Array.from(layoutConfig.visibleModules),
     performAutoSave,
+    // 用于处理on简历update。
     onResumeUpdate: (content) => applyAgentResumeContent(content as Resume['content']),
     enabled: mounted && isAuthenticated,
   })

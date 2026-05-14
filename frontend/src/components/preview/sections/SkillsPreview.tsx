@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/sections/SkillsPreview.tsx 模块。
 
 import type { Skill } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
@@ -10,12 +11,14 @@ interface SkillsPreviewProps {
   templateStyle?: ResumeTemplateStyle
 }
 
+// 用于渲染 SkillsPreview 组件。
 export default function SkillsPreview({ data, renderLines, templateStyle = 'classic' }: SkillsPreviewProps) {
   const t = useTranslations('resume.layout.modules')
   if (!data || !Array.isArray(data) || data.length === 0) {
     return null
   }
 
+  // 用于处理shouldrender行。
   const shouldRenderLine = (lineIndex: number) => {
     return !renderLines || renderLines.includes(lineIndex)
   }

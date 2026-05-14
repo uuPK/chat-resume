@@ -1,3 +1,5 @@
+"""用于覆盖 test_resume_tool_executor.py 对应的回归测试。"""
+
 import sys
 import unittest
 from pathlib import Path
@@ -11,6 +13,7 @@ from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
 
 class ResumeToolExecutorTests(unittest.TestCase):
     def test_execute_wraps_success_result(self):
+        """用于验证executewrapssuccess结果。"""
         resume = {
             "projects": [{"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}]
         }
@@ -31,6 +34,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(resume["projects"][0]["overview"], "新简介")
 
     def test_execute_returns_structured_hidden_section_error(self):
+        """用于验证executereturnsstructuredhiddensection错误。"""
         executor = ResumeToolExecutor()
 
         result = executor.execute(

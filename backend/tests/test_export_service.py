@@ -138,12 +138,15 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         """用于记录页面导航和导出参数。"""
 
         async def goto(self, url: str, wait_until: str) -> None:
+            """用于处理goto。"""
             captured["goto"] = {"url": url, "wait_until": wait_until}
 
         async def emulate_media(self, media: str) -> None:
+            """用于处理emulatemedia。"""
             captured["media"] = media
 
         async def pdf(self, **kwargs) -> None:
+            """用于处理pdf。"""
             captured["pdf"] = kwargs
             Path(kwargs["path"]).write_bytes(b"%PDF-fake")
 
@@ -151,19 +154,23 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         """用于模拟浏览器实例并暴露页面对象。"""
 
         def __init__(self) -> None:
+            """用于处理init。"""
             self.page = FakePage()
 
         async def new_page(self, **kwargs):
+            """用于处理newpage。"""
             captured["viewport"] = kwargs["viewport"]
             return self.page
 
         async def close(self) -> None:
+            """用于处理close。"""
             captured["closed"] = True
 
     class FakeChromium:
         """用于记录浏览器启动参数。"""
 
         async def launch(self, headless: bool):
+            """用于处理launch。"""
             captured["launch"] = {"headless": headless}
             return FakeBrowser()
 
@@ -176,9 +183,11 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
         """用于模拟 async_playwright 上下文管理器。"""
 
         async def __aenter__(self):
+            """用于处理aenter。"""
             return FakePlaywright()
 
         async def __aexit__(self, exc_type, exc, tb):
+            """用于处理aexit。"""
             return False
 
     monkeypatch.setattr(

@@ -341,11 +341,13 @@ app.include_router(api_router, prefix=settings.API_STR)
 
 @app.get("/")
 async def root():
+    """用于返回 API 根路径响应。"""
     return {"message": "Chat Resume API"}
 
 
 @app.get("/health")
 async def health_check(response: Response):
+    """用于返回服务健康检查结果。"""
     from app.infra.database import SessionLocal
 
     db = SessionLocal()
@@ -371,16 +373,19 @@ async def metrics_endpoint():
 
 @app.get("/api/test")
 async def test_endpoint():
+    """用于返回测试接口响应。"""
     return {"message": "API is working", "cors": "enabled"}
 
 
 @app.on_event("startup")
 async def log_application_ready():
+    """用于处理日志应用就绪状态。"""
     logger.info("app.ready")
 
 
 @app.on_event("shutdown")
 async def shutdown_observability_clients():
+    """用于关闭可观测性客户端。"""
     shutdown_langfuse()
     shutdown_langsmith()
 

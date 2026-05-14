@@ -1,10 +1,4 @@
-"""upgrade legacy interview schema
-
-Revision ID: f2b1c4d5e6f7
-Revises: e1f2a3b4c5d6
-Create Date: 2026-04-13 03:05:00.000000
-
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from alembic import op
 import sqlalchemy as sa
@@ -17,10 +11,12 @@ depends_on = None
 
 
 def _column_names(inspector: sa.Inspector, table_name: str) -> set[str]:
+    """用于处理字段names。"""
     return {col["name"] for col in inspector.get_columns(table_name)}
 
 
 def upgrade() -> None:
+    """用于执行数据库升级迁移。"""
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = set(inspector.get_table_names())
@@ -95,4 +91,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """用于执行数据库回滚迁移。"""
     pass

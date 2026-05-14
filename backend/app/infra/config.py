@@ -275,7 +275,7 @@ class Settings(BaseSettings):
 
 
 def validate_secret_key(config: Settings) -> None:
-    """Fail fast when production would run with the development JWT key."""
+    """用于校验密钥键。"""
     app_env = config.APP_ENV.strip().lower()
     secret_key = config.SECRET_KEY.strip()
     if app_env in _LOCAL_APP_ENVS:

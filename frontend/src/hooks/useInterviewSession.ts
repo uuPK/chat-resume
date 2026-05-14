@@ -5,6 +5,7 @@
  */
 
 'use client'
+// 用于提供 hooks/useInterviewSession.ts 模块。
 
 import { useCallback, useEffect, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
@@ -33,6 +34,7 @@ interface UseInterviewSessionOptions {
 /**
  * 读取求职目标，用于创建实时语音面试上下文。
  */
+// 用于获取jobapplication载荷。
 function getJobApplicationPayload(resume: InterviewResumeSource) {
   const jobApplication = resume.content?.job_application || {}
   return {
@@ -46,6 +48,7 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
  * 统一加载已有 session 或创建新 session。实时语音面试由 digital-human
  * WebSocket 驱动，不再提前生成结构化题目。
  */
+// 用于加载语音面试会话。
 async function loadVoiceInterviewSession(
   resume: InterviewResumeSource,
   defaultMode: 'practice' | 'simulation',
@@ -75,6 +78,7 @@ async function loadVoiceInterviewSession(
 /**
  * 提供统一的实时语音面试状态和操作方法。
  */
+// 用于封装面试会话相关状态和行为。
 export function useInterviewSession({
   resume,
   enabled,

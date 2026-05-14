@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 lib/auth.tsx 模块。
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiFetch, handleApiResponse } from './httpClient'
@@ -44,12 +45,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const USER_STORAGE_KEY = 'auth_user'
 
+// 用于获取认证消息。
 function currentAuthMessages() {
   // Chooses fallback auth copy without tying the auth client to React hooks.
   const locale = document.cookie.includes('NEXT_LOCALE=en') ? 'en' : 'zh'
   return locale === 'en' ? enAuth : zhAuth
 }
 
+// 用于处理认证消息。
 function authMessage(key: 'login' | 'register' | 'getCurrentUser' | 'refresh' | 'logout') {
   // Maps low-level auth failures to localized fallback messages.
   const messages = currentAuthMessages()
@@ -63,6 +66,7 @@ function authMessage(key: 'login' | 'register' | 'getCurrentUser' | 'refresh' | 
   return errors[key]
 }
 
+// 用于读取本地用户用户。
 function readStoredUser(): User | null {
   try {
     const raw = localStorage.getItem(USER_STORAGE_KEY)
@@ -73,6 +77,7 @@ function readStoredUser(): User | null {
   }
 }
 
+// 用于写入本地用户用户。
 function writeStoredUser(user: User | null) {
   if (!user) {
     localStorage.removeItem(USER_STORAGE_KEY)
@@ -83,6 +88,7 @@ function writeStoredUser(user: User | null) {
 
 // 认证相关API调用
 class AuthAPI {
+  // 用于处理登录。
   static async login(email: string, password: string): Promise<LoginResponse> {
     const response = await apiFetch('/api/auth/login', {
       method: 'POST',
@@ -98,6 +104,7 @@ class AuthAPI {
     return handleApiResponse<LoginResponse>(response, authMessage('login'))
   }
 
+  // 用于处理register。
   static async register(data: RegisterRequest): Promise<User> {
     const response = await apiFetch('/api/auth/register', {
       method: 'POST',
@@ -110,11 +117,13 @@ class AuthAPI {
     return handleApiResponse<User>(response, authMessage('register'))
   }
 
+  // 用于获取current用户。
   static async getCurrentUser(): Promise<User> {
     const response = await apiFetch('/api/auth/me')
     return handleApiResponse<User>(response, authMessage('getCurrentUser'))
   }
 
+  // 用于处理refresh。
   static async refresh(): Promise<LoginResponse> {
     const response = await apiFetch('/api/auth/refresh', {
       method: 'POST',
@@ -123,6 +132,7 @@ class AuthAPI {
     return handleApiResponse<LoginResponse>(response, authMessage('refresh'))
   }
 
+  // 用于处理logout。
   static async logout(): Promise<void> {
     const response = await apiFetch('/api/auth/logout', {
       method: 'POST',
@@ -181,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // 用于处理refresh会话。
   const refreshSession = async (): Promise<boolean> => {
     try {
       const response = await AuthAPI.refresh()

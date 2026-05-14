@@ -1,3 +1,5 @@
+"""用于声明models包。"""
+
 from app.state.models import (
     AgentEvent as AgentEvent,
 )

@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/editor/ProjectsEditor.tsx 模块。
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
@@ -16,6 +17,7 @@ interface ProjectsEditorProps {
   onChange: (data: Project[]) => void
 }
 
+// 用于标准化要点。
 function normalizeBullets(project: Project): Bullet[] {
   if (project.highlights && project.highlights.length > 0) {
     return project.highlights
@@ -30,6 +32,7 @@ function fitTextareaToContent(element: HTMLTextAreaElement | null) {
   element.style.height = `${element.scrollHeight + 2}px`
 }
 
+// 用于渲染 ProjectsEditor 组件。
 export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) {
   const [projectsList, setProjectsList] = useState<Project[]>(Array.isArray(data) ? data : [])
   const editorRootRef = useRef<HTMLDivElement>(null)
@@ -52,11 +55,13 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     textareas?.forEach(fitTextareaToContent)
   }, [projectsList])
 
+  // 用于处理commit。
   const commit = (next: Project[]) => {
     setProjectsList(next)
     onChange(next)
   }
 
+  // 用于新增项目。
   const addProject = () => {
     commit([
       ...projectsList,
@@ -74,16 +79,19 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     ])
   }
 
+  // 用于删除项目。
   const removeProject = (id: string) => {
     commit(projectsList.filter(project => project.id !== id))
   }
 
+  // 用于更新项目。
   const updateProject = (id: string, field: keyof Project, value: unknown) => {
     commit(projectsList.map(project => (
       project.id === id ? { ...project, [field]: value } : project
     )))
   }
 
+  // 用于新增bullet。
   const addBullet = (projectId: string) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return
@@ -93,6 +101,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     ])
   }
 
+  // 用于更新bullet。
   const updateBullet = (projectId: string, index: number, value: string) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return
@@ -101,6 +110,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
     updateProject(projectId, 'highlights', next)
   }
 
+  // 用于删除bullet。
   const removeBullet = (projectId: string, index: number) => {
     const project = projectsList.find(item => item.id === projectId)
     if (!project) return

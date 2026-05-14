@@ -1,6 +1,4 @@
-"""
-Langfuse initialization helpers.
-"""
+"""用于初始化和关闭 Langfuse 客户端。"""
 
 from __future__ import annotations
 
@@ -15,6 +13,7 @@ _langfuse_client: Any | None = None
 
 
 def configure_langfuse() -> bool:
+    """用于配置Langfuse。"""
     global _langfuse_client
     if _langfuse_client is not None:
         return True
@@ -53,10 +52,12 @@ def configure_langfuse() -> bool:
 
 
 def get_langfuse_client() -> Any | None:
+    """用于获取Langfuse客户端。"""
     return _langfuse_client
 
 
 def shutdown_langfuse() -> None:
+    """用于关闭Langfuse。"""
     global _langfuse_client
     client = _langfuse_client
     if client is None:

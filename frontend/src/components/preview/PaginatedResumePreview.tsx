@@ -1,4 +1,5 @@
 'use client'
+// 用于提供 components/preview/PaginatedResumePreview.tsx 模块。
 
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLineBasedPagination, measureRenderableLines, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
@@ -40,6 +41,7 @@ interface PaginatedResumePreviewProps {
   smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
 }
 
+// 用于渲染 PaginatedResumePreview 组件。
 export default function PaginatedResumePreview({
   content,
   moduleOrder = DEFAULT_MODULE_CONFIG,
@@ -124,6 +126,7 @@ export default function PaginatedResumePreview({
 
   // 计算合适的缩放比例
   React.useEffect(() => {
+    // 用于计算缩放。
     const calculateScale = () => {
       if (!containerRef.current) return
 
@@ -141,6 +144,7 @@ export default function PaginatedResumePreview({
 
     calculateScale()
 
+    // 用于处理尺寸变化。
     const handleResize = () => calculateScale()
     window.addEventListener('resize', handleResize)
 
@@ -165,6 +169,7 @@ export default function PaginatedResumePreview({
     </section>
   )
 
+  // 用于渲染模块。
   const renderModule = (moduleType: ResumeModule, renderLines?: number[]): JSX.Element | null => {
     const sectionId = SECTION_ID_MAP[moduleType]
 

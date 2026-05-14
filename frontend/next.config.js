@@ -1,3 +1,4 @@
+// 用于配置 Next.js 应用构建和运行参数。
 const createNextIntlPlugin = require('next-intl/plugin')
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')

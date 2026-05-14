@@ -1,3 +1,4 @@
+// 用于提供 app/[locale]/layout.tsx 模块。
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { hasLocale } from 'next-intl'
@@ -29,6 +30,7 @@ export const viewport: Viewport = {
 
 export const dynamicParams = true
 
+// 用于渲染 RootLayout 组件。
 export default function RootLayout({
   children,
   params,
@@ -39,10 +41,12 @@ export default function RootLayout({
   return <LocaleRootLayout params={params}>{children}</LocaleRootLayout>
 }
 
+// 用于生成静态参数。
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
 }
 
+// 用于渲染 LocaleRootLayout 组件。
 async function LocaleRootLayout({
   children,
   params,

@@ -1,9 +1,4 @@
-"""add provider identities
-
-Revision ID: 0f4e3d2c1b0a
-Revises: f1a2b3c4d5e6
-Create Date: 2026-05-10 16:50:00.000000
-"""
+"""用于定义数据库结构迁移脚本。"""
 
 from typing import Sequence, Union
 

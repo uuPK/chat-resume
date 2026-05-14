@@ -21,6 +21,7 @@ export interface PageContent {
   height: number
 }
 
+// 用于测量renderable行。
 export function measureRenderableLines(contentElement: HTMLElement | null): RenderableLine[] {
   if (!contentElement) return []
 
@@ -90,6 +91,7 @@ interface LineBasedPaginationOptions {
   spacingScale?: number
 }
 
+// 用于封装行based分页相关状态和行为。
 export function useLineBasedPagination({
   containerRef,
   contentRef,
@@ -207,6 +209,7 @@ export function useLineBasedPagination({
 
   // 监听窗口大小变化
   useEffect(() => {
+    // 用于处理尺寸变化。
     const handleResize = () => {
       recalculatePagination()
     }

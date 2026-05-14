@@ -1,3 +1,4 @@
+// 用于提供 hooks/useStreamingChat.ts 模块。
 import { useState, useRef } from 'react'
 import { API_BASE_URL, apiUrl } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
@@ -63,6 +64,7 @@ interface StreamingChatOptions {
   agentType?: 'resume'
 }
 
+// 用于标准化差异条目。
 function normalizeDiffItems(value: unknown): DiffItem[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -88,10 +90,12 @@ const TOOL_NAME_ALIASES: Record<string, string> = {
   remove_highlight: 'remove_bullet',
 }
 
+// 用于标准化工具名称。
 function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
 }
 
+// 用于解析工具名称。
 function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
   if (data.tool_name) return normalizeToolName(String(data.tool_name))
@@ -103,6 +107,7 @@ function resolveToolName(data: Record<string, unknown>, fallbackName: string): s
   return fallbackName
 }
 
+// 用于封装流式聊天相关状态和行为。
 export function useStreamingChat(resumeId: number, options: StreamingChatOptions = {}) {
   const t = useTranslations('resume.editor')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -128,6 +133,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     agentType = 'resume'
   } = options
 
+  // 用于处理send流式消息。
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
     // 使用 ref 做立即检查，防止并发调用
     if (isStreamingLockRef.current) {
@@ -182,6 +188,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       let buffer = ''
       let streamingContent = ''
       let eventsBuffer: StreamEvent[] = []
+      // 用于处理complete工具callevent。
       const completeToolCallEvent = (
         callId: string,
         toolName: string,
@@ -407,12 +414,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     }
   }
 
+  // 用于处理stop流式。
   const stopStreaming = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
   }
 
+  // 用于处理confirm工具。
   const confirmTool = async (callId: string, confirmed: boolean) => {
     const sid = sessionIdRef.current
     if (!sid) {

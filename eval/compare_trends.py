@@ -1,4 +1,4 @@
-"""Compare two deterministic eval analysis summaries."""
+"""用于提供 compare_trends.py 评测辅助逻辑。"""
 
 from __future__ import annotations
 
@@ -10,15 +10,18 @@ from typing import Any
 
 
 def load_json(path: Path) -> dict[str, Any]:
+    """用于加载json。"""
     with path.open(encoding="utf-8") as file:
         return json.load(file)
 
 
 def round_metric(value: float) -> float:
+    """用于处理roundmetric。"""
     return round(value, 3)
 
 
 def ratio(numerator: Any, denominator: Any) -> float | None:
+    """用于处理ratio。"""
     denominator_value = int(denominator or 0)
     if denominator_value <= 0:
         return None
@@ -30,6 +33,7 @@ def direction_for_delta(
     *,
     lower_is_better: bool = False,
 ) -> str:
+    """用于处理directionfordelta。"""
     if delta is None or delta == 0:
         return "unchanged"
     improved = delta < 0 if lower_is_better else delta > 0
@@ -42,6 +46,7 @@ def compare_numeric(
     *,
     lower_is_better: bool = False,
 ) -> dict[str, Any]:
+    """用于比较numeric。"""
     if baseline is None or current is None:
         return {
             "baseline": baseline,
@@ -59,6 +64,7 @@ def compare_numeric(
 
 
 def case_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """用于处理用例byid。"""
     return {
         str(case.get("id")): case
         for case in payload.get("cases", [])
@@ -67,6 +73,7 @@ def case_by_id(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def failed_case_ids(payload: dict[str, Any]) -> set[str]:
+    """用于处理failed用例ids。"""
     return {
         case_id
         for case_id, case in case_by_id(payload).items()
@@ -75,6 +82,7 @@ def failed_case_ids(payload: dict[str, Any]) -> set[str]:
 
 
 def average_tool_f1(payload: dict[str, Any]) -> float | None:
+    """用于处理averagetoolf1。"""
     values = []
     for case in case_by_id(payload).values():
         tool_score = case.get("expectations", {}).get("toolCalls")
@@ -86,6 +94,7 @@ def average_tool_f1(payload: dict[str, Any]) -> float | None:
 
 
 def fallback_rate(payload: dict[str, Any]) -> float | None:
+    """用于处理fallbackrate。"""
     cases = list(case_by_id(payload).values())
     if not cases:
         return None
@@ -104,6 +113,7 @@ def fallback_rate(payload: dict[str, Any]) -> float | None:
 
 
 def keyword_improvement(payload: dict[str, Any]) -> float | None:
+    """用于处理keywordimprovement。"""
     summary = payload.get("summary", {})
     if summary.get("keywordImprovement") is not None:
         return round_metric(float(summary["keywordImprovement"]))
@@ -111,6 +121,7 @@ def keyword_improvement(payload: dict[str, Any]) -> float | None:
 
 
 def gate_status(payload: dict[str, Any]) -> str | None:
+    """用于处理gate状态。"""
     summary = payload.get("summary", {})
     value = summary.get("gateStatus")
     if isinstance(value, str):
@@ -125,6 +136,7 @@ def compare_gate_status(
     baseline: dict[str, Any],
     current: dict[str, Any],
 ) -> dict[str, Any]:
+    """用于比较gate状态。"""
     baseline_status = gate_status(baseline)
     current_status = gate_status(current)
     direction = "unchanged"
@@ -146,6 +158,7 @@ def compare_cases(
     baseline: dict[str, Any],
     current: dict[str, Any],
 ) -> dict[str, list[str]]:
+    """用于比较用例。"""
     baseline_failed = failed_case_ids(baseline)
     current_failed = failed_case_ids(current)
     return {
@@ -156,6 +169,7 @@ def compare_cases(
 
 
 def taxonomy_categories(payload: dict[str, Any]) -> set[str]:
+    """用于处理taxonomycategories。"""
     taxonomy = payload.get("summary", {}).get("failureTaxonomy", {})
     if not isinstance(taxonomy, dict):
         return set()
@@ -166,6 +180,7 @@ def compare_taxonomy(
     baseline: dict[str, Any],
     current: dict[str, Any],
 ) -> dict[str, list[str]]:
+    """用于比较taxonomy。"""
     baseline_categories = taxonomy_categories(baseline)
     current_categories = taxonomy_categories(current)
     return {
@@ -180,6 +195,7 @@ def build_comparison(
     current: dict[str, Any],
     args: argparse.Namespace,
 ) -> dict[str, Any]:
+    """用于构建comparison。"""
     baseline_summary = baseline.get("summary", {})
     current_summary = current.get("summary", {})
     metrics = {
@@ -219,34 +235,40 @@ def build_comparison(
 
 
 def format_percent(value: float | None) -> str:
+    """用于格式化percent。"""
     if value is None:
         return "N/A"
     return f"{value * 100:.1f}%"
 
 
 def format_delta_pp(value: float | None) -> str:
+    """用于格式化deltapp。"""
     if value is None:
         return "N/A"
     return f"{value * 100:+.1f}pp"
 
 
 def format_decimal(value: float | None) -> str:
+    """用于格式化decimal。"""
     if value is None:
         return "N/A"
     return f"{value:.3f}"
 
 
 def format_delta_decimal(value: float | None) -> str:
+    """用于格式化deltadecimal。"""
     if value is None:
         return "N/A"
     return f"{value:+.3f}"
 
 
 def format_list(values: list[str]) -> str:
+    """用于格式化list。"""
     return ", ".join(values) if values else "无"
 
 
 def print_summary(comparison: dict[str, Any]) -> None:
+    """用于处理printsummary。"""
     success = comparison["metrics"]["successRate"]
     print(
         "成功率: "
@@ -291,6 +313,7 @@ def print_summary(comparison: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """用于解析args。"""
     parser = argparse.ArgumentParser(description="Compare two eval summaries")
     parser.add_argument("--baseline", required=True, help="Baseline analysis JSON")
     parser.add_argument("--current", required=True, help="Current analysis JSON")
@@ -299,6 +322,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """用于执行脚本入口流程。"""
     args = parse_args()
     comparison = build_comparison(
         load_json(Path(args.baseline)),
