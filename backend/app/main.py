@@ -7,6 +7,8 @@ FastAPI应用的初始化和配置入口点。
 
 import logging
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from time import perf_counter
 from uuid import uuid4
 
@@ -14,11 +16,12 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.entrypoints.http.deps import authenticate_token_with_db
 from app.entrypoints.http.router import api_router
 from app.infra.config import settings
-from app.infra.database import SessionLocal
+from app.infra.database import SessionLocal, get_db
 from app.infra.db_observability import (
     get_request_metrics,
     reset_request_metrics,
@@ -81,6 +84,21 @@ _SENSITIVE_PARAM_NAMES = re.compile(
     r"(authorization|access[_-]?key|api[_-]?key|token|secret|password|cookie)",
     re.IGNORECASE,
 )
+
+
+@contextmanager
+def _auth_db_session() -> Iterator[Session]:
+    """用于让认证中间件复用 FastAPI 依赖覆盖里的数据库会话。"""
+    db_provider = app.dependency_overrides.get(get_db, get_db)
+    db_generator = db_provider()
+    db = next(db_generator)
+    try:
+        yield db
+    finally:
+        try:
+            next(db_generator)
+        except StopIteration:
+            pass
 
 
 def _route_template(request: Request) -> str:
@@ -187,10 +205,10 @@ async def authenticate_protected_api_requests(request: Request, call_next):
     if request.method == "OPTIONS" or not _is_protected_api_path(path):
         return await call_next(request)
 
-    db = SessionLocal()
     try:
         token = _extract_request_token(request)
-        claims, current_user = authenticate_token_with_db(token, db)
+        with _auth_db_session() as db:
+            claims, current_user = authenticate_token_with_db(token, db)
         request.state.current_user_claims = claims
         request.state.current_user = current_user
     except HTTPException as exc:
@@ -199,8 +217,6 @@ async def authenticate_protected_api_requests(request: Request, call_next):
             content={"detail": exc.detail},
             headers=exc.headers,
         )
-    finally:
-        db.close()
 
     return await call_next(request)
 
