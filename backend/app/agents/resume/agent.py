@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
 _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
+    "generate_job_match_summary",
     "query_logs_logql",
     "query_metrics_promql",
 }

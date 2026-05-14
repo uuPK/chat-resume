@@ -675,6 +675,68 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 1)
 
+    async def test_optimize_stream_allows_summary_tool_after_confirmed_change(self):
+        """用于验证确认改动后同一工具批次仍可生成岗位匹配摘要。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_bullet",
+                            call_id="call_stream_change",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "bullet_id": "hl_1",
+                                "text": "维护 Agent 后端服务，支撑高并发 API",
+                                "reason": "补充岗位关键词",
+                            },
+                        ),
+                        fake_tool_call(
+                            name="generate_job_match_summary",
+                            call_id="call_stream_summary",
+                            args={},
+                        ),
+                    ],
+                ),
+                FakeModelResponse(content="不应触发第二次模型回复。"),
+            ]
+        )
+        resume = self._sample_resume()
+        resume["job_application"] = {
+            "jd_text": "要求 Agent、后端、API、高并发、Redis 经验。"
+        }
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化并说明岗位匹配情况",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+        ):
+            events.append(event)
+
+        summary_events = [
+            event
+            for event in events
+            if event.get("event_type") == "tool_result"
+            and isinstance(event.get("result"), dict)
+            and event["result"].get("job_match_summary")
+        ]
+
+        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(len(summary_events), 1)
+        summary = summary_events[0]["result"]["job_match_summary"]
+        self.assertIn("Agent", summary["matched_keywords"])
+        self.assertIn("Redis", summary["missing_keywords"])
+        self.assertEqual(
+            summary["resume_changes"],
+            ["补充岗位关键词：维护 Agent 后端服务，支撑高并发 API"],
+        )
+
     async def test_optimize_stream_reject_keeps_resume_unchanged(self):
         """用于验证optimizestreamrejectkeeps简历unchanged。"""
         agent = self._build_agent(

@@ -357,6 +357,17 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       displayMessage: data.display_message ? String(data.display_message) : undefined,
                     }]
                   }
+                  const jobMatchSummary = normalizeJobMatchSummary(
+                    data.result && typeof data.result === 'object'
+                      ? (data.result as Record<string, unknown>).job_match_summary
+                      : null
+                  )
+                  if (jobMatchSummary) {
+                    eventsBuffer = [...eventsBuffer, {
+                      type: 'job_match_summary',
+                      summary: jobMatchSummary,
+                    }]
+                  }
                   setStreamEvents([...eventsBuffer])
                 }
 

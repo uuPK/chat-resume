@@ -15,6 +15,7 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_highlight": {"section", "item_id", "highlight_id", "text"},
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
+    "generate_job_match_summary": set(),
     "query_logs_logql": {"query"},
     "query_metrics_promql": {"query"},
 }
@@ -37,6 +38,7 @@ TOOL_DISPLAY_NAMES = {
     "update_highlight": "优化要点",
     "add_highlight": "新增要点",
     "remove_highlight": "删除要点",
+    "generate_job_match_summary": "岗位匹配摘要",
     "read_resume": "读取简历",
     "query_logs_logql": "查询日志",
     "query_metrics_promql": "查询指标",
@@ -83,6 +85,10 @@ class ResumeToolExecutor(ToolExecutor):
             )
 
         try:
+            if tool_name == "generate_job_match_summary":
+                tool_input = {
+                    "confirmed_diff_items": context.get("confirmed_diff_items", [])
+                }
             result = execute_resume_tool(
                 tool_name=tool_name,
                 resume_content=resume_content,

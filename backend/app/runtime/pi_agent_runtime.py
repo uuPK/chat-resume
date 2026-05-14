@@ -23,6 +23,7 @@ from pi_agent_core import (
     TextContent,
     ToolCall,
     ToolExecutionStartEvent,
+    TurnEndEvent,
     UserMessage,
     agent_loop,
 )
@@ -207,7 +208,9 @@ class PiAgentRuntime:
                     run_id=run_id,
                     state=state,
                 )
-                if state.get("stop_after_confirmed_tool"):
+                if state.get("stop_after_confirmed_tool") and isinstance(
+                    event, TurnEndEvent
+                ):
                     self._trace(
                         "agent.trace.run.stopped_after_confirmation",
                         run_id=run_id,
@@ -259,6 +262,7 @@ class PiAgentRuntime:
             ),
             tools=tools,
         )
+        context["confirmed_diff_items"] = stream_state["confirmed_diff_items"]
         prompts: list[Message] = [UserMessage(content=[TextContent(text=user_message)])]
         config = AgentLoopConfig(
             model=self._build_model(),
@@ -613,6 +617,8 @@ class PiAgentRuntime:
                 raise
             set_span_attribute(span, "tool.confirmation_required", needs_confirmation)
         result = tool_result.get("result", {})
+        if needs_confirmation:
+            self._remember_confirmed_diff_items(stream_state, result)
         display_message = tool_result.get("display_message")
         self._trace_tool_executed(
             agent,
@@ -907,6 +913,7 @@ class PiAgentRuntime:
             "response_parts": [],
             "last_assistant_text": "",
             "stop_after_confirmed_tool": False,
+            "confirmed_diff_items": [],
         }
 
     def _llm_request_event(
@@ -1189,6 +1196,21 @@ class PiAgentRuntime:
             "result": result.get("diff_summary") if isinstance(result, dict) else tool_result.get("display_message"),
             "success": result.get("success") if isinstance(result, dict) else None,
         }
+
+    @staticmethod
+    def _remember_confirmed_diff_items(
+        stream_state: dict[str, Any],
+        result: Any,
+    ) -> None:
+        """用于把已确认工具产生的 diff 提供给后续只读摘要工具。"""
+        if not isinstance(result, dict) or result.get("success") is False:
+            return
+        diff_items = result.get("diff_items")
+        if not isinstance(diff_items, list):
+            return
+        confirmed = stream_state.get("confirmed_diff_items")
+        if isinstance(confirmed, list):
+            confirmed.extend(item for item in diff_items if isinstance(item, dict))
 
     @staticmethod
     def _is_tool_failure(tool_result: dict[str, Any]) -> bool:

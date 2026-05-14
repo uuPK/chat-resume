@@ -9,6 +9,7 @@ from typing import Any
 from app.tools.observability import query_logs_logql, query_metrics_promql
 
 from .add_highlight_tool import add_bullet, add_highlight
+from .job_match_summary_tool import generate_job_match_summary
 from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_bullet, remove_highlight
 from .update_highlight_tool import update_bullet, update_highlight
@@ -121,6 +122,21 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_job_match_summary",
+            "description": (
+                "生成岗位匹配摘要，只读。适合在用户询问 JD 匹配、关键词命中、"
+                "缺失关键词、需要补充哪些事实，或完成一处确认改动后展示证据链时调用。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
             },
         },
     },
@@ -252,6 +268,11 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "remove_bullet",
         remove_bullet,
         _SCHEMA_BY_NAME.get("remove_bullet"),
+    ),
+    ResumeToolDefinition(
+        "generate_job_match_summary",
+        generate_job_match_summary,
+        _SCHEMA_BY_NAME.get("generate_job_match_summary"),
     ),
     ResumeToolDefinition("update_highlight", update_highlight),
     ResumeToolDefinition("add_highlight", add_highlight),
