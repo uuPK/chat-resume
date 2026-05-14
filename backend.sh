@@ -68,28 +68,6 @@ stop_port() {
     fi
 }
 
-filter_terminal_logs() {
-    if [ "${BACKEND_TERMINAL_VERBOSE:-0}" = "1" ]; then
-        cat
-        return
-    fi
-
-    awk '
-        /^\{"timestamp":/ && /"message"[[:space:]]*:[[:space:]]*"app.ready"/ {
-            print "✅ 后端应用已就绪 app.ready"
-            fflush()
-            next
-        }
-        /^\{"timestamp":/ && /"level"[[:space:]]*:[[:space:]]*"INFO"/ {
-            next
-        }
-        {
-            print
-            fflush()
-        }
-    '
-}
-
 # 创建并同步虚拟环境
 echo "📦 使用 uv 同步依赖..."
 uv sync --extra dev
@@ -112,8 +90,8 @@ echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
 echo "日志文件: backend/${BACKEND_LOG_FILE}"
 echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}"
-echo "终端默认隐藏 JSON INFO 日志，但会显示 app.ready；如需完整终端日志，设置 BACKEND_TERMINAL_VERBOSE=1。"
+echo "终端输出与日志文件保持一致。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a "${BACKEND_LOG_FILE}" | filter_terminal_logs
+uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a "${BACKEND_LOG_FILE}"
