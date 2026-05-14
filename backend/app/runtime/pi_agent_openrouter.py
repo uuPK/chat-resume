@@ -9,6 +9,7 @@ import random
 from dataclasses import dataclass
 from time import monotonic
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from pi_agent_core import (
@@ -100,6 +101,36 @@ class OpenRouterHTTPError(Exception):
 
 class OpenRouterCircuitOpenError(Exception):
     """表示 OpenRouter circuit breaker 已打开，当前请求被快速拒绝。"""
+
+
+class OpenRouterFirstEventTimeoutError(TimeoutError):
+    """表示 OpenRouter 已返回响应头但迟迟没有首条 SSE 事件。"""
+
+
+class OpenRouterFirstTokenTimeoutError(TimeoutError):
+    """表示 OpenRouter 已有 SSE 事件但迟迟没有文本或工具增量。"""
+
+
+@dataclass(frozen=True)
+class _ChunkApplication:
+    """用于记录单个 OpenRouter chunk 应用后产生的可观测变化。"""
+
+    text_started: bool
+    text_delta_chars: int = 0
+    tool_names: tuple[str, ...] = ()
+
+
+@dataclass
+class _OpenRouterStreamProgress:
+    """用于跟踪 OpenRouter 单次流式响应的阶段状态。"""
+
+    text_started: bool = False
+    finish_reason: str = "stop"
+    first_sse_seen: bool = False
+    first_delta_seen: bool = False
+    first_text_seen: bool = False
+    first_tool_seen: bool = False
+    text_chars: int = 0
 
 
 @dataclass
@@ -220,11 +251,11 @@ async def _pump_openrouter_stream(
     """用于处理pumpOpenRouter流式。"""
     body = _openrouter_body(model, context, options)
     headers = _openrouter_headers(options)
-    text_started = False
     text_index = 0
     text_buffer: list[str] = []
     tool_buffers: dict[int, dict[str, Any]] = {}
-    finish_reason = "stop"
+    progress = _OpenRouterStreamProgress()
+    started_at = monotonic()
 
     timeout = httpx.Timeout(
         connect=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
@@ -232,37 +263,51 @@ async def _pump_openrouter_stream(
         write=settings.OPENROUTER_WRITE_TIMEOUT_SECONDS,
         pool=settings.OPENROUTER_CONNECT_TIMEOUT_SECONDS,
     )
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream(
-            "POST",
-            f"{settings.OPENROUTER_API_BASE.rstrip('/')}/chat/completions",
-            headers=headers,
-            json=body,
-        ) as response:
-            await _raise_for_openrouter_error(response)
-            queue.put_nowait(StreamStartEvent(partial=partial))
-            async for line in response.aiter_lines():
-                if _cancelled(options):
-                    raise RuntimeError("Request aborted by user")
-                chunk = _decode_sse_line(line)
-                if chunk is None:
-                    continue
-                if chunk == "[DONE]":
-                    break
-                if not isinstance(chunk, dict):
-                    continue
-                text_started = _apply_openrouter_chunk(
-                    chunk=chunk,
+    _log_openrouter_stage(
+        "request_started",
+        started_at=started_at,
+        model=model.id,
+        message_count=len(body.get("messages", [])),
+        tool_count=len(body.get("tools", [])),
+    )
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream(
+                "POST",
+                f"{settings.OPENROUTER_API_BASE.rstrip('/')}/chat/completions",
+                headers=headers,
+                json=body,
+            ) as response:
+                _log_openrouter_stage(
+                    "headers_received",
+                    started_at=started_at,
+                    model=model.id,
+                    status_code=response.status_code,
+                )
+                await _raise_for_openrouter_error(response)
+                await _consume_openrouter_response(
+                    response=response,
+                    model=model,
+                    options=options,
                     partial=partial,
                     queue=queue,
                     tool_buffers=tool_buffers,
                     text_buffer=text_buffer,
-                    text_started=text_started,
+                    progress=progress,
+                    started_at=started_at,
                     text_index=text_index,
                 )
-                finish_reason = _finish_reason(chunk, finish_reason)
+    except Exception as exc:
+        _log_openrouter_stage(
+            "error",
+            started_at=started_at,
+            model=model.id,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        raise
 
-    if text_started:
+    if progress.text_started:
         queue.put_nowait(
             StreamTextEndEvent(
                 content_index=text_index,
@@ -271,8 +316,143 @@ async def _pump_openrouter_stream(
             )
         )
     _emit_tool_calls(tool_buffers, partial, queue)
-    partial.stop_reason = "toolUse" if tool_buffers else _stop_reason(finish_reason)
+    partial.stop_reason = "toolUse" if tool_buffers else _stop_reason(progress.finish_reason)
+    _log_openrouter_stage(
+        "done",
+        started_at=started_at,
+        model=model.id,
+        finish_reason=progress.finish_reason,
+        stop_reason=partial.stop_reason,
+        text_chars=progress.text_chars,
+        tool_call_count=len(tool_buffers),
+    )
     queue.put_nowait(StreamDoneEvent(reason=partial.stop_reason, message=partial))
+
+
+async def _consume_openrouter_response(
+    *,
+    response: httpx.Response,
+    model: Model,
+    options: SimpleStreamOptions,
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+    tool_buffers: dict[int, dict[str, Any]],
+    text_buffer: list[str],
+    progress: _OpenRouterStreamProgress,
+    started_at: float,
+    text_index: int,
+) -> None:
+    """用于消费 OpenRouter SSE 响应并更新本地 stream progress。"""
+    queue.put_nowait(StreamStartEvent(partial=partial))
+    line_iter = response.aiter_lines().__aiter__()
+    while True:
+        if _cancelled(options):
+            raise RuntimeError("Request aborted by user")
+        try:
+            line = await _next_openrouter_line(
+                line_iter=line_iter,
+                first_sse_seen=progress.first_sse_seen,
+                first_delta_seen=progress.first_delta_seen,
+                started_at=started_at,
+            )
+        except StopAsyncIteration:
+            return
+        should_continue = _handle_openrouter_line(
+            line=line,
+            model=model,
+            partial=partial,
+            queue=queue,
+            tool_buffers=tool_buffers,
+            text_buffer=text_buffer,
+            progress=progress,
+            started_at=started_at,
+            text_index=text_index,
+        )
+        if not should_continue:
+            return
+
+
+def _handle_openrouter_line(
+    *,
+    line: str,
+    model: Model,
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+    tool_buffers: dict[int, dict[str, Any]],
+    text_buffer: list[str],
+    progress: _OpenRouterStreamProgress,
+    started_at: float,
+    text_index: int,
+) -> bool:
+    """用于处理单行 OpenRouter SSE，返回是否继续读取。"""
+    chunk = _decode_sse_line(line)
+    if chunk is None:
+        return True
+    _mark_first_sse_if_needed(progress, started_at=started_at, model=model)
+    if chunk == "[DONE]":
+        return False
+    if not isinstance(chunk, dict):
+        return True
+    applied = _apply_openrouter_chunk(
+        chunk=chunk,
+        partial=partial,
+        queue=queue,
+        tool_buffers=tool_buffers,
+        text_buffer=text_buffer,
+        text_started=progress.text_started,
+        text_index=text_index,
+    )
+    _record_chunk_application(
+        applied,
+        progress=progress,
+        started_at=started_at,
+        model=model,
+    )
+    progress.finish_reason = _finish_reason(chunk, progress.finish_reason)
+    return True
+
+
+def _mark_first_sse_if_needed(
+    progress: _OpenRouterStreamProgress,
+    *,
+    started_at: float,
+    model: Model,
+) -> None:
+    """用于记录首条 SSE 行到达时间。"""
+    if progress.first_sse_seen:
+        return
+    progress.first_sse_seen = True
+    _log_openrouter_stage("first_sse_line", started_at=started_at, model=model.id)
+
+
+def _record_chunk_application(
+    applied: _ChunkApplication,
+    *,
+    progress: _OpenRouterStreamProgress,
+    started_at: float,
+    model: Model,
+) -> None:
+    """用于记录 chunk 应用后的首文本和首工具增量。"""
+    progress.text_started = applied.text_started
+    progress.text_chars += applied.text_delta_chars
+    if applied.text_delta_chars and not progress.first_text_seen:
+        progress.first_text_seen = True
+        progress.first_delta_seen = True
+        _log_openrouter_stage(
+            "first_text_delta",
+            started_at=started_at,
+            model=model.id,
+            text_delta_chars=applied.text_delta_chars,
+        )
+    if applied.tool_names and not progress.first_tool_seen:
+        progress.first_tool_seen = True
+        progress.first_delta_seen = True
+        _log_openrouter_stage(
+            "first_tool_delta",
+            started_at=started_at,
+            model=model.id,
+            tool_names=list(applied.tool_names),
+        )
 
 
 def _openrouter_body(
@@ -305,6 +485,129 @@ def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
         "HTTP-Referer": "https://chat-resume.com",
         "X-Title": "Chat Resume AI Assistant",
     }
+
+
+def _openrouter_host() -> str:
+    """用于提取 OpenRouter base URL 的主机名，避免日志记录完整路径。"""
+    parsed = urlparse(settings.OPENROUTER_API_BASE)
+    return parsed.netloc or settings.OPENROUTER_API_BASE
+
+
+def _elapsed_ms(started_at: float) -> float:
+    """用于把 monotonic 起点转换成毫秒耗时。"""
+    return round((monotonic() - started_at) * 1000, 2)
+
+
+def _log_openrouter_stage(stage: str, *, started_at: float, **fields: Any) -> None:
+    """用于记录 OpenRouter 流式请求的阶段性耗时。"""
+    _logger.info(
+        "openrouter.stream.%s",
+        stage,
+        extra={
+            "agent_trace": True,
+            "stage": stage,
+            "elapsed_ms": _elapsed_ms(started_at),
+            "openrouter_host": _openrouter_host(),
+            **fields,
+        },
+    )
+
+
+def _first_event_timeout_seconds() -> float:
+    """用于读取首条 SSE 事件超时配置。"""
+    return max(float(settings.OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS), 0.001)
+
+
+def _first_token_timeout_seconds() -> float:
+    """用于读取首个模型文本或工具增量超时配置。"""
+    return max(float(settings.OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS), 0.001)
+
+
+def _remaining_timeout_seconds(*, started_at: float, timeout_seconds: float) -> float:
+    """用于计算从请求开始计时的剩余超时时间。"""
+    remaining = timeout_seconds - (monotonic() - started_at)
+    return max(remaining, 0.001)
+
+
+async def _next_openrouter_line(
+    *,
+    line_iter: Any,
+    first_sse_seen: bool,
+    first_delta_seen: bool,
+    started_at: float,
+) -> str:
+    """用于读取下一行 SSE，并对首事件和首增量设置明确超时。"""
+    timeout_seconds = _line_wait_timeout_seconds(
+        started_at=started_at,
+        first_sse_seen=first_sse_seen,
+        first_delta_seen=first_delta_seen,
+    )
+    try:
+        line = await asyncio.wait_for(line_iter.__anext__(), timeout=timeout_seconds)
+    except asyncio.TimeoutError as exc:
+        _raise_openrouter_stream_timeout(
+            first_sse_seen=first_sse_seen,
+            first_delta_seen=first_delta_seen,
+            started_at=started_at,
+        )
+        raise exc
+    return str(line)
+
+
+def _line_wait_timeout_seconds(
+    *,
+    started_at: float,
+    first_sse_seen: bool,
+    first_delta_seen: bool,
+) -> float | None:
+    """用于给下一次 SSE 读取选择当前阶段的超时。"""
+    if not first_sse_seen:
+        return _remaining_timeout_seconds(
+            started_at=started_at,
+            timeout_seconds=_first_event_timeout_seconds(),
+        )
+    if not first_delta_seen:
+        return _remaining_timeout_seconds(
+            started_at=started_at,
+            timeout_seconds=_first_token_timeout_seconds(),
+        )
+    return None
+
+
+def _raise_openrouter_stream_timeout(
+    *,
+    first_sse_seen: bool,
+    first_delta_seen: bool,
+    started_at: float,
+) -> None:
+    """用于将阶段性超时转换成可读异常并写入日志。"""
+    elapsed_ms = _elapsed_ms(started_at)
+    if not first_sse_seen:
+        timeout = _first_event_timeout_seconds()
+        _logger.warning(
+            "openrouter.stream.first_event_timeout",
+            extra={
+                "agent_trace": True,
+                "elapsed_ms": elapsed_ms,
+                "timeout_seconds": timeout,
+            },
+        )
+        raise OpenRouterFirstEventTimeoutError(
+            f"OpenRouter first SSE event timed out after {timeout:.1f}s"
+        )
+    if not first_delta_seen:
+        timeout = _first_token_timeout_seconds()
+        _logger.warning(
+            "openrouter.stream.first_token_timeout",
+            extra={
+                "agent_trace": True,
+                "elapsed_ms": elapsed_ms,
+                "timeout_seconds": timeout,
+            },
+        )
+        raise OpenRouterFirstTokenTimeoutError(
+            f"OpenRouter first token timed out after {timeout:.1f}s"
+        )
 
 
 def _openai_messages(context: AgentContext) -> list[dict[str, Any]]:
@@ -428,13 +731,14 @@ def _apply_openrouter_chunk(
     text_buffer: list[str],
     text_started: bool,
     text_index: int,
-) -> bool:
+) -> _ChunkApplication:
     """用于应用OpenRouterchunk。"""
     choice = _first_choice(chunk)
     if not choice:
         _apply_usage(chunk, partial)
-        return text_started
+        return _ChunkApplication(text_started=text_started)
     delta = choice.get("delta") or {}
+    text_delta_chars = _text_delta_chars(delta)
     text_started = _apply_text_delta(
         delta=delta,
         partial=partial,
@@ -443,9 +747,13 @@ def _apply_openrouter_chunk(
         text_started=text_started,
         text_index=text_index,
     )
-    _apply_tool_delta(delta, tool_buffers)
+    tool_names = _apply_tool_delta(delta, tool_buffers)
     _apply_usage(chunk, partial)
-    return text_started
+    return _ChunkApplication(
+        text_started=text_started,
+        text_delta_chars=text_delta_chars,
+        tool_names=tuple(tool_names),
+    )
 
 
 def _first_choice(chunk: dict[str, Any]) -> dict[str, Any] | None:
@@ -488,14 +796,21 @@ def _apply_text_delta(
     return text_started
 
 
+def _text_delta_chars(delta: dict[str, Any]) -> int:
+    """用于计算文本增量字符数。"""
+    content = delta.get("content")
+    return len(content) if isinstance(content, str) else 0
+
+
 def _apply_tool_delta(
     delta: dict[str, Any],
     tool_buffers: dict[int, dict[str, Any]],
-) -> None:
+) -> list[str]:
     """用于应用工具增量。"""
     tool_calls = delta.get("tool_calls")
     if not isinstance(tool_calls, list):
-        return
+        return []
+    tool_names: list[str] = []
     for raw_call in tool_calls:
         if not isinstance(raw_call, dict):
             continue
@@ -508,8 +823,11 @@ def _apply_tool_delta(
             continue
         if isinstance(function.get("name"), str):
             buffer["name"] += function["name"]
+            if buffer["name"]:
+                tool_names.append(str(buffer["name"]))
         if isinstance(function.get("arguments"), str):
             buffer["args"] += function["arguments"]
+    return tool_names
 
 
 def _emit_tool_calls(

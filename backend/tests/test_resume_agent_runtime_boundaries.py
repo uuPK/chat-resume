@@ -9,13 +9,20 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from pi_agent_core import AssistantMessage, TextContent, ToolResultMessage, UserMessage
+from pi_agent_core import (
+    AssistantMessage,
+    TextContent,
+    ToolExecutionStartEvent,
+    ToolResultMessage,
+    UserMessage,
+)
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.runtime import pi_agent_runtime  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
 from app.runtime.resume_agent_session import (  # noqa: E402
@@ -93,6 +100,31 @@ def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
     assert event["first_token_latency_ms"] == 12.5
     assert event["confirmation_wait_ms"] == 30.0
     assert event["usage"]["total_tokens"] == 15
+
+
+def test_unexpected_tool_call_is_logged_once_for_read_only_profile(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """用于验证 read_only 未暴露工具时不会重复刷工具调用日志。"""
+    agent = ResumeAgent()
+    state = agent.runtime._new_stream_state()
+    state["tool_profile"] = "read_only"
+    state["tool_names"] = []
+    event = ToolExecutionStartEvent(
+        tool_call_id="call_1",
+        tool_name="update_bullet",
+        args={},
+    )
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
+        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages.count("agent.trace.reasoning.unexpected_tool_call") == 1
+    assert "agent.trace.reasoning.tool_call_detected" not in messages
 
 
 def test_convert_resume_messages_filters_internal_only_messages():

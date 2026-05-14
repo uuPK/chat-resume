@@ -702,7 +702,7 @@ class PiAgentRuntime:
             return
         if isinstance(event, ToolExecutionStartEvent):
             state["tool_call_count"] += 1
-            self._trace_tool_call_detected(agent, run_id, event)
+            self._trace_tool_call_detected(agent, run_id, event, state)
             return
         if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
             state["last_assistant_text"] = self._assistant_text(event.message)
@@ -918,6 +918,7 @@ class PiAgentRuntime:
             "confirmed_diff_items": [],
             "tool_profile": "",
             "tool_names": [],
+            "unexpected_tool_call_names": set(),
             "prompt_chars": 0,
             "tool_call_count": 0,
             "first_token_latency_ms": None,
@@ -1178,8 +1179,17 @@ class PiAgentRuntime:
         agent: AgentDefinition,
         run_id: str,
         event: ToolExecutionStartEvent,
+        state: dict[str, Any],
     ) -> None:
         """用于处理追踪工具调用detected。"""
+        allowed_tool_names = {
+            str(tool_name)
+            for tool_name in state.get("tool_names", [])
+            if isinstance(tool_name, str)
+        }
+        if event.tool_name not in allowed_tool_names:
+            self._trace_unexpected_tool_call(agent, run_id, event, state)
+            return
         self._trace(
             "agent.trace.reasoning.tool_call_detected",
             run_id=run_id,
@@ -1187,6 +1197,31 @@ class PiAgentRuntime:
             tool_call_count=1,
             tool_call_chunk_count=1,
             tool_names=[event.tool_name],
+        )
+
+    def _trace_unexpected_tool_call(
+        self,
+        agent: AgentDefinition,
+        run_id: str,
+        event: ToolExecutionStartEvent,
+        state: dict[str, Any],
+    ) -> None:
+        """用于记录模型请求未暴露工具时出现的异常工具调用。"""
+        logged = state.get("unexpected_tool_call_names")
+        if not isinstance(logged, set):
+            logged = set()
+            state["unexpected_tool_call_names"] = logged
+        if event.tool_name in logged:
+            return
+        logged.add(event.tool_name)
+        self._trace(
+            "agent.trace.reasoning.unexpected_tool_call",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            tool_name=event.tool_name,
+            tool_profile=str(state.get("tool_profile") or ""),
+            allowed_tool_names=list(state.get("tool_names", [])),
+            reason="tool_not_exposed",
         )
 
     @staticmethod

@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from pi_agent_core import AgentContext, AssistantMessage, Model, SimpleStreamOptions
 
+from app.runtime import pi_agent_openrouter as openrouter
 from app.runtime.pi_agent_openrouter import (
     OpenRouterCircuitOpenError,
+    OpenRouterFirstEventTimeoutError,
+    OpenRouterFirstTokenTimeoutError,
     OpenRouterHTTPError,
     _is_retryable_status,
+    _pump_openrouter_stream,
     _pump_with_retry,
     _retry_wait,
     _reset_openrouter_circuit_breaker,
@@ -67,6 +75,174 @@ def _make_args():
     partial = MagicMock()
     queue: asyncio.Queue = asyncio.Queue()
     return model, context, options, partial, queue
+
+
+class _FakeOpenRouterResponse:
+    """用于模拟 httpx stream response。"""
+
+    status_code = 200
+    headers: dict[str, str] = {}
+
+    def __init__(self, lines: list[str], *, delay_seconds: float = 0.0) -> None:
+        """初始化响应行和每行前的延迟。"""
+        self._lines = lines
+        self._delay_seconds = delay_seconds
+
+    async def __aenter__(self) -> "_FakeOpenRouterResponse":
+        """进入异步响应上下文。"""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """退出异步响应上下文。"""
+
+    async def aread(self) -> bytes:
+        """返回错误响应体。"""
+        return b""
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        """逐行返回 SSE 内容。"""
+        for line in self._lines:
+            if self._delay_seconds:
+                await asyncio.sleep(self._delay_seconds)
+            yield line
+
+
+class _FakeOpenRouterClient:
+    """用于模拟 httpx.AsyncClient。"""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """接收并忽略 httpx.AsyncClient 参数。"""
+
+    async def __aenter__(self) -> "_FakeOpenRouterClient":
+        """进入异步 client 上下文。"""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """退出异步 client 上下文。"""
+
+    def stream(self, *args: object, **kwargs: object) -> _FakeOpenRouterResponse:
+        """返回可配置的假流式响应。"""
+        return _FakeOpenRouterResponse(self.lines, delay_seconds=self.delay_seconds)
+
+    lines: list[str] = []
+    delay_seconds = 0.0
+
+
+def _make_openrouter_stream_args() -> tuple[
+    Model,
+    AgentContext,
+    SimpleStreamOptions,
+    AssistantMessage,
+    asyncio.Queue,
+]:
+    """构造调用 _pump_openrouter_stream 所需的最小参数。"""
+    model = Model(api="openai-compatible", provider="openrouter", id="test/model")
+    context = AgentContext(system_prompt="system", messages=[], tools=[])
+    options = SimpleStreamOptions(api_key="test-key", temperature=0.1, max_tokens=8)
+    partial = AssistantMessage(api=model.api, provider=model.provider, model=model.id)
+    queue: asyncio.Queue = asyncio.Queue()
+    return model, context, options, partial, queue
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_logs_latency_stages(caplog: pytest.LogCaptureFixture):
+    """OpenRouter 流式请求应记录关键阶段，便于定位慢在哪一段。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{"content":"你好"}}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "openrouter.stream.request_started" in messages
+    assert "openrouter.stream.headers_received" in messages
+    assert "openrouter.stream.first_sse_line" in messages
+    assert "openrouter.stream.first_text_delta" in messages
+    assert "openrouter.stream.done" in messages
+    done_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.done"
+    )
+    assert getattr(done_record, "text_chars") == 2
+    assert getattr(done_record, "tool_call_count") == 0
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_logs_first_tool_delta(
+    caplog: pytest.LogCaptureFixture,
+):
+    """工具流式增量应单独记录首个 tool delta。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet",'
+            '"arguments":"{}"}}]}}]}'
+        ),
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    tool_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.first_tool_delta"
+    )
+    assert getattr(tool_record, "tool_names") == ["update_bullet"]
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_times_out_before_first_event(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """响应头后迟迟没有 SSE 时应快速失败，而不是等完整 read timeout。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = ["data: [DONE]"]
+    _FakeOpenRouterClient.delay_seconds = 0.05
+    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 0.01)
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        with pytest.raises(OpenRouterFirstEventTimeoutError):
+            await _pump_openrouter_stream(model, context, options, partial, queue)
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_times_out_before_first_token(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """首条 SSE 之后迟迟没有文本或工具增量时应快速失败。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{}}]}',
+        'data: {"choices":[{"delta":{"content":"晚了"}}]}',
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.05
+    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_EVENT_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(openrouter.settings, "OPENROUTER_FIRST_TOKEN_TIMEOUT_SECONDS", 0.01)
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        with pytest.raises(OpenRouterFirstTokenTimeoutError):
+            await _pump_openrouter_stream(model, context, options, partial, queue)
 
 
 @pytest.mark.asyncio
