@@ -4,19 +4,6 @@
 ## 本地日志
 - 当你需要程序的报错信息和性能信息时，请阅读 `backend/logs/backend.log`。
 
-## Agent skills
-
-### Issue tracker
-
-Issues 通过 `849261680/chat-resume` 的 GitHub Issues 跟踪。详见 `docs/agents/issue-tracker.md`。
-
-### Triage labels
-
-本仓库使用默认的五类分诊标签词汇。详见 `docs/agents/triage-labels.md`。
-
-### Domain docs
-
-本仓库使用 single-context 领域文档布局。详见 `docs/agents/domain.md`。
 
 # 开发规则
 
