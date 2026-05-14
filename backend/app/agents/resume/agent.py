@@ -25,6 +25,18 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
     "query_logs_logql",
     "query_metrics_promql",
 }
+_TOOL_PROFILES: dict[str, set[str]] = {
+    "read_only": set(),
+    "job_match": {"generate_job_match_summary"},
+    "observability": {"query_logs_logql", "query_metrics_promql"},
+    "resume_edit": {
+        "update_overview",
+        "update_bullet",
+        "add_bullet",
+        "remove_bullet",
+        "generate_job_match_summary",
+    },
+}
 _LOG_VALUE_LIMIT = 64
 _SECTION_ALIASES = {
     "work": "work_experience",
@@ -112,6 +124,8 @@ class ResumeAgent:
             prompt_context_builder=build_resume_prompt_context,
             max_iterations=6,
             auto_execute_tool_names=_AUTO_EXECUTE_TOOL_NAMES,
+            default_tool_profile="resume_edit",
+            tool_profiles=_TOOL_PROFILES,
         )
 
     async def optimize(
@@ -130,6 +144,7 @@ class ResumeAgent:
                 "resume_content": resume_content,
                 "allowed_sections": allowed_sections,
                 "user_id": user_id,
+                "tool_profile": self._select_tool_profile(user_message),
             },
             conversation_history=conversation_history,
         )
@@ -155,6 +170,7 @@ class ResumeAgent:
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,
             "user_id": user_id,
+            "tool_profile": self._select_tool_profile(user_message),
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,
@@ -179,6 +195,29 @@ class ResumeAgent:
     def _build_prompt_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """用于生成提示词渲染所需的简历上下文字段。"""
         return build_resume_prompt_context(context)
+
+    @staticmethod
+    def _select_tool_profile(user_message: str) -> str:
+        """用于按用户意图选择最小必要工具集。"""
+        text = user_message.lower()
+        if any(key in text for key in ("logql", "promql", "日志", "指标", "trace", "报错")):
+            return "observability"
+        edit_terms = (
+            "优化",
+            "润色",
+            "修改",
+            "改",
+            "新增",
+            "删除",
+            "补充",
+            "增强",
+            "改写",
+        )
+        if any(key in text for key in edit_terms):
+            return "resume_edit"
+        if any(key in text for key in ("jd", "岗位匹配", "匹配度", "关键词", "缺失关键词")):
+            return "job_match"
+        return "read_only"
 
     def _prepare_tool_args(
         self,

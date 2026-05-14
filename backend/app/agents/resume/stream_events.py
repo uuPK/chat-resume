@@ -172,6 +172,7 @@ def normalize_resume_stream_payload(
         "response_content",
         "session_id",
         "error",
+        "tool_profile",
     ):
         value = _string_or_none(event.get(key))
         if value is not None:
@@ -207,6 +208,17 @@ def normalize_resume_stream_payload(
     tool_call_count = _int_or_none(event.get("tool_call_count"))
     if tool_call_count is not None:
         payload["tool_call_count"] = tool_call_count
+    for key in ("tool_count", "message_count", "prompt_chars"):
+        value = _int_or_none(event.get(key))
+        if value is not None:
+            payload[key] = value
+    for key in ("first_token_latency_ms", "confirmation_wait_ms"):
+        value = _float_or_none(event.get(key))
+        if value is not None:
+            payload[key] = value
+    usage = _dict_or_none(event.get("usage"))
+    if usage is not None:
+        payload["usage"] = usage
     if "result" in event:
         payload["result"] = event.get("result")
     display_message = event.get("display_message")
@@ -256,6 +268,8 @@ def llm_request_event(
     messages: list[dict[str, Any]],
     params: dict[str, Any],
     tool_names: list[str | None],
+    tool_profile: str,
+    prompt_chars: int,
 ) -> ResumeStreamEvent:
     """用于处理模型请求事件。"""
     return {
@@ -267,6 +281,10 @@ def llm_request_event(
         "messages": messages,
         "params": params,
         "tool_names": tool_names,
+        "tool_profile": tool_profile,
+        "tool_count": len(tool_names),
+        "message_count": len(messages),
+        "prompt_chars": prompt_chars,
         "done": False,
     }
 
@@ -278,6 +296,9 @@ def llm_response_event(
     response_content: str,
     tool_call_count: int,
     latency_ms: float,
+    first_token_latency_ms: float | None,
+    usage: dict[str, Any] | None,
+    confirmation_wait_ms: float,
 ) -> ResumeStreamEvent:
     """用于处理模型响应事件。"""
     return {
@@ -289,6 +310,9 @@ def llm_response_event(
         "response_content": response_content,
         "tool_call_count": tool_call_count,
         "latency_ms": latency_ms,
+        "first_token_latency_ms": first_token_latency_ms,
+        "usage": usage or {},
+        "confirmation_wait_ms": confirmation_wait_ms,
         "done": False,
     }
 

@@ -73,8 +73,15 @@ class ResumeStreamEvent(TypedDict, total=False):
     messages: list[dict[str, Any]]
     params: dict[str, Any]
     tool_names: list[str | None]
+    tool_profile: str
+    tool_count: int
+    message_count: int
+    prompt_chars: int
     response_content: str
     latency_ms: float
+    first_token_latency_ms: float | None
+    confirmation_wait_ms: float
+    usage: dict[str, Any]
     tool_call_count: int
     context: dict[str, Any] | None
     done: bool

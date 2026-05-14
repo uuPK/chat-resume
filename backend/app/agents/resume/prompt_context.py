@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from app.schemas.resume import dump_resume_content_for_frontend
+from app.runtime.resume_agent_session import maybe_compact_resume_context
 
 
 def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
@@ -28,12 +29,17 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(resume_content, dict)
         else {}
     )
+    prompt_resume = maybe_compact_resume_context(
+        resume_content=resume_content,
+        confirmed_diff_items=context.get("confirmed_diff_items"),
+        conversation_history=context.get("conversation_history"),
+    )
     return {
         "target_title": str(job_application.get("target_title", "") or ""),
         "target_company": str(job_application.get("target_company", "") or ""),
         "jd_text": str(job_application.get("jd_text", "") or ""),
         "resume_json": json.dumps(
-            strip_redundant_fields(resume_content),
+            prompt_resume,
             ensure_ascii=False,
             indent=2,
         ),

@@ -19,7 +19,6 @@ from pi_agent_core import (
     AssistantMessage,
     MessageEndEvent,
     MessageUpdateEvent,
-    Model,
     TextContent,
     ToolCall,
     ToolExecutionStartEvent,
@@ -44,9 +43,13 @@ from app.agents.resume.stream_events import (
 from app.infra.config import settings
 from app.infra.otel_setup import record_exception, set_span_attribute, start_span
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
+from app.runtime.message_conversion import convert_resume_messages_to_llm
+from app.runtime.openrouter_adapter import (
+    build_openrouter_loop_config,
+    openrouter_chat_model_name,
+)
 from app.runtime.tool_confirmation import (
-    requires_tool_confirmation,
-    wait_for_tool_confirmation,
+    ToolConfirmationPolicy,
 )
 from app.runtime.runtime_event_adapter import (
     emit_runtime_event,
@@ -63,9 +66,14 @@ _SENTINEL = object()
 class PiAgentRuntime:
     """Runtime adapter that uses pi-agent-core as the execution loop."""
 
-    def __init__(self, stream_fn: StreamFn | None = None):
+    def __init__(
+        self,
+        stream_fn: StreamFn | None = None,
+        confirmation_policy: ToolConfirmationPolicy | None = None,
+    ):
         """用于初始化当前对象。"""
         self.stream_fn = stream_fn or stream_openrouter
+        self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
 
     async def run(
         self,
@@ -97,7 +105,7 @@ class PiAgentRuntime:
             event_callback,
             self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
         )
-        request_event = self._llm_request_event(agent, pi_context, prompts)
+        request_event = self._llm_request_event(agent, pi_context, prompts, state)
         self._trace_llm_request(agent, run_id, request_event)
         self._emit_event(event_callback, request_event)
         async for event in agent_loop(
@@ -153,7 +161,7 @@ class PiAgentRuntime:
             pi_context.system_prompt,
             user_message,
         )
-        request_event = self._llm_request_event(agent, pi_context, prompts)
+        request_event = self._llm_request_event(agent, pi_context, prompts, state)
         self._trace_llm_request(agent, run_id, request_event)
         self._emit_event(event_callback, prompt_event)
         self._emit_event(event_callback, request_event)
@@ -242,10 +250,16 @@ class PiAgentRuntime:
         stream_state: dict[str, Any],
     ) -> tuple[AgentContext, list[Message], AgentLoopConfig]:
         """用于构建循环输入。"""
+        context["conversation_history"] = conversation_history or []
+        context["confirmed_diff_items"] = stream_state["confirmed_diff_items"]
+        tool_profile = self._tool_profile(agent, context)
+        context["tool_profile"] = tool_profile
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
+        tools_schema = self._profiled_tool_schemas(agent, tool_profile)
         tools = self._build_tools(
             agent=agent,
+            tools_schema=tools_schema,
             context=context,
             confirmation_queue=confirmation_queue,
             event_queue=event_queue,
@@ -262,15 +276,13 @@ class PiAgentRuntime:
             ),
             tools=tools,
         )
-        context["confirmed_diff_items"] = stream_state["confirmed_diff_items"]
+        stream_state["tool_profile"] = tool_profile
+        stream_state["tool_names"] = self._tool_names_from_schemas(tools_schema)
+        stream_state["prompt_chars"] = len(system_prompt)
         prompts: list[Message] = [UserMessage(content=[TextContent(text=user_message)])]
-        config = AgentLoopConfig(
-            model=self._build_model(),
-            reasoning=None,
-            api_key=settings.OPENROUTER_API_KEY,
-            temperature=agent.prompt_spec.model_defaults.get("temperature", 0.3),
-            max_tokens=agent.prompt_spec.model_defaults.get("max_tokens", 1500),
-            convert_to_llm=lambda messages: messages,
+        config = build_openrouter_loop_config(
+            agent,
+            convert_to_llm=convert_resume_messages_to_llm,
         )
         return pi_context, prompts, config
 
@@ -278,6 +290,7 @@ class PiAgentRuntime:
         self,
         *,
         agent: AgentDefinition,
+        tools_schema: list[dict[str, Any]],
         context: dict[str, Any],
         confirmation_queue: asyncio.Queue | None,
         event_queue: asyncio.Queue[Any] | None,
@@ -289,7 +302,7 @@ class PiAgentRuntime:
         """用于构建工具列表。"""
         tools: list[AgentTool] = []
         lock = asyncio.Lock()
-        for schema in agent.tools_schema:
+        for schema in tools_schema:
             function = schema.get("function", {})
             tool_name = function.get("name")
             if not isinstance(tool_name, str) or not tool_name:
@@ -451,11 +464,12 @@ class PiAgentRuntime:
     ) -> str:
         """用于处理执行工具。"""
         tool_started_at = perf_counter()
-        needs_confirmation = requires_tool_confirmation(
+        confirmation_decision = self.confirmation_policy.before_tool_call(
             confirmation_queue=confirmation_queue,
             tool_name=tool_name,
             auto_execute_tool_names=agent.auto_execute_tool_names,
         )
+        needs_confirmation = confirmation_decision.requires_confirmation
         tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
         await self._publish_visible_tool_call(
             call_id=call_id,
@@ -547,7 +561,13 @@ class PiAgentRuntime:
                 tool_calls=executed_tools,
             ),
         )
-        confirmed = await wait_for_tool_confirmation(confirmation_queue)
+        wait_started_at = perf_counter()
+        confirmed = await self.confirmation_policy.wait_for_decision(confirmation_queue)
+        confirmation_wait_ms = round((perf_counter() - wait_started_at) * 1000, 2)
+        stream_state["confirmation_wait_ms"] += confirmation_wait_ms
+        confirmation_result = self.confirmation_policy.after_tool_decision(
+            confirmed=confirmed,
+        )
         self._trace_tool_confirmation(
             agent,
             run_id,
@@ -555,6 +575,8 @@ class PiAgentRuntime:
             tool_name,
             preview_result["tool_name"],
             confirmed,
+            confirmation_wait_ms,
+            confirmation_result.terminate_turn,
         )
         if confirmed:
             return preview_result
@@ -573,7 +595,7 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             tool_started_at=tool_started_at,
         )
-        stream_state["stop_after_confirmed_tool"] = True
+        stream_state["stop_after_confirmed_tool"] = confirmation_result.terminate_turn
         await self._publish_terminal_text(
             agent=agent,
             run_id=run_id,
@@ -694,10 +716,12 @@ class PiAgentRuntime:
             )
             return
         if isinstance(event, ToolExecutionStartEvent):
+            state["tool_call_count"] += 1
             self._trace_tool_call_detected(agent, run_id, event)
             return
         if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
             state["last_assistant_text"] = self._assistant_text(event.message)
+            state["usage"] = self._usage_to_dict(getattr(event.message, "usage", None))
 
     async def _handle_message_update(
         self,
@@ -716,6 +740,11 @@ class PiAgentRuntime:
         content = str(getattr(raw, "delta", "") or "")
         if not content:
             return
+        if state["first_token_latency_ms"] is None:
+            state["first_token_latency_ms"] = round(
+                (perf_counter() - state["started_at"]) * 1000,
+                2,
+            )
         state["chunk_index"] += 1
         state["response_parts"].append(content)
         self._trace(
@@ -850,10 +879,6 @@ class PiAgentRuntime:
             ),
         )
 
-    def _build_model(self) -> Model:
-        """用于构建模型。"""
-        return Model(api="openai-compatible", provider="openrouter", id=settings.OPENROUTER_MODEL)
-
     @staticmethod
     def _tool_schema(value: Any) -> AgentToolSchema:
         """用于处理工具结构。"""
@@ -906,6 +931,13 @@ class PiAgentRuntime:
             "last_assistant_text": "",
             "stop_after_confirmed_tool": False,
             "confirmed_diff_items": [],
+            "tool_profile": "",
+            "tool_names": [],
+            "prompt_chars": 0,
+            "tool_call_count": 0,
+            "first_token_latency_ms": None,
+            "usage": {},
+            "confirmation_wait_ms": 0.0,
         }
 
     def _llm_request_event(
@@ -913,9 +945,11 @@ class PiAgentRuntime:
         agent: AgentDefinition,
         context: AgentContext,
         prompts: list[Message],
+        state: dict[str, Any],
     ) -> ResumeStreamEvent:
         """用于处理模型请求事件。"""
         messages = [self._message_to_dict(message) for message in context.messages + prompts]
+        tool_names: list[str | None] = [tool.name for tool in context.tools]
         return llm_request_event(
             agent_name=agent.prompt_spec.name,
             model=self._chat_model_name(),
@@ -924,7 +958,9 @@ class PiAgentRuntime:
                 "temperature": agent.prompt_spec.model_defaults.get("temperature", 0.3),
                 "max_tokens": agent.prompt_spec.model_defaults.get("max_tokens", 1500),
             },
-            tool_names=self._optional_tool_names(agent),
+            tool_names=tool_names,
+            tool_profile=str(state.get("tool_profile") or ""),
+            prompt_chars=int(state.get("prompt_chars") or len(context.system_prompt)),
         )
 
     def _llm_response_event(
@@ -937,8 +973,11 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             model=self._chat_model_name(),
             response_content="".join(state["response_parts"]),
-            tool_call_count=0,
+            tool_call_count=int(state.get("tool_call_count") or 0),
             latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
+            first_token_latency_ms=state.get("first_token_latency_ms"),
+            usage=state.get("usage") if isinstance(state.get("usage"), dict) else {},
+            confirmation_wait_ms=float(state.get("confirmation_wait_ms") or 0.0),
         )
 
     @staticmethod
@@ -986,7 +1025,7 @@ class PiAgentRuntime:
             mode=mode,
             user_message_preview=self._preview_text(user_message),
             history_count=len(conversation_history or []),
-            tool_names=self._tool_names(agent),
+            tool_names=list(agent.tool_profiles.get(agent.default_tool_profile, set())),
         )
 
     def _trace_prompt(
@@ -1016,6 +1055,9 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             model=self._chat_model_name(),
             message_count=len(event.get("messages", [])),
+            tool_profile=event.get("tool_profile"),
+            tool_count=event.get("tool_count"),
+            prompt_chars=event.get("prompt_chars"),
             tool_names=event.get("tool_names", []),
             params=event.get("params", {}),
         )
@@ -1035,6 +1077,9 @@ class PiAgentRuntime:
             response_preview=self._preview_text(event.get("response_content")),
             response_chars=len(str(event.get("response_content") or "")),
             latency_ms=event.get("latency_ms"),
+            first_token_latency_ms=event.get("first_token_latency_ms"),
+            usage=event.get("usage"),
+            confirmation_wait_ms=event.get("confirmation_wait_ms"),
         )
 
     def _trace_run_completed(
@@ -1104,6 +1149,8 @@ class PiAgentRuntime:
         tool_name: str,
         display_name: str,
         confirmed: bool,
+        confirmation_wait_ms: float,
+        terminate_turn: bool,
     ) -> None:
         """用于处理追踪工具confirmation。"""
         self._trace(
@@ -1114,6 +1161,8 @@ class PiAgentRuntime:
             tool_name=tool_name,
             tool_display_name=display_name,
             confirmed=confirmed,
+            confirmation_wait_ms=confirmation_wait_ms,
+            terminate_turn=terminate_turn,
         )
 
     def _trace_tool_executed(
@@ -1291,7 +1340,55 @@ class PiAgentRuntime:
     @staticmethod
     def _chat_model_name() -> str:
         """用于处理聊天模型name。"""
-        return settings.OPENROUTER_MODEL
+        return openrouter_chat_model_name()
+
+    @staticmethod
+    def _tool_profile(agent: AgentDefinition, context: dict[str, Any]) -> str:
+        """用于选择当前轮次实际使用的工具 profile。"""
+        requested = context.get("tool_profile")
+        if isinstance(requested, str) and requested in agent.tool_profiles:
+            return requested
+        return agent.default_tool_profile
+
+    @staticmethod
+    def _profiled_tool_schemas(
+        agent: AgentDefinition,
+        tool_profile: str,
+    ) -> list[dict[str, Any]]:
+        """用于按工具 profile 过滤暴露给模型的工具 schema。"""
+        allowed = agent.tool_profiles.get(tool_profile)
+        if allowed is None:
+            allowed = agent.tool_profiles.get(agent.default_tool_profile)
+        if not allowed:
+            return []
+        return [
+            schema
+            for schema in agent.tools_schema
+            if schema.get("function", {}).get("name") in allowed
+        ]
+
+    @staticmethod
+    def _tool_names_from_schemas(schemas: list[dict[str, Any]]) -> list[str]:
+        """用于从工具 schema 列表读取工具名。"""
+        names: list[str] = []
+        for schema in schemas:
+            name = schema.get("function", {}).get("name")
+            if isinstance(name, str) and name:
+                names.append(name)
+        return names
+
+    @staticmethod
+    def _usage_to_dict(usage: Any) -> dict[str, Any]:
+        """用于把 pi-agent-core usage 转换成日志友好的字典。"""
+        if usage is None:
+            return {}
+        return {
+            "input": int(getattr(usage, "input", 0) or 0),
+            "output": int(getattr(usage, "output", 0) or 0),
+            "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
+            "cache_read": int(getattr(usage, "cache_read", 0) or 0),
+            "cache_write": int(getattr(usage, "cache_write", 0) or 0),
+        }
 
 
 __all__ = ["PiAgentRuntime"]
