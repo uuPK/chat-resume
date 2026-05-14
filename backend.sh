@@ -7,7 +7,7 @@ BACKEND_PORT="${BACKEND_PORT:-8000}"
 BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-logs/backend.log}"
 
 # 本地默认保留结构化日志和 Agent trace。
-export LOG_FORMAT="${LOG_FORMAT:-json}"
+export LOG_FORMAT="${LOG_FORMAT:-text}"
 export AGENT_TRACE_LOG_ENABLED="${AGENT_TRACE_LOG_ENABLED:-true}"
 
 echo "🚀 重启 Chat Resume 后端服务..."
