@@ -62,8 +62,9 @@ logger = logging.getLogger(__name__)
 _SENTINEL = object()
 _FAKE_MUTATION_RETRY_TEXT = (
     "上一轮回复声称已经修改简历，但没有产生任何 tool call。"
-    "不要继续输出说明、表格或总结；如果要修改简历，立刻调用一个合适工具。"
-    "如果不应修改，明确说明本轮没有修改。"
+    "只有结构化 tool call 才算真实修改，普通文本声明不算修改。"
+    "如果仍需修改，下一轮只发出一个合适工具调用，不要输出说明、表格或总结。"
+    "如果不应继续修改，简短说明本轮没有新的修改。"
 )
 _MUTATION_INTENT_PATTERN = re.compile(
     r"(继续|添加|新增|拆分|优化|改写|更新|修改|充实|补充|bullet|要点|工作经历|项目经历)"
@@ -379,11 +380,22 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                if self._should_retry_fake_mutation_stop(assistant_message, state):
-                    state["stop_guard_retries"] += 1
-                    self._trace_stop_guard_retry(agent, run_id, assistant_message, state)
-                    messages.append(self._fake_mutation_retry_message())
-                    continue
+                if self._is_fake_mutation_stop(assistant_message):
+                    if self._can_retry_fake_mutation_stop(state):
+                        state["stop_guard_retries"] += 1
+                        self._trace_stop_guard_retry(agent, run_id, assistant_message, state)
+                        messages.append(self._fake_mutation_retry_message())
+                        continue
+                    await self._publish_invalid_mutation_fallback(
+                        agent=agent,
+                        run_id=run_id,
+                        event_queue=event_queue,
+                        event_callback=event_callback,
+                        state=state,
+                        executed_tools=executed_tools,
+                        assistant_message=assistant_message,
+                    )
+                    return
                 await self._publish_text_deltas(
                     agent=agent,
                     run_id=run_id,
@@ -393,14 +405,12 @@ class PiAgentRuntime:
                     text_deltas=text_deltas,
                 )
                 return
-            await self._publish_text_deltas(
-                agent=agent,
-                run_id=run_id,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                text_deltas=text_deltas,
-            )
+            if text_deltas:
+                self._trace_tool_preamble_suppressed(
+                    agent=agent,
+                    run_id=run_id,
+                    text_deltas=text_deltas,
+                )
             tool_call = tool_calls[0]
             if len(tool_calls) > 1:
                 self._trace(
@@ -545,14 +555,8 @@ class PiAgentRuntime:
                 event=text_delta_event(content=content),
             )
 
-    def _should_retry_fake_mutation_stop(
-        self,
-        assistant_message: AssistantMessage,
-        state: dict[str, Any],
-    ) -> bool:
+    def _is_fake_mutation_stop(self, assistant_message: AssistantMessage) -> bool:
         """判断无工具调用的 stop 响应是否在假称已修改简历。"""
-        if int(state.get("stop_guard_retries") or 0) >= 2:
-            return False
         text = self._assistant_text(assistant_message)
         if not text.strip():
             return False
@@ -562,9 +566,48 @@ class PiAgentRuntime:
         )
 
     @staticmethod
+    def _can_retry_fake_mutation_stop(state: dict[str, Any]) -> bool:
+        """限制协议纠错只重试一次，避免无效模型响应循环。"""
+        return int(state.get("stop_guard_retries") or 0) < 1
+
+    @staticmethod
     def _fake_mutation_retry_message() -> UserMessage:
         """生成只给模型看的纠错消息，要求它真正调用工具。"""
         return UserMessage(content=[TextContent(text=_FAKE_MUTATION_RETRY_TEXT)])
+
+    async def _publish_invalid_mutation_fallback(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        executed_tools: list[dict[str, Any]],
+        assistant_message: AssistantMessage,
+    ) -> None:
+        """隐藏无效假修改文本，并用确定性文案结束当前轮次。"""
+        content = self._invalid_mutation_fallback_text(executed_tools)
+        self._trace_stop_guard_fallback(agent, run_id, assistant_message, state)
+        await self._publish_text_deltas(
+            agent=agent,
+            run_id=run_id,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            state=state,
+            text_deltas=[content],
+        )
+
+    @staticmethod
+    def _invalid_mutation_fallback_text(executed_tools: list[dict[str, Any]]) -> str:
+        """根据真实工具执行情况生成确定性收束文案。"""
+        count = len(executed_tools)
+        if count > 0:
+            return (
+                f"已完成 {count} 次工具修改。后续没有新的有效工具调用，"
+                "因此停止继续自动修改；如需继续，请再发起具体指令。"
+            )
+        return "本轮没有产生有效工具调用，因此没有修改简历。请给出更具体的修改目标后我再继续。"
 
     async def _execute_react_tool(
         self,
@@ -1375,6 +1418,39 @@ class PiAgentRuntime:
             retry_count=int(state.get("stop_guard_retries") or 0),
             reason="mutation_claim_without_tool_call",
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
+        )
+
+    def _trace_stop_guard_fallback(
+        self,
+        agent: AgentDefinition,
+        run_id: str,
+        assistant_message: AssistantMessage,
+        state: dict[str, Any],
+    ) -> None:
+        """记录 stop guard 放弃模型原文并收束输出。"""
+        self._trace(
+            "agent.trace.stop_guard.fallback",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            retry_count=int(state.get("stop_guard_retries") or 0),
+            reason="invalid_mutation_claim_after_retry",
+            response_preview=self._preview_text(self._assistant_text(assistant_message)),
+        )
+
+    def _trace_tool_preamble_suppressed(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        text_deltas: list[str],
+    ) -> None:
+        """记录工具调用轮次被隐藏的模型前置文本。"""
+        self._trace(
+            "agent.trace.tool.preamble_suppressed",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            content_preview=self._preview_text("".join(text_deltas)),
+            content_chars=sum(len(delta) for delta in text_deltas),
         )
 
     def _trace_tool_requested(

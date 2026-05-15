@@ -137,6 +137,8 @@ def fake_pi_message(response: FakeModelResponse) -> AssistantMessage:
     """把测试响应转换为 pi-agent-core assistant message。"""
     if response.tool_calls:
         content: list[Any] = []
+        if response.content:
+            content.append(TextContent(text=response.content))
         for index, call in enumerate(response.tool_calls):
             raw_args = call.get("args")
             args = raw_args if isinstance(raw_args, dict) else {}
@@ -511,6 +513,60 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
+    async def test_optimize_hides_tool_call_turn_preamble_text(self):
+        """用于验证工具调用轮次的模型前置文本不会进入最终回复。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="我来继续添加一个技术要点：",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="add_bullet",
+                            call_id="call_with_preamble",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "text": "通过结构化工具调用驱动简历内容更新",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具新增 1 条项目要点。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("继续优化项目", resume)
+
+        self.assertNotIn("我来继续添加一个技术要点", result["content"])
+        self.assertEqual(result["content"], "已通过工具新增 1 条项目要点。")
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-1]["text"],
+            "通过结构化工具调用驱动简历内容更新",
+        )
+
+    async def test_optimize_fallbacks_after_repeated_fake_mutation_claims(self):
+        """用于验证协议纠错失败后不会展示模型假修改原文。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(content="已完成项目拆分，新增 3 条 bullet。"),
+                FakeModelResponse(content="继续添加智能解析要点：已完成新增 2 条 bullet。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("继续优化项目内容", resume)
+
+        self.assertNotIn("新增 3 条", result["content"])
+        self.assertNotIn("继续添加智能解析要点", result["content"])
+        self.assertEqual(
+            result["content"],
+            "本轮没有产生有效工具调用，因此没有修改简历。请给出更具体的修改目标后我再继续。",
+        )
+        self.assertEqual(result["tool_calls"], [])
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
+
     async def test_optimize_runs_react_one_tool_per_model_turn(self):
         """用于验证 runtime 按 ReAct 方式每轮只执行一个工具。"""
         agent = self._build_agent(
@@ -737,6 +793,79 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][-1]["text"],
             "基于 RAG 记忆检索增强长程上下文",
         )
+
+    async def test_optimize_stream_hides_tool_call_turn_preamble_text(self):
+        """用于验证流式工具调用轮次不会展示模型前置说明。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="我来继续添加项目亮点：",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="add_bullet",
+                            call_id="call_stream_preamble",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "text": "使用结构化工具调用保证简历编辑可追溯",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具新增 1 条项目亮点。"),
+            ]
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="继续优化项目",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+        ):
+            events.append(event)
+
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertNotIn("我来继续添加项目亮点", visible_text)
+        self.assertIn("已通过工具新增 1 条项目亮点", visible_text)
+        self.assertTrue(any(event.get("tool_pending") for event in events))
+        self.assertEqual(
+            resume["projects"][0]["highlights"][-1]["text"],
+            "使用结构化工具调用保证简历编辑可追溯",
+        )
+
+    async def test_optimize_stream_fallback_hides_fake_mutation_after_retry(self):
+        """用于验证流式协议纠错失败后只展示确定性收束文案。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="已完成 Chat Resume 项目优化，新增 3 条 bullet。"
+                ),
+                FakeModelResponse(
+                    content="本轮没有修改。上一轮我已经完成新增 3 条 bullet。"
+                ),
+            ]
+        )
+        resume = self._sample_resume()
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="Chat Resume 优化",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=None,
+        ):
+            events.append(event)
+
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertNotIn("已完成 Chat Resume 项目优化", visible_text)
+        self.assertNotIn("上一轮我已经完成", visible_text)
+        self.assertIn("本轮没有产生有效工具调用", visible_text)
+        self.assertFalse(any(event.get("tool_pending") for event in events))
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
     async def test_optimize_stream_runs_one_tool_per_model_turn(
         self,
