@@ -27,18 +27,6 @@ from pi_agent_core import (
 )
 from pi_agent_core.types import Message, StreamFn
 
-from app.agents.resume.stream_events import (
-    llm_request_event,
-    llm_response_event,
-    prompt_rendered_event,
-    text_delta_event,
-    tool_call_event,
-    tool_call_failed_event,
-    tool_confirmed_event,
-    tool_pending_event,
-    tool_rejected_event,
-    tool_result_event,
-)
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.message_conversion import convert_resume_messages_to_llm
@@ -51,8 +39,7 @@ from app.runtime.tool_confirmation import (
     ToolConfirmationPolicy,
 )
 from app.runtime.runtime_event_adapter import (
-    emit_runtime_event,
-    publish_runtime_event,
+    RuntimeEventPublisher,
 )
 from app.runtime.pi_agent_openrouter import stream_openrouter
 from app.types.stream import ResumeStreamEvent
@@ -172,6 +159,7 @@ class PiAgentRuntime:
         self.stream_fn = _ReActStreamFn(stream_fn or stream_openrouter)
         self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
         self.trace_recorder = DefaultTraceRecorder()
+        self.event_publisher = RuntimeEventPublisher()
 
     async def run(
         self,
@@ -205,9 +193,13 @@ class PiAgentRuntime:
             conversation_history,
         )
         self.trace_recorder.prompt_rendered(agent, run_id, pi_context.system_prompt)
-        self._emit_event(
+        self.event_publisher.emit(
             event_callback,
-            self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
+            self.event_publisher.prompt_rendered(
+                agent,
+                pi_context.system_prompt,
+                user_message,
+            ),
         )
         await self._run_react_loop(
             agent=agent,
@@ -224,7 +216,7 @@ class PiAgentRuntime:
         )
         response_event = self._llm_response_event(agent, state)
         self.trace_recorder.llm_response(agent, run_id, response_event)
-        self._emit_event(event_callback, response_event)
+        self.event_publisher.emit(event_callback, response_event)
         self.trace_recorder.run_completed(agent, run_id, "sync", state)
         return {"content": "".join(state["response_parts"]), "tool_calls": executed_tools}
 
@@ -262,12 +254,12 @@ class PiAgentRuntime:
             conversation_history,
         )
         self.trace_recorder.prompt_rendered(agent, run_id, pi_context.system_prompt)
-        prompt_event = self._prompt_rendered_event(
+        prompt_event = self.event_publisher.prompt_rendered(
             agent,
             pi_context.system_prompt,
             user_message,
         )
-        self._emit_event(event_callback, prompt_event)
+        self.event_publisher.emit(event_callback, prompt_event)
         yield prompt_event
 
         producer = asyncio.create_task(
@@ -326,7 +318,7 @@ class PiAgentRuntime:
         finally:
             response_event = self._llm_response_event(agent, state)
             self.trace_recorder.llm_response(agent, run_id, response_event)
-            await self._publish_event(
+            await self.event_publisher.publish(
                 event_queue=event_queue,
                 event_callback=event_callback,
                 event=response_event,
@@ -366,7 +358,7 @@ class PiAgentRuntime:
             )
             request_event = self._llm_request_event(agent, llm_context, [], state)
             self.trace_recorder.llm_request(agent, run_id, request_event)
-            await self._publish_event(
+            await self.event_publisher.publish(
                 event_queue=event_queue,
                 event_callback=event_callback,
                 event=request_event,
@@ -492,7 +484,9 @@ class PiAgentRuntime:
         if not isinstance(result, AssistantMessage):
             raise TypeError("StreamFn result must be an AssistantMessage")
         assistant_message = _ReActStreamFn._single_tool_message(result)
-        state["last_assistant_text"] = self._assistant_text(assistant_message)
+        state["last_assistant_text"] = self.event_publisher.assistant_text(
+            assistant_message
+        )
         state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
         return assistant_message, text_deltas
 
@@ -531,10 +525,10 @@ class PiAgentRuntime:
                 content_preview=DefaultTraceRecorder.preview_text(content),
                 content_chars=len(content),
             )
-            await self._publish_event(
+            await self.event_publisher.publish(
                 event_queue=event_queue,
                 event_callback=event_callback,
-                event=text_delta_event(content=content),
+                event=self.event_publisher.text_delta(content),
             )
 
     async def _execute_react_tool(
@@ -863,12 +857,12 @@ class PiAgentRuntime:
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
         self.trace_recorder.tool_preview(agent, run_id, call_id, tool_name, preview_result)
-        await self._publish_event(
+        await self.event_publisher.publish(
             event_queue=event_queue,
             event_callback=event_callback,
-            event=tool_pending_event(
+            event=self.event_publisher.tool_pending(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_call=tool_call,
                 tool_display_name=preview_result["tool_name"],
                 tool_input=tool_input,
@@ -987,10 +981,10 @@ class PiAgentRuntime:
             content_preview=DefaultTraceRecorder.preview_text(content),
             content_chars=len(content),
         )
-        await self._publish_event(
+        await self.event_publisher.publish(
             event_queue=event_queue,
             event_callback=event_callback,
-            event=text_delta_event(content=content),
+            event=self.event_publisher.text_delta(content),
         )
 
     async def _publish_visible_tool_call(
@@ -1004,17 +998,14 @@ class PiAgentRuntime:
     ) -> None:
         """用于发布visible工具调用。"""
         tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
-        await self._publish_event(
+        await self.event_publisher.publish(
             event_queue=event_queue,
             event_callback=event_callback,
-            event=tool_call_event(
+            event=self.event_publisher.tool_call_started(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_call=tool_call,
-                tool_display_name=tool_name,
                 tool_input=tool_call["function"]["arguments"],
-                display_message=f"正在{tool_name}",
-                tool_calls=[],
             ),
         )
 
@@ -1034,18 +1025,18 @@ class PiAgentRuntime:
     ) -> None:
         """用于发布工具结果。"""
         if self._is_tool_failure(tool_result):
-            event = tool_call_failed_event(
+            event = self.event_publisher.tool_call_failed(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_display_name=tool_result["tool_name"],
                 tool_calls=executed_tools,
                 result=result,
                 display_message=display_message,
             )
         elif needs_confirmation:
-            event = tool_confirmed_event(
+            event = self.event_publisher.tool_confirmed(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_display_name=tool_result["tool_name"],
                 tool_calls=executed_tools,
                 qr_images=[tool_result["qr_image"]] if tool_result.get("qr_image") else [],
@@ -1056,16 +1047,16 @@ class PiAgentRuntime:
                 context=context,
             )
         else:
-            event = tool_result_event(
+            event = self.event_publisher.tool_result(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_display_name=tool_result["tool_name"],
                 tool_calls=executed_tools,
                 result=result,
                 display_message=display_message,
                 context=context,
             )
-        await self._publish_event(
+        await self.event_publisher.publish(
             event_queue=event_queue,
             event_callback=event_callback,
             event=event,
@@ -1096,12 +1087,12 @@ class PiAgentRuntime:
             tool_display_name,
             tool_started_at,
         )
-        await self._publish_event(
+        await self.event_publisher.publish(
             event_queue=event_queue,
             event_callback=event_callback,
-            event=tool_rejected_event(
+            event=self.event_publisher.tool_rejected(
                 call_id=call_id,
-                tool_id=tool_name,
+                tool_name=tool_name,
                 tool_display_name=tool_display_name,
                 diff_summary=diff_summary,
                 diff_items=diff_items,
@@ -1155,21 +1146,7 @@ class PiAgentRuntime:
     @staticmethod
     def _new_stream_state() -> dict[str, Any]:
         """用于处理new流式state。"""
-        return {
-            "started_at": perf_counter(),
-            "chunk_index": 0,
-            "response_parts": [],
-            "last_assistant_text": "",
-            "confirmed_diff_items": [],
-            "tool_profile": "",
-            "tool_names": [],
-            "unexpected_tool_call_names": set(),
-            "prompt_chars": 0,
-            "tool_call_count": 0,
-            "first_token_latency_ms": None,
-            "usage": {},
-            "confirmation_wait_ms": 0.0,
-        }
+        return RuntimeEventPublisher.new_stream_state()
 
     def _llm_request_event(
         self,
@@ -1179,20 +1156,7 @@ class PiAgentRuntime:
         state: dict[str, Any],
     ) -> ResumeStreamEvent:
         """用于处理模型请求事件。"""
-        messages = [self._message_to_dict(message) for message in context.messages + prompts]
-        tool_names: list[str | None] = [tool.name for tool in context.tools]
-        return llm_request_event(
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            messages=[{"role": "system", "content": context.system_prompt}, *messages],
-            params={
-                "temperature": agent.prompt_spec.model_defaults.get("temperature", 0.3),
-                "max_tokens": agent.prompt_spec.model_defaults.get("max_tokens", 1500),
-            },
-            tool_names=tool_names,
-            tool_profile=str(state.get("tool_profile") or ""),
-            prompt_chars=int(state.get("prompt_chars") or len(context.system_prompt)),
-        )
+        return self.event_publisher.llm_request(agent, context, prompts, state)
 
     def _llm_response_event(
         self,
@@ -1200,67 +1164,7 @@ class PiAgentRuntime:
         state: dict[str, Any],
     ) -> ResumeStreamEvent:
         """用于处理模型响应事件。"""
-        return llm_response_event(
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            response_content="".join(state["response_parts"]),
-            tool_call_count=int(state.get("tool_call_count") or 0),
-            latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-            first_token_latency_ms=state.get("first_token_latency_ms"),
-            usage=state.get("usage") if isinstance(state.get("usage"), dict) else {},
-            confirmation_wait_ms=float(state.get("confirmation_wait_ms") or 0.0),
-        )
-
-    @staticmethod
-    def _prompt_rendered_event(
-        agent: AgentDefinition,
-        system_prompt: str,
-        user_message: str,
-    ) -> ResumeStreamEvent:
-        """用于处理提示词渲染结果事件。"""
-        return prompt_rendered_event(
-            agent_name=agent.prompt_spec.name,
-            system_prompt=system_prompt,
-            user_message_preview=str(user_message)[:1500],
-        )
-
-    @staticmethod
-    def _message_to_dict(message: Message) -> dict[str, Any]:
-        """用于处理消息to字典。"""
-        role = getattr(message, "role", "unknown")
-        content = PiAgentRuntime._assistant_text(message)
-        return {"role": role, "content": content}
-
-    @staticmethod
-    def _assistant_text(message: Any) -> str:
-        """用于处理助手文本。"""
-        parts = []
-        for block in getattr(message, "content", []):
-            if isinstance(block, TextContent):
-                parts.append(block.text)
-        return "".join(parts)
-
-    @staticmethod
-    async def _publish_event(
-        *,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        event: ResumeStreamEvent,
-    ) -> None:
-        """用于发布事件。"""
-        await publish_runtime_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=event,
-        )
-
-    @staticmethod
-    def _emit_event(
-        event_callback: RuntimeEventCallback | None,
-        event: ResumeStreamEvent,
-    ) -> None:
-        """用于发送事件。"""
-        emit_runtime_event(event_callback, event)
+        return self.event_publisher.llm_response(agent, state)
 
     @staticmethod
     def _executed_tool_summary(
