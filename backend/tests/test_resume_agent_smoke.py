@@ -437,6 +437,47 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["tool_calls"], [])
         self.assertEqual(resume["summary"]["text"], "3年 Python 后端开发经验")
 
+    async def test_optimize_retries_fake_mutation_claim_without_tool_call(self):
+        """用于验证无工具假称修改时会隐藏该文本并重试工具调用。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content=(
+                        "继续添加 Prompt Chain 要点：已完成工作经历拆分，"
+                        "新增 4 条独立 bullet。"
+                    )
+                ),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="add_bullet",
+                            call_id="call_guard_retry",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "text": "基于 Prompt Chain 优化 Agent 输出稳定性",
+                                "reason": "纠正无工具声明",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具新增 1 条工作经历要点。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("继续拆分工作经历 bullet", resume)
+
+        self.assertNotIn("新增 4 条独立 bullet", result["content"])
+        self.assertEqual(result["content"], "已通过工具新增 1 条工作经历要点。")
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][-1]["text"],
+            "基于 Prompt Chain 优化 Agent 输出稳定性",
+        )
+
     async def test_optimize_updates_resume_via_tool_call(self):
         """用于验证optimizeupdates简历viatoolcall。"""
         agent = self._build_agent(
@@ -644,6 +685,58 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "维护多个后台服务，支撑日活 10 万用户，并完成接口性能优化",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
+
+    async def test_optimize_stream_hides_fake_mutation_claim_before_retry(self):
+        """用于验证流式响应不会把无工具假修改声明发给前端。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content=(
+                        "继续添加 RAG 要点：已完成工作经历拆分，"
+                        "新增 3 条独立 bullet。"
+                    )
+                ),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="add_bullet",
+                            call_id="call_stream_guard_retry",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "text": "基于 RAG 记忆检索增强长程上下文",
+                                "reason": "纠正无工具声明",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具新增 1 条 RAG 要点。"),
+            ]
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="继续拆分工作经历 bullet",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+        ):
+            events.append(event)
+
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertNotIn("新增 3 条独立 bullet", visible_text)
+        self.assertIn("已通过工具新增 1 条 RAG 要点", visible_text)
+        self.assertTrue(any(event.get("tool_pending") for event in events))
+        self.assertTrue(any(event.get("tool_confirmed") for event in events))
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][-1]["text"],
+            "基于 RAG 记忆检索增强长程上下文",
+        )
 
     async def test_optimize_stream_runs_one_tool_per_model_turn(
         self,

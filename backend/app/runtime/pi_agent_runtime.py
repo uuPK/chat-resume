@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import json
 import logging
+import re
 from copy import deepcopy
 from time import perf_counter
 from typing import Any, AsyncGenerator
@@ -18,7 +19,6 @@ from pi_agent_core import (
     AgentToolResult,
     AgentToolSchema,
     AssistantMessage,
-    MessageUpdateEvent,
     SimpleStreamOptions,
     TextContent,
     ToolCall,
@@ -60,6 +60,18 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
+_FAKE_MUTATION_RETRY_TEXT = (
+    "上一轮回复声称已经修改简历，但没有产生任何 tool call。"
+    "不要继续输出说明、表格或总结；如果要修改简历，立刻调用一个合适工具。"
+    "如果不应修改，明确说明本轮没有修改。"
+)
+_MUTATION_INTENT_PATTERN = re.compile(
+    r"(继续|添加|新增|拆分|优化|改写|更新|修改|充实|补充|bullet|要点|工作经历|项目经历)"
+)
+_MUTATION_CLAIM_PATTERN = re.compile(
+    r"(新增\s*[2-9]\d*\s*条|新增.*独立\s*bullet|拆分.*(?:bullet|要点)|"
+    r"已完成.*(?:拆分|新增|添加)|继续(?:添加|新增|拆分))"
+)
 
 
 class _ReActStreamFn:
@@ -352,7 +364,7 @@ class PiAgentRuntime:
                 event_callback=event_callback,
                 event=request_event,
             )
-            assistant_message = await self._stream_assistant_turn(
+            assistant_message, text_deltas = await self._stream_assistant_turn(
                 agent=agent,
                 run_id=run_id,
                 llm_context=llm_context,
@@ -367,7 +379,28 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
+                if self._should_retry_fake_mutation_stop(assistant_message, state):
+                    state["stop_guard_retries"] += 1
+                    self._trace_stop_guard_retry(agent, run_id, assistant_message, state)
+                    messages.append(self._fake_mutation_retry_message())
+                    continue
+                await self._publish_text_deltas(
+                    agent=agent,
+                    run_id=run_id,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
+                    text_deltas=text_deltas,
+                )
                 return
+            await self._publish_text_deltas(
+                agent=agent,
+                run_id=run_id,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+                text_deltas=text_deltas,
+            )
             tool_call = tool_calls[0]
             if len(tool_calls) > 1:
                 self._trace(
@@ -429,8 +462,8 @@ class PiAgentRuntime:
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
-    ) -> AssistantMessage:
-        """流式拉取单轮 assistant 响应并发布文本增量。"""
+    ) -> tuple[AssistantMessage, list[str]]:
+        """流式拉取单轮 assistant 响应并先缓冲文本增量。"""
         response = self.stream_fn(
             config.model,
             llm_context,
@@ -450,21 +483,16 @@ class PiAgentRuntime:
         if not isinstance(response, dict) or "events" not in response or "result" not in response:
             raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
+        text_deltas: list[str] = []
         async for raw_event in response["events"]:
-            if str(getattr(raw_event, "type", "") or "") == "text_delta":
-                partial = getattr(raw_event, "partial", None)
-                if isinstance(partial, AssistantMessage):
-                    await self._handle_message_update(
-                        event=MessageUpdateEvent(
-                            message=partial,
-                            assistant_message_event=raw_event,
-                        ),
-                        event_queue=event_queue,
-                        event_callback=event_callback,
-                        agent=agent,
-                        run_id=run_id,
-                        state=state,
+            delta = self._text_delta_from_event(raw_event)
+            if delta:
+                if state["first_token_latency_ms"] is None:
+                    state["first_token_latency_ms"] = round(
+                        (perf_counter() - state["started_at"]) * 1000,
+                        2,
                     )
+                text_deltas.append(delta)
 
         result = response["result"]()
         if inspect.isawaitable(result):
@@ -474,11 +502,69 @@ class PiAgentRuntime:
         assistant_message = _ReActStreamFn._single_tool_message(result)
         state["last_assistant_text"] = self._assistant_text(assistant_message)
         state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-        return assistant_message
+        return assistant_message, text_deltas
 
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""
         return [block for block in message.content if isinstance(block, ToolCall)]
+
+    @staticmethod
+    def _text_delta_from_event(raw_event: Any) -> str:
+        """从底层流式事件中提取纯文本增量。"""
+        if str(getattr(raw_event, "type", "") or "") != "text_delta":
+            return ""
+        return str(getattr(raw_event, "delta", "") or "")
+
+    async def _publish_text_deltas(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        text_deltas: list[str],
+    ) -> None:
+        """把已确认可见的 assistant 文本增量发布给前端。"""
+        for content in text_deltas:
+            if not content:
+                continue
+            state["chunk_index"] += 1
+            state["response_parts"].append(content)
+            self._trace_chunk(
+                "agent.trace.intermediate.chunk",
+                run_id=run_id,
+                agent_name=agent.prompt_spec.name,
+                chunk_index=state["chunk_index"],
+                content_preview=self._preview_text(content),
+                content_chars=len(content),
+            )
+            await self._publish_event(
+                event_queue=event_queue,
+                event_callback=event_callback,
+                event=text_delta_event(content=content),
+            )
+
+    def _should_retry_fake_mutation_stop(
+        self,
+        assistant_message: AssistantMessage,
+        state: dict[str, Any],
+    ) -> bool:
+        """判断无工具调用的 stop 响应是否在假称已修改简历。"""
+        if int(state.get("stop_guard_retries") or 0) >= 2:
+            return False
+        text = self._assistant_text(assistant_message)
+        if not text.strip():
+            return False
+        return bool(
+            _MUTATION_INTENT_PATTERN.search(text)
+            and _MUTATION_CLAIM_PATTERN.search(text)
+        )
+
+    @staticmethod
+    def _fake_mutation_retry_message() -> UserMessage:
+        """生成只给模型看的纠错消息，要求它真正调用工具。"""
+        return UserMessage(content=[TextContent(text=_FAKE_MUTATION_RETRY_TEXT)])
 
     async def _execute_react_tool(
         self,
@@ -936,44 +1022,6 @@ class PiAgentRuntime:
             event=text_delta_event(content=content),
         )
 
-    async def _handle_message_update(
-        self,
-        *,
-        event: MessageUpdateEvent,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        agent: AgentDefinition,
-        run_id: str,
-        state: dict[str, Any],
-    ) -> None:
-        """用于处理消息update。"""
-        raw = event.assistant_message_event
-        if getattr(raw, "type", None) != "text_delta":
-            return
-        content = str(getattr(raw, "delta", "") or "")
-        if not content:
-            return
-        if state["first_token_latency_ms"] is None:
-            state["first_token_latency_ms"] = round(
-                (perf_counter() - state["started_at"]) * 1000,
-                2,
-            )
-        state["chunk_index"] += 1
-        state["response_parts"].append(content)
-        self._trace_chunk(
-            "agent.trace.intermediate.chunk",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            chunk_index=state["chunk_index"],
-            content_preview=self._preview_text(content),
-            content_chars=len(content),
-        )
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=text_delta_event(content=content),
-        )
-
     async def _publish_visible_tool_call(
         self,
         *,
@@ -1151,6 +1199,7 @@ class PiAgentRuntime:
             "first_token_latency_ms": None,
             "usage": {},
             "confirmation_wait_ms": 0.0,
+            "stop_guard_retries": 0,
         }
 
     def _llm_request_event(
@@ -1309,6 +1358,23 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             mode=mode,
             latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
+        )
+
+    def _trace_stop_guard_retry(
+        self,
+        agent: AgentDefinition,
+        run_id: str,
+        assistant_message: AssistantMessage,
+        state: dict[str, Any],
+    ) -> None:
+        """记录无工具调用却声称修改时的 stop guard 重试。"""
+        self._trace(
+            "agent.trace.stop_guard.retry",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            retry_count=int(state.get("stop_guard_retries") or 0),
+            reason="mutation_claim_without_tool_call",
+            response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
     def _trace_tool_requested(
