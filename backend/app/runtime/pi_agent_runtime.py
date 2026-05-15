@@ -10,7 +10,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, AsyncGenerator, Callable
+from typing import Any, AsyncGenerator, Callable, Literal
 from uuid import uuid4
 
 from pi_agent_core import (
@@ -61,6 +61,7 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
+_STOP_HOOK_BLOCK_RETRY_LIMIT = 1
 _STOP_GUARD_MUTATION_CLAIM_FEEDBACK = (
     "Stop hook feedback:\n"
     "上一轮回复声称已经修改简历，但没有产生任何 tool call。"
@@ -120,6 +121,54 @@ class _StopHookBlock:
     hook_name: str
     reason: str
     feedback: str
+
+
+@dataclass(frozen=True)
+class _StopHookResult:
+    """描述 Stop validator 对自然停止的结构化决策。"""
+
+    outcome: Literal["pass", "block", "prevent_continuation"]
+    hook_count: int
+    duration_ms: float
+    block: _StopHookBlock | None = None
+    stop_reason: str = ""
+
+    @classmethod
+    def pass_(cls, *, hook_count: int, duration_ms: float) -> "_StopHookResult":
+        """创建允许自然停止的结果。"""
+        return cls(outcome="pass", hook_count=hook_count, duration_ms=duration_ms)
+
+    @classmethod
+    def block_(
+        cls,
+        *,
+        block: _StopHookBlock,
+        hook_count: int,
+        duration_ms: float,
+    ) -> "_StopHookResult":
+        """创建带反馈重试的阻止结果。"""
+        return cls(
+            outcome="block",
+            block=block,
+            hook_count=hook_count,
+            duration_ms=duration_ms,
+        )
+
+    @classmethod
+    def prevent_continuation(
+        cls,
+        *,
+        stop_reason: str,
+        hook_count: int,
+        duration_ms: float,
+    ) -> "_StopHookResult":
+        """创建阻止继续运行的结果。"""
+        return cls(
+            outcome="prevent_continuation",
+            hook_count=hook_count,
+            duration_ms=duration_ms,
+            stop_reason=stop_reason,
+        )
 
 
 @dataclass(frozen=True)
@@ -460,16 +509,20 @@ class PiAgentRuntime:
                     current_turn_tool_results=[],
                     state=state,
                 )
-                stop_block = self._run_stop_validators(stop_context)
-                if stop_block is not None:
-                    if self._can_retry_stop_hook_block(state):
+                stop_result = self._run_stop_validators(stop_context)
+                if stop_result.outcome == "prevent_continuation":
+                    self._trace_stop_hook_prevented(agent, run_id, assistant_message, stop_result)
+                    return
+                if stop_result.block is not None:
+                    stop_block = stop_result.block
+                    if self._can_retry_stop_hook_block(state, stop_result):
                         state["stop_guard_retries"] += 1
                         self._trace_stop_guard_retry(
                             agent,
                             run_id,
                             assistant_message,
                             state,
-                            stop_block,
+                            stop_result,
                         )
                         messages.append(self._stop_hook_feedback_message(stop_block))
                         continue
@@ -481,7 +534,7 @@ class PiAgentRuntime:
                         state=state,
                         executed_tools=executed_tools,
                         assistant_message=assistant_message,
-                        stop_block=stop_block,
+                        stop_result=stop_result,
                     )
                     return
                 await self._publish_text_deltas(
@@ -672,13 +725,23 @@ class PiAgentRuntime:
     def _run_stop_validators(
         self,
         stop_context: _StopHookContext,
-    ) -> _StopHookBlock | None:
+    ) -> _StopHookResult:
         """按 Claude Code 形态逐个运行 Stop validator。"""
+        started_at = perf_counter()
+        hook_count = 0
         for validator in self._stop_validators:
+            hook_count += 1
             block = validator(stop_context)
             if block is not None:
-                return block
-        return None
+                return _StopHookResult.block_(
+                    block=block,
+                    hook_count=hook_count,
+                    duration_ms=round((perf_counter() - started_at) * 1000, 2),
+                )
+        return _StopHookResult.pass_(
+            hook_count=hook_count,
+            duration_ms=round((perf_counter() - started_at) * 1000, 2),
+        )
 
     def _validate_resume_mutation_claim_stop(
         self,
@@ -737,9 +800,15 @@ class PiAgentRuntime:
         return agent.prompt_spec.name == "resume_agent"
 
     @staticmethod
-    def _can_retry_stop_hook_block(state: dict[str, Any]) -> bool:
-        """限制 Stop hook 纠错只重试一次，避免无效模型响应循环。"""
-        return int(state.get("stop_guard_retries") or 0) < 1
+    def _can_retry_stop_hook_block(
+        state: dict[str, Any],
+        stop_result: _StopHookResult,
+    ) -> bool:
+        """根据显式重试策略判断 Stop hook block 是否还能重试。"""
+        return (
+            stop_result.outcome == "block"
+            and int(state.get("stop_guard_retries") or 0) < _STOP_HOOK_BLOCK_RETRY_LIMIT
+        )
 
     @staticmethod
     def _stop_hook_feedback_message(stop_block: _StopHookBlock) -> UserMessage:
@@ -757,7 +826,7 @@ class PiAgentRuntime:
         state: dict[str, Any],
         executed_tools: list[dict[str, Any]],
         assistant_message: AssistantMessage,
-        stop_block: _StopHookBlock,
+        stop_result: _StopHookResult,
     ) -> None:
         """隐藏无效最终回复，并用确定性文案结束当前轮次。"""
         content = self._invalid_mutation_fallback_text(executed_tools)
@@ -766,7 +835,7 @@ class PiAgentRuntime:
             run_id,
             assistant_message,
             state,
-            stop_block,
+            stop_result,
         )
         await self._publish_text_deltas(
             agent=agent,
@@ -1588,9 +1657,12 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
-        stop_block: _StopHookBlock,
+        stop_result: _StopHookResult,
     ) -> None:
         """记录 Stop validator 阻止自然停止后的重试。"""
+        stop_block = stop_result.block
+        if stop_block is None:
+            return
         self._trace(
             "agent.trace.stop_guard.retry",
             run_id=run_id,
@@ -1598,6 +1670,9 @@ class PiAgentRuntime:
             retry_count=int(state.get("stop_guard_retries") or 0),
             hook_name=stop_block.hook_name,
             reason=stop_block.reason,
+            hook_count=stop_result.hook_count,
+            duration_ms=stop_result.duration_ms,
+            outcome=stop_result.outcome,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
@@ -1607,9 +1682,12 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
-        stop_block: _StopHookBlock,
+        stop_result: _StopHookResult,
     ) -> None:
         """记录 stop guard 放弃模型原文并收束输出。"""
+        stop_block = stop_result.block
+        if stop_block is None:
+            return
         self._trace(
             "agent.trace.stop_guard.fallback",
             run_id=run_id,
@@ -1617,6 +1695,28 @@ class PiAgentRuntime:
             retry_count=int(state.get("stop_guard_retries") or 0),
             hook_name=stop_block.hook_name,
             reason=stop_block.reason,
+            hook_count=stop_result.hook_count,
+            duration_ms=stop_result.duration_ms,
+            outcome=stop_result.outcome,
+            response_preview=self._preview_text(self._assistant_text(assistant_message)),
+        )
+
+    def _trace_stop_hook_prevented(
+        self,
+        agent: AgentDefinition,
+        run_id: str,
+        assistant_message: AssistantMessage,
+        stop_result: _StopHookResult,
+    ) -> None:
+        """记录 Stop hook 阻止继续运行。"""
+        self._trace(
+            "agent.trace.stop_hook.prevented",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            hook_count=stop_result.hook_count,
+            duration_ms=stop_result.duration_ms,
+            outcome=stop_result.outcome,
+            stop_reason=stop_result.stop_reason,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
