@@ -567,6 +567,44 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["tool_calls"], [])
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
+    async def test_optimize_retries_unrealized_action_headline_without_tool(self):
+        """用于验证无工具调用的动作标题会作为 stop 校验失败重试。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="我来精简 Chat Resume 项目中过长的 overview 和 bullet。",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_update_overview",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "AI 求职辅导平台，支持简历诊断与流式优化。",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(
+                    content="继续精简过长的 bullet： 继续精简另一条 bullet： 本轮没有新的修改。"
+                ),
+                FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("把太长的部分精简一下", resume)
+
+        self.assertNotIn("继续精简过长的 bullet", result["content"])
+        self.assertNotIn("继续精简另一条 bullet", result["content"])
+        self.assertEqual(result["content"], "已精简项目简介，保留核心能力和技术关键词。")
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(
+            resume["projects"][0]["overview"],
+            "AI 求职辅导平台，支持简历诊断与流式优化。",
+        )
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+
     async def test_optimize_runs_react_one_tool_per_model_turn(self):
         """用于验证 runtime 按 ReAct 方式每轮只执行一个工具。"""
         agent = self._build_agent(
@@ -866,6 +904,54 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("本轮没有产生有效工具调用", visible_text)
         self.assertFalse(any(event.get("tool_pending") for event in events))
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
+
+    async def test_optimize_stream_retries_unrealized_action_headline_without_tool(self):
+        """用于验证流式无工具动作标题不会展示给前端。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="我来精简 Chat Resume 项目中过长的 overview 和 bullet。",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_stream_update_overview",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "AI 求职辅导平台，支持简历诊断与流式优化。",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(
+                    content="继续精简过长的 bullet： 继续精简另一条 bullet： 本轮没有新的修改。"
+                ),
+                FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),
+            ]
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="把太长的部分精简一下",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+        ):
+            events.append(event)
+
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertNotIn("继续精简过长的 bullet", visible_text)
+        self.assertNotIn("继续精简另一条 bullet", visible_text)
+        self.assertIn("已精简项目简介", visible_text)
+        self.assertTrue(any(event.get("tool_pending") for event in events))
+        self.assertEqual(
+            resume["projects"][0]["overview"],
+            "AI 求职辅导平台，支持简历诊断与流式优化。",
+        )
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
 
     async def test_optimize_stream_runs_one_tool_per_model_turn(
         self,

@@ -8,6 +8,7 @@ import json
 import logging
 import re
 from copy import deepcopy
+from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, AsyncGenerator
 from uuid import uuid4
@@ -60,11 +61,19 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
-_FAKE_MUTATION_RETRY_TEXT = (
+_STOP_GUARD_MUTATION_CLAIM_FEEDBACK = (
+    "Stop hook feedback:\n"
     "上一轮回复声称已经修改简历，但没有产生任何 tool call。"
     "只有结构化 tool call 才算真实修改，普通文本声明不算修改。"
-    "如果仍需修改，下一轮只发出一个合适工具调用，不要输出说明、表格或总结。"
-    "如果不应继续修改，简短说明本轮没有新的修改。"
+    "如果仍需修改，下一轮只发出一个合适工具调用，不要输出说明、表格或总结；"
+    "如果不应继续修改，只能总结已经真实执行的工具结果。"
+)
+_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK = (
+    "Stop hook feedback:\n"
+    "上一轮最终回复包含“继续新增/继续精简/继续修改”等动作标题，"
+    "但没有产生任何 tool call。不要用普通文本描述将要执行的简历修改。"
+    "如果仍需修改，下一轮只发出一个合适工具调用；"
+    "如果不应继续修改，只能总结已经真实执行的工具结果。"
 )
 _MUTATION_INTENT_PATTERN = re.compile(
     r"(继续|添加|新增|拆分|优化|改写|更新|修改|充实|补充|bullet|要点|工作经历|项目经历)"
@@ -73,6 +82,22 @@ _MUTATION_CLAIM_PATTERN = re.compile(
     r"(新增\s*[2-9]\d*\s*条|新增.*独立\s*bullet|拆分.*(?:bullet|要点)|"
     r"已完成.*(?:拆分|新增|添加)|继续(?:添加|新增|拆分))"
 )
+_UNREALIZED_ACTION_PATTERN = re.compile(
+    r"(?:^|[。！？\n\r])\s*"
+    r"(?:我(?:来|将|会|先)?|接下来|然后|继续)?\s*"
+    r"(?:继续)?(?:精简|添加|新增|拆分|修改|更新|优化|改写|补充)"
+    r"[^。！？\n\r：:]{0,40}"
+    r"(?:bullet|要点|overview|简介|项目|工作经历|项目经历|内容)"
+    r"\s*[：:]"
+)
+
+
+@dataclass(frozen=True)
+class _InvalidStopTurn:
+    """描述一次无工具最终回复违反 ReAct stop 边界的原因。"""
+
+    reason: str
+    feedback: str
 
 
 class _ReActStreamFn:
@@ -380,13 +405,20 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                if self._is_fake_mutation_stop(assistant_message):
+                invalid_stop = self._validate_no_tool_stop(assistant_message)
+                if invalid_stop is not None:
                     if self._can_retry_fake_mutation_stop(state):
                         state["stop_guard_retries"] += 1
-                        self._trace_stop_guard_retry(agent, run_id, assistant_message, state)
-                        messages.append(self._fake_mutation_retry_message())
+                        self._trace_stop_guard_retry(
+                            agent,
+                            run_id,
+                            assistant_message,
+                            state,
+                            invalid_stop,
+                        )
+                        messages.append(self._stop_guard_feedback_message(invalid_stop))
                         continue
-                    await self._publish_invalid_mutation_fallback(
+                    await self._publish_invalid_stop_fallback(
                         agent=agent,
                         run_id=run_id,
                         event_queue=event_queue,
@@ -394,6 +426,7 @@ class PiAgentRuntime:
                         state=state,
                         executed_tools=executed_tools,
                         assistant_message=assistant_message,
+                        invalid_stop=invalid_stop,
                     )
                     return
                 await self._publish_text_deltas(
@@ -555,15 +588,25 @@ class PiAgentRuntime:
                 event=text_delta_event(content=content),
             )
 
-    def _is_fake_mutation_stop(self, assistant_message: AssistantMessage) -> bool:
-        """判断无工具调用的 stop 响应是否在假称已修改简历。"""
+    def _validate_no_tool_stop(
+        self,
+        assistant_message: AssistantMessage,
+    ) -> _InvalidStopTurn | None:
+        """按 Claude Code Stop hook 形态校验无工具最终回复。"""
         text = self._assistant_text(assistant_message)
         if not text.strip():
-            return False
-        return bool(
-            _MUTATION_INTENT_PATTERN.search(text)
-            and _MUTATION_CLAIM_PATTERN.search(text)
-        )
+            return None
+        if _MUTATION_INTENT_PATTERN.search(text) and _MUTATION_CLAIM_PATTERN.search(text):
+            return _InvalidStopTurn(
+                reason="mutation_claim_without_tool_call",
+                feedback=_STOP_GUARD_MUTATION_CLAIM_FEEDBACK,
+            )
+        if _UNREALIZED_ACTION_PATTERN.search(text):
+            return _InvalidStopTurn(
+                reason="unrealized_action_without_tool_call",
+                feedback=_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK,
+            )
+        return None
 
     @staticmethod
     def _can_retry_fake_mutation_stop(state: dict[str, Any]) -> bool:
@@ -571,11 +614,11 @@ class PiAgentRuntime:
         return int(state.get("stop_guard_retries") or 0) < 1
 
     @staticmethod
-    def _fake_mutation_retry_message() -> UserMessage:
-        """生成只给模型看的纠错消息，要求它真正调用工具。"""
-        return UserMessage(content=[TextContent(text=_FAKE_MUTATION_RETRY_TEXT)])
+    def _stop_guard_feedback_message(invalid_stop: _InvalidStopTurn) -> UserMessage:
+        """生成只给模型看的 Stop hook feedback。"""
+        return UserMessage(content=[TextContent(text=invalid_stop.feedback)])
 
-    async def _publish_invalid_mutation_fallback(
+    async def _publish_invalid_stop_fallback(
         self,
         *,
         agent: AgentDefinition,
@@ -585,10 +628,17 @@ class PiAgentRuntime:
         state: dict[str, Any],
         executed_tools: list[dict[str, Any]],
         assistant_message: AssistantMessage,
+        invalid_stop: _InvalidStopTurn,
     ) -> None:
-        """隐藏无效假修改文本，并用确定性文案结束当前轮次。"""
+        """隐藏无效最终回复，并用确定性文案结束当前轮次。"""
         content = self._invalid_mutation_fallback_text(executed_tools)
-        self._trace_stop_guard_fallback(agent, run_id, assistant_message, state)
+        self._trace_stop_guard_fallback(
+            agent,
+            run_id,
+            assistant_message,
+            state,
+            invalid_stop,
+        )
         await self._publish_text_deltas(
             agent=agent,
             run_id=run_id,
@@ -1409,6 +1459,7 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
+        invalid_stop: _InvalidStopTurn,
     ) -> None:
         """记录无工具调用却声称修改时的 stop guard 重试。"""
         self._trace(
@@ -1416,7 +1467,7 @@ class PiAgentRuntime:
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             retry_count=int(state.get("stop_guard_retries") or 0),
-            reason="mutation_claim_without_tool_call",
+            reason=invalid_stop.reason,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
@@ -1426,6 +1477,7 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
+        invalid_stop: _InvalidStopTurn,
     ) -> None:
         """记录 stop guard 放弃模型原文并收束输出。"""
         self._trace(
@@ -1433,7 +1485,7 @@ class PiAgentRuntime:
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             retry_count=int(state.get("stop_guard_retries") or 0),
-            reason="invalid_mutation_claim_after_retry",
+            reason=invalid_stop.reason,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
