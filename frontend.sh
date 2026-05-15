@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # Chat Resume 前端重启脚本
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,8 +89,18 @@ filter_terminal_logs() {
     '
 }
 
-strip_ansi_for_log() {
-    perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
+write_plain_log_and_stdout() {
+    awk -v log_file="${FRONTEND_LOG_FILE}" '
+        {
+            raw = $0
+            plain = raw
+            gsub(/\033\[[0-9;?]*[ -\/]*[@-~]/, "", plain)
+            print plain >> log_file
+            fflush(log_file)
+            print raw
+            fflush()
+        }
+    '
 }
 
 # 检查是否已安装依赖
@@ -110,5 +124,5 @@ echo "按 Ctrl+C 停止服务"
 echo ""
 
 npm run dev -- --port "${FRONTEND_PORT}" 2>&1 \
-    | tee >(strip_ansi_for_log >> "${FRONTEND_LOG_FILE}") \
+    | write_plain_log_and_stdout \
     | filter_terminal_logs
