@@ -310,8 +310,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("${guidelines}", rendered)
         self.assertNotIn("Pi 文档", rendered)
 
-    def test_system_prompt_enforces_optimize_first_default(self):
-        """用于验证systempromptenforcesoptimizefirstdefault。"""
+    def test_system_prompt_leaves_tool_choice_to_model(self):
+        """用于验证系统提示词把工具选择交给模型判断。"""
         rendered = _render_resume_system_prompt(
             target_title="产品经理",
             target_company="美团",
@@ -319,15 +319,27 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
         )
 
-        self.assertIn("默认执行 `optimize-first`", rendered)
-        self.assertIn("必须直接调用工具产出改动", rendered)
-        self.assertIn("首轮目标是“先产出改动”", rendered)
         self.assertIn("按 ReAct 方式工作", rendered)
         self.assertIn("每轮最多调用 1 个工具", rendered)
-        self.assertIn("generate_job_match_summary", rendered)
+        self.assertIn("是否调用工具、调用哪个工具、何时继续调用下一个工具", rendered)
+        self.assertNotIn("默认执行 `optimize-first`", rendered)
+        self.assertNotIn("首轮", rendered)
+        self.assertNotIn("必须直接调用工具产出改动", rendered)
 
-    def test_system_prompt_names_tool_call_protocol(self):
-        """用于验证systempromptnames工具调用协议。"""
+    def test_tool_schema_descriptions_carry_tool_protocol(self):
+        """用于验证工具使用协议收敛在工具 schema 描述中。"""
+        descriptions = {
+            tool["function"]["name"]: tool["function"]["description"]
+            for tool in RESUME_TOOLS_SCHEMA
+        }
+
+        self.assertIn("section 只能是 education", descriptions["update_bullet"])
+        self.assertIn("item_id 和 bullet_id 必须来自当前简历 JSON", descriptions["update_bullet"])
+        self.assertIn("section 必须是 projects", descriptions["update_overview"])
+        self.assertIn("该工具不修改简历", descriptions["generate_job_match_summary"])
+
+    def test_system_prompt_omits_tool_call_protocol_section(self):
+        """用于验证系统提示词不再硬编码工具协议正文。"""
         rendered = _render_resume_system_prompt(
             target_title="前端工程师",
             target_company="字节跳动",
@@ -335,11 +347,9 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json='{"projects": [{"id": "proj_1", "highlights": [{"id": "hl_1", "text": "负责前端开发"}]}]}',
         )
 
-        self.assertIn("工具调用协议", rendered)
-        self.assertIn("update_bullet", rendered)
-        self.assertIn("bullet_id", rendered)
-        self.assertIn("update_overview", rendered)
-        self.assertIn("item_id", rendered)
+        self.assertNotIn("工具调用协议", rendered)
+        self.assertNotIn("改单条要点用 `update_bullet", rendered)
+        self.assertNotIn("改项目简介只用 `update_overview", rendered)
 
     def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
         """用于验证systempromptlimitsfollowuptodefinedexception用例。"""

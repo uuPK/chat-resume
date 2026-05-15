@@ -87,8 +87,8 @@ def test_system_prompt_lists_actual_active_tools():
     ]
 
 
-def test_system_prompt_template_keeps_tool_conditionals_in_python():
-    """用于验证工具可用性分支不留在 system.md 模板里。"""
+def test_system_prompt_template_uses_active_tool_summary_only():
+    """用于验证 system.md 只保留当前可用工具摘要占位。"""
     prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
     raw_prompt = prompt_path.read_text(encoding="utf-8")
 
@@ -97,7 +97,9 @@ def test_system_prompt_template_keeps_tool_conditionals_in_python():
     assert "default(true)" not in raw_prompt
     assert "{{" not in raw_prompt
     assert "${available_tools}" in raw_prompt
-    assert "${tool_protocol}" in raw_prompt
+    assert "${tool_usage_rules}" not in raw_prompt
+    assert "${tool_protocol}" not in raw_prompt
+    assert "首轮" not in raw_prompt
 
 
 def test_system_prompt_tool_list_matches_requested_profile():

@@ -33,6 +33,8 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "update_overview",
             "description": (
                 "更新 projects 板块中某个项目的 overview 简介，不修改其他事实字段。"
+                "仅用于项目简介，section 必须是 projects；item_id 必须来自当前简历 JSON。"
+                "适合把项目简介改成更贴合岗位职责、关键词和结果表达的版本。"
             ),
             "parameters": {
                 "type": "object",
@@ -66,7 +68,8 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "generate_job_match_summary",
             "description": (
                 "生成岗位匹配摘要，只读。适合在用户询问 JD 匹配、关键词命中、"
-                "缺失关键词、需要补充哪些事实，或完成一处确认改动后展示证据链时调用。"
+                "缺失关键词、需要补充哪些事实，或需要展示 JD 证据链时调用。"
+                "该工具不修改简历。"
             ),
             "parameters": {
                 "type": "object",
@@ -79,7 +82,12 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_bullet",
-            "description": "精准更新某个条目下单条 bullet 的文本。",
+            "description": (
+                "精准更新某个条目下单条 bullet 的文本。用于改写已有 bullet，"
+                "section 只能是 education、work_experience、projects；"
+                "item_id 和 bullet_id 必须来自当前简历 JSON。适合在原 bullet "
+                "已能承载岗位关键词或结果表达时使用。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -114,7 +122,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "add_bullet",
-            "description": "向某个条目新增一条 bullet。",
+            "description": (
+                "向某个条目新增一条 bullet。section 只能是 education、"
+                "work_experience、projects；item_id 必须来自当前简历 JSON。"
+                "仅在已有 bullet 无法承载用户目标或 JD 关键词时使用，不要编造事实。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -143,7 +155,11 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "remove_bullet",
-            "description": "从某个条目删除一条 bullet。",
+            "description": (
+                "从某个条目删除一条 bullet。section 只能是 education、"
+                "work_experience、projects；item_id 和 bullet_id 必须来自当前简历 JSON。"
+                "仅在用户明确要删除或该 bullet 与目标明显冲突时使用。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
