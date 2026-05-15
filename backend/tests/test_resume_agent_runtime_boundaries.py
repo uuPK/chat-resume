@@ -95,6 +95,9 @@ def test_system_prompt_template_keeps_tool_conditionals_in_python():
     assert "edit_tools_available" not in raw_prompt
     assert "job_match_tool_available" not in raw_prompt
     assert "default(true)" not in raw_prompt
+    assert "{{" not in raw_prompt
+    assert "${available_tools}" in raw_prompt
+    assert "${tool_protocol}" in raw_prompt
 
 
 def test_system_prompt_tool_list_matches_requested_profile():

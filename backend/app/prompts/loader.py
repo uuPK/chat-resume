@@ -4,7 +4,7 @@ Prompt Loader - 按照 AgentSpec 模式管理 Prompt
 设计参考 MoonshotAI/kimi-cli 的 agentspec.py：
 - YAML 文件声明结构（模型参数、变量默认值）
 - Markdown 文件存放 Prompt 正文
-- Jinja2 负责变量渲染（支持 {{ VAR }} 和 {% if %} 条件块）
+- Jinja2 负责变量渲染（支持 ${VAR} 和 {% if %} 条件块）
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import StrictUndefined, Template, UndefinedError
+from jinja2 import Environment, StrictUndefined, UndefinedError
 
 PROMPTS_DIR = Path(__file__).parent
 
@@ -35,7 +35,12 @@ class AgentPromptSpec:
         context = {**self.system_prompt_args, **kwargs}
         raw = self.system_prompt_path.read_text(encoding="utf-8")
         try:
-            return Template(raw, undefined=StrictUndefined).render(**context)
+            env = Environment(
+                variable_start_string="${",
+                variable_end_string="}",
+                undefined=StrictUndefined,
+            )
+            return env.from_string(raw).render(**context)
         except UndefinedError as e:
             raise ValueError(f"Prompt '{self.name}' 渲染失败，缺少变量: {e}") from e
 
