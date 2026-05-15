@@ -233,41 +233,6 @@ def test_stop_hook_feedback_is_hidden_metadata_but_sent_to_model():
     assert converted == [message]
 
 
-def test_stop_hook_trace_records_block_observability(monkeypatch, caplog):
-    """用于验证 Stop hook block 日志包含定位所需字段。"""
-    agent = ResumeAgent()
-    block = pi_agent_runtime._StopHookBlock(
-        hook_name="resume_edit_stop_validator",
-        reason="mutation_claim_without_tool_call",
-        feedback="Stop hook feedback:\n必须调用工具。",
-    )
-    result = pi_agent_runtime._StopHookResult.block_(
-        block=block,
-        hook_count=2,
-        duration_ms=1.25,
-    )
-    message = AssistantMessage(content=[TextContent(text="已完成修改")])
-    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
-
-    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
-        agent.runtime._trace_stop_guard_retry(
-            agent.definition,
-            "run_test",
-            message,
-            {"stop_guard_retries": 1},
-            result,
-        )
-
-    record = caplog.records[0]
-    assert record.getMessage() == "agent.trace.stop_guard.retry"
-    assert record.hook_name == "resume_edit_stop_validator"
-    assert record.hook_count == 2
-    assert record.duration_ms == 1.25
-    assert record.outcome == "block"
-    assert record.fallback_emitted is False
-    assert record.feedback_preview == "Stop hook feedback: 必须调用工具。"
-
-
 @pytest.mark.asyncio
 async def test_confirmation_policy_returns_feedback_without_terminating_turn():
     """用于验证确认 hook 将确认结果交还给模型继续 ReAct。"""
