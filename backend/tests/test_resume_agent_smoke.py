@@ -512,8 +512,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
-    async def test_optimize_hides_tool_call_turn_preamble_text(self):
-        """用于验证工具调用轮次的模型前置文本不会进入最终回复。"""
+    async def test_optimize_shows_tool_call_turn_preamble_text(self):
+        """用于验证工具调用轮次的模型前置文本会进入最终回复。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -537,8 +537,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         result = await agent.optimize("继续优化项目", resume)
 
-        self.assertNotIn("我来继续添加一个技术要点", result["content"])
-        self.assertEqual(result["content"], "已通过工具新增 1 条项目要点。")
+        self.assertIn("我来继续添加一个技术要点", result["content"])
+        self.assertIn("已通过工具新增 1 条项目要点。", result["content"])
         self.assertEqual(len(result["tool_calls"]), 1)
         self.assertEqual(
             resume["projects"][0]["highlights"][-1]["text"],
@@ -855,8 +855,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             [{"id": "hl_1", "text": "维护多个后台服务"}],
         )
 
-    async def test_optimize_stream_hides_tool_call_turn_preamble_text(self):
-        """用于验证流式工具调用轮次不会展示模型前置说明。"""
+    async def test_optimize_stream_shows_tool_call_turn_preamble_text(self):
+        """用于验证流式工具调用轮次会展示模型前置说明。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -890,7 +890,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             events.append(event)
 
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertNotIn("我来继续添加项目亮点", visible_text)
+        self.assertIn("我来继续添加项目亮点", visible_text)
         self.assertIn("已通过工具新增 1 条项目亮点", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertEqual(
@@ -1256,6 +1256,53 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "维护多个后台服务，支撑日活 10 万用户",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
+
+    async def test_pi_agent_runtime_stream_shows_tool_preamble_text(self):
+        """用于验证工具调用前的 assistant 文本会正常展示。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(
+            stream_fn=FakePiAgentStream(
+                [
+                    fake_pi_message(
+                        FakeModelResponse(
+                            content="我先说明这次会优化工作经历。",
+                            tool_calls=[
+                                fake_tool_call(
+                                    name="update_bullet",
+                                    args={
+                                        "section": "work_experience",
+                                        "item_id": "work_1",
+                                        "bullet_id": "hl_1",
+                                        "text": "维护多个后台服务，支撑日活 10 万用户",
+                                        "reason": "补充业务规模",
+                                    },
+                                    call_id="call_pi_preamble",
+                                )
+                            ],
+                        )
+                    ),
+                    fake_pi_text("已完成优化。"),
+                ]
+            )
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化这段工作经历",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"work_experience"},
+        ):
+            events.append(event)
+
+        visible_text = "".join(event.get("content", "") for event in events)
+        self.assertIn("我先说明这次会优化工作经历。", visible_text)
+        self.assertIn("已完成优化。", visible_text)
+        self.assertTrue(any(event.get("tool_pending") for event in events))
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""

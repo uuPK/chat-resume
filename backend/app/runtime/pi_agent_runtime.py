@@ -391,9 +391,12 @@ class PiAgentRuntime:
                 )
                 return
             if text_deltas:
-                self._trace_tool_preamble_suppressed(
+                await self._publish_text_deltas(
                     agent=agent,
                     run_id=run_id,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
                     text_deltas=text_deltas,
                 )
             tool_call = tool_calls[0]
@@ -1322,22 +1325,6 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             mode=mode,
             latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-        )
-
-    def _trace_tool_preamble_suppressed(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        text_deltas: list[str],
-    ) -> None:
-        """记录工具调用轮次被隐藏的模型前置文本。"""
-        self._trace(
-            "agent.trace.tool.preamble_suppressed",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            content_preview=self._preview_text("".join(text_deltas)),
-            content_chars=sum(len(delta) for delta in text_deltas),
         )
 
     def _trace_tool_requested(
