@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import logging
 from copy import deepcopy
 from itertools import count
 from time import perf_counter
@@ -47,6 +46,7 @@ from app.runtime.openrouter_adapter import (
     build_openrouter_loop_config,
     openrouter_chat_model_name,
 )
+from app.runtime.trace_recorder import DefaultTraceRecorder
 from app.runtime.tool_confirmation import (
     ToolConfirmationPolicy,
 )
@@ -56,8 +56,6 @@ from app.runtime.runtime_event_adapter import (
 )
 from app.runtime.pi_agent_openrouter import stream_openrouter
 from app.types.stream import ResumeStreamEvent
-
-logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
 
@@ -173,6 +171,7 @@ class PiAgentRuntime:
         """用于初始化当前对象。"""
         self.stream_fn = _ReActStreamFn(stream_fn or stream_openrouter)
         self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
+        self.trace_recorder = DefaultTraceRecorder()
 
     async def run(
         self,
@@ -198,8 +197,14 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             stream_state=state,
         )
-        self._trace_run_start(agent, run_id, "sync", user_message, conversation_history)
-        self._trace_prompt(agent, run_id, pi_context.system_prompt)
+        self.trace_recorder.run_started(
+            agent,
+            run_id,
+            "sync",
+            user_message,
+            conversation_history,
+        )
+        self.trace_recorder.prompt_rendered(agent, run_id, pi_context.system_prompt)
         self._emit_event(
             event_callback,
             self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
@@ -218,9 +223,9 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
         )
         response_event = self._llm_response_event(agent, state)
-        self._trace_llm_response(agent, run_id, response_event)
+        self.trace_recorder.llm_response(agent, run_id, response_event)
         self._emit_event(event_callback, response_event)
-        self._trace_run_completed(agent, run_id, "sync", state)
+        self.trace_recorder.run_completed(agent, run_id, "sync", state)
         return {"content": "".join(state["response_parts"]), "tool_calls": executed_tools}
 
     async def run_stream(
@@ -249,8 +254,14 @@ class PiAgentRuntime:
             executed_tools=executed_tools,
             stream_state=state,
         )
-        self._trace_run_start(agent, run_id, "stream", user_message, conversation_history)
-        self._trace_prompt(agent, run_id, pi_context.system_prompt)
+        self.trace_recorder.run_started(
+            agent,
+            run_id,
+            "stream",
+            user_message,
+            conversation_history,
+        )
+        self.trace_recorder.prompt_rendered(agent, run_id, pi_context.system_prompt)
         prompt_event = self._prompt_rendered_event(
             agent,
             pi_context.system_prompt,
@@ -280,7 +291,7 @@ class PiAgentRuntime:
                 break
             yield event
         await producer
-        self._trace_run_completed(agent, run_id, "stream", state)
+        self.trace_recorder.run_completed(agent, run_id, "stream", state)
 
     async def _produce_stream_events(
         self,
@@ -314,7 +325,7 @@ class PiAgentRuntime:
             )
         finally:
             response_event = self._llm_response_event(agent, state)
-            self._trace_llm_response(agent, run_id, response_event)
+            self.trace_recorder.llm_response(agent, run_id, response_event)
             await self._publish_event(
                 event_queue=event_queue,
                 event_callback=event_callback,
@@ -346,13 +357,7 @@ class PiAgentRuntime:
         )
         for turn_index in count():
             if iteration_limit is not None and turn_index >= iteration_limit:
-                self._trace(
-                    "agent.trace.run.max_iterations_reached",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_call_count=state.get("tool_call_count"),
-                    reason="react_loop_limit",
-                )
+                self.trace_recorder.max_iterations_reached(agent, run_id, state)
                 return
             llm_context = await self._llm_context_for_turn(
                 pi_context=pi_context,
@@ -360,7 +365,7 @@ class PiAgentRuntime:
                 config=config,
             )
             request_event = self._llm_request_event(agent, llm_context, [], state)
-            self._trace_llm_request(agent, run_id, request_event)
+            self.trace_recorder.llm_request(agent, run_id, request_event)
             await self._publish_event(
                 event_queue=event_queue,
                 event_callback=event_callback,
@@ -401,13 +406,11 @@ class PiAgentRuntime:
                 )
             tool_call = tool_calls[0]
             if len(tool_calls) > 1:
-                self._trace(
-                    "agent.trace.reasoning.extra_tool_calls_ignored",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_name=tool_call.name,
-                    tool_call_count=len(tool_calls),
-                    reason="one_tool_per_react_turn",
+                self.trace_recorder.extra_tool_calls_ignored(
+                    agent,
+                    run_id,
+                    tool_call.name,
+                    len(tool_calls),
                 )
             tool_result = await self._execute_react_tool(
                 agent=agent,
@@ -520,12 +523,12 @@ class PiAgentRuntime:
                 continue
             state["chunk_index"] += 1
             state["response_parts"].append(content)
-            self._trace_chunk(
+            self.trace_recorder.chunk(
                 "agent.trace.intermediate.chunk",
                 run_id=run_id,
                 agent_name=agent.prompt_spec.name,
                 chunk_index=state["chunk_index"],
-                content_preview=self._preview_text(content),
+                content_preview=DefaultTraceRecorder.preview_text(content),
                 content_chars=len(content),
             )
             await self._publish_event(
@@ -549,7 +552,7 @@ class PiAgentRuntime:
     ) -> ToolResultMessage:
         """执行一个 ReAct 工具调用并返回可追加到消息链的 tool result。"""
         state["tool_call_count"] += 1
-        self._trace_tool_call_detected(
+        self.trace_recorder.tool_call_detected(
             agent,
             run_id,
             ToolExecutionStartEvent(
@@ -791,7 +794,7 @@ class PiAgentRuntime:
             event_queue=event_queue,
             event_callback=event_callback,
         )
-        self._trace_tool_requested(
+        self.trace_recorder.tool_requested(
             agent,
             run_id,
             call_id,
@@ -859,7 +862,7 @@ class PiAgentRuntime:
         diff_summary = preview_result.get("display_message") or "执行完成"
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
-        self._trace_tool_preview(agent, run_id, call_id, tool_name, preview_result)
+        self.trace_recorder.tool_preview(agent, run_id, call_id, tool_name, preview_result)
         await self._publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
@@ -881,7 +884,7 @@ class PiAgentRuntime:
         confirmation_result = self.confirmation_policy.after_tool_decision(
             confirmed=confirmed,
         )
-        self._trace_tool_confirmation(
+        self.trace_recorder.tool_confirmation(
             agent,
             run_id,
             call_id,
@@ -940,7 +943,7 @@ class PiAgentRuntime:
         if needs_confirmation:
             self._remember_confirmed_diff_items(stream_state, result)
         display_message = tool_result.get("display_message")
-        self._trace_tool_executed(
+        self.trace_recorder.tool_executed(
             agent,
             run_id,
             call_id,
@@ -976,12 +979,12 @@ class PiAgentRuntime:
         """用于在确认后用确定性文本结束当前轮次，避免再次调用模型。"""
         stream_state["chunk_index"] += 1
         stream_state["response_parts"].append(content)
-        self._trace_chunk(
+        self.trace_recorder.chunk(
             "agent.trace.intermediate.chunk",
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             chunk_index=stream_state["chunk_index"],
-            content_preview=self._preview_text(content),
+            content_preview=DefaultTraceRecorder.preview_text(content),
             content_chars=len(content),
         )
         await self._publish_event(
@@ -1085,14 +1088,13 @@ class PiAgentRuntime:
         tool_started_at: float,
     ) -> None:
         """用于发布rejected工具。"""
-        self._trace(
-            "agent.trace.tool.rejected",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=tool_display_name,
-            latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
+        self.trace_recorder.tool_rejected(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            tool_display_name,
+            tool_started_at,
         )
         await self._publish_event(
             event_queue=event_queue,
@@ -1238,235 +1240,6 @@ class PiAgentRuntime:
                 parts.append(block.text)
         return "".join(parts)
 
-    def _trace_run_start(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        mode: str,
-        user_message: str,
-        conversation_history: list[dict[str, str]] | None,
-    ) -> None:
-        """用于处理追踪run开始。"""
-        self._trace(
-            "agent.trace.run.started",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            mode=mode,
-            user_message_preview=self._preview_text(user_message),
-            history_count=len(conversation_history or []),
-            tool_names=list(agent.tool_profiles.get(agent.default_tool_profile, set())),
-        )
-
-    def _trace_prompt(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        system_prompt: str,
-    ) -> None:
-        """用于处理追踪提示词。"""
-        self._trace(
-            "agent.trace.prompt.rendered",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            prompt_chars=len(system_prompt),
-        )
-
-    def _trace_llm_request(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        event: ResumeStreamEvent,
-    ) -> None:
-        """用于处理追踪模型请求。"""
-        self._trace(
-            "agent.trace.llm.request",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            message_count=len(event.get("messages", [])),
-            tool_profile=event.get("tool_profile"),
-            tool_count=event.get("tool_count"),
-            prompt_chars=event.get("prompt_chars"),
-            tool_names=event.get("tool_names", []),
-            params=event.get("params", {}),
-        )
-
-    def _trace_llm_response(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        event: ResumeStreamEvent,
-    ) -> None:
-        """用于处理追踪模型响应。"""
-        self._trace(
-            "agent.trace.llm.response",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            response_preview=self._preview_text(event.get("response_content")),
-            response_chars=len(str(event.get("response_content") or "")),
-            latency_ms=event.get("latency_ms"),
-            first_token_latency_ms=event.get("first_token_latency_ms"),
-            usage=event.get("usage"),
-            confirmation_wait_ms=event.get("confirmation_wait_ms"),
-        )
-
-    def _trace_run_completed(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        mode: str,
-        state: dict[str, Any],
-    ) -> None:
-        """用于处理追踪runcompleted。"""
-        self._trace(
-            "agent.trace.run.completed",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            mode=mode,
-            latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-        )
-
-    def _trace_tool_requested(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        needs_confirmation: bool,
-    ) -> None:
-        """用于处理追踪工具requested。"""
-        self._trace(
-            "agent.trace.tool.requested",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=self._safe_tool_input(tool_input),
-            requires_confirmation=needs_confirmation,
-        )
-
-    def _trace_tool_preview(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        preview_result: dict[str, Any],
-    ) -> None:
-        """用于处理追踪工具preview。"""
-        result = preview_result.get("result", {})
-        diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
-        self._trace(
-            "agent.trace.tool.preview",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=preview_result["tool_name"],
-            diff_summary=self._preview_text(preview_result.get("display_message")),
-            diff_item_count=len(diff_items),
-            result_success=self._tool_success(preview_result),
-        )
-
-    def _trace_tool_confirmation(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        display_name: str,
-        confirmed: bool,
-        confirmation_wait_ms: float,
-        terminate_turn: bool,
-    ) -> None:
-        """用于处理追踪工具confirmation。"""
-        self._trace(
-            "agent.trace.tool.confirmation",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=display_name,
-            confirmed=confirmed,
-            confirmation_wait_ms=confirmation_wait_ms,
-            terminate_turn=terminate_turn,
-        )
-
-    def _trace_tool_executed(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_result: dict[str, Any],
-        tool_started_at: float,
-    ) -> None:
-        """用于处理追踪工具executed。"""
-        self._trace(
-            "agent.trace.tool.executed",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=tool_result["tool_name"],
-            result_success=self._tool_success(tool_result),
-            display_message=self._preview_text(tool_result.get("display_message")),
-            result_summary=self._result_summary(tool_result.get("result", {})),
-            latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
-        )
-
-    def _trace_tool_call_detected(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        event: ToolExecutionStartEvent,
-        state: dict[str, Any],
-    ) -> None:
-        """用于处理追踪工具调用detected。"""
-        allowed_tool_names = {
-            str(tool_name)
-            for tool_name in state.get("tool_names", [])
-            if isinstance(tool_name, str)
-        }
-        if event.tool_name not in allowed_tool_names:
-            self._trace_unexpected_tool_call(agent, run_id, event, state)
-            return
-        self._trace(
-            "agent.trace.reasoning.tool_call_detected",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            tool_call_count=1,
-            tool_call_chunk_count=1,
-            tool_names=[event.tool_name],
-        )
-
-    def _trace_unexpected_tool_call(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        event: ToolExecutionStartEvent,
-        state: dict[str, Any],
-    ) -> None:
-        """用于记录模型请求未暴露工具时出现的异常工具调用。"""
-        logged = state.get("unexpected_tool_call_names")
-        if not isinstance(logged, set):
-            logged = set()
-            state["unexpected_tool_call_names"] = logged
-        if event.tool_name in logged:
-            return
-        logged.add(event.tool_name)
-        self._trace(
-            "agent.trace.reasoning.unexpected_tool_call",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            tool_name=event.tool_name,
-            tool_profile=str(state.get("tool_profile") or ""),
-            allowed_tool_names=list(state.get("tool_names", [])),
-            reason="tool_not_exposed",
-        )
-
     @staticmethod
     async def _publish_event(
         *,
@@ -1521,76 +1294,6 @@ class PiAgentRuntime:
         """用于判断工具failure。"""
         result = tool_result.get("result")
         return isinstance(result, dict) and result.get("success") is False
-
-    @staticmethod
-    def _tool_success(tool_result: dict[str, Any]) -> bool | None:
-        """用于处理工具success。"""
-        result = tool_result.get("result")
-        if isinstance(result, dict) and "success" in result:
-            return bool(result["success"])
-        return None
-
-    @classmethod
-    def _result_summary(cls, result: Any) -> dict[str, Any]:
-        """用于处理结果summary。"""
-        if not isinstance(result, dict):
-            return {"type": type(result).__name__, "preview": cls._preview_text(result)}
-        summary: dict[str, Any] = {"keys": sorted(str(key) for key in result.keys())}
-        if "success" in result:
-            summary["success"] = result.get("success")
-        if "diff_summary" in result:
-            summary["diff_summary"] = cls._preview_text(result.get("diff_summary"))
-        if isinstance(result.get("diff_items"), list):
-            summary["diff_item_count"] = len(result["diff_items"])
-        if "error" in result:
-            summary["error"] = cls._preview_text(result.get("error"))
-        return summary
-
-    @classmethod
-    def _safe_tool_input(cls, tool_input: dict[str, Any]) -> dict[str, Any]:
-        """用于处理安全工具input。"""
-        return {
-            key: cls._summarize_value(value)
-            for key, value in tool_input.items()
-            if key not in {"resume_content", "content"}
-        }
-
-    @classmethod
-    def _summarize_value(cls, value: Any) -> Any:
-        """用于处理summarize值。"""
-        if isinstance(value, str):
-            return cls._preview_text(value)
-        if isinstance(value, (int, float, bool)) or value is None:
-            return value
-        if isinstance(value, list):
-            return {"type": "list", "count": len(value)}
-        if isinstance(value, dict):
-            return {"type": "dict", "keys": sorted(str(key) for key in value.keys())[:20]}
-        return {"type": type(value).__name__, "preview": cls._preview_text(value)}
-
-    @staticmethod
-    def _preview_text(value: Any, limit: int = 240) -> str:
-        """用于处理preview文本。"""
-        if value is None:
-            return ""
-        text = " ".join(str(value).split())
-        if len(text) <= limit:
-            return text
-        return f"{text[:limit]}..."
-
-    @staticmethod
-    def _trace(message: str, **fields: Any) -> None:
-        """用于处理追踪。"""
-        if not settings.AGENT_TRACE_LOG_ENABLED:
-            return
-        logger.info(message, extra={"agent_trace": True, **fields})
-
-    @staticmethod
-    def _trace_chunk(message: str, **fields: Any) -> None:
-        """用于在需要排查流式细节时记录单个 chunk。"""
-        if not settings.AGENT_TRACE_CHUNK_LOG_ENABLED:
-            return
-        PiAgentRuntime._trace(message, **fields)
 
     @staticmethod
     def _tool_names(agent: AgentDefinition) -> list[str]:
