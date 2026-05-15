@@ -91,7 +91,7 @@ echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
 echo "日志文件: backend/${BACKEND_LOG_FILE}"
 echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}"
-echo "终端彩色输出；日志文件保留彩色文本。"
+echo "终端彩色输出；日志文件保持无色纯文本。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
