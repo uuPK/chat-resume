@@ -5,8 +5,6 @@ import sys
 import unittest
 from pathlib import Path
 
-from jinja2 import Template
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -19,7 +17,13 @@ from app.agents.resume.stream_events import (  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
+from app.prompts import load_prompt  # noqa: E402
 from scripts.run_resume_agent_smoke import resume_changed  # noqa: E402
+
+
+def _render_resume_system_prompt(**kwargs: object) -> str:
+    """用于按真实 prompt loader 渲染简历 Agent 系统提示词。"""
+    return load_prompt("resume_agent").render(**kwargs)
 
 
 class ResumeAgentPromptContextTests(unittest.TestCase):
@@ -280,9 +284,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_includes_quantified_rewrite_guidance(self):
         """用于验证systempromptincludesquantifiedrewriteguidance。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="前端工程师",
             target_company="字节跳动",
             jd_text="负责复杂前端交互与性能优化",
@@ -295,9 +297,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_does_not_expose_memory_tools(self):
         """用于验证systempromptdoesnotexposememorytools。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="AI Agent 开发工程师",
             target_company="腾讯",
             jd_text="负责 Agent 产品能力建设",
@@ -312,9 +312,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_enforces_optimize_first_default(self):
         """用于验证systempromptenforcesoptimizefirstdefault。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="产品经理",
             target_company="美团",
             jd_text="负责策略优化与跨团队协同",
@@ -330,9 +328,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_names_tool_call_protocol(self):
         """用于验证systempromptnames工具调用协议。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="前端工程师",
             target_company="字节跳动",
             jd_text="负责复杂前端交互与性能优化",
@@ -347,9 +343,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_limits_follow_up_to_defined_exception_cases(self):
         """用于验证systempromptlimitsfollowuptodefinedexception用例。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="运营",
             target_company="小红书",
             jd_text="负责活动运营与增长分析",
@@ -364,9 +358,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
     def test_system_prompt_explicitly_blocks_high_risk_fabrication_requests(self):
         """用于验证systempromptexplicitlyblockshighriskfabricationrequests。"""
-        prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
-        template = Template(prompt_path.read_text(encoding="utf-8"))
-        rendered = template.render(
+        rendered = _render_resume_system_prompt(
             target_title="高级后端工程师",
             target_company="字节跳动",
             jd_text="负责高并发系统设计与稳定性建设",
