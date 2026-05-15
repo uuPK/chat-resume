@@ -91,7 +91,7 @@ echo "Starting frontend on http://localhost:${FRONTEND_PORT}"
 (
     cd "${ROOT_DIR}"
     bash ./frontend.sh
-) 2>&1 | tee "${FRONTEND_LOG}" | filter_frontend_logs &
+) 2>&1 | filter_frontend_logs &
 FRONTEND_PID=$!
 
 echo "Backend PID: ${BACKEND_PID}  log: ${BACKEND_LOG}"

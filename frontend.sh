@@ -3,7 +3,10 @@
 # Chat Resume 前端重启脚本
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+FRONTEND_LOG_FILE="${FRONTEND_LOG_FILE:-${ROOT_DIR}/frontend.log}"
+export FORCE_COLOR="${FORCE_COLOR:-1}"
 
 echo "🚀 重启 Chat Resume 前端服务..."
 
@@ -14,7 +17,7 @@ if [ ! -f "frontend/package.json" ]; then
 fi
 
 # 进入前端目录
-cd frontend
+cd "${ROOT_DIR}/frontend"
 
 # 检查是否存在 .env.local 文件
 if [ ! -f ".env.local" ]; then
@@ -82,6 +85,10 @@ filter_terminal_logs() {
     '
 }
 
+strip_ansi_for_log() {
+    perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
+}
+
 # 检查是否已安装依赖
 if [ ! -d "node_modules" ]; then
     echo "📦 安装依赖包..."
@@ -91,10 +98,17 @@ fi
 # 重启开发服务器
 stop_port "${FRONTEND_PORT}"
 
+mkdir -p "$(dirname "${FRONTEND_LOG_FILE}")"
+: > "${FRONTEND_LOG_FILE}"
+
 echo "🌟 启动前端开发服务器..."
 echo "前端将在 http://localhost:${FRONTEND_PORT} 运行"
+echo "日志文件: ${FRONTEND_LOG_FILE}"
+echo "终端彩色输出；日志文件保持无色纯文本。"
 echo "终端会显示 Ready 和 Compiled 热更新完成提示；如需原始日志，设置 FRONTEND_TERMINAL_VERBOSE=1。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-npm run dev -- --port "${FRONTEND_PORT}" 2>&1 | filter_terminal_logs
+npm run dev -- --port "${FRONTEND_PORT}" 2>&1 \
+    | tee >(strip_ansi_for_log >> "${FRONTEND_LOG_FILE}") \
+    | filter_terminal_logs
