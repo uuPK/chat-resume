@@ -338,6 +338,12 @@ def _ensure_log_parent(log_file: str) -> str:
     return str(path)
 
 
+def _stderr_is_tty() -> bool:
+    """用于判断 stderr 是否是真正可彩色输出的终端。"""
+    isatty = getattr(sys.stderr, "isatty", None)
+    return bool(isatty and isatty())
+
+
 def configure_logging() -> None:
     """用于配置日志。"""
     log_level_name = settings.LOG_LEVEL.upper()
@@ -362,21 +368,22 @@ def configure_logging() -> None:
             colorize=False,
         )
     else:
+        if _stderr_is_tty():
+            loguru_logger.add(
+                sys.stderr,
+                level=log_level_name,
+                format=_COLOR_TEXT_LOG_FORMAT,
+                backtrace=False,
+                diagnose=False,
+                colorize=True,
+            )
         loguru_logger.add(
-            sys.stderr,
+            log_file,
             level=log_level_name,
             format=_COLOR_TEXT_LOG_FORMAT,
             backtrace=False,
             diagnose=False,
             colorize=True,
-        )
-        loguru_logger.add(
-            log_file,
-            level=log_level_name,
-            format=_TEXT_LOG_FORMAT,
-            backtrace=False,
-            diagnose=False,
-            colorize=False,
         )
 
     intercept_handler = InterceptHandler()
