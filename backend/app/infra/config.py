@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         "LOG_FORMAT",
         "text" if APP_ENV.strip().lower() == "development" else "json",
     )
+    BACKEND_LOG_FILE: str = os.getenv("BACKEND_LOG_FILE", "logs/backend.log")
     AGENT_TRACE_LOG_ENABLED: bool = (
         os.getenv("AGENT_TRACE_LOG_ENABLED", "false").strip().lower() == "true"
     )

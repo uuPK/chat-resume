@@ -8,6 +8,7 @@ BACKEND_LOG_FILE="${BACKEND_LOG_FILE:-logs/backend.log}"
 
 # 本地默认保留结构化日志和 Agent trace。
 export LOG_FORMAT="${LOG_FORMAT:-text}"
+export BACKEND_LOG_FILE
 export AGENT_TRACE_LOG_ENABLED="${AGENT_TRACE_LOG_ENABLED:-true}"
 
 echo "🚀 重启 Chat Resume 后端服务..."
@@ -90,8 +91,8 @@ echo "后端将在 http://localhost:${BACKEND_PORT} 运行"
 echo "API 文档: http://localhost:${BACKEND_PORT}/docs"
 echo "日志文件: backend/${BACKEND_LOG_FILE}"
 echo "日志格式: ${LOG_FORMAT}; Agent trace: ${AGENT_TRACE_LOG_ENABLED}"
-echo "终端输出与日志文件保持一致。"
+echo "终端彩色输出；日志文件保持无色纯文本。"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app 2>&1 | tee -a "${BACKEND_LOG_FILE}"
+uv run uvicorn app.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --reload --reload-dir app

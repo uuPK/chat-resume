@@ -8,6 +8,7 @@ import re
 import sys
 import traceback
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger as loguru_logger
@@ -55,6 +56,17 @@ _TRACE_KEY_LABELS = {
     "tool_input": "input",
     "tool_name": "tool",
 }
+_TEXT_LOG_FORMAT = (
+    "{time:HH:mm:ss} {level} {extra[logger_label]} "
+    "{extra[message_label]}{extra[agent_trace_suffix]}"
+    "{exception}"
+)
+_COLOR_TEXT_LOG_FORMAT = (
+    "<green>{time:HH:mm:ss}</green> <level>{level}</level> "
+    "<cyan>{extra[logger_label]}</cyan> "
+    "<level>{extra[message_label]}</level>{extra[agent_trace_suffix]}"
+    "{exception}"
+)
 
 
 def _sanitize(value: Any) -> Any:
@@ -319,10 +331,18 @@ def _json_sink(message: Any) -> None:
     sys.stderr.flush()
 
 
+def _ensure_log_parent(log_file: str) -> str:
+    """用于确保日志文件所在目录存在。"""
+    path = Path(log_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
 def configure_logging() -> None:
     """用于配置日志。"""
     log_level_name = settings.LOG_LEVEL.upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
+    log_file = _ensure_log_parent(settings.BACKEND_LOG_FILE)
 
     loguru_logger.remove()
     loguru_logger.configure(patcher=_patch_loguru_record)
@@ -333,15 +353,27 @@ def configure_logging() -> None:
             backtrace=False,
             diagnose=False,
         )
+        loguru_logger.add(
+            log_file,
+            level=log_level_name,
+            format="{message}",
+            backtrace=False,
+            diagnose=False,
+            colorize=False,
+        )
     else:
         loguru_logger.add(
             sys.stderr,
             level=log_level_name,
-            format=(
-                "{time:HH:mm:ss} {level} {extra[logger_label]} "
-                "{extra[message_label]}{extra[agent_trace_suffix]}"
-                "{exception}"
-            ),
+            format=_COLOR_TEXT_LOG_FORMAT,
+            backtrace=False,
+            diagnose=False,
+            colorize=True,
+        )
+        loguru_logger.add(
+            log_file,
+            level=log_level_name,
+            format=_TEXT_LOG_FORMAT,
             backtrace=False,
             diagnose=False,
             colorize=False,
