@@ -38,7 +38,6 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         "target_title": str(job_application.get("target_title", "") or ""),
         "target_company": str(job_application.get("target_company", "") or ""),
         "jd_text": str(job_application.get("jd_text", "") or ""),
-        "available_tools": str(context.get("available_tools", "（无）") or "（无）"),
         "resume_json": json.dumps(
             prompt_resume,
             ensure_ascii=False,

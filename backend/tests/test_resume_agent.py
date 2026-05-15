@@ -282,8 +282,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("display_message", event)
         self.assertEqual(event["event_type"], "tool_result")
 
-    def test_system_prompt_includes_quantified_rewrite_guidance(self):
-        """用于验证systempromptincludesquantifiedrewriteguidance。"""
+    def test_system_prompt_is_thin_stable_business_policy(self):
+        """用于验证系统提示词只保留薄业务边界。"""
         rendered = _render_resume_system_prompt(
             target_title="前端工程师",
             target_company="字节跳动",
@@ -291,9 +291,11 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json="{}",
         )
 
-        self.assertIn("量化改写优先级", rendered)
-        self.assertIn("做成了什么、影响了什么、提升了多少", rendered)
-        self.assertIn("不允许编造不存在的数字", rendered)
+        self.assertIn("根据当前简历、用户目标和 API tools", rendered)
+        self.assertIn("不要编造经历、数字、奖项、年限或业务结果", rendered)
+        self.assertNotIn("可用工具", rendered)
+        self.assertNotIn("量化改写优先级", rendered)
+        self.assertNotIn("简历优化策略", rendered)
 
     def test_system_prompt_does_not_expose_memory_tools(self):
         """用于验证systempromptdoesnotexposememorytools。"""

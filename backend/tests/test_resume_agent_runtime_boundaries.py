@@ -69,15 +69,15 @@ def test_plain_message_exposes_resume_tools_for_model_choice():
     }
 
 
-def test_system_prompt_lists_actual_active_tools():
-    """用于验证系统提示词同步列出实际暴露给模型的工具。"""
+def test_system_prompt_does_not_mirror_active_tools():
+    """用于验证系统提示词不再镜像实际暴露给模型的工具。"""
     agent = ResumeAgent()
 
     pi_context, state = _build_runtime_inputs(agent, "优化项目经历")
 
-    assert "## 可用工具" in pi_context.system_prompt
-    assert "- update_bullet: 精准更新某个条目下单条 bullet 的文本。" in pi_context.system_prompt
-    assert "- generate_job_match_summary: 生成岗位匹配摘要，只读。" in pi_context.system_prompt
+    assert "## 可用工具" not in pi_context.system_prompt
+    assert "update_bullet" not in pi_context.system_prompt
+    assert "generate_job_match_summary" not in pi_context.system_prompt
     assert state["tool_names"] == [
         "update_overview",
         "update_bullet",
@@ -87,8 +87,8 @@ def test_system_prompt_lists_actual_active_tools():
     ]
 
 
-def test_system_prompt_template_uses_active_tool_summary_only():
-    """用于验证 system.md 只保留当前可用工具摘要占位。"""
+def test_system_prompt_template_omits_tool_summary_variables():
+    """用于验证 system.md 不保留工具摘要占位。"""
     prompt_path = BACKEND_DIR / "app" / "prompts" / "resume_agent" / "system.md"
     raw_prompt = prompt_path.read_text(encoding="utf-8")
 
@@ -96,7 +96,7 @@ def test_system_prompt_template_uses_active_tool_summary_only():
     assert "job_match_tool_available" not in raw_prompt
     assert "default(true)" not in raw_prompt
     assert "{{" not in raw_prompt
-    assert "${available_tools}" in raw_prompt
+    assert "${available_tools}" not in raw_prompt
     assert "${tool_usage_rules}" not in raw_prompt
     assert "${tool_protocol}" not in raw_prompt
     assert "首轮" not in raw_prompt
@@ -125,7 +125,7 @@ def test_system_prompt_tool_list_matches_requested_profile():
     )
 
     assert [tool.name for tool in pi_context.tools] == ["generate_job_match_summary"]
-    assert "- generate_job_match_summary: 生成岗位匹配摘要，只读。" in pi_context.system_prompt
+    assert "generate_job_match_summary" not in pi_context.system_prompt
     assert "update_bullet" not in pi_context.system_prompt
 
 
