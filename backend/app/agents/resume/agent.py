@@ -31,6 +31,9 @@ _TOOL_PROFILES: dict[str, set[str]] = {
         "remove_bullet",
         "generate_job_match_summary",
     },
+    "read_only": {
+        "generate_job_match_summary",
+    },
 }
 _LOG_VALUE_LIMIT = 64
 _SECTION_ALIASES = {

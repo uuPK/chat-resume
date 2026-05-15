@@ -69,6 +69,51 @@ def test_plain_message_exposes_resume_tools_for_model_choice():
     }
 
 
+def test_system_prompt_lists_actual_active_tools():
+    """用于验证系统提示词同步列出实际暴露给模型的工具。"""
+    agent = ResumeAgent()
+
+    pi_context, state = _build_runtime_inputs(agent, "优化项目经历")
+
+    assert "## 可用工具" in pi_context.system_prompt
+    assert "- update_bullet: 精准更新某个条目下单条 bullet 的文本。" in pi_context.system_prompt
+    assert "- generate_job_match_summary: 生成岗位匹配摘要，只读。" in pi_context.system_prompt
+    assert state["tool_names"] == [
+        "update_overview",
+        "update_bullet",
+        "add_bullet",
+        "remove_bullet",
+        "generate_job_match_summary",
+    ]
+
+
+def test_system_prompt_tool_list_matches_requested_profile():
+    """用于验证工具摘要随当前工具 profile 更新。"""
+    agent = ResumeAgent()
+    state = agent.runtime._new_stream_state()
+    context = {
+        "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        "tool_profile": "read_only",
+    }
+
+    pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
+        agent=agent.definition,
+        user_message="只分析，不要修改",
+        context=context,
+        conversation_history=[],
+        run_id="run_test",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+
+    assert [tool.name for tool in pi_context.tools] == ["generate_job_match_summary"]
+    assert "- generate_job_match_summary: 生成岗位匹配摘要，只读。" in pi_context.system_prompt
+    assert "update_bullet" not in pi_context.system_prompt
+
+
 def test_job_match_message_still_exposes_resume_tools_for_model_choice():
     """用于验证岗位匹配消息不再由后端收窄工具集。"""
     agent = ResumeAgent()

@@ -344,9 +344,11 @@ class PiAgentRuntime:
         context["confirmed_diff_items"] = stream_state["confirmed_diff_items"]
         tool_profile = self._tool_profile(agent, context)
         context["tool_profile"] = tool_profile
+        tools_schema = self._profiled_tool_schemas(agent, tool_profile)
+        context["available_tool_names"] = self._tool_names_from_schemas(tools_schema)
+        context["available_tools"] = self._available_tools_prompt(tools_schema)
         prompt_context = agent.prompt_context_builder(context)
         system_prompt = agent.prompt_spec.render(**prompt_context)
-        tools_schema = self._profiled_tool_schemas(agent, tool_profile)
         tools = self._build_tools(
             agent=agent,
             tools_schema=tools_schema,
@@ -1457,6 +1459,33 @@ class PiAgentRuntime:
             if isinstance(name, str) and name:
                 names.append(name)
         return names
+
+    @classmethod
+    def _available_tools_prompt(cls, schemas: list[dict[str, Any]]) -> str:
+        """用于把实际工具 schema 转成人类可读的提示词摘要。"""
+        lines: list[str] = []
+        for schema in schemas:
+            function = schema.get("function", {})
+            if not isinstance(function, dict):
+                continue
+            name = function.get("name")
+            if not isinstance(name, str) or not name:
+                continue
+            description = cls._tool_description_summary(function)
+            lines.append(f"- {name}: {description}")
+        return "\n".join(lines) if lines else "（无）"
+
+    @staticmethod
+    def _tool_description_summary(function: dict[str, Any]) -> str:
+        """用于提取工具描述的第一句作为 prompt 摘要。"""
+        description = str(function.get("description", "") or "").strip()
+        normalized = " ".join(description.split())
+        if not normalized:
+            return "无描述。"
+        sentence_end = normalized.find("。")
+        if sentence_end >= 0:
+            return normalized[: sentence_end + 1]
+        return normalized
 
     @staticmethod
     def _usage_to_dict(usage: Any) -> dict[str, Any]:

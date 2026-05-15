@@ -24,6 +24,7 @@ def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
 def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
     """用于构造简历 Agent 渲染系统提示词所需的变量。"""
     resume_content = context["resume_content"]
+    available_tool_names = _available_tool_names(context)
     job_application = (
         resume_content.get("job_application", {})
         if isinstance(resume_content, dict)
@@ -38,12 +39,38 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         "target_title": str(job_application.get("target_title", "") or ""),
         "target_company": str(job_application.get("target_company", "") or ""),
         "jd_text": str(job_application.get("jd_text", "") or ""),
+        "available_tools": str(context.get("available_tools", "（无）") or "（无）"),
+        "edit_tools_available": _has_edit_tools(available_tool_names),
+        "job_match_tool_available": (
+            "generate_job_match_summary" in available_tool_names
+        ),
         "resume_json": json.dumps(
             prompt_resume,
             ensure_ascii=False,
             indent=2,
         ),
     }
+
+
+def _available_tool_names(context: dict[str, Any]) -> set[str]:
+    """用于从 runtime 上下文读取当前实际可用工具名。"""
+    value = context.get("available_tool_names")
+    if not isinstance(value, list):
+        return set()
+    return {str(item) for item in value if item}
+
+
+def _has_edit_tools(tool_names: set[str]) -> bool:
+    """用于判断当前工具集是否允许修改简历。"""
+    return bool(
+        {
+            "update_overview",
+            "update_bullet",
+            "add_bullet",
+            "remove_bullet",
+        }
+        & tool_names
+    )
 
 
 __all__ = ["build_resume_prompt_context", "strip_redundant_fields"]
