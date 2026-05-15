@@ -30,7 +30,7 @@ from app.infra.database import Base, get_db
 from app.main import app
 from app.models.billing import BillingSubscription
 from app.models.interview import InterviewSession, InterviewTurn
-from app.models.resume import ResumeChatMessage, ResumeUploadJob
+from app.models.resume import OptimizationRecord, Resume, ResumeChatMessage, ResumeUploadJob
 from app.models.user import ProviderIdentity, User
 from app.runtime.permissions import confirmation_manager
 from app.services.errors import ServicePayloadTooLargeError
@@ -2262,6 +2262,15 @@ class TestResumeCRUD:
                     content="历史聊天",
                 )
             )
+            resume = db.query(Resume).filter(Resume.id == resume_id).one()
+            resume.file_path = "/tmp/chat-resume-missing-file.pdf"
+            db.add(
+                OptimizationRecord(
+                    resume_id=resume_id,
+                    jd_content="Python Agent JD",
+                    suggestions={"items": ["补充量化指标"]},
+                )
+            )
             interview = InterviewSession(
                 user_id=user_id,
                 resume_id=resume_id,
@@ -2327,6 +2336,45 @@ class TestResumeCRUD:
                 .count()
                 == 0
             )
+            assert (
+                db.query(OptimizationRecord)
+                .filter(OptimizationRecord.resume_id == resume_id)
+                .count()
+                == 0
+            )
+        finally:
+            db.close()
+
+    def test_delete_resume_reports_file_cleanup_failure_after_db_delete(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        """用于验证文件清理失败不会回滚已完成的 DB 删除。"""
+        created = self._create_resume("文件清理失败简历")
+        resume_id = created["id"]
+        uploaded = tmp_path / "resume.pdf"
+        uploaded.write_bytes(b"resume")
+
+        db = _TestingSession()
+        try:
+            resume = db.query(Resume).filter(Resume.id == resume_id).one()
+            resume.file_path = str(uploaded)
+            db.commit()
+        finally:
+            db.close()
+
+        monkeypatch.setattr(
+            "app.services.domain.resume_service.FileService.delete_file",
+            lambda self, file_path: False,
+        )
+
+        del_resp = self.client.delete(f"/api/resumes/{resume_id}", headers=self.headers)
+
+        assert del_resp.status_code == 500
+        db = _TestingSession()
+        try:
+            assert db.query(Resume).filter(Resume.id == resume_id).first() is None
         finally:
             db.close()
 

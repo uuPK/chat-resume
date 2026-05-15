@@ -25,6 +25,7 @@ from app.schemas.resume import (
     dump_resume_preview_content_for_list,
 )
 from app.services.domain import ResumeService
+from app.services.errors import ServiceError, ServiceNotFoundError, ServicePermissionError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,6 +68,27 @@ def _build_resume_list_item(resume) -> ResumeListItem:
     )
 
 
+def _get_resume_for_http(
+    resume_service: ResumeService,
+    *,
+    resume_id: int,
+    user_id: int,
+):
+    """用于把服务层简历访问校验转换成 HTTP 错误。"""
+    try:
+        return resume_service.get_for_user(resume_id, user_id)
+    except ServiceNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ServicePermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+
 @router.get("/", response_model=List[ResumeListItem])
 async def get_resumes(
     current_user: dict = Depends(get_current_user_claims), db: Session = Depends(get_db)
@@ -99,18 +121,12 @@ async def get_resume(
     started_at = perf_counter()
     resume_service = ResumeService(db)
     query_started_at = perf_counter()
-    resume = resume_service.get_by_id(resume_id)
+    resume = _get_resume_for_http(
+        resume_service,
+        resume_id=resume_id,
+        user_id=current_user["id"],
+    )
     query_elapsed_ms = (perf_counter() - query_started_at) * 1000
-
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
 
     validate_started_at = perf_counter()
     response = _build_resume_response(resume)
@@ -140,18 +156,11 @@ async def update_resume(
     """用于更新一份已有简历的内容或标题。"""
     resume_service = ResumeService(db)
 
-    # 检查简历是否存在
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-
-    # 检查权限
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
+    _get_resume_for_http(
+        resume_service,
+        resume_id=resume_id,
+        user_id=current_user["id"],
+    )
 
     # 只更新提供的字段
     update_data = resume_update.model_dump(exclude_unset=True)
@@ -180,15 +189,11 @@ async def update_resume_layout(
 ):
     """用于保存简历布局配置，支撑前端排版编辑。"""
     resume_service = ResumeService(db)
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-    if resume.owner_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
+    _get_resume_for_http(
+        resume_service,
+        resume_id=resume_id,
+        user_id=current_user["id"],
+    )
 
     updated = resume_service.update(resume_id, {"layout_config": layout.model_dump()})
     return _build_resume_response(updated)
@@ -202,27 +207,23 @@ async def delete_resume(
 ):
     """用于删除当前用户的一份简历。"""
     resume_service = ResumeService(db)
-
-    # 检查简历是否存在
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
+    try:
+        resume_service.delete_for_user(resume_id, current_user["id"])
+    except ServiceNotFoundError as exc:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-
-    # 检查权限
-    if resume.owner_id != current_user["id"]:
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ServicePermissionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
-
-    # 删除简历
-    success = resume_service.delete(resume_id)
-    if not success:
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete resume",
-        )
+            detail=str(exc),
+        ) from exc
 
     return {"message": "Resume deleted successfully"}
 
@@ -251,16 +252,11 @@ def _check_resume_access(
     resume_service: ResumeService,
 ):
     """用于复用简历存在性和归属校验。"""
-    resume = resume_service.get_by_id(resume_id)
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
-        )
-    if resume.owner_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
-        )
-    return resume
+    return _get_resume_for_http(
+        resume_service,
+        resume_id=resume_id,
+        user_id=user_id,
+    )
 
 
 @router.get("/{resume_id}/chat-messages", response_model=List[ChatMessageOut])

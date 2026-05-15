@@ -17,6 +17,7 @@ from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
 from app.services.domain import ResumeService
+from app.services.errors import ServiceNotFoundError, ServicePermissionError
 from app.state import AgentSessionStore
 from app.types.stream import (
     ResumeStreamEvent,
@@ -299,18 +300,23 @@ class ResumeAgentStreamService:
         user_id: int,
     ):
         """用于统一读取并校验当前用户可访问的简历。"""
-        resume = resume_service.get_by_id(resume_id)
-        if not resume:
+        try:
+            return resume_service.get_for_user(
+                resume_id,
+                user_id,
+                not_found_message="简历不存在",
+                permission_message="没有权限访问此简历",
+            )
+        except ServiceNotFoundError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="简历不存在",
-            )
-        if resume.owner_id != user_id:
+                detail=str(exc),
+            ) from exc
+        except ServicePermissionError as exc:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="没有权限访问此简历",
-            )
-        return resume
+                detail=str(exc),
+            ) from exc
 
     @staticmethod
     def _dump_resume_content(resume: Any) -> dict[str, Any]:
