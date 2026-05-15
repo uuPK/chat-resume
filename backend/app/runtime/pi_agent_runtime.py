@@ -18,13 +18,13 @@ from pi_agent_core import (
     AgentToolResult,
     AgentToolSchema,
     AssistantMessage,
-    MessageEndEvent,
     MessageUpdateEvent,
+    SimpleStreamOptions,
     TextContent,
     ToolCall,
     ToolExecutionStartEvent,
+    ToolResultMessage,
     UserMessage,
-    agent_loop,
 )
 from pi_agent_core.types import Message, StreamFn
 
@@ -204,23 +204,19 @@ class PiAgentRuntime:
             event_callback,
             self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
         )
-        request_event = self._llm_request_event(agent, pi_context, prompts, state)
-        self._trace_llm_request(agent, run_id, request_event)
-        self._emit_event(event_callback, request_event)
-        async for event in agent_loop(
-            prompts,
-            pi_context,
-            config,
-            stream_fn=self.stream_fn,
-        ):
-            await self._handle_pi_event(
-                event=event,
-                event_queue=None,
-                event_callback=event_callback,
-                agent=agent,
-                run_id=run_id,
-                state=state,
-            )
+        await self._run_react_loop(
+            agent=agent,
+            run_id=run_id,
+            pi_context=pi_context,
+            prompts=prompts,
+            config=config,
+            context=context,
+            confirmation_queue=None,
+            event_queue=None,
+            event_callback=event_callback,
+            state=state,
+            executed_tools=executed_tools,
+        )
         response_event = self._llm_response_event(agent, state)
         self._trace_llm_response(agent, run_id, response_event)
         self._emit_event(event_callback, response_event)
@@ -260,12 +256,8 @@ class PiAgentRuntime:
             pi_context.system_prompt,
             user_message,
         )
-        request_event = self._llm_request_event(agent, pi_context, prompts, state)
-        self._trace_llm_request(agent, run_id, request_event)
         self._emit_event(event_callback, prompt_event)
-        self._emit_event(event_callback, request_event)
         yield prompt_event
-        yield request_event
 
         producer = asyncio.create_task(
             self._produce_stream_events(
@@ -274,9 +266,12 @@ class PiAgentRuntime:
                 pi_context=pi_context,
                 prompts=prompts,
                 config=config,
+                context=context,
+                confirmation_queue=confirmation_queue,
                 event_queue=event_queue,
                 event_callback=event_callback,
                 state=state,
+                executed_tools=executed_tools,
             )
         )
         while True:
@@ -295,26 +290,28 @@ class PiAgentRuntime:
         pi_context: AgentContext,
         prompts: list[Message],
         config: AgentLoopConfig,
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
         event_queue: asyncio.Queue[Any],
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
+        executed_tools: list[dict[str, Any]],
     ) -> None:
         """用于处理produce流式events。"""
         try:
-            async for event in agent_loop(
-                prompts,
-                pi_context,
-                config,
-                stream_fn=self.stream_fn,
-            ):
-                await self._handle_pi_event(
-                    event=event,
-                    event_queue=event_queue,
-                    event_callback=event_callback,
-                    agent=agent,
-                    run_id=run_id,
-                    state=state,
-                )
+            await self._run_react_loop(
+                agent=agent,
+                run_id=run_id,
+                pi_context=pi_context,
+                prompts=prompts,
+                config=config,
+                context=context,
+                confirmation_queue=confirmation_queue,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+                executed_tools=executed_tools,
+            )
         finally:
             response_event = self._llm_response_event(agent, state)
             self._trace_llm_response(agent, run_id, response_event)
@@ -324,6 +321,210 @@ class PiAgentRuntime:
                 event=response_event,
             )
             await event_queue.put(_SENTINEL)
+
+    async def _run_react_loop(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        pi_context: AgentContext,
+        prompts: list[Message],
+        config: AgentLoopConfig,
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        executed_tools: list[dict[str, Any]],
+    ) -> None:
+        """显式执行 Claude Code 风格的 ReAct 循环。"""
+        messages = [*pi_context.messages, *prompts]
+        for turn_index in range(max(1, agent.max_iterations)):
+            llm_context = await self._llm_context_for_turn(
+                pi_context=pi_context,
+                messages=messages,
+                config=config,
+            )
+            request_event = self._llm_request_event(agent, llm_context, [], state)
+            self._trace_llm_request(agent, run_id, request_event)
+            await self._publish_event(
+                event_queue=event_queue,
+                event_callback=event_callback,
+                event=request_event,
+            )
+            assistant_message = await self._stream_assistant_turn(
+                agent=agent,
+                run_id=run_id,
+                llm_context=llm_context,
+                config=config,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+            )
+            messages.append(assistant_message)
+            if assistant_message.stop_reason in ("error", "aborted"):
+                return
+
+            tool_calls = self._assistant_tool_calls(assistant_message)
+            if not tool_calls:
+                return
+            tool_call = tool_calls[0]
+            if len(tool_calls) > 1:
+                self._trace(
+                    "agent.trace.reasoning.extra_tool_calls_ignored",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    tool_name=tool_call.name,
+                    tool_call_count=len(tool_calls),
+                    reason="one_tool_per_react_turn",
+                )
+            tool_result = await self._execute_react_tool(
+                agent=agent,
+                run_id=run_id,
+                tool_call=tool_call,
+                context=context,
+                confirmation_queue=confirmation_queue,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+                executed_tools=executed_tools,
+            )
+            messages.append(tool_result)
+
+            if turn_index == agent.max_iterations - 1:
+                self._trace(
+                    "agent.trace.run.max_iterations_reached",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    tool_call_count=state.get("tool_call_count"),
+                    reason="react_loop_limit",
+                )
+
+    async def _llm_context_for_turn(
+        self,
+        *,
+        pi_context: AgentContext,
+        messages: list[Message],
+        config: AgentLoopConfig,
+    ) -> AgentContext:
+        """把当前 ReAct 消息链转换成供应商请求上下文。"""
+        convert_result = config.convert_to_llm(messages)
+        if inspect.isawaitable(convert_result):
+            llm_messages = await convert_result
+        else:
+            llm_messages = convert_result
+        return AgentContext(
+            system_prompt=pi_context.system_prompt,
+            messages=list(llm_messages),
+            tools=pi_context.tools,
+        )
+
+    async def _stream_assistant_turn(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        llm_context: AgentContext,
+        config: AgentLoopConfig,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+    ) -> AssistantMessage:
+        """流式拉取单轮 assistant 响应并发布文本增量。"""
+        response = self.stream_fn(
+            config.model,
+            llm_context,
+            SimpleStreamOptions(
+                api_key=config.api_key,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                reasoning=config.reasoning,
+                session_id=config.session_id,
+                transport=config.transport,
+                thinking_budgets=config.thinking_budgets,
+                max_retry_delay_ms=config.max_retry_delay_ms,
+            ),
+        )
+        if inspect.isawaitable(response):
+            response = await response
+        if not isinstance(response, dict) or "events" not in response or "result" not in response:
+            raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
+
+        async for raw_event in response["events"]:
+            if str(getattr(raw_event, "type", "") or "") == "text_delta":
+                partial = getattr(raw_event, "partial", None)
+                if isinstance(partial, AssistantMessage):
+                    await self._handle_message_update(
+                        event=MessageUpdateEvent(
+                            message=partial,
+                            assistant_message_event=raw_event,
+                        ),
+                        event_queue=event_queue,
+                        event_callback=event_callback,
+                        agent=agent,
+                        run_id=run_id,
+                        state=state,
+                    )
+
+        result = response["result"]()
+        if inspect.isawaitable(result):
+            result = await result
+        if not isinstance(result, AssistantMessage):
+            raise TypeError("StreamFn result must be an AssistantMessage")
+        assistant_message = _ReActStreamFn._single_tool_message(result)
+        state["last_assistant_text"] = self._assistant_text(assistant_message)
+        state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
+        return assistant_message
+
+    def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
+        """从 assistant 消息中提取本轮工具调用。"""
+        return [block for block in message.content if isinstance(block, ToolCall)]
+
+    async def _execute_react_tool(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        tool_call: ToolCall,
+        context: dict[str, Any],
+        confirmation_queue: asyncio.Queue | None,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        executed_tools: list[dict[str, Any]],
+    ) -> ToolResultMessage:
+        """执行一个 ReAct 工具调用并返回可追加到消息链的 tool result。"""
+        state["tool_call_count"] += 1
+        self._trace_tool_call_detected(
+            agent,
+            run_id,
+            ToolExecutionStartEvent(
+                tool_call_id=tool_call.id,
+                tool_name=tool_call.name,
+                args=tool_call.arguments,
+            ),
+            state,
+        )
+        result = await self._execute_tool_result(
+            agent=agent,
+            run_id=run_id,
+            call_id=tool_call.id,
+            tool_name=tool_call.name,
+            tool_input=tool_call.arguments,
+            context=context,
+            confirmation_queue=confirmation_queue,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            stream_state=state,
+        )
+        return ToolResultMessage(
+            tool_call_id=tool_call.id,
+            tool_name=tool_call.name,
+            content=result.content,
+            details=result.details,
+            is_error=False,
+        )
 
     def _build_loop_inputs(
         self,
@@ -734,35 +935,6 @@ class PiAgentRuntime:
             event_callback=event_callback,
             event=text_delta_event(content=content),
         )
-
-    async def _handle_pi_event(
-        self,
-        *,
-        event: Any,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        agent: AgentDefinition,
-        run_id: str,
-        state: dict[str, Any],
-    ) -> None:
-        """用于处理pi事件。"""
-        if isinstance(event, MessageUpdateEvent):
-            await self._handle_message_update(
-                event=event,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                agent=agent,
-                run_id=run_id,
-                state=state,
-            )
-            return
-        if isinstance(event, ToolExecutionStartEvent):
-            state["tool_call_count"] += 1
-            self._trace_tool_call_detected(agent, run_id, event, state)
-            return
-        if isinstance(event, MessageEndEvent) and isinstance(event.message, AssistantMessage):
-            state["last_assistant_text"] = self._assistant_text(event.message)
-            state["usage"] = self._usage_to_dict(getattr(event.message, "usage", None))
 
     async def _handle_message_update(
         self,

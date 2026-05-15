@@ -16,6 +16,7 @@ from pi_agent_core import (
     StreamToolCallStartEvent,
     TextContent,
     ToolCall,
+    ToolResultMessage,
 )
 from pi_agent_core.types import AgentContext, Model, SimpleStreamOptions, StreamResult
 
@@ -48,6 +49,7 @@ class FakePiAgentStream:
     def __init__(self, messages: list[AssistantMessage]):
         """用于处理init。"""
         self.messages = list(messages)
+        self.contexts: list[AgentContext] = []
         self.calls = 0
 
     async def __call__(
@@ -57,7 +59,8 @@ class FakePiAgentStream:
         options: SimpleStreamOptions,
     ) -> StreamResult:
         """返回 pi-agent-core 期望的 stream result。"""
-        del model, context, options
+        del model, options
+        self.contexts.append(context)
         message = self.messages[self.calls]
         self.calls += 1
         events = self._events_for(message)
@@ -524,6 +527,24 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "读取工具结果后继续新增亮点",
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        second_turn_messages = agent.runtime.stream_fn.contexts[1].messages
+        self.assertTrue(
+            any(
+                isinstance(message, AssistantMessage)
+                and any(
+                    isinstance(block, ToolCall) and block.id == "call_first"
+                    for block in message.content
+                )
+                for message in second_turn_messages
+            )
+        )
+        self.assertTrue(
+            any(
+                isinstance(message, ToolResultMessage)
+                and message.tool_call_id == "call_first"
+                for message in second_turn_messages
+            )
+        )
 
     async def test_optimize_retries_recoverable_tool_error(self):
         """用于验证optimizeretriesrecoverabletool错误。"""
