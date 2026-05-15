@@ -374,6 +374,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 // tool_pending: agent 暂停，等待用户确认
                 if (data.tool_pending && data.call_id) {
                   const callId = data.call_id as string
+                  console.info('[useStreamingChat] tool_pending received', {
+                    callId,
+                    toolName: data.tool_display_name || data.tool_name || '',
+                    diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                  })
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_pending',
                     callId,
@@ -497,16 +502,23 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   }
 
   // 用于处理confirm工具。
-  const confirmTool = async (callId: string, confirmed: boolean) => {
+  const confirmTool = async (callId: string, confirmed: boolean, source = 'unknown') => {
     const sid = sessionIdRef.current
     if (!sid) {
-      console.warn('[confirmTool] 没有活跃 session')
+      console.warn('[confirmTool] 没有活跃 session', { callId, confirmed, source })
       return
     }
     if (confirmingToolCallsRef.current.has(callId)) {
+      console.warn('[confirmTool] 正在确认中，忽略重复点击', { callId, confirmed, source })
       return
     }
     confirmingToolCallsRef.current.add(callId)
+    console.info('[confirmTool] request', {
+      callId,
+      confirmed,
+      source,
+      sessionIdShort: sid.slice(0, 8),
+    })
     const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
     const response = await fetch(apiUrl('/api/ai/chat/confirm-tool', apiBaseUrl), {
       method: 'POST',
@@ -514,10 +526,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ session_id: sid, call_id: callId, confirmed }),
+      body: JSON.stringify({ session_id: sid, call_id: callId, confirmed, source }),
     })
     if (response.status === 409) {
-      console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', { callId })
+      console.warn('[confirmTool] 工具确认状态已变化，忽略重复确认', {
+        callId,
+        confirmed,
+        source,
+      })
       return
     }
     if (!response.ok) {
@@ -525,6 +541,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       throw new Error(detail || `工具确认失败: ${response.status}`)
     }
     const body = await response.json().catch(() => null)
+    console.info('[confirmTool] response', {
+      callId,
+      confirmed,
+      source,
+      ok: Boolean(body?.ok),
+      resumable: Boolean(body?.resumable),
+      duplicate: Boolean(body?.duplicate),
+    })
     if (body?.resumable === true) {
       await resumePausedSession(sid)
     }

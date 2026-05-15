@@ -967,7 +967,7 @@ export default function ResumeEditPage() {
                                 <div className="px-4 py-3 bg-white border-t border-gray-200 flex gap-2">
                                   <button
                                     disabled={!isActivePending}
-                                    onClick={() => confirmTool(event.callId, true)}
+                                    onClick={() => confirmTool(event.callId, true, 'resume_edit_accept_button')}
                                     className="flex-1 py-1.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{
                                       borderRadius: '56px',
@@ -978,7 +978,7 @@ export default function ResumeEditPage() {
                                   </button>
                                   <button
                                     disabled={!isActivePending}
-                                    onClick={() => confirmTool(event.callId, false)}
+                                    onClick={() => confirmTool(event.callId, false, 'resume_edit_reject_button')}
                                     className="flex-1 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                                     style={{
                                       borderRadius: '56px',

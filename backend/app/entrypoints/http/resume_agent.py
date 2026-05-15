@@ -68,6 +68,7 @@ class ConfirmToolRequest(BaseModel):
     session_id: str
     call_id: str
     confirmed: bool
+    source: str | None = None
 
 
 class ResumeSessionRequest(BaseModel):
@@ -143,6 +144,17 @@ async def chat_with_resume_stream(
         async for event in stream_service.stream_events(stream_input):
             payload = public_resume_stream_event(event)
             event_id = payload.get("event_id")
+            if payload.get("tool_pending"):
+                logger.info(
+                    "resume_agent.sse.tool_pending.sent",
+                    extra={
+                        "event_id": event_id,
+                        "call_id": payload.get("call_id"),
+                        "tool_name": payload.get("tool_id"),
+                        "tool_display_name": payload.get("tool_display_name"),
+                        "diff_item_count": len(payload.get("diff_items") or []),
+                    },
+                )
             yield format_sse_event(
                 payload,
                 event_id=event_id if isinstance(event_id, str) else None,
@@ -198,8 +210,13 @@ async def confirm_tool(
 
         if result.ok and not result.duplicate:
             logger.info(
-                "Resume agent tool confirmation received confirmed=%s",
+                "Resume agent tool confirmation received confirmed=%s source=%s",
                 request.confirmed,
+                request.source or "-",
+                extra={
+                    "confirmed": request.confirmed,
+                    "source": request.source or "-",
+                },
             )
         return result.to_response()
 
