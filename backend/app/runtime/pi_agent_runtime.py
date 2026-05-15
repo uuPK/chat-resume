@@ -6,12 +6,10 @@ import asyncio
 import inspect
 import json
 import logging
-import re
 from copy import deepcopy
-from dataclasses import dataclass
 from itertools import count
 from time import perf_counter
-from typing import Any, AsyncGenerator, Callable
+from typing import Any, AsyncGenerator
 from uuid import uuid4
 
 from pi_agent_core import (
@@ -62,48 +60,6 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
-_STOP_GUARD_MUTATION_CLAIM_FEEDBACK = (
-    "Stop hook feedback:\n"
-    "上一轮回复声称已经修改简历，但没有产生任何 tool call。"
-    "只有结构化 tool call 才算真实修改，普通文本声明不算修改。"
-    "如果仍需修改，下一轮只发出一个合适工具调用，不要输出说明、表格或总结；"
-    "如果不应继续修改，只能总结已经真实执行的工具结果。"
-)
-_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK = (
-    "Stop hook feedback:\n"
-    "上一轮最终回复包含“继续新增/继续精简/继续修改”等动作标题，"
-    "但没有产生任何 tool call。不要用普通文本描述将要执行的简历修改。"
-    "如果仍需修改，下一轮只发出一个合适工具调用；"
-    "如果不应继续修改，只能总结已经真实执行的工具结果。"
-)
-_MUTATION_INTENT_PATTERN = re.compile(
-    r"(继续|添加|新增|拆分|优化|改写|更新|修改|充实|补充|bullet|要点|工作经历|项目经历)"
-)
-_MUTATION_CLAIM_PATTERN = re.compile(
-    r"(新增\s*[2-9]\d*\s*条|新增.*独立\s*bullet|拆分.*(?:bullet|要点)|"
-    r"已完成.*(?:拆分|新增|添加)|继续(?:添加|新增|拆分))"
-)
-_UNREALIZED_ACTION_PATTERN = re.compile(
-    r"(?:^|[。！？\n\r])\s*"
-    r"(?:我(?:来|将|会|先)?|接下来|然后|继续)?\s*"
-    r"(?:继续)?(?:精简|添加|新增|拆分|修改|更新|优化|改写|补充)"
-    r"[^。！？\n\r：:]{0,40}"
-    r"(?:bullet|要点|overview|简介|项目|工作经历|项目经历|内容|"
-    r"另一条|最后一条|上一条|下一条|第\s*[\d一二三四五六七八九十]+\s*条)"
-    r"\s*[：:]"
-)
-
-
-@dataclass(frozen=True)
-class _StopHookBlock:
-    """描述一次 Stop validator 阻止自然停止的原因。"""
-
-    hook_name: str
-    reason: str
-    feedback: str
-
-
-_StopValidator = Callable[[AgentDefinition, AssistantMessage], _StopHookBlock | None]
 
 
 class _ReActStreamFn:
@@ -217,10 +173,6 @@ class PiAgentRuntime:
         """用于初始化当前对象。"""
         self.stream_fn = _ReActStreamFn(stream_fn or stream_openrouter)
         self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
-        self._stop_validators: tuple[_StopValidator, ...] = (
-            self._validate_resume_mutation_claim_stop,
-            self._validate_resume_unrealized_action_stop,
-        )
 
     async def run(
         self,
@@ -429,30 +381,6 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                stop_block = self._run_stop_validators(agent, assistant_message)
-                if stop_block is not None:
-                    if self._can_retry_stop_hook_block(state):
-                        state["stop_guard_retries"] += 1
-                        self._trace_stop_guard_retry(
-                            agent,
-                            run_id,
-                            assistant_message,
-                            state,
-                            stop_block,
-                        )
-                        messages.append(self._stop_hook_feedback_message(stop_block))
-                        continue
-                    await self._publish_invalid_stop_fallback(
-                        agent=agent,
-                        run_id=run_id,
-                        event_queue=event_queue,
-                        event_callback=event_callback,
-                        state=state,
-                        executed_tools=executed_tools,
-                        assistant_message=assistant_message,
-                        stop_block=stop_block,
-                    )
-                    return
                 await self._publish_text_deltas(
                     agent=agent,
                     run_id=run_id,
@@ -602,112 +530,6 @@ class PiAgentRuntime:
                 event_callback=event_callback,
                 event=text_delta_event(content=content),
             )
-
-    def _run_stop_validators(
-        self,
-        agent: AgentDefinition,
-        assistant_message: AssistantMessage,
-    ) -> _StopHookBlock | None:
-        """按 Claude Code 形态逐个运行 Stop validator。"""
-        for validator in self._stop_validators:
-            block = validator(agent, assistant_message)
-            if block is not None:
-                return block
-        return None
-
-    def _validate_resume_mutation_claim_stop(
-        self,
-        agent: AgentDefinition,
-        assistant_message: AssistantMessage,
-    ) -> _StopHookBlock | None:
-        """阻止简历 Agent 无工具调用却声称已修改。"""
-        if not self._is_resume_agent(agent):
-            return None
-        text = self._assistant_text(assistant_message)
-        if not text.strip():
-            return None
-        if _MUTATION_INTENT_PATTERN.search(text) and _MUTATION_CLAIM_PATTERN.search(text):
-            return _StopHookBlock(
-                hook_name="resume_edit_stop_validator",
-                reason="mutation_claim_without_tool_call",
-                feedback=_STOP_GUARD_MUTATION_CLAIM_FEEDBACK,
-            )
-        return None
-
-    def _validate_resume_unrealized_action_stop(
-        self,
-        agent: AgentDefinition,
-        assistant_message: AssistantMessage,
-    ) -> _StopHookBlock | None:
-        """阻止简历 Agent 无工具调用却继续描述编辑动作。"""
-        if not self._is_resume_agent(agent):
-            return None
-        text = self._assistant_text(assistant_message)
-        if not text.strip():
-            return None
-        if _UNREALIZED_ACTION_PATTERN.search(text):
-            return _StopHookBlock(
-                hook_name="resume_edit_stop_validator",
-                reason="unrealized_action_without_tool_call",
-                feedback=_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK,
-            )
-        return None
-
-    @staticmethod
-    def _is_resume_agent(agent: AgentDefinition) -> bool:
-        """判断当前 stop validator 是否适用于简历 Agent。"""
-        return agent.prompt_spec.name == "resume_agent"
-
-    @staticmethod
-    def _can_retry_stop_hook_block(state: dict[str, Any]) -> bool:
-        """限制 Stop hook 纠错只重试一次，避免无效模型响应循环。"""
-        return int(state.get("stop_guard_retries") or 0) < 1
-
-    @staticmethod
-    def _stop_hook_feedback_message(stop_block: _StopHookBlock) -> UserMessage:
-        """生成只给模型看的 Stop hook feedback。"""
-        return UserMessage(content=[TextContent(text=stop_block.feedback)])
-
-    async def _publish_invalid_stop_fallback(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        executed_tools: list[dict[str, Any]],
-        assistant_message: AssistantMessage,
-        stop_block: _StopHookBlock,
-    ) -> None:
-        """隐藏无效最终回复，并用确定性文案结束当前轮次。"""
-        content = self._invalid_mutation_fallback_text(executed_tools)
-        self._trace_stop_guard_fallback(
-            agent,
-            run_id,
-            assistant_message,
-            state,
-            stop_block,
-        )
-        await self._publish_text_deltas(
-            agent=agent,
-            run_id=run_id,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            state=state,
-            text_deltas=[content],
-        )
-
-    @staticmethod
-    def _invalid_mutation_fallback_text(executed_tools: list[dict[str, Any]]) -> str:
-        """根据真实工具执行情况生成确定性收束文案。"""
-        count = len(executed_tools)
-        if count > 0:
-            return (
-                f"已完成 {count} 次工具修改。后续没有新的有效工具调用，"
-                "因此停止继续自动修改；如需继续，请再发起具体指令。"
-            )
-        return "本轮没有产生有效工具调用，因此没有修改简历。请给出更具体的修改目标后我再继续。"
 
     async def _execute_react_tool(
         self,
@@ -1342,7 +1164,6 @@ class PiAgentRuntime:
             "first_token_latency_ms": None,
             "usage": {},
             "confirmation_wait_ms": 0.0,
-            "stop_guard_retries": 0,
         }
 
     def _llm_request_event(
@@ -1501,44 +1322,6 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             mode=mode,
             latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-        )
-
-    def _trace_stop_guard_retry(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        assistant_message: AssistantMessage,
-        state: dict[str, Any],
-        stop_block: _StopHookBlock,
-    ) -> None:
-        """记录 Stop validator 阻止自然停止后的重试。"""
-        self._trace(
-            "agent.trace.stop_guard.retry",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            retry_count=int(state.get("stop_guard_retries") or 0),
-            hook_name=stop_block.hook_name,
-            reason=stop_block.reason,
-            response_preview=self._preview_text(self._assistant_text(assistant_message)),
-        )
-
-    def _trace_stop_guard_fallback(
-        self,
-        agent: AgentDefinition,
-        run_id: str,
-        assistant_message: AssistantMessage,
-        state: dict[str, Any],
-        stop_block: _StopHookBlock,
-    ) -> None:
-        """记录 stop guard 放弃模型原文并收束输出。"""
-        self._trace(
-            "agent.trace.stop_guard.fallback",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            retry_count=int(state.get("stop_guard_retries") or 0),
-            hook_name=stop_block.hook_name,
-            reason=stop_block.reason,
-            response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
     def _trace_tool_preamble_suppressed(
