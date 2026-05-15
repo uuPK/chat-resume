@@ -75,12 +75,28 @@ _STOP_GUARD_UNREALIZED_ACTION_FEEDBACK = (
     "如果仍需修改，下一轮只发出一个合适工具调用；"
     "如果不应继续修改，只能总结已经真实执行的工具结果。"
 )
-_MUTATION_INTENT_PATTERN = re.compile(
-    r"(继续|添加|新增|拆分|优化|改写|更新|修改|充实|补充|bullet|要点|工作经历|项目经历)"
+_MUTATION_COMPLETION_MARKERS = (
+    "已完成",
+    "已经完成",
+    "已修改",
+    "已更新",
+    "已优化",
+    "已精简",
+    "改动内容",
 )
-_MUTATION_CLAIM_PATTERN = re.compile(
-    r"(新增\s*[2-9]\d*\s*条|新增.*独立\s*bullet|拆分.*(?:bullet|要点)|"
-    r"已完成.*(?:拆分|新增|添加)|继续(?:添加|新增|拆分))"
+_MUTATION_TARGET_MARKERS = (
+    "简历",
+    "项目",
+    "工作经历",
+    "项目经历",
+    "bullet",
+    "要点",
+    "overview",
+    "简介",
+    "内容",
+)
+_QUANTIFIED_MUTATION_PATTERN = re.compile(
+    r"(?:新增|添加|拆分)\s*[2-9]\d*\s*(?:条|个)?"
 )
 _UNREALIZED_ACTION_PATTERN = re.compile(
     r"(?:^|[。！？\n\r])\s*"
@@ -667,10 +683,12 @@ class PiAgentRuntime:
         """阻止简历 Agent 无工具调用却声称已修改。"""
         if not self._is_resume_agent(stop_context.agent):
             return None
+        if self._has_real_tool_result(stop_context):
+            return None
         text = self._assistant_text(stop_context.assistant_message)
         if not text.strip():
             return None
-        if _MUTATION_INTENT_PATTERN.search(text) and _MUTATION_CLAIM_PATTERN.search(text):
+        if self._assistant_claims_resume_mutation(text):
             return _StopHookBlock(
                 hook_name="resume_edit_stop_validator",
                 reason="mutation_claim_without_tool_call",
@@ -695,6 +713,19 @@ class PiAgentRuntime:
                 feedback=_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK,
             )
         return None
+
+    @staticmethod
+    def _has_real_tool_result(stop_context: _StopHookContext) -> bool:
+        """判断当前运行是否已有真实工具结果。"""
+        return bool(stop_context.executed_tools or stop_context.current_turn_tool_results)
+
+    @staticmethod
+    def _assistant_claims_resume_mutation(text: str) -> bool:
+        """识别无工具场景下声称已完成简历修改的文本。"""
+        has_completion = any(marker in text for marker in _MUTATION_COMPLETION_MARKERS)
+        has_completion = has_completion or bool(_QUANTIFIED_MUTATION_PATTERN.search(text))
+        has_target = any(marker in text for marker in _MUTATION_TARGET_MARKERS)
+        return has_completion and has_target
 
     @staticmethod
     def _is_resume_agent(agent: AgentDefinition) -> bool:

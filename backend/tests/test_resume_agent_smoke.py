@@ -567,6 +567,44 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["tool_calls"], [])
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
+    async def test_optimize_retries_completed_overview_claim_without_tool(self):
+        """用于验证无工具调用的 overview 完成声明会触发重试。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content="已完成 Deep Research Agent 项目 overview 精简，去除了冗余描述。"
+                ),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_overview",
+                            call_id="call_update_overview_after_claim",
+                            args={
+                                "section": "projects",
+                                "item_id": "proj_1",
+                                "overview": "AI 求职辅导平台，支持简历诊断与模拟面试。",
+                                "reason": "精简项目简介",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具精简项目简介，保留核心能力。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("继续啊", resume)
+
+        self.assertNotIn("已完成 Deep Research Agent", result["content"])
+        self.assertEqual(result["content"], "已通过工具精简项目简介，保留核心能力。")
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(
+            resume["projects"][0]["overview"],
+            "AI 求职辅导平台，支持简历诊断与模拟面试。",
+        )
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+
     async def test_optimize_retries_unrealized_action_headline_without_tool(self):
         """用于验证无工具调用的动作标题会作为 stop 校验失败重试。"""
         agent = self._build_agent(
