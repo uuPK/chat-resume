@@ -537,6 +537,7 @@ class PiAgentRuntime:
                         stop_result=stop_result,
                     )
                     return
+                self._trace_stop_hook_passed(agent, run_id, assistant_message, stop_result)
                 await self._publish_text_deltas(
                     agent=agent,
                     run_id=run_id,
@@ -1673,6 +1674,8 @@ class PiAgentRuntime:
             hook_count=stop_result.hook_count,
             duration_ms=stop_result.duration_ms,
             outcome=stop_result.outcome,
+            feedback_preview=self._preview_text(stop_block.feedback),
+            fallback_emitted=False,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
@@ -1698,6 +1701,27 @@ class PiAgentRuntime:
             hook_count=stop_result.hook_count,
             duration_ms=stop_result.duration_ms,
             outcome=stop_result.outcome,
+            feedback_preview=self._preview_text(stop_block.feedback),
+            fallback_emitted=True,
+            response_preview=self._preview_text(self._assistant_text(assistant_message)),
+        )
+
+    def _trace_stop_hook_passed(
+        self,
+        agent: AgentDefinition,
+        run_id: str,
+        assistant_message: AssistantMessage,
+        stop_result: _StopHookResult,
+    ) -> None:
+        """记录 Stop hook 允许自然停止。"""
+        self._trace(
+            "agent.trace.stop_hook.passed",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            hook_count=stop_result.hook_count,
+            duration_ms=stop_result.duration_ms,
+            outcome=stop_result.outcome,
+            fallback_emitted=False,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
