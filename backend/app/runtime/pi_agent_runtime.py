@@ -102,22 +102,7 @@ class _StopHookBlock:
     feedback: str
 
 
-@dataclass(frozen=True)
-class _StopHookContext:
-    """提供 Stop validator 判断自然停止是否合法所需的上下文。"""
-
-    agent: AgentDefinition
-    run_id: str
-    messages: list[Message]
-    assistant_message: AssistantMessage
-    text_deltas: list[str]
-    executed_tools: list[dict[str, Any]]
-    current_turn_tool_calls: list[ToolCall]
-    current_turn_tool_results: list[ToolResultMessage]
-    state: dict[str, Any]
-
-
-_StopValidator = Callable[[_StopHookContext], _StopHookBlock | None]
+_StopValidator = Callable[[AgentDefinition, AssistantMessage], _StopHookBlock | None]
 
 
 class _ReActStreamFn:
@@ -429,18 +414,7 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                stop_context = self._build_stop_hook_context(
-                    agent=agent,
-                    run_id=run_id,
-                    messages=messages,
-                    assistant_message=assistant_message,
-                    text_deltas=text_deltas,
-                    executed_tools=executed_tools,
-                    current_turn_tool_calls=tool_calls,
-                    current_turn_tool_results=[],
-                    state=state,
-                )
-                stop_block = self._run_stop_validators(stop_context)
+                stop_block = self._run_stop_validators(agent, assistant_message)
                 if stop_block is not None:
                     if self._can_retry_stop_hook_block(state):
                         state["stop_guard_retries"] += 1
@@ -623,51 +597,27 @@ class PiAgentRuntime:
                 event=text_delta_event(content=content),
             )
 
-    @staticmethod
-    def _build_stop_hook_context(
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        messages: list[Message],
-        assistant_message: AssistantMessage,
-        text_deltas: list[str],
-        executed_tools: list[dict[str, Any]],
-        current_turn_tool_calls: list[ToolCall],
-        current_turn_tool_results: list[ToolResultMessage],
-        state: dict[str, Any],
-    ) -> _StopHookContext:
-        """构建类似 Claude Code handleStopHooks 的 Stop 上下文。"""
-        return _StopHookContext(
-            agent=agent,
-            run_id=run_id,
-            messages=list(messages),
-            assistant_message=assistant_message,
-            text_deltas=list(text_deltas),
-            executed_tools=list(executed_tools),
-            current_turn_tool_calls=list(current_turn_tool_calls),
-            current_turn_tool_results=list(current_turn_tool_results),
-            state=dict(state),
-        )
-
     def _run_stop_validators(
         self,
-        stop_context: _StopHookContext,
+        agent: AgentDefinition,
+        assistant_message: AssistantMessage,
     ) -> _StopHookBlock | None:
         """按 Claude Code 形态逐个运行 Stop validator。"""
         for validator in self._stop_validators:
-            block = validator(stop_context)
+            block = validator(agent, assistant_message)
             if block is not None:
                 return block
         return None
 
     def _validate_resume_mutation_claim_stop(
         self,
-        stop_context: _StopHookContext,
+        agent: AgentDefinition,
+        assistant_message: AssistantMessage,
     ) -> _StopHookBlock | None:
         """阻止简历 Agent 无工具调用却声称已修改。"""
-        if not self._is_resume_agent(stop_context.agent):
+        if not self._is_resume_agent(agent):
             return None
-        text = self._assistant_text(stop_context.assistant_message)
+        text = self._assistant_text(assistant_message)
         if not text.strip():
             return None
         if _MUTATION_INTENT_PATTERN.search(text) and _MUTATION_CLAIM_PATTERN.search(text):
@@ -680,12 +630,13 @@ class PiAgentRuntime:
 
     def _validate_resume_unrealized_action_stop(
         self,
-        stop_context: _StopHookContext,
+        agent: AgentDefinition,
+        assistant_message: AssistantMessage,
     ) -> _StopHookBlock | None:
         """阻止简历 Agent 无工具调用却继续描述编辑动作。"""
-        if not self._is_resume_agent(stop_context.agent):
+        if not self._is_resume_agent(agent):
             return None
-        text = self._assistant_text(stop_context.assistant_message)
+        text = self._assistant_text(assistant_message)
         if not text.strip():
             return None
         if _UNREALIZED_ACTION_PATTERN.search(text):
