@@ -26,24 +26,23 @@ from app.entrypoints.http.deps import get_current_user, require_active_subscript
 from app.infra.config import settings
 from app.infra.database import SessionLocal, get_db
 from app.models.resume import ResumeUploadJob
-from app.schemas.resume import ResumeCreate
-from app.services.domain import FileService, ResumeService, UploadedFileContent
+from app.services.domain import FileService, UploadedFileContent
 from app.services.errors import (
     ServiceError,
     ServicePayloadTooLargeError,
     ServiceValidationError,
 )
 from app.services.processing import JDOcrService, ResumeParser
+from app.services.processing.resume_upload_job import (
+    RESUME_UPLOAD_STATUS_QUEUED,
+    ResumeUploadJobProcessor,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 _ALLOWED_JD_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
-_RESUME_UPLOAD_STATUS_QUEUED = "queued"
-_RESUME_UPLOAD_STATUS_PROCESSING = "processing"
-_RESUME_UPLOAD_STATUS_COMPLETED = "completed"
-_RESUME_UPLOAD_STATUS_FAILED = "failed"
 _JD_OCR_PROVIDER_REJECTION_DETAIL = (
     "JD 图片识别失败：当前视觉模型请求被供应商拒绝。"
     "请检查 OPENROUTER_VISION_MODEL 是否配置为支持图片输入的模型。"
@@ -137,111 +136,15 @@ def _build_upload_job_status(job: ResumeUploadJob) -> ResumeUploadJobStatus:
     )
 
 
-def _mark_upload_job_failed(
-    db: Session,
-    job: ResumeUploadJob,
-    *,
-    error: str,
-) -> None:
-    """用于标记上传任务失败状态。"""
-    job.status = _RESUME_UPLOAD_STATUS_FAILED
-    job.error = error
-    db.add(job)
-    db.commit()
-
-
 async def process_resume_upload_job(job_id: str) -> None:
-    """后台解析已保存的简历文件，并把完成状态写回任务表。"""
-    db = SessionLocal()
-    file_service = FileService()
-    request_started_at = perf_counter()
-    stage = "load_job"
-    job = db.query(ResumeUploadJob).filter(ResumeUploadJob.id == job_id).first()
-    if job is None:
-        logger.warning("resume_upload.job.missing job_id=%s", job_id)
-        db.close()
-        return
-
-    try:
-        job.status = _RESUME_UPLOAD_STATUS_PROCESSING
-        job.error = None
-        db.add(job)
-        db.commit()
-
-        filename = job.original_filename
-        file_path = job.file_path
-        if not file_path:
-            raise ServiceValidationError("Uploaded file path is missing")
-
-        stage = "extract_text"
-        extract_started_at = perf_counter()
-        text = file_service.extract_text_from_file(file_path, filename)
-        extract_elapsed_ms = (perf_counter() - extract_started_at) * 1000
-
-        stage = "parse_resume"
-        parser = ResumeParser()
-        logger.info(
-            "resume_upload.parse.started model=%s job_id=%s",
-            parser.model,
-            job_id,
-        )
-        parse_started_at = perf_counter()
-        resume_data = await parser.parse_resume_text_async(text)
-        parse_elapsed_ms = (perf_counter() - parse_started_at) * 1000
-
-        stage = "save_resume"
-        save_started_at = perf_counter()
-        resume_service = ResumeService(db)
-        resume_create = ResumeCreate.model_validate(
-            {
-                "title": filename.rsplit(".", 1)[0],
-                "content": resume_data,
-                "original_filename": filename,
-            }
-        )
-        resume = resume_service.create(resume_create, job.user_id)
-        save_elapsed_ms = (perf_counter() - save_started_at) * 1000
-
-        job.status = _RESUME_UPLOAD_STATUS_COMPLETED
-        job.resume_id = resume.id
-        job.error = None
-        db.add(job)
-        db.commit()
-
-        total_elapsed_ms = (perf_counter() - request_started_at) * 1000
-        logger.info(
-            (
-                "resume_upload.completed model=%s job_id=%s resume_id=%s method=%s "
-                "quality=%s extract_ms=%.2f parse_ms=%.2f save_ms=%.2f total_ms=%.2f"
-            ),
-            parser.model,
-            job_id,
-            resume.id,
-            resume_data.get("parsing_method", "unknown"),
-            resume_data.get("parsing_quality", 0),
-            extract_elapsed_ms,
-            parse_elapsed_ms,
-            save_elapsed_ms,
-            total_elapsed_ms,
-        )
-    except Exception as exc:
-        logger.exception(
-            "resume_upload.job.failed",
-            extra={
-                "job_id": job_id,
-                "stage": stage,
-                "error_type": type(exc).__name__,
-                "total_ms": round((perf_counter() - request_started_at) * 1000, 2),
-            },
-        )
-        db.rollback()
-        _mark_upload_job_failed(db, job, error=str(exc))
-    finally:
-        try:
-            if job.file_path:
-                file_service.delete_file(job.file_path)
-        finally:
-            db.close()
+    """用于把后台解析任务委托给上传 Job 模块。"""
+    processor = ResumeUploadJobProcessor(
+        session_factory=SessionLocal,
+        file_service_factory=FileService,
+        parser_factory=ResumeParser,
+        log=logger,
+    )
+    await processor.process(job_id)
 
 
 @router.post(
@@ -294,7 +197,7 @@ async def upload_resume(
         job = ResumeUploadJob(
             id=uuid4().hex,
             user_id=current_user["id"],
-            status=_RESUME_UPLOAD_STATUS_QUEUED,
+            status=RESUME_UPLOAD_STATUS_QUEUED,
             original_filename=filename,
             file_path=file_path,
         )
