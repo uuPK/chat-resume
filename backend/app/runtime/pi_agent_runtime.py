@@ -75,10 +75,6 @@ _STOP_GUARD_UNREALIZED_ACTION_FEEDBACK = (
     "如果仍需修改，下一轮只发出一个合适工具调用；"
     "如果不应继续修改，只能总结已经真实执行的工具结果。"
 )
-_STOP_HOOK_FEEDBACK_METADATA = {
-    "hidden_from_ui": True,
-    "stop_hook_feedback": True,
-}
 _MUTATION_COMPLETION_MARKERS = (
     "已完成",
     "已经完成",
@@ -744,8 +740,7 @@ class PiAgentRuntime:
     @staticmethod
     def _stop_hook_feedback_message(stop_block: _StopHookBlock) -> UserMessage:
         """生成只给模型看的 Stop hook feedback。"""
-        message = UserMessage(content=[TextContent(text=stop_block.feedback)])
-        return message.model_copy(update={"metadata": dict(_STOP_HOOK_FEEDBACK_METADATA)})
+        return UserMessage(content=[TextContent(text=stop_block.feedback)])
 
     async def _publish_invalid_stop_fallback(
         self,
