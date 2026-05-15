@@ -682,6 +682,36 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+    async def test_optimize_default_react_loop_has_no_six_turn_cap(self):
+        """用于验证默认 ReAct 循环不会在 6 轮工具调用后停止。"""
+        responses = [
+            FakeModelResponse(
+                content="",
+                tool_calls=[
+                    fake_tool_call(
+                        name="update_overview",
+                        call_id=f"call_overview_{index}",
+                        args={
+                            "section": "projects",
+                            "item_id": "proj_1",
+                            "overview": f"第 {index} 轮项目简介",
+                        },
+                    )
+                ],
+            )
+            for index in range(1, 8)
+        ]
+        responses.append(FakeModelResponse(content="已完成连续多轮项目简介优化。"))
+        agent = self._build_agent(responses)
+        resume = self._sample_resume()
+
+        result = await agent.optimize("连续优化项目简介", resume)
+
+        self.assertEqual(result["content"], "已完成连续多轮项目简介优化。")
+        self.assertEqual(len(result["tool_calls"]), 7)
+        self.assertEqual(resume["projects"][0]["overview"], "第 7 轮项目简介")
+        self.assertEqual(agent.runtime.stream_fn.calls, 8)
+
     async def test_optimize_retries_recoverable_tool_error(self):
         """用于验证optimizeretriesrecoverabletool错误。"""
         agent = self._build_agent(

@@ -9,6 +9,7 @@ import logging
 import re
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import count
 from time import perf_counter
 from typing import Any, AsyncGenerator, Callable
 from uuid import uuid4
@@ -386,7 +387,21 @@ class PiAgentRuntime:
     ) -> None:
         """显式执行 Claude Code 风格的 ReAct 循环。"""
         messages = [*pi_context.messages, *prompts]
-        for turn_index in range(max(1, agent.max_iterations)):
+        iteration_limit = (
+            max(1, agent.max_iterations)
+            if agent.max_iterations is not None
+            else None
+        )
+        for turn_index in count():
+            if iteration_limit is not None and turn_index >= iteration_limit:
+                self._trace(
+                    "agent.trace.run.max_iterations_reached",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    tool_call_count=state.get("tool_call_count"),
+                    reason="react_loop_limit",
+                )
+                return
             llm_context = await self._llm_context_for_turn(
                 pi_context=pi_context,
                 messages=messages,
@@ -475,15 +490,6 @@ class PiAgentRuntime:
                 executed_tools=executed_tools,
             )
             messages.append(tool_result)
-
-            if turn_index == agent.max_iterations - 1:
-                self._trace(
-                    "agent.trace.run.max_iterations_reached",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_call_count=state.get("tool_call_count"),
-                    reason="react_loop_limit",
-                )
 
     async def _llm_context_for_turn(
         self,

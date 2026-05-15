@@ -21,7 +21,7 @@ class AgentDefinition:
     tools_schema: list[dict[str, Any]]
     tool_executor: ToolExecutor
     prompt_context_builder: PromptContextBuilder
-    max_iterations: int = 6
+    max_iterations: int | None = None
     max_history_messages: int = 20
     auto_execute_tool_names: set[str] = field(default_factory=set)
     default_tool_profile: str = "resume_edit"

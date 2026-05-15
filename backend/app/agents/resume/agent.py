@@ -120,7 +120,6 @@ class ResumeAgent:
             tools_schema=RESUME_TOOLS_SCHEMA,
             tool_executor=self._run_tool,
             prompt_context_builder=build_resume_prompt_context,
-            max_iterations=6,
             auto_execute_tool_names=_AUTO_EXECUTE_TOOL_NAMES,
             default_tool_profile="resume_edit",
             tool_profiles=_TOOL_PROFILES,
