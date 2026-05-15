@@ -214,6 +214,25 @@ def test_convert_resume_messages_filters_internal_only_messages():
     assert converted == [user, assistant, tool_result]
 
 
+def test_stop_hook_feedback_is_hidden_metadata_but_sent_to_model():
+    """用于验证 Stop hook feedback 对 UI 隐藏但仍会送进模型。"""
+    block = pi_agent_runtime._StopHookBlock(
+        hook_name="resume_edit_stop_validator",
+        reason="mutation_claim_without_tool_call",
+        feedback="Stop hook feedback:\n必须调用工具。",
+    )
+
+    message = pi_agent_runtime.PiAgentRuntime._stop_hook_feedback_message(block)
+    metadata = getattr(message, "metadata", None)
+    converted = convert_resume_messages_to_llm([message])
+
+    assert metadata == {
+        "hidden_from_ui": True,
+        "stop_hook_feedback": True,
+    }
+    assert converted == [message]
+
+
 @pytest.mark.asyncio
 async def test_confirmation_policy_returns_feedback_without_terminating_turn():
     """用于验证确认 hook 将确认结果交还给模型继续 ReAct。"""
