@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from .add_highlight_tool import add_bullet, add_highlight
@@ -23,6 +23,12 @@ class ResumeToolDefinition:
     name: str
     handler: Callable[..., dict[str, Any]]
     schema: dict[str, Any] | None = None
+    display_name: str | None = None
+    required_args: tuple[str, ...] = ()
+    supported_sections: tuple[str, ...] | None = None
+    argument_aliases: Mapping[str, str] = field(default_factory=dict)
+    profiles: tuple[str, ...] = ()
+    auto_execute: bool = False
     category: str = "resume"
 
 
@@ -196,6 +202,69 @@ def _schema_tool_name(schema: dict[str, Any]) -> str:
     return name if isinstance(name, str) else ""
 
 
+def _schema_required_args(schema: dict[str, Any] | None) -> set[str]:
+    """用于从 OpenAI function schema 中读取必填参数。"""
+    if schema is None:
+        return set()
+    function = schema.get("function")
+    if not isinstance(function, dict):
+        return set()
+    parameters = function.get("parameters")
+    if not isinstance(parameters, dict):
+        return set()
+    required = parameters.get("required")
+    if not isinstance(required, list):
+        return set()
+    return {item for item in required if isinstance(item, str)}
+
+
+def _schema_section_enum(schema: dict[str, Any] | None) -> set[str] | None:
+    """用于从 OpenAI function schema 中读取 section enum。"""
+    if schema is None:
+        return None
+    function = schema.get("function")
+    if not isinstance(function, dict):
+        return None
+    parameters = function.get("parameters")
+    if not isinstance(parameters, dict):
+        return None
+    properties = parameters.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    section = properties.get("section")
+    if not isinstance(section, dict):
+        return None
+    enum = section.get("enum")
+    if not isinstance(enum, list):
+        return None
+    return {item for item in enum if isinstance(item, str)}
+
+
+def _definition_required_args(definition: ResumeToolDefinition) -> set[str]:
+    """用于读取工具定义里的必填参数规则。"""
+    if definition.required_args:
+        return set(definition.required_args)
+    return _schema_required_args(definition.schema)
+
+
+def _definition_section_enum(definition: ResumeToolDefinition) -> set[str] | None:
+    """用于读取工具定义里的 section 支持范围。"""
+    if definition.supported_sections is not None:
+        return set(definition.supported_sections)
+    return _schema_section_enum(definition.schema)
+
+
+def _build_tool_profiles(
+    definitions: tuple[ResumeToolDefinition, ...],
+) -> dict[str, set[str]]:
+    """用于从工具定义生成 runtime tool profile。"""
+    profiles: dict[str, set[str]] = {}
+    for definition in definitions:
+        for profile in definition.profiles:
+            profiles.setdefault(profile, set()).add(definition.name)
+    return profiles
+
+
 _SCHEMA_BY_NAME = {
     name: schema
     for schema in _RESUME_TOOL_SCHEMAS
@@ -203,31 +272,67 @@ _SCHEMA_BY_NAME = {
 }
 
 RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
-    ResumeToolDefinition("read_resume", read_resume_content),
+    ResumeToolDefinition("read_resume", read_resume_content, display_name="读取简历"),
     ResumeToolDefinition(
         "update_overview",
         update_overview,
         _SCHEMA_BY_NAME.get("update_overview"),
+        display_name="优化简介",
+        argument_aliases={"text": "overview", "description": "overview"},
+        profiles=("resume_edit",),
     ),
     ResumeToolDefinition(
         "update_bullet",
         update_bullet,
         _SCHEMA_BY_NAME.get("update_bullet"),
+        display_name="优化要点",
+        argument_aliases={"highlight_id": "bullet_id"},
+        profiles=("resume_edit",),
     ),
-    ResumeToolDefinition("add_bullet", add_bullet, _SCHEMA_BY_NAME.get("add_bullet")),
+    ResumeToolDefinition(
+        "add_bullet",
+        add_bullet,
+        _SCHEMA_BY_NAME.get("add_bullet"),
+        display_name="新增要点",
+        profiles=("resume_edit",),
+    ),
     ResumeToolDefinition(
         "remove_bullet",
         remove_bullet,
         _SCHEMA_BY_NAME.get("remove_bullet"),
+        display_name="删除要点",
+        argument_aliases={"highlight_id": "bullet_id"},
+        profiles=("resume_edit",),
     ),
     ResumeToolDefinition(
         "generate_job_match_summary",
         generate_job_match_summary,
         _SCHEMA_BY_NAME.get("generate_job_match_summary"),
+        display_name="岗位匹配摘要",
+        profiles=("resume_edit", "read_only"),
+        auto_execute=True,
     ),
-    ResumeToolDefinition("update_highlight", update_highlight),
-    ResumeToolDefinition("add_highlight", add_highlight),
-    ResumeToolDefinition("remove_highlight", remove_highlight),
+    ResumeToolDefinition(
+        "update_highlight",
+        update_highlight,
+        display_name="优化要点",
+        required_args=("section", "item_id", "highlight_id", "text"),
+        supported_sections=tuple(_BULLET_SECTIONS),
+    ),
+    ResumeToolDefinition(
+        "add_highlight",
+        add_highlight,
+        display_name="新增要点",
+        required_args=("section", "item_id", "text"),
+        supported_sections=tuple(_BULLET_SECTIONS),
+    ),
+    ResumeToolDefinition(
+        "remove_highlight",
+        remove_highlight,
+        display_name="删除要点",
+        required_args=("section", "item_id", "highlight_id"),
+        supported_sections=tuple(_BULLET_SECTIONS),
+    ),
 )
 
 RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
@@ -235,6 +340,36 @@ RESUME_TOOLS_SCHEMA: list[dict[str, Any]] = [
     for definition in RESUME_TOOL_CATALOG
     if definition.schema is not None
 ]
+RESUME_TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
+    definition.name: _definition_required_args(definition)
+    for definition in RESUME_TOOL_CATALOG
+}
+RESUME_TOOL_SECTION_ENUMS: dict[str, set[str]] = {
+    definition.name: section_enum
+    for definition in RESUME_TOOL_CATALOG
+    if (section_enum := _definition_section_enum(definition)) is not None
+}
+RESUME_TOOL_DISPLAY_NAMES: dict[str, str] = {
+    definition.name: definition.display_name or definition.name
+    for definition in RESUME_TOOL_CATALOG
+}
+RESUME_TOOL_ARGUMENT_ALIASES: dict[str, dict[str, str]] = {
+    definition.name: dict(definition.argument_aliases)
+    for definition in RESUME_TOOL_CATALOG
+    if definition.argument_aliases
+}
+RESUME_TOOL_PROFILES: dict[str, set[str]] = _build_tool_profiles(RESUME_TOOL_CATALOG)
+RESUME_TOOL_AUTO_EXECUTE_NAMES: set[str] = {
+    definition.name for definition in RESUME_TOOL_CATALOG if definition.auto_execute
+}
+RESUME_SECTION_ALIASES: dict[str, str] = {
+    "work": "work_experience",
+    "work_experiences": "work_experience",
+    "experience": "work_experience",
+    "project": "projects",
+    "project_experience": "projects",
+    "edu": "education",
+}
 _RESUME_TOOL_HANDLERS = {
     definition.name: definition.handler for definition in RESUME_TOOL_CATALOG
 }
@@ -255,6 +390,13 @@ def execute_resume_tool(
 
 __all__ = [
     "RESUME_TOOL_CATALOG",
+    "RESUME_TOOL_ARGUMENT_ALIASES",
+    "RESUME_TOOL_AUTO_EXECUTE_NAMES",
+    "RESUME_TOOL_DISPLAY_NAMES",
+    "RESUME_TOOL_PROFILES",
+    "RESUME_TOOL_REQUIRED_ARGS",
+    "RESUME_TOOL_SECTION_ENUMS",
+    "RESUME_SECTION_ALIASES",
     "RESUME_TOOLS_SCHEMA",
     "ResumeToolDefinition",
     "execute_resume_tool",

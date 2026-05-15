@@ -10,45 +10,23 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
 from app.runtime.pi_agent_runtime import PiAgentRuntime
-from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
+from app.tools.resume.registry import (
+    RESUME_SECTION_ALIASES,
+    RESUME_TOOL_ARGUMENT_ALIASES,
+    RESUME_TOOL_AUTO_EXECUTE_NAMES,
+    RESUME_TOOL_PROFILES,
+    RESUME_TOOL_REQUIRED_ARGS,
+    RESUME_TOOLS_SCHEMA,
+)
 from app.types.stream import ResumeStreamEvent
 
-from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
+from .executor import ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
 from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
 
-_TOOLS_WITH_OPTIONAL_ARGS_ONLY = {"read_resume"}
-_AUTO_EXECUTE_TOOL_NAMES: set[str] = {
-    "generate_job_match_summary",
-}
-_TOOL_PROFILES: dict[str, set[str]] = {
-    "resume_edit": {
-        "update_overview",
-        "update_bullet",
-        "add_bullet",
-        "remove_bullet",
-        "generate_job_match_summary",
-    },
-    "read_only": {
-        "generate_job_match_summary",
-    },
-}
 _LOG_VALUE_LIMIT = 64
-_SECTION_ALIASES = {
-    "work": "work_experience",
-    "work_experiences": "work_experience",
-    "experience": "work_experience",
-    "project": "projects",
-    "project_experience": "projects",
-    "edu": "education",
-}
-_ARGUMENT_ALIASES_BY_TOOL = {
-    "update_bullet": {"highlight_id": "bullet_id"},
-    "remove_bullet": {"highlight_id": "bullet_id"},
-    "update_overview": {"text": "overview", "description": "overview"},
-}
 
 
 def _parse_tool_arguments(raw: Any) -> Dict[str, Any]:
@@ -97,9 +75,9 @@ def _normalize_tool_args(tool_name: str, tool_args: dict[str, Any]) -> dict[str,
     normalized = dict(tool_args)
     section = normalized.get("section")
     if isinstance(section, str):
-        normalized["section"] = _SECTION_ALIASES.get(section, section)
+        normalized["section"] = RESUME_SECTION_ALIASES.get(section, section)
 
-    for source, target in _ARGUMENT_ALIASES_BY_TOOL.get(tool_name, {}).items():
+    for source, target in RESUME_TOOL_ARGUMENT_ALIASES.get(tool_name, {}).items():
         if target not in normalized and source in normalized:
             normalized[target] = normalized[source]
         if source in normalized and source != target:
@@ -120,9 +98,9 @@ class ResumeAgent:
             tools_schema=RESUME_TOOLS_SCHEMA,
             tool_executor=self._run_tool,
             prompt_context_builder=build_resume_prompt_context,
-            auto_execute_tool_names=_AUTO_EXECUTE_TOOL_NAMES,
+            auto_execute_tool_names=RESUME_TOOL_AUTO_EXECUTE_NAMES,
             default_tool_profile="resume_edit",
-            tool_profiles=_TOOL_PROFILES,
+            tool_profiles=RESUME_TOOL_PROFILES,
         )
 
     async def optimize(
@@ -205,7 +183,7 @@ class ResumeAgent:
                 "invalid_arguments_json",
                 f"工具参数不是合法 JSON，无法执行 {tool_name}: {exc}",
                 recoverable=True,
-                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
+                expected_arguments=sorted(RESUME_TOOL_REQUIRED_ARGS.get(tool_name, set())),
             )
 
         if not isinstance(tool_args, dict):
@@ -214,7 +192,7 @@ class ResumeAgent:
                 "invalid_arguments_type",
                 f"工具参数必须是对象，实际收到 {type(tool_args).__name__}",
                 recoverable=True,
-                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
+                expected_arguments=sorted(RESUME_TOOL_REQUIRED_ARGS.get(tool_name, set())),
             )
 
         tool_args = _normalize_tool_args(tool_name, tool_args)
@@ -222,8 +200,8 @@ class ResumeAgent:
         if tool_name == "update_overview" and not tool_args.get("section"):
             tool_args["section"] = "projects"
 
-        required = TOOL_REQUIRED_ARGS.get(tool_name)
-        if required is None and tool_name not in _TOOLS_WITH_OPTIONAL_ARGS_ONLY:
+        required = RESUME_TOOL_REQUIRED_ARGS.get(tool_name)
+        if required is None:
             return None, self.tool_executor.error_result(
                 tool_name,
                 "unknown_tool",

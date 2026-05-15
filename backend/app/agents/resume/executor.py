@@ -5,40 +5,16 @@ from __future__ import annotations
 from typing import Any
 
 from app.tools.base import ToolExecutor
-from app.tools.resume.registry import execute_resume_tool
+from app.tools.resume.registry import (
+    RESUME_TOOL_DISPLAY_NAMES,
+    RESUME_TOOL_REQUIRED_ARGS,
+    RESUME_TOOL_SECTION_ENUMS,
+    execute_resume_tool,
+)
 
-TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
-    "update_overview": {"section", "item_id", "overview"},
-    "update_bullet": {"section", "item_id", "bullet_id", "text"},
-    "add_bullet": {"section", "item_id", "text"},
-    "remove_bullet": {"section", "item_id", "bullet_id"},
-    "update_highlight": {"section", "item_id", "highlight_id", "text"},
-    "add_highlight": {"section", "item_id", "text"},
-    "remove_highlight": {"section", "item_id", "highlight_id"},
-    "generate_job_match_summary": set(),
-}
-
-TOOL_SECTION_ENUMS: dict[str, set[str]] = {
-    "update_overview": {"projects"},
-    "update_bullet": {"education", "work_experience", "projects"},
-    "add_bullet": {"education", "work_experience", "projects"},
-    "remove_bullet": {"education", "work_experience", "projects"},
-    "update_highlight": {"education", "work_experience", "projects"},
-    "add_highlight": {"education", "work_experience", "projects"},
-    "remove_highlight": {"education", "work_experience", "projects"},
-}
-
-TOOL_DISPLAY_NAMES = {
-    "update_overview": "优化简介",
-    "update_bullet": "优化要点",
-    "add_bullet": "新增要点",
-    "remove_bullet": "删除要点",
-    "update_highlight": "优化要点",
-    "add_highlight": "新增要点",
-    "remove_highlight": "删除要点",
-    "generate_job_match_summary": "岗位匹配摘要",
-    "read_resume": "读取简历",
-}
+TOOL_DISPLAY_NAMES = RESUME_TOOL_DISPLAY_NAMES
+TOOL_REQUIRED_ARGS = RESUME_TOOL_REQUIRED_ARGS
+TOOL_SECTION_ENUMS = RESUME_TOOL_SECTION_ENUMS
 
 
 class ResumeToolExecutor(ToolExecutor):
