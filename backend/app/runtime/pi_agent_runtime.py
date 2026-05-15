@@ -10,7 +10,7 @@ import re
 from copy import deepcopy
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Callable
 from uuid import uuid4
 
 from pi_agent_core import (
@@ -87,17 +87,22 @@ _UNREALIZED_ACTION_PATTERN = re.compile(
     r"(?:我(?:来|将|会|先)?|接下来|然后|继续)?\s*"
     r"(?:继续)?(?:精简|添加|新增|拆分|修改|更新|优化|改写|补充)"
     r"[^。！？\n\r：:]{0,40}"
-    r"(?:bullet|要点|overview|简介|项目|工作经历|项目经历|内容)"
+    r"(?:bullet|要点|overview|简介|项目|工作经历|项目经历|内容|"
+    r"另一条|最后一条|上一条|下一条|第\s*[\d一二三四五六七八九十]+\s*条)"
     r"\s*[：:]"
 )
 
 
 @dataclass(frozen=True)
-class _InvalidStopTurn:
-    """描述一次无工具最终回复违反 ReAct stop 边界的原因。"""
+class _StopHookBlock:
+    """描述一次 Stop validator 阻止自然停止的原因。"""
 
+    hook_name: str
     reason: str
     feedback: str
+
+
+_StopValidator = Callable[[AgentDefinition, AssistantMessage], _StopHookBlock | None]
 
 
 class _ReActStreamFn:
@@ -211,6 +216,10 @@ class PiAgentRuntime:
         """用于初始化当前对象。"""
         self.stream_fn = _ReActStreamFn(stream_fn or stream_openrouter)
         self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
+        self._stop_validators: tuple[_StopValidator, ...] = (
+            self._validate_resume_mutation_claim_stop,
+            self._validate_resume_unrealized_action_stop,
+        )
 
     async def run(
         self,
@@ -405,18 +414,18 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                invalid_stop = self._validate_no_tool_stop(assistant_message)
-                if invalid_stop is not None:
-                    if self._can_retry_fake_mutation_stop(state):
+                stop_block = self._run_stop_validators(agent, assistant_message)
+                if stop_block is not None:
+                    if self._can_retry_stop_hook_block(state):
                         state["stop_guard_retries"] += 1
                         self._trace_stop_guard_retry(
                             agent,
                             run_id,
                             assistant_message,
                             state,
-                            invalid_stop,
+                            stop_block,
                         )
-                        messages.append(self._stop_guard_feedback_message(invalid_stop))
+                        messages.append(self._stop_hook_feedback_message(stop_block))
                         continue
                     await self._publish_invalid_stop_fallback(
                         agent=agent,
@@ -426,7 +435,7 @@ class PiAgentRuntime:
                         state=state,
                         executed_tools=executed_tools,
                         assistant_message=assistant_message,
-                        invalid_stop=invalid_stop,
+                        stop_block=stop_block,
                     )
                     return
                 await self._publish_text_deltas(
@@ -588,35 +597,70 @@ class PiAgentRuntime:
                 event=text_delta_event(content=content),
             )
 
-    def _validate_no_tool_stop(
+    def _run_stop_validators(
         self,
+        agent: AgentDefinition,
         assistant_message: AssistantMessage,
-    ) -> _InvalidStopTurn | None:
-        """按 Claude Code Stop hook 形态校验无工具最终回复。"""
+    ) -> _StopHookBlock | None:
+        """按 Claude Code 形态逐个运行 Stop validator。"""
+        for validator in self._stop_validators:
+            block = validator(agent, assistant_message)
+            if block is not None:
+                return block
+        return None
+
+    def _validate_resume_mutation_claim_stop(
+        self,
+        agent: AgentDefinition,
+        assistant_message: AssistantMessage,
+    ) -> _StopHookBlock | None:
+        """阻止简历 Agent 无工具调用却声称已修改。"""
+        if not self._is_resume_agent(agent):
+            return None
         text = self._assistant_text(assistant_message)
         if not text.strip():
             return None
         if _MUTATION_INTENT_PATTERN.search(text) and _MUTATION_CLAIM_PATTERN.search(text):
-            return _InvalidStopTurn(
+            return _StopHookBlock(
+                hook_name="resume_edit_stop_validator",
                 reason="mutation_claim_without_tool_call",
                 feedback=_STOP_GUARD_MUTATION_CLAIM_FEEDBACK,
             )
+        return None
+
+    def _validate_resume_unrealized_action_stop(
+        self,
+        agent: AgentDefinition,
+        assistant_message: AssistantMessage,
+    ) -> _StopHookBlock | None:
+        """阻止简历 Agent 无工具调用却继续描述编辑动作。"""
+        if not self._is_resume_agent(agent):
+            return None
+        text = self._assistant_text(assistant_message)
+        if not text.strip():
+            return None
         if _UNREALIZED_ACTION_PATTERN.search(text):
-            return _InvalidStopTurn(
+            return _StopHookBlock(
+                hook_name="resume_edit_stop_validator",
                 reason="unrealized_action_without_tool_call",
                 feedback=_STOP_GUARD_UNREALIZED_ACTION_FEEDBACK,
             )
         return None
 
     @staticmethod
-    def _can_retry_fake_mutation_stop(state: dict[str, Any]) -> bool:
-        """限制协议纠错只重试一次，避免无效模型响应循环。"""
+    def _is_resume_agent(agent: AgentDefinition) -> bool:
+        """判断当前 stop validator 是否适用于简历 Agent。"""
+        return agent.prompt_spec.name == "resume_agent"
+
+    @staticmethod
+    def _can_retry_stop_hook_block(state: dict[str, Any]) -> bool:
+        """限制 Stop hook 纠错只重试一次，避免无效模型响应循环。"""
         return int(state.get("stop_guard_retries") or 0) < 1
 
     @staticmethod
-    def _stop_guard_feedback_message(invalid_stop: _InvalidStopTurn) -> UserMessage:
+    def _stop_hook_feedback_message(stop_block: _StopHookBlock) -> UserMessage:
         """生成只给模型看的 Stop hook feedback。"""
-        return UserMessage(content=[TextContent(text=invalid_stop.feedback)])
+        return UserMessage(content=[TextContent(text=stop_block.feedback)])
 
     async def _publish_invalid_stop_fallback(
         self,
@@ -628,7 +672,7 @@ class PiAgentRuntime:
         state: dict[str, Any],
         executed_tools: list[dict[str, Any]],
         assistant_message: AssistantMessage,
-        invalid_stop: _InvalidStopTurn,
+        stop_block: _StopHookBlock,
     ) -> None:
         """隐藏无效最终回复，并用确定性文案结束当前轮次。"""
         content = self._invalid_mutation_fallback_text(executed_tools)
@@ -637,7 +681,7 @@ class PiAgentRuntime:
             run_id,
             assistant_message,
             state,
-            invalid_stop,
+            stop_block,
         )
         await self._publish_text_deltas(
             agent=agent,
@@ -1459,15 +1503,16 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
-        invalid_stop: _InvalidStopTurn,
+        stop_block: _StopHookBlock,
     ) -> None:
-        """记录无工具调用却声称修改时的 stop guard 重试。"""
+        """记录 Stop validator 阻止自然停止后的重试。"""
         self._trace(
             "agent.trace.stop_guard.retry",
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             retry_count=int(state.get("stop_guard_retries") or 0),
-            reason=invalid_stop.reason,
+            hook_name=stop_block.hook_name,
+            reason=stop_block.reason,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 
@@ -1477,7 +1522,7 @@ class PiAgentRuntime:
         run_id: str,
         assistant_message: AssistantMessage,
         state: dict[str, Any],
-        invalid_stop: _InvalidStopTurn,
+        stop_block: _StopHookBlock,
     ) -> None:
         """记录 stop guard 放弃模型原文并收束输出。"""
         self._trace(
@@ -1485,7 +1530,8 @@ class PiAgentRuntime:
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             retry_count=int(state.get("stop_guard_retries") or 0),
-            reason=invalid_stop.reason,
+            hook_name=stop_block.hook_name,
+            reason=stop_block.reason,
             response_preview=self._preview_text(self._assistant_text(assistant_message)),
         )
 

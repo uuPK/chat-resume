@@ -586,7 +586,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 ),
                 FakeModelResponse(
-                    content="继续精简过长的 bullet： 继续精简另一条 bullet： 本轮没有新的修改。"
+                    content="我来看看当前 Chat Resume 的 bullet 长度，精简过长的部分。"
+                    "继续精简另一条：继续精简最后一条：本轮没有新的修改。"
                 ),
                 FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),
             ]
@@ -595,8 +596,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         result = await agent.optimize("把太长的部分精简一下", resume)
 
-        self.assertNotIn("继续精简过长的 bullet", result["content"])
-        self.assertNotIn("继续精简另一条 bullet", result["content"])
+        self.assertNotIn("继续精简另一条", result["content"])
+        self.assertNotIn("继续精简最后一条", result["content"])
         self.assertEqual(result["content"], "已精简项目简介，保留核心能力和技术关键词。")
         self.assertEqual(len(result["tool_calls"]), 1)
         self.assertEqual(
@@ -924,7 +925,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 ),
                 FakeModelResponse(
-                    content="继续精简过长的 bullet： 继续精简另一条 bullet： 本轮没有新的修改。"
+                    content="我来看看当前 Chat Resume 的 bullet 长度，精简过长的部分。"
+                    "继续精简另一条：继续精简最后一条：本轮没有新的修改。"
                 ),
                 FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),
             ]
@@ -943,8 +945,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             events.append(event)
 
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertNotIn("继续精简过长的 bullet", visible_text)
-        self.assertNotIn("继续精简另一条 bullet", visible_text)
+        self.assertNotIn("继续精简另一条", visible_text)
+        self.assertNotIn("继续精简最后一条", visible_text)
         self.assertIn("已精简项目简介", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertEqual(
