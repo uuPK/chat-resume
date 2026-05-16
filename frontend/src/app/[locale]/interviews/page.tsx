@@ -9,7 +9,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from '@/i18n/navigation'
-import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
@@ -74,7 +73,6 @@ function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resum
 export default function InterviewsPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const locale = useLocale() as AppLocale
   const t = useTranslations('interview')
   const resumeCacheRef = useRef<Record<number, Resume>>({})
@@ -93,7 +91,6 @@ export default function InterviewsPage() {
   const [targetCompany, setTargetCompany] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
   const [jdText, setJdText] = useState('')
-  const initialCreateHandledRef = useRef(false)
 
   /**
    * 用于在客户端挂载后再读取鉴权状态和本地缓存。
@@ -138,20 +135,6 @@ export default function InterviewsPage() {
       active = false
     }
   }, [mounted, isAuthenticated])
-
-  /**
-   * 用于支持从简历编辑页带着简历上下文直接打开创建面试弹层。
-   */
-  useEffect(() => {
-    if (initialCreateHandledRef.current || loading || resumes.length === 0) return
-    if (searchParams?.get('create') !== '1') return
-    initialCreateHandledRef.current = true
-    const requestedResumeId = searchParams.get('resume') || ''
-    if (requestedResumeId) {
-      setSelectedResumeId(requestedResumeId)
-    }
-    setShowCreateInterviewPanel(true)
-  }, [loading, resumes.length, searchParams])
 
   /**
    * 用于在用户切换简历后读取该简历已保存的岗位和 JD。

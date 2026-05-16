@@ -159,16 +159,6 @@ function clearResumeSelectionVisuals() {
   clearNativeSelection()
 }
 
-/** 判断简历是否已有可直接创建面试的岗位上下文。 */
-function hasSavedInterviewContext(resume: Resume) {
-  const jobApplication = resume.content.job_application
-  return Boolean(
-    jobApplication?.target_company?.trim() ||
-    jobApplication?.target_title?.trim() ||
-    jobApplication?.jd_text?.trim()
-  )
-}
-
 /** 多次清理选区视觉，覆盖浏览器在 pointerup/click 后恢复旧选区的时序。 */
 function clearResumeSelectionVisualsAfterEvents() {
   clearResumeSelectionVisuals()
@@ -481,15 +471,9 @@ export default function ResumeEditPage() {
     setFirstRunPhase('analyzing')
   }, [firstRunJdText, firstRunTargetCompany, firstRunTargetTitle, resume, updateResumeContent])
 
-  /**
-   * 从当前简历直接创建面试；没有岗位上下文时交给面试中心弹层补齐信息。
-   */
+  /** 从当前简历直接创建面试 session 并进入面试页。 */
   const handleStartInterview = useCallback(async () => {
     if (!resume || isCreatingInterview) return
-    if (!hasSavedInterviewContext(resume)) {
-      router.push(`/interviews?create=1&resume=${resume.id}`)
-      return
-    }
     const jobApplication = resume.content.job_application || {}
     setIsCreatingInterview(true)
     try {
