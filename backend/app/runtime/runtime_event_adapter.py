@@ -49,6 +49,7 @@ class RuntimeEventPublisher:
             "unexpected_tool_call_names": set(),
             "prompt_chars": 0,
             "tool_call_count": 0,
+            "visible_tool_call_ids": set(),
             "first_token_latency_ms": None,
             "usage": {},
             "confirmation_wait_ms": 0.0,

@@ -10,7 +10,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from pi_agent_core import AgentContext, AssistantMessage, Model, SimpleStreamOptions
+from pi_agent_core import (
+    AgentContext,
+    AssistantMessage,
+    Model,
+    SimpleStreamOptions,
+    StreamTextDeltaEvent,
+    StreamToolCallEndEvent,
+)
 
 from app.runtime import pi_agent_openrouter as openrouter
 from app.runtime.pi_agent_openrouter import (
@@ -213,6 +220,51 @@ async def test_openrouter_stream_logs_first_tool_delta(
         if record.getMessage() == "openrouter.stream.first_tool_delta"
     )
     assert getattr(tool_record, "tool_names") == ["update_bullet"]
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_emits_completed_tool_call_before_done():
+    """工具参数 JSON 拼完整后应立刻发 toolcall_end，不等 SSE done。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet",'
+            '"arguments":"{\\"text\\""}}]}}]}'
+        ),
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"function":{"arguments":":\\"新\\"}"}}]}}]}'
+        ),
+        'data: {"choices":[{"delta":{"content":"后续"}}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = [await queue.get() for _ in range(queue.qsize())]
+    tool_end_index = next(
+        index
+        for index, event in enumerate(events)
+        if isinstance(event, StreamToolCallEndEvent)
+    )
+    text_delta_index = next(
+        index
+        for index, event in enumerate(events)
+        if isinstance(event, StreamTextDeltaEvent) and event.delta == "后续"
+    )
+    tool_event = events[tool_end_index]
+
+    assert tool_end_index < text_delta_index
+    assert tool_event.tool_call.id == "call_1"
+    assert tool_event.tool_call.name == "update_bullet"
+    assert tool_event.tool_call.arguments == {"text": "新"}
+    assert partial.content[-1] == tool_event.tool_call
 
 
 @pytest.mark.asyncio

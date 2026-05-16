@@ -25,6 +25,7 @@ from pi_agent_core import (
     StreamTextDeltaEvent,
     StreamTextEndEvent,
     StreamTextStartEvent,
+    StreamToolCallDeltaEvent,
     StreamToolCallEndEvent,
     StreamToolCallStartEvent,
     TextContent,
@@ -751,7 +752,7 @@ def _apply_openrouter_chunk(
         text_started=text_started,
         text_index=text_index,
     )
-    tool_names = _apply_tool_delta(delta, tool_buffers)
+    tool_names = _apply_tool_delta(delta, tool_buffers, partial, queue)
     _apply_usage(chunk, partial)
     return _ChunkApplication(
         text_started=text_started,
@@ -809,6 +810,8 @@ def _text_delta_chars(delta: dict[str, Any]) -> int:
 def _apply_tool_delta(
     delta: dict[str, Any],
     tool_buffers: dict[int, dict[str, Any]],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
 ) -> list[str]:
     """用于应用工具增量。"""
     tool_calls = delta.get("tool_calls")
@@ -819,7 +822,17 @@ def _apply_tool_delta(
         if not isinstance(raw_call, dict):
             continue
         index = int(raw_call.get("index") or 0)
-        buffer = tool_buffers.setdefault(index, {"id": "", "name": "", "args": ""})
+        buffer = tool_buffers.setdefault(
+            index,
+            {
+                "id": "",
+                "name": "",
+                "args": "",
+                "started": False,
+                "emitted": False,
+                "content_index": index,
+            },
+        )
         if isinstance(raw_call.get("id"), str):
             buffer["id"] += raw_call["id"]
         function = raw_call.get("function")
@@ -830,8 +843,63 @@ def _apply_tool_delta(
             if buffer["name"]:
                 tool_names.append(str(buffer["name"]))
         if isinstance(function.get("arguments"), str):
-            buffer["args"] += function["arguments"]
+            args_delta = function["arguments"]
+            buffer["args"] += args_delta
+            _emit_tool_call_progress(buffer, partial, queue)
+            queue.put_nowait(
+                StreamToolCallDeltaEvent(
+                    content_index=int(buffer["content_index"]),
+                    delta=args_delta,
+                    partial=partial,
+                )
+            )
+        _emit_completed_tool_call_if_ready(buffer, partial, queue)
     return tool_names
+
+
+def _emit_tool_call_progress(
+    buffer: dict[str, Any],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+) -> None:
+    """用于在工具参数流首次出现时发布工具流开始事件。"""
+    if buffer.get("started"):
+        return
+    buffer["started"] = True
+    queue.put_nowait(
+        StreamToolCallStartEvent(
+            content_index=int(buffer["content_index"]),
+            partial=partial,
+        )
+    )
+
+
+def _emit_completed_tool_call_if_ready(
+    buffer: dict[str, Any],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+) -> None:
+    """用于在工具参数 JSON 完整时尽早发布工具结束事件。"""
+    if buffer.get("emitted") or not buffer.get("name"):
+        return
+    arguments = _try_parse_tool_arguments(buffer.get("args"))
+    if arguments is None:
+        return
+    tool_call = ToolCall(
+        id=buffer.get("id") or f"tool_{buffer['content_index']}",
+        name=buffer.get("name") or "",
+        arguments=arguments,
+        partial_json=buffer.get("args") or None,
+    )
+    buffer["tool_call"] = tool_call
+    buffer["emitted"] = True
+    queue.put_nowait(
+        StreamToolCallEndEvent(
+            content_index=int(buffer["content_index"]),
+            tool_call=tool_call,
+            partial=partial,
+        )
+    )
 
 
 def _emit_tool_calls(
@@ -842,23 +910,27 @@ def _emit_tool_calls(
     """用于发送工具calls。"""
     for index in sorted(tool_buffers):
         raw_call = tool_buffers[index]
-        tool_call = ToolCall(
-            id=raw_call.get("id") or f"tool_{index}",
-            name=raw_call.get("name") or "",
-            arguments=_parse_tool_arguments(raw_call.get("args")),
-        )
+        tool_call = raw_call.get("tool_call")
+        if not isinstance(tool_call, ToolCall):
+            tool_call = ToolCall(
+                id=raw_call.get("id") or f"tool_{index}",
+                name=raw_call.get("name") or "",
+                arguments=_parse_tool_arguments(raw_call.get("args")),
+                partial_json=raw_call.get("args") or None,
+            )
         content_index = len(partial.content)
         partial.content.append(tool_call)
-        queue.put_nowait(
-            StreamToolCallStartEvent(content_index=content_index, partial=partial)
-        )
-        queue.put_nowait(
-            StreamToolCallEndEvent(
-                content_index=content_index,
-                tool_call=tool_call,
-                partial=partial,
+        if not raw_call.get("emitted"):
+            queue.put_nowait(
+                StreamToolCallStartEvent(content_index=content_index, partial=partial)
             )
-        )
+            queue.put_nowait(
+                StreamToolCallEndEvent(
+                    content_index=content_index,
+                    tool_call=tool_call,
+                    partial=partial,
+                )
+            )
 
 
 def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
@@ -869,6 +941,16 @@ def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
         return {}
     parsed = json.loads(raw)
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _try_parse_tool_arguments(raw: Any) -> dict[str, Any] | None:
+    """用于尝试解析尚在流式拼接中的工具参数。"""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return _parse_tool_arguments(raw)
+    except json.JSONDecodeError:
+        return None
 
 
 def _apply_usage(chunk: dict[str, Any], partial: AssistantMessage) -> None:

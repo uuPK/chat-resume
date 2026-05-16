@@ -224,6 +224,7 @@ class ToolExecutionPipeline:
             tool_input=tool_input,
             event_queue=event_queue,
             event_callback=event_callback,
+            stream_state=stream_state,
         )
         self.trace_recorder.tool_requested(
             agent,
@@ -492,8 +493,12 @@ class ToolExecutionPipeline:
         tool_input: dict[str, Any],
         event_queue: asyncio.Queue[Any] | None,
         event_callback: RuntimeEventCallback | None,
+        stream_state: dict[str, Any],
     ) -> None:
         """用于发布模型请求工具调用的可见事件。"""
+        visible_ids = stream_state.setdefault("visible_tool_call_ids", set())
+        if isinstance(visible_ids, set) and call_id in visible_ids:
+            return
         tool_call = self.tool_call_payload(call_id, tool_name, tool_input)
         await self.event_publisher.publish(
             event_queue=event_queue,
@@ -505,6 +510,8 @@ class ToolExecutionPipeline:
                 tool_input=tool_call["function"]["arguments"],
             ),
         )
+        if isinstance(visible_ids, set):
+            visible_ids.add(call_id)
 
     async def _publish_tool_result(
         self,

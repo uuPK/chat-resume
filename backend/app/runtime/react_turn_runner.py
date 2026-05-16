@@ -383,7 +383,6 @@ class ReActTurnRunner:
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
         """流式拉取单轮 assistant 响应并先缓冲文本增量。"""
-        del agent, run_id, event_queue, event_callback
         response = self.stream_fn(
             config.model,
             llm_context,
@@ -413,6 +412,16 @@ class ReActTurnRunner:
                         2,
                     )
                 text_deltas.append(delta)
+            tool_call = self._tool_call_from_event(raw_event)
+            if tool_call is not None:
+                await self._publish_streamed_tool_call(
+                    agent=agent,
+                    run_id=run_id,
+                    tool_call=tool_call,
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    state=state,
+                )
 
         result = response["result"]()
         if inspect.isawaitable(result):
@@ -437,6 +446,45 @@ class ReActTurnRunner:
         if str(getattr(raw_event, "type", "") or "") != "text_delta":
             return ""
         return str(getattr(raw_event, "delta", "") or "")
+
+    @staticmethod
+    def _tool_call_from_event(raw_event: Any) -> ToolCall | None:
+        """从底层流式事件中提取已完成参数的工具调用。"""
+        if str(getattr(raw_event, "type", "") or "") != "toolcall_end":
+            return None
+        tool_call = getattr(raw_event, "tool_call", None)
+        return tool_call if isinstance(tool_call, ToolCall) else None
+
+    async def _publish_streamed_tool_call(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        tool_call: ToolCall,
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+    ) -> None:
+        """在模型流里尽早发布已完整解析的工具调用。"""
+        visible_ids = state.setdefault("visible_tool_call_ids", set())
+        if not isinstance(visible_ids, set) or tool_call.id in visible_ids:
+            return
+        tool_payload = self.tool_pipeline.tool_call_payload(
+            tool_call.id,
+            tool_call.name,
+            tool_call.arguments,
+        )
+        await self.event_publisher.publish(
+            event_queue=event_queue,
+            event_callback=event_callback,
+            event=self.event_publisher.tool_call_started(
+                call_id=tool_call.id,
+                tool_name=tool_call.name,
+                tool_call=tool_payload,
+                tool_input=tool_payload["function"]["arguments"],
+            ),
+        )
+        visible_ids.add(tool_call.id)
 
     async def _publish_text_deltas(
         self,
