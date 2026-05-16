@@ -118,6 +118,7 @@ class _ChunkApplication:
     text_started: bool
     text_delta_chars: int = 0
     tool_names: tuple[str, ...] = ()
+    tool_arg_delta_chars: int = 0
 
 
 @dataclass
@@ -315,7 +316,22 @@ async def _pump_openrouter_stream(
                 partial=partial,
             )
         )
-    _emit_tool_calls(tool_buffers, partial, queue)
+    if tool_buffers:
+        _log_openrouter_stage(
+            "tool_buffers_final",
+            started_at=started_at,
+            model=model.id,
+            finish_reason=progress.finish_reason,
+            usage_output=getattr(partial.usage, "output", 0) if partial.usage else 0,
+            tool_buffers=_tool_buffer_summary(tool_buffers),
+        )
+    _emit_tool_calls(
+        tool_buffers,
+        partial,
+        queue,
+        started_at=started_at,
+        model=model,
+    )
     partial.stop_reason = "toolUse" if tool_buffers else _stop_reason(progress.finish_reason)
     _log_openrouter_stage(
         "done",
@@ -405,10 +421,20 @@ def _handle_openrouter_line(
     _record_chunk_application(
         applied,
         progress=progress,
+        tool_buffers=tool_buffers,
         started_at=started_at,
         model=model,
     )
+    previous_finish_reason = progress.finish_reason
     progress.finish_reason = _finish_reason(chunk, progress.finish_reason)
+    if progress.finish_reason != previous_finish_reason:
+        _log_openrouter_stage(
+            "finish_reason",
+            started_at=started_at,
+            model=model.id,
+            finish_reason=progress.finish_reason,
+            tool_buffers=_tool_buffer_summary(tool_buffers),
+        )
     return True
 
 
@@ -429,6 +455,7 @@ def _record_chunk_application(
     applied: _ChunkApplication,
     *,
     progress: _OpenRouterStreamProgress,
+    tool_buffers: dict[int, dict[str, Any]],
     started_at: float,
     model: Model,
 ) -> None:
@@ -452,6 +479,15 @@ def _record_chunk_application(
             started_at=started_at,
             model=model.id,
             tool_names=list(applied.tool_names),
+        )
+    if applied.tool_names or applied.tool_arg_delta_chars:
+        _log_openrouter_stage(
+            "tool_delta",
+            started_at=started_at,
+            model=model.id,
+            tool_names=list(applied.tool_names),
+            arg_delta_chars=applied.tool_arg_delta_chars,
+            tool_buffers=_tool_buffer_summary(tool_buffers),
         )
 
 
@@ -751,12 +787,13 @@ def _apply_openrouter_chunk(
         text_started=text_started,
         text_index=text_index,
     )
-    tool_names = _apply_tool_delta(delta, tool_buffers)
+    tool_names, tool_arg_delta_chars = _apply_tool_delta(delta, tool_buffers)
     _apply_usage(chunk, partial)
     return _ChunkApplication(
         text_started=text_started,
         text_delta_chars=text_delta_chars,
         tool_names=tuple(tool_names),
+        tool_arg_delta_chars=tool_arg_delta_chars,
     )
 
 
@@ -809,12 +846,13 @@ def _text_delta_chars(delta: dict[str, Any]) -> int:
 def _apply_tool_delta(
     delta: dict[str, Any],
     tool_buffers: dict[int, dict[str, Any]],
-) -> list[str]:
+) -> tuple[list[str], int]:
     """用于应用工具增量。"""
     tool_calls = delta.get("tool_calls")
     if not isinstance(tool_calls, list):
-        return []
+        return [], 0
     tool_names: list[str] = []
+    arg_delta_chars = 0
     for raw_call in tool_calls:
         if not isinstance(raw_call, dict):
             continue
@@ -830,25 +868,45 @@ def _apply_tool_delta(
             if buffer["name"]:
                 tool_names.append(str(buffer["name"]))
         if isinstance(function.get("arguments"), str):
-            buffer["args"] += function["arguments"]
-    return tool_names
+            args_delta = function["arguments"]
+            buffer["args"] += args_delta
+            arg_delta_chars += len(args_delta)
+    return tool_names, arg_delta_chars
 
 
 def _emit_tool_calls(
     tool_buffers: dict[int, dict[str, Any]],
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
+    *,
+    started_at: float,
+    model: Model,
 ) -> None:
     """用于发送工具calls。"""
     for index in sorted(tool_buffers):
         raw_call = tool_buffers[index]
+        args = _parse_tool_arguments_with_log(
+            raw_call.get("args"),
+            index=index,
+            tool_name=str(raw_call.get("name") or ""),
+            started_at=started_at,
+            model=model,
+        )
         tool_call = ToolCall(
             id=raw_call.get("id") or f"tool_{index}",
             name=raw_call.get("name") or "",
-            arguments=_parse_tool_arguments(raw_call.get("args")),
+            arguments=args,
         )
         content_index = len(partial.content)
         partial.content.append(tool_call)
+        _log_openrouter_stage(
+            "tool_call_emitted",
+            started_at=started_at,
+            model=model.id,
+            tool_index=index,
+            tool_name=tool_call.name,
+            args_key_count=len(tool_call.arguments),
+        )
         queue.put_nowait(
             StreamToolCallStartEvent(content_index=content_index, partial=partial)
         )
@@ -869,6 +927,60 @@ def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
         return {}
     parsed = json.loads(raw)
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _parse_tool_arguments_with_log(
+    raw: Any,
+    *,
+    index: int,
+    tool_name: str,
+    started_at: float,
+    model: Model,
+) -> dict[str, Any]:
+    """用于解析工具参数，并在解析失败时记录可定位的结构化信息。"""
+    try:
+        return _parse_tool_arguments(raw)
+    except json.JSONDecodeError as exc:
+        _log_openrouter_stage(
+            "tool_args_parse_error",
+            started_at=started_at,
+            model=model.id,
+            tool_index=index,
+            tool_name=tool_name,
+            args_chars=len(raw) if isinstance(raw, str) else 0,
+            json_error=str(exc),
+        )
+        raise
+
+
+def _tool_buffer_summary(tool_buffers: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+    """用于生成工具流缓冲区的安全摘要，不记录完整参数内容。"""
+    summary: list[dict[str, Any]] = []
+    for index in sorted(tool_buffers):
+        raw_call = tool_buffers[index]
+        raw_args = raw_call.get("args")
+        args_text = raw_args if isinstance(raw_args, str) else ""
+        summary.append(
+            {
+                "index": index,
+                "id_chars": len(str(raw_call.get("id") or "")),
+                "name": str(raw_call.get("name") or ""),
+                "args_chars": len(args_text),
+                "args_json_status": _tool_args_json_status(args_text),
+            }
+        )
+    return summary
+
+
+def _tool_args_json_status(raw: str) -> str:
+    """用于判断工具参数是否为空、完整 JSON 或仍是未闭合片段。"""
+    if not raw.strip():
+        return "empty"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return "invalid"
+    return "object" if isinstance(parsed, dict) else "non_object"
 
 
 def _apply_usage(chunk: dict[str, Any], partial: AssistantMessage) -> None:

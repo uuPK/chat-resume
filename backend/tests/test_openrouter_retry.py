@@ -189,7 +189,7 @@ async def test_openrouter_stream_logs_latency_stages(caplog: pytest.LogCaptureFi
 async def test_openrouter_stream_logs_first_tool_delta(
     caplog: pytest.LogCaptureFixture,
 ):
-    """工具流式增量应单独记录首个 tool delta。"""
+    """工具流式增量应记录首个 delta、累计参数状态和最终 emit。"""
     model, context, options, partial, queue = _make_openrouter_stream_args()
     _FakeOpenRouterClient.lines = [
         (
@@ -213,6 +213,34 @@ async def test_openrouter_stream_logs_first_tool_delta(
         if record.getMessage() == "openrouter.stream.first_tool_delta"
     )
     assert getattr(tool_record, "tool_names") == ["update_bullet"]
+    delta_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.tool_delta"
+    )
+    assert getattr(delta_record, "arg_delta_chars") == 2
+    assert getattr(delta_record, "tool_buffers") == [
+        {
+            "index": 0,
+            "id_chars": 6,
+            "name": "update_bullet",
+            "args_chars": 2,
+            "args_json_status": "object",
+        }
+    ]
+    final_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.tool_buffers_final"
+    )
+    assert getattr(final_record, "finish_reason") == "stop"
+    emitted_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.tool_call_emitted"
+    )
+    assert getattr(emitted_record, "tool_name") == "update_bullet"
+    assert getattr(emitted_record, "args_key_count") == 0
 
 
 @pytest.mark.asyncio
