@@ -52,7 +52,11 @@ function sessionText(
   fallback: { zh: string; en: string },
 ) {
   try {
-    return t(key)
+    const value = t(key)
+    if (value === key || value.endsWith(`.${key}`)) {
+      return locale === 'en' ? fallback.en : fallback.zh
+    }
+    return value
   } catch {
     return locale === 'en' ? fallback.en : fallback.zh
   }
@@ -799,12 +803,10 @@ function ReportPreview({ report }: { report: InterviewSession['report_data'] }) 
   const locale = useLocale()
   if (!report) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-white px-5">
-        <div className="w-full max-w-3xl border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-          <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
-          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告尚未生成。结束面试后可以生成评估报告。', en: 'The report has not been generated yet. Generate it after ending the interview.' })}</p>
-        </div>
-      </div>
+      <section id="interview-report" className="border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+        <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
+        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告尚未生成。结束面试后可以生成评估报告。', en: 'The report has not been generated yet. Generate it after ending the interview.' })}</p>
+      </section>
     )
   }
 
@@ -816,27 +818,86 @@ function ReportPreview({ report }: { report: InterviewSession['report_data'] }) 
   ].filter((section) => section.items.length > 0)
 
   return (
-    <div id="interview-report" className="flex-1 overflow-y-auto bg-white px-5 py-6">
-      <div className="mx-auto w-full max-w-4xl">
-        <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
-        {report.summary && (
-          <section className="mt-4 border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportSummary', { zh: '整体总结', en: 'Summary' })}</h3>
-            <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{report.summary}</p>
+    <section id="interview-report">
+      <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
+      {report.summary && (
+        <section className="mt-4 border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+          <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportSummary', { zh: '整体总结', en: 'Summary' })}</h3>
+          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{report.summary}</p>
+        </section>
+      )}
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        {sections.map((section) => (
+          <section key={section.title} className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{section.title}</h3>
+            <ul className="mt-3 space-y-2">
+              {section.items.map((item) => (
+                <li key={item} className="text-sm leading-6" style={{ color: '#5b616e' }}>{item}</li>
+              ))}
+            </ul>
           </section>
-        )}
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {sections.map((section) => (
-            <section key={section.title} className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-              <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{section.title}</h3>
-              <ul className="mt-3 space-y-2">
-                {section.items.map((item) => (
-                  <li key={item} className="text-sm leading-6" style={{ color: '#5b616e' }}>{item}</li>
-                ))}
-              </ul>
-            </section>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// 用于渲染完成面试后的历史对话。
+function InterviewTranscript({ turns }: { turns: InterviewSession['turns'] }) {
+  const t = useTranslations('interview.session')
+  const locale = useLocale()
+  const visibleTurns = turns.filter((turn) => turn.question || turn.answer)
+
+  return (
+    <section id="interview-transcript" className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+      <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>
+        {sessionText(t, locale, 'transcriptTitle', { zh: '面试对话记录', en: 'Interview transcript' })}
+      </h2>
+      {visibleTurns.length === 0 ? (
+        <p className="mt-3 text-sm leading-6" style={{ color: '#5b616e' }}>
+          {sessionText(t, locale, 'transcriptEmpty', { zh: '暂无可展示的面试对话。', en: 'No interview transcript is available yet.' })}
+        </p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {visibleTurns.map((turn) => (
+            <article key={turn.id} className="space-y-3">
+              {turn.question && (
+                <div className="rounded-lg px-4 py-3" style={{ backgroundColor: '#eef0f3' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>
+                    {sessionText(t, locale, 'interviewerLabel', { zh: '面试官', en: 'Interviewer' })}
+                  </p>
+                  <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{turn.question}</p>
+                </div>
+              )}
+              {turn.answer && (
+                <div className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)' }}>
+                  <p className="text-xs font-semibold" style={{ color: '#0052ff' }}>
+                    {sessionText(t, locale, 'candidateLabel', { zh: '候选人', en: 'Candidate' })}
+                  </p>
+                  <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{turn.answer}</p>
+                </div>
+              )}
+            </article>
           ))}
         </div>
+      )}
+    </section>
+  )
+}
+
+// 用于在完成态同时展示报告和历史对话。
+function CompletedInterviewReview({
+  report,
+  turns,
+}: {
+  report: InterviewSession['report_data']
+  turns: InterviewSession['turns']
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto bg-white px-5 py-6">
+      <div className="mx-auto w-full max-w-4xl space-y-6">
+        <ReportPreview report={report} />
+        <InterviewTranscript turns={turns} />
       </div>
     </div>
   )
@@ -881,6 +942,7 @@ export default function InterviewPage() {
     || reportData?.next_training_plan?.length
     || reportData?.resume_feedback?.length
   )
+  const hasInterviewHistory = Boolean(session?.turns?.some((turn) => turn.question || turn.answer))
   const canEndInterview = Boolean(session && !isCompletedSession)
   const canGenerateReport = Boolean(isCompletedSession && !hasReport)
 
@@ -1033,6 +1095,23 @@ export default function InterviewPage() {
               {t('viewReport')}
             </a>
           )}
+          {isCompletedSession && hasInterviewHistory && (
+            <a
+              href="#interview-transcript"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-black"
+              style={{
+                backgroundColor: '#eef0f3',
+                borderRadius: '56px',
+                border: '1px solid #eef0f3',
+                color: '#0a0b0d',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#282b31'; e.currentTarget.style.borderColor = '#282b31'; e.currentTarget.style.color = '#ffffff' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.borderColor = '#eef0f3'; e.currentTarget.style.color = '#0a0b0d' }}
+            >
+              {sessionText(t, locale, 'viewTranscript', { zh: '查看对话', en: 'View transcript' })}
+            </a>
+          )}
           {canEndInterview && (
             <button
               type="button"
@@ -1073,7 +1152,7 @@ export default function InterviewPage() {
       {/* Voice panel fills remaining height */}
       <div className="flex-1 flex flex-col min-h-0">
         {isCompletedSession ? (
-          <ReportPreview report={reportData} />
+          <CompletedInterviewReview report={reportData} turns={session?.turns || []} />
         ) : (
           <VoicePanel
             sessionId={digitalHuman?.session_id}

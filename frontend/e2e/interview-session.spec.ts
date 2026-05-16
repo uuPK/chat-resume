@@ -48,11 +48,27 @@ const activeSession = {
   current_turn: null,
 }
 
+const completedTurns = [
+  {
+    id: 900,
+    turn_index: 0,
+    round_index: 0,
+    question: '请介绍一下你做过的 Agent 项目',
+    question_type: 'general',
+    answer: '我做过简历优化 Agent，并接入了语音面试流程。',
+    evaluation: '回答覆盖项目背景，但量化结果不足。',
+    follow_up_count: 0,
+    status: 'answered',
+  },
+]
+
 const completedSession = {
   ...activeSession,
   status: 'completed',
   ended_at: '2026-05-16T00:05:00Z',
   report_data: null,
+  turns: completedTurns,
+  current_turn: completedTurns[0],
 }
 
 const completedSessionWithReport = {
@@ -156,6 +172,10 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   await expect(generateButton).toBeHidden()
   await expect(page.getByRole('heading', { name: '面试评估报告' })).toBeVisible()
   await expect(page.getByText('回答完整但需要补充量化结果')).toBeVisible()
+  await expect(page.getByRole('link', { name: '查看对话' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试对话记录' })).toBeVisible()
+  await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
+  await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {
