@@ -201,11 +201,13 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   const resumeSelect = dialog.locator('select')
   const companyInput = dialog.getByPlaceholder('例如：腾讯 / 字节跳动')
   const targetInput = dialog.getByPlaceholder('例如：前端工程师 / 产品经理')
+  const startButton = dialog.getByRole('button', { name: '开始面试' })
 
   await expect(resumeSelect).toBeVisible()
   await expect(resumeSelect).toHaveCount(1)
   await expect(companyInput).toBeVisible()
   await expect(targetInput).toBeVisible()
+  await expect(startButton).toBeVisible()
 
   const selectVisualState = await resumeSelect.evaluate((selectElement) => {
     const selectStyle = window.getComputedStyle(selectElement)
@@ -234,4 +236,16 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   expect(Math.abs(selectVisualState.height - companyVisualState.height)).toBeLessThan(1)
   expect(selectVisualState.color).toBe('rgb(156, 163, 175)')
   await expect(dialog.locator('select + svg')).toHaveCount(1)
+
+  const startButtonStyle = await startButton.evaluate((buttonElement) => {
+    const style = window.getComputedStyle(buttonElement)
+    return {
+      backgroundColor: style.backgroundColor,
+      borderColor: style.borderColor,
+      color: style.color,
+    }
+  })
+  expect(startButtonStyle.backgroundColor).toBe('rgb(0, 82, 255)')
+  expect(startButtonStyle.borderColor).toBe('rgb(0, 82, 255)')
+  expect(startButtonStyle.color).toBe('rgb(255, 255, 255)')
 })

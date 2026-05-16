@@ -482,7 +482,7 @@ export default function InterviewsPage() {
                         type="button"
                         onClick={handleCreateInterview}
                         disabled={!selectedResumeId || creatingSession}
-                        className="btn-secondary btn-sm"
+                        className="btn-primary btn-sm"
                       >
                         {creatingSession ? t('form.creating') : t('form.start')}
                       </button>
