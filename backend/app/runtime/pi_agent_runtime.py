@@ -452,7 +452,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
-        """流式拉取单轮 assistant 响应并先缓冲文本增量。"""
+        """流式拉取单轮 assistant 响应，text delta 实时发布不缓冲。"""
         response = self.stream_fn(
             config.model,
             llm_context,
@@ -472,7 +472,6 @@ class PiAgentRuntime:
         if not isinstance(response, dict) or "events" not in response or "result" not in response:
             raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
-        text_deltas: list[str] = []
         async for raw_event in response["events"]:
             delta = self._text_delta_from_event(raw_event)
             if delta:
@@ -481,7 +480,21 @@ class PiAgentRuntime:
                         (perf_counter() - state["started_at"]) * 1000,
                         2,
                     )
-                text_deltas.append(delta)
+                state["chunk_index"] += 1
+                state["response_parts"].append(delta)
+                self._trace_chunk(
+                    "agent.trace.intermediate.chunk",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    chunk_index=state["chunk_index"],
+                    content_preview=self._preview_text(delta),
+                    content_chars=len(delta),
+                )
+                await self._publish_event(
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    event=text_delta_event(content=delta),
+                )
 
         result = response["result"]()
         if inspect.isawaitable(result):
@@ -491,7 +504,8 @@ class PiAgentRuntime:
         assistant_message = _ReActStreamFn._single_tool_message(result)
         state["last_assistant_text"] = self._assistant_text(assistant_message)
         state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-        return assistant_message, text_deltas
+        # text deltas already published above; return empty list to skip re-publish
+        return assistant_message, []
 
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""
