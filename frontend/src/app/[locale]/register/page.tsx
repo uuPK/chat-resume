@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 import { motion } from 'framer-motion'
 import { Link } from '@/i18n/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
@@ -26,10 +26,19 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const { register: registerUser, isLoading } = useAuth()
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>()
+  const { register, handleSubmit, watch, trigger, formState: { errors } } = useForm<RegisterForm>({
+    mode: 'onChange',
+    reValidateMode: 'onChange',
+  })
   const router = useRouter()
   const password = watch('password')
+  const confirmPassword = watch('confirmPassword')
   const t = useTranslations('auth')
+
+  // 密码变化时同步重新校验确认密码。
+  useEffect(() => {
+    if (confirmPassword) void trigger('confirmPassword')
+  }, [confirmPassword, password, trigger])
 
   // 用于处理onsubmit。
   const onSubmit = async (data: RegisterForm) => {

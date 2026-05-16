@@ -11,7 +11,7 @@ import { uniqueEmail, DEFAULT_PASSWORD, registerUser } from './helpers'
 
 test.describe('注册', () => {
   test('页面包含 Google 登录入口并指向后端启动端点', async ({ page }) => {
-    await page.goto('/register')
+    await page.goto('/zh/register')
     const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
@@ -42,23 +42,33 @@ test.describe('注册', () => {
   })
 
   test('两次密码不一致时表单提交被阻止', async ({ page }) => {
-    await page.goto('/register')
-    await page.fill('input[placeholder="请输入您的姓名"]', '不一致')
+    let registerRequests = 0
+    await page.route('**/api/auth/register', async route => {
+      registerRequests += 1
+      await route.fulfill({ status: 500, body: 'unexpected register request' })
+    })
+
+    await page.goto('/zh/register')
     await page.fill('input[type="email"]', uniqueEmail('mismatch'))
     const pwInputs = page.locator('input[type="password"]')
     await pwInputs.nth(0).fill(DEFAULT_PASSWORD)
     await pwInputs.nth(1).fill('WrongConfirm123')
+    await expect(page.getByText('两次输入的密码不一致')).toBeVisible()
+
     const checkbox = page.locator('input[type="checkbox"]').first()
     if (await checkbox.count() > 0) await checkbox.check()
     await page.click('button[type="submit"]')
 
-    await page.waitForTimeout(1000)
+    expect(registerRequests).toBe(0)
     expect(page.url()).not.toMatch(/\/dashboard/)
+
+    await pwInputs.nth(1).fill(DEFAULT_PASSWORD)
+    await expect(page.getByText('两次输入的密码不一致')).toBeHidden()
   })
 
   test('页面包含跳转到登录页的链接', async ({ page }) => {
-    await page.goto('/register')
-    const loginLink = page.locator('a[href="/login"]')
+    await page.goto('/zh/register')
+    const loginLink = page.locator('a[href="/zh/login"]')
     await expect(loginLink).toBeVisible()
   })
 })
@@ -67,14 +77,14 @@ test.describe('注册', () => {
 
 test.describe('Google OAuth 入口', () => {
   test('登录页包含 Google 登录入口并指向后端启动端点', async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/zh/login')
     const googleLink = page.getByRole('link', { name: '使用谷歌登录' })
     await expect(googleLink).toBeVisible()
     await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/login')
   })
 
   test('URL 中包含 oauth_error 时展示 Google 登录失败提示', async ({ page }) => {
-    await page.goto('/login?oauth_error=invalid_state')
+    await page.goto('/zh/login?oauth_error=invalid_state')
     await expect(page.getByText('登录状态已失效，请重试')).toBeVisible()
   })
 })
@@ -155,8 +165,8 @@ test.describe('登录', () => {
   })
 
   test('页面包含跳转到注册页的链接', async ({ page }) => {
-    await page.goto('/login')
-    const regLink = page.locator('a[href="/register"]')
+    await page.goto('/zh/login')
+    const regLink = page.locator('a[href="/zh/register"]')
     await expect(regLink).toBeVisible()
   })
 })
