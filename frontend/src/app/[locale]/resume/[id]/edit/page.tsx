@@ -339,6 +339,9 @@ export default function ResumeEditPage() {
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
     null
   )
+  const lastStreamEvent = streamEvents[streamEvents.length - 1]
+  const shouldShowStreamingThinking =
+    isStreaming && streamEvents.length > 0 && lastStreamEvent?.type !== 'text'
 
   useEffect(() => {
     const toolEvents = streamEvents.filter((event) =>
@@ -1081,7 +1084,7 @@ export default function ResumeEditPage() {
                             </div>
                           )
                         })}
-                        {!streamEvents.some((event) => event.type === 'text' && event.content.trim()) && (
+                        {shouldShowStreamingThinking && (
                           <div className="mt-2 px-4 py-3 text-sm" style={{ color: '#5b616e' }}>
                             <span className="inline-block animate-pulse">{t('thinking')}</span>
                           </div>
