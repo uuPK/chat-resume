@@ -32,7 +32,7 @@
 
 | 检查项 | 命令 | 结果 |
 | --- | --- | --- |
-| 后端测试 | `cd backend && uv run --extra dev python -m pytest tests -q` | 通过：335 passed，7 warnings，3 subtests passed，用时 141.37s |
+| 后端测试 | `cd backend && uv run --extra dev python -m pytest tests -q` | 通过：358 passed，7 warnings，3 subtests passed，用时 72.43s |
 | 后端类型检查 | `cd backend && uv run basedpyright` | 通过：0 errors，0 warnings，0 notes |
 | 前端类型检查 | `cd frontend && npm run type-check` | 通过：`tsc --noEmit -p tsconfig.typecheck.json` |
 | 前端生产构建 | `cd frontend && npm run build` | 通过：Next.js 16.2.6 Turbopack build 成功，生成 18 个静态页面 |

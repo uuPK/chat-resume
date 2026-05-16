@@ -24,15 +24,18 @@
 ## 路由结构
 
 - `frontend/src/app/[locale]/page.tsx`：本地化首页。
+- `frontend/src/app/[locale]/login/page.tsx`：登录页。
+- `frontend/src/app/[locale]/register/page.tsx`：注册页。
 - `frontend/src/app/[locale]/dashboard/page.tsx`：登录后的工作台。
 - `frontend/src/app/[locale]/resumes/page.tsx`：简历中心。
 - `frontend/src/app/[locale]/resume/[id]/edit/page.tsx`：简历编辑、预览、Agent 优化和导出主页面。
 - `frontend/src/app/[locale]/resume/[id]/interview/page.tsx`：实时语音面试页面。
 - `frontend/src/app/[locale]/interviews/page.tsx`：面试记录和创建入口。
+- `frontend/src/app/[locale]/pricing/page.tsx`：套餐价格页。
 - `frontend/src/app/[locale]/settings/page.tsx`：账户和订阅设置。
 - `frontend/src/app/(print)/resume/print/page.tsx`：打印/导出专用页面。
 
-`frontend/src/proxy.ts` 负责 locale 归一化和页面级登录保护。不要只依赖页面组件判断登录态。
+`frontend/src/proxy.ts` 负责 locale 归一化和页面级登录保护。不要只依赖页面组件判断登录态。公开页面包括 `/login`、`/register`、`/` 和 `/resume/print`，受保护页面通过后端 `/api/auth/me` 验证 token 真伪。
 
 ## API 约定
 

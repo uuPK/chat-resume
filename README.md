@@ -14,7 +14,7 @@ Chat Resume 是一个 AI 求职应用，核心流程是：上传简历 -> 上传
 
 ## 技术栈
 
-- 前端：Next.js 16、React 18、TypeScript、Tailwind CSS
+- 前端：Next.js 16.2、React 18、TypeScript、Tailwind CSS、next-intl
 - 后端：FastAPI、SQLAlchemy 2、Pydantic v2、Alembic、uv
 - AI：pi-agent-core、OpenRouter
 - 语音：火山引擎实时语音对话、ASR、MiniMax TTS
@@ -24,11 +24,16 @@ Chat Resume 是一个 AI 求职应用，核心流程是：上传简历 -> 上传
 
 ```text
 backend/app/entrypoints/http/  # FastAPI 路由
+backend/app/agents/resume/     # 简历 Agent 定义和提示词
 backend/app/runtime/           # pi-agent-core 运行时适配
 backend/app/tools/resume/      # 简历工具
-backend/app/services/          # 业务服务
+backend/app/services/          # 业务服务（auth、agent、domain、interview、llm、processing、voice）
+backend/app/state/             # Agent session 存储和回放
 frontend/src/app/              # Next.js 页面
 frontend/src/components/       # 前端组件
+frontend/src/hooks/            # 页面级业务 hooks
+frontend/src/i18n/             # 国际化配置
+frontend/locales/              # 中英文翻译文件
 eval/                          # Agent eval 脚本和用例
 ```
 
@@ -53,6 +58,17 @@ eval/                          # Agent eval 脚本和用例
 - API: `http://localhost:8000`
 - API Docs: `http://localhost:8000/docs`
 
+路由：
+
+- `/login` / `/register`：登录注册
+- `/dashboard`：工作台
+- `/resumes`：简历中心
+- `/resume/{id}/edit`：简历编辑、预览、Agent 优化和导出
+- `/resume/{id}/interview`：语音面试
+- `/interviews`：面试记录
+- `/pricing`：套餐价格
+- `/settings`：账户设置
+
 单独启动：
 
 ```bash
@@ -74,6 +90,7 @@ eval/                          # Agent eval 脚本和用例
 DATABASE_URL=sqlite:///./chat_resume.db
 SECRET_KEY=your-secret-key-here
 OPENROUTER_API_KEY=
+OPENROUTER_RESUME_PARSER_MODEL=deepseek/deepseek-v4-flash
 FRONTEND_URL=http://localhost:3000
 BACKEND_CORS_ORIGINS=http://localhost:3000,https://localhost:3000
 
@@ -86,6 +103,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 - Google 登录：`GOOGLE_OAUTH_CLIENT_ID`、`GOOGLE_OAUTH_CLIENT_SECRET`、`GOOGLE_OAUTH_REDIRECT_URI`
 - PayPal 订阅：`PAYPAL_CLIENT_ID`、`PAYPAL_CLIENT_SECRET`、`PAYPAL_PLAN_ID`、`PAYPAL_WEBHOOK_ID`
 - 语音面试：`DIGITAL_HUMAN_PROVIDER=volcengine` 和 `VOLCENGINE_DIALOGUE_*`
+- ASR/TTS：`VOLCENGINE_APP_KEY`、`VOLCENGINE_ACCESS_TOKEN`、`MINIMAX_API_KEY`
 
 ## 数据库
 
