@@ -148,7 +148,7 @@ async def _request_report_from_llm(
                     }
                 ],
                 temperature=0.2,
-                max_tokens=1800,
+                max_tokens=3000,
                 system_prompt=_REPORT_SYSTEM_PROMPT,
             )
     except Exception as exc:
@@ -164,7 +164,7 @@ async def _request_report_from_llm(
             "response_chars": response_chars,
         },
     )
-    return _parse_report_response(response)
+    return _parse_report_response(response, turns)
 
 
 def _report_prompt_payload(
@@ -187,7 +187,9 @@ def _report_prompt_payload(
     }
 
 
-def _parse_report_response(response: dict[str, Any]) -> dict[str, Any]:
+def _parse_report_response(
+    response: dict[str, Any], turns: list[InterviewTurn]
+) -> dict[str, Any]:
     """从 OpenRouter 响应中解析结构化报告 JSON。"""
     content = (
         response.get("choices", [{}])[0]
@@ -200,7 +202,14 @@ def _parse_report_response(response: dict[str, Any]) -> dict[str, Any]:
     try:
         parsed = json.loads(_extract_json_object(content))
     except json.JSONDecodeError as exc:
-        raise ServiceError("Interview report generation returned invalid JSON") from exc
+        logger.warning(
+            "interview_report.invalid_json",
+            extra={
+                "response_chars": len(content),
+                "json_error": str(exc),
+            },
+        )
+        return _fallback_report_from_text(content, turns)
     if not isinstance(parsed, dict):
         raise ServiceError("Interview report generation returned non-object JSON")
     return parsed
@@ -283,6 +292,57 @@ def _as_text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _fallback_report_from_text(
+    content: str, turns: list[InterviewTurn]
+) -> dict[str, Any]:
+    """在模型返回非严格 JSON 时生成可展示的保守报告。"""
+    summary = " ".join(content.split())
+    if len(summary) > 600:
+        summary = f"{summary[:600]}..."
+    if not summary:
+        summary = "报告模型返回了非结构化内容，本次已保留面试记录用于后续复盘。"
+
+    turn_evaluations = [
+        {
+            "turn_index": turn.turn_index,
+            "summary": "已记录本轮问答，但模型返回的逐题点评格式不完整。",
+            "gaps": ["需要重新生成报告以获得完整逐题点评"],
+            "evidence": [],
+            "advice": "补充量化结果、关键决策和个人贡献后再复盘。",
+        }
+        for turn in turns
+    ]
+
+    return {
+        "summary": summary,
+        "strengths": [
+            f"已完成 {len(turns)} 轮可复盘问答",
+            "面试问题和回答已经保存",
+            "候选人完成了本次面试流程",
+        ],
+        "weaknesses": [
+            "本次模型返回的结构化格式不完整，详细维度需要重新生成",
+        ],
+        "next_training_plan": [
+            "重新生成报告以获取完整结构化评估",
+            "按 STAR 结构整理核心项目回答",
+            "为每个项目补充量化结果和业务影响",
+        ],
+        "resume_feedback": [
+            "将面试中提到的项目职责、技术栈和量化成果同步回简历。",
+        ],
+        "dimensions": [
+            {
+                "title": "报告完整性",
+                "assessment": "需要重新生成",
+                "evidence": "模型返回内容不是严格 JSON，系统已生成保守降级报告。",
+                "advice": "重新点击生成报告，或减少单次面试内容后再生成。",
+            }
+        ],
+        "turn_evaluations": turn_evaluations,
+    }
+
+
 def _response_content_length(response: dict[str, Any]) -> int:
     """计算模型响应正文长度，不记录正文内容。"""
     content = (
@@ -309,4 +369,5 @@ JSON 字段必须包含：
 - dimensions: 数组，每项包含 title/assessment/evidence/advice
 - turn_evaluations: 数组，每项包含 turn_index/summary/gaps/evidence/advice
 逐题点评必须基于输入中的问题和候选人回答，不要编造不存在的事实。
+输出必须是一个紧凑 JSON 对象，不要代码块，不要解释文字，不要在字符串里使用未转义的双引号。
 """.strip()

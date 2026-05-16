@@ -2515,6 +2515,86 @@ class TestInterviewSessions:
         assert "interview_report.turns_loaded" in report_logs
         assert "interview_report.skipped" in report_logs
 
+    def test_report_generation_falls_back_when_llm_returns_invalid_json(
+        self, monkeypatch, caplog
+    ):
+        """用于验证reportgenerationfallsbackwhenllmreturnsinvalidjson。"""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于处理init。"""
+                self.model = "fake-report-model"
+
+            async def __aenter__(self):
+                """用于处理aenter。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于处理aexit。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于处理chatcompletion。"""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"候选人提到 "React" 项目，'
+                                    '但这个 JSON 的引号没有转义"}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍 React 项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过 React 项目"},
+            headers=self.headers,
+        )
+        end_resp = self.client.post(
+            f"/api/interviews/{session_id}/end",
+            headers=self.headers,
+        )
+        assert end_resp.status_code == 200, end_resp.text
+
+        with caplog.at_level("INFO", logger="app.services.interview.report_service"):
+            report_resp = self.client.post(
+                f"/api/interviews/{session_id}/report",
+                headers=self.headers,
+            )
+
+        assert report_resp.status_code == 200, report_resp.text
+        body = report_resp.json()
+        report = body["session"]["report_data"]
+        assert body["next_action"] == "report"
+        assert report["summary"]
+        assert len(report["strengths"]) == 3
+        assert body["session"]["turns"][0]["evaluation"].startswith(
+            "已记录本轮问答"
+        )
+        report_logs = [record.message for record in caplog.records]
+        assert "interview_report.invalid_json" in report_logs
+        assert "interview_report.saved" in report_logs
+
     def test_report_generation_requires_completed_session(self):
         """用于验证reportgenerationrequirescompleted会话。"""
         create_resp = self.client.post(
