@@ -190,8 +190,8 @@ def test_allowed_tool_call_uses_normal_detection_trace(
     monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
 
     with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
-        agent.runtime.trace_recorder.tool_call_detected(agent.definition, "run_test", event, state)
-        agent.runtime.trace_recorder.tool_call_detected(agent.definition, "run_test", event, state)
+        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
+        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
 
     messages = [record.getMessage() for record in caplog.records]
     assert "agent.trace.reasoning.unexpected_tool_call" not in messages

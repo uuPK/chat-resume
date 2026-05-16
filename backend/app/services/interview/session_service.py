@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, noload
 
 from app.models import InterviewSession, InterviewTurn
 from app.services.domain import ResumeService
-from app.services.errors import ServiceNotFoundError
+from app.services.errors import ServiceNotFoundError, ServicePermissionError
 from app.services.interview.serializer import serialize_session_summary
 
 
@@ -21,7 +21,12 @@ def now() -> datetime:
 
 def get_resume_for_user(db: Session, resume_id: int, user_id: int):
     """校验用户对目标简历的访问权限。"""
-    return ResumeService(db).get_for_user(resume_id, user_id)
+    resume = ResumeService(db).get_by_id(resume_id)
+    if not resume:
+        raise ServiceNotFoundError("Resume not found")
+    if resume.owner_id != user_id:
+        raise ServicePermissionError("Not enough permissions")
+    return resume
 
 
 def get_session_for_user(

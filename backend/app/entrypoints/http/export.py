@@ -12,7 +12,6 @@ from app.infra.database import get_db
 from app.infra.security import verify_download_token
 from app.schemas.export import ExportRequest, ExportResponse
 from app.services.domain import ResumeService
-from app.services.errors import ServiceNotFoundError, ServicePermissionError
 from app.services.processing import ExportService
 
 router = APIRouter()
@@ -27,19 +26,19 @@ async def export_resume(
 ):
     """用于把指定简历导出成目标格式文件。"""
 
+    # 验证简历权限
     resume_service = ResumeService(db)
-    try:
-        resume = resume_service.get_for_user(resume_id, current_user["id"])
-    except ServiceNotFoundError as exc:
+    resume = resume_service.get_by_id(resume_id)
+
+    if not resume:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except ServicePermissionError as exc:
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+
+    if resume.owner_id != current_user["id"]:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
-        ) from exc
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions"
+        )
 
     try:
         export_service = ExportService()

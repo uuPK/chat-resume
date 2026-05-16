@@ -7,6 +7,5 @@
 from .export_service import ExportService
 from .jd_ocr_service import JDOcrService
 from .resume_parser import ResumeParser
-from .resume_upload_job import ResumeUploadJobProcessor
 
-__all__ = ["ResumeParser", "ExportService", "JDOcrService", "ResumeUploadJobProcessor"]
+__all__ = ["ResumeParser", "ExportService", "JDOcrService"]

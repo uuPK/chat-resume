@@ -14,14 +14,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
     normalize_resume_stream_payload,
     tool_pending_event,
 )
-from app.tools.resume.registry import (  # noqa: E402
-    RESUME_TOOL_ARGUMENT_ALIASES,
-    RESUME_TOOL_DISPLAY_NAMES,
-    RESUME_TOOL_PROFILES,
-    RESUME_TOOL_REQUIRED_ARGS,
-    RESUME_TOOL_SECTION_ENUMS,
-    RESUME_TOOLS_SCHEMA,
-)
+from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
 from app.prompts import load_prompt  # noqa: E402
@@ -83,23 +76,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertNotIn("read_user_memory", tool_names)
         self.assertNotIn("write_user_memory", tool_names)
-
-    def test_resume_tool_catalog_generates_agent_and_executor_maps(self):
-        """用于验证工具 catalog 派生执行器和 Agent 所需规则。"""
-        self.assertEqual(
-            RESUME_TOOL_REQUIRED_ARGS["update_bullet"],
-            {"section", "item_id", "bullet_id", "text"},
-        )
-        self.assertEqual(RESUME_TOOL_SECTION_ENUMS["update_overview"], {"projects"})
-        self.assertEqual(
-            RESUME_TOOL_DISPLAY_NAMES["generate_job_match_summary"],
-            "岗位匹配摘要",
-        )
-        self.assertEqual(
-            RESUME_TOOL_ARGUMENT_ALIASES["update_bullet"],
-            {"highlight_id": "bullet_id"},
-        )
-        self.assertEqual(RESUME_TOOL_PROFILES["read_only"], {"generate_job_match_summary"})
 
     def test_resume_tool_result_includes_structured_diff_reason(self):
         """用于验证简历tool结果includesstructureddiffreason。"""

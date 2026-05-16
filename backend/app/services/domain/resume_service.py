@@ -6,7 +6,6 @@
 """
 
 import logging
-import os
 from typing import Any, List
 
 from sqlalchemy.orm import Session
@@ -20,7 +19,6 @@ from app.schemas.resume import (
     dump_resume_content_for_frontend,
 )
 from app.state.models import AgentEvent, AgentSession
-from app.services.errors import ServiceError, ServiceNotFoundError, ServicePermissionError
 
 from .file_service import FileService
 
@@ -41,22 +39,6 @@ class ResumeService:
     def get_by_owner(self, owner_id: int) -> List[Resume]:
         """用于查询某个用户拥有的全部简历。"""
         return self.db.query(Resume).filter(Resume.owner_id == owner_id).all()
-
-    def get_for_user(
-        self,
-        resume_id: int,
-        user_id: int,
-        *,
-        not_found_message: str = "Resume not found",
-        permission_message: str = "Not enough permissions",
-    ) -> Resume:
-        """用于集中校验当前用户能否访问一份简历。"""
-        resume = self.get_by_id(resume_id)
-        if not resume:
-            raise ServiceNotFoundError(not_found_message)
-        if resume.owner_id != user_id:
-            raise ServicePermissionError(permission_message)
-        return resume
 
     def create(self, resume_create: ResumeCreate, owner_id: int) -> Resume:
         """用于创建新的简历记录。"""
@@ -102,18 +84,7 @@ class ResumeService:
         resume = self.get_by_id(resume_id)
         if not resume:
             return False
-        return self._delete_resume_workspace(resume)
 
-    def delete_for_user(self, resume_id: int, user_id: int) -> None:
-        """用于删除当前用户可访问的一份简历工作区。"""
-        resume = self.get_for_user(resume_id, user_id)
-        if not self._delete_resume_workspace(resume):
-            raise ServiceError("Failed to delete resume")
-
-    def _delete_resume_workspace(self, resume: Resume) -> bool:
-        """用于删除简历 DB 工作区并在提交后清理上传文件。"""
-        resume_id = int(resume.id)
-        file_path = str(resume.file_path) if resume.file_path is not None else None
         try:
             agent_session_ids = [
                 session_id
@@ -150,39 +121,17 @@ class ResumeService:
                 OptimizationRecord.resume_id == resume_id
             ).delete(synchronize_session=False)
 
+            if resume.file_path is not None:
+                file_service = FileService()
+                file_service.delete_file(str(resume.file_path))
+
             self.db.delete(resume)
             self.db.commit()
+            return True
         except Exception:
             self.db.rollback()
             logger.exception("简历删除失败 resume_id=%s", resume_id)
             return False
-
-        if file_path is None:
-            return True
-        return self._delete_uploaded_file(file_path, resume_id)
-
-    @staticmethod
-    def _delete_uploaded_file(file_path: str, resume_id: int) -> bool:
-        """用于在 DB 删除提交后清理上传文件。"""
-        if not os.path.exists(file_path):
-            return True
-        try:
-            deleted = FileService().delete_file(file_path)
-        except Exception:
-            logger.exception(
-                "简历文件删除失败 resume_id=%s file_path=%s",
-                resume_id,
-                file_path,
-            )
-            return False
-        if deleted:
-            return True
-        logger.error(
-            "简历文件删除失败 resume_id=%s file_path=%s",
-            resume_id,
-            file_path,
-        )
-        return False
 
     def list_chat_messages(self, resume_id: int) -> list[ResumeChatMessage]:
         """用于读取一份简历下的全部聊天记录。"""
