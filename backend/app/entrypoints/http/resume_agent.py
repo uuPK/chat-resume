@@ -144,15 +144,29 @@ async def chat_with_resume_stream(
         async for event in stream_service.stream_events(stream_input):
             payload = public_resume_stream_event(event)
             event_id = payload.get("event_id")
-            if payload.get("tool_pending"):
+            event_type = payload.get("event_type")
+            if event_type in {
+                "tool_call",
+                "tool_pending",
+                "tool_confirmed",
+                "tool_rejected",
+                "tool_result",
+                "tool_call_failed",
+            }:
                 logger.info(
-                    "resume_agent.sse.tool_pending.sent",
+                    "resume_agent.sse.tool_event.sent",
                     extra={
+                        "event_type": event_type,
                         "event_id": event_id,
                         "call_id": payload.get("call_id"),
                         "tool_name": payload.get("tool_id"),
                         "tool_display_name": payload.get("tool_display_name"),
+                        "tool_pending": bool(payload.get("tool_pending")),
+                        "tool_confirmed": bool(payload.get("tool_confirmed")),
+                        "tool_rejected": bool(payload.get("tool_rejected")),
                         "diff_item_count": len(payload.get("diff_items") or []),
+                        "tool_calls_count": len(payload.get("tool_calls") or []),
+                        "has_result": "result" in payload,
                     },
                 )
             yield format_sse_event(

@@ -59,6 +59,19 @@ function ToolActivityRow({
   )
 }
 
+// 用于压缩编辑页工具事件渲染状态。
+function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
+  return events
+    .filter((event) =>
+      event.type === 'tool_call' ||
+      event.type === 'tool_result' ||
+      event.type === 'tool_pending' ||
+      event.type === 'tool_confirmed' ||
+      event.type === 'tool_rejected'
+    )
+    .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
+}
+
 // 用于渲染岗位匹配摘要的一组条目。
 function SummaryList({
   title,
@@ -326,6 +339,36 @@ export default function ResumeEditPage() {
     (latest, event) => (event.type === 'tool_pending' ? event.callId : latest),
     null
   )
+
+  useEffect(() => {
+    const toolEvents = streamEvents.filter((event) =>
+      event.type === 'tool_call' ||
+      event.type === 'tool_result' ||
+      event.type === 'tool_pending' ||
+      event.type === 'tool_confirmed' ||
+      event.type === 'tool_rejected'
+    )
+    if (toolEvents.length === 0) return
+    const callIds = Array.from(
+      new Set(toolEvents.flatMap((event) => ('callId' in event ? [event.callId] : [])))
+    )
+    const simultaneousCalls = callIds.filter((callId) => {
+      const types = toolEvents
+        .filter((event) => 'callId' in event && event.callId === callId)
+        .map((event) => event.type)
+      return types.includes('tool_result') && (
+        types.includes('tool_pending') ||
+        types.includes('tool_confirmed') ||
+        types.includes('tool_rejected')
+      )
+    })
+    console.info('[ResumeEditPage] streamEvents render snapshot', {
+      isStreaming,
+      latestPendingCallId,
+      events: summarizeRenderedToolEvents(streamEvents),
+      simultaneousCalls,
+    })
+  }, [streamEvents, isStreaming, latestPendingCallId])
 
   /**
    * 读取预览区当前选中文本，并把浮动按钮定位到选区上方。

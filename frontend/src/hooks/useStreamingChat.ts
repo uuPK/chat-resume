@@ -124,6 +124,19 @@ function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
 }
 
+// 用于压缩工具流事件，便于诊断前端状态切换。
+function summarizeToolEvents(events: StreamEvent[]): string[] {
+  return events
+    .filter((event) =>
+      event.type === 'tool_call' ||
+      event.type === 'tool_result' ||
+      event.type === 'tool_pending' ||
+      event.type === 'tool_confirmed' ||
+      event.type === 'tool_rejected'
+    )
+    .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
+}
+
 // 用于解析工具名称。
 function resolveToolName(data: Record<string, unknown>, fallbackName: string): string {
   if (data.tool_display_name) return normalizeToolName(String(data.tool_display_name))
@@ -152,6 +165,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   // tool_pending 超时计时器：key=callId, value=timerId
   const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const confirmingToolCallsRef = useRef<Set<string>>(new Set())
+  const sseEventSequenceRef = useRef(0)
 
   const {
     onMessage,
@@ -233,6 +247,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         toolName: string,
         displayMessage?: string,
       ) => {
+        console.info('[useStreamingChat] completeToolCallEvent before', {
+          callId,
+          toolName,
+          displayMessage,
+          events: summarizeToolEvents(eventsBuffer),
+        })
         let updated = false
         eventsBuffer = eventsBuffer.map((event) => {
           if (event.type === 'tool_call' && event.callId === callId) {
@@ -254,6 +274,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             displayMessage,
           }]
         }
+        console.info('[useStreamingChat] completeToolCallEvent after', {
+          callId,
+          updatedToolCall: updated,
+          events: summarizeToolEvents(eventsBuffer),
+        })
       }
 
       try {
@@ -283,6 +308,26 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 }
                 if (typeof data.event_id === 'string') {
                   lastEventIdRef.current = data.event_id
+                }
+                const eventType = typeof data.event_type === 'string' ? data.event_type : ''
+                const isToolEvent =
+                  eventType.startsWith('tool_') ||
+                  Boolean(data.tool_pending || data.tool_confirmed || data.tool_rejected)
+                if (isToolEvent) {
+                  sseEventSequenceRef.current += 1
+                  console.info('[useStreamingChat] tool SSE received', {
+                    seq: sseEventSequenceRef.current,
+                    eventType,
+                    eventId: lastEventIdRef.current,
+                    callId: data.call_id || '',
+                    toolName: data.tool_display_name || data.tool_name || data.tool_id || '',
+                    toolPending: Boolean(data.tool_pending),
+                    toolConfirmed: Boolean(data.tool_confirmed),
+                    toolRejected: Boolean(data.tool_rejected),
+                    hasResult: Object.prototype.hasOwnProperty.call(data, 'result'),
+                    diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                    eventsBefore: summarizeToolEvents(eventsBuffer),
+                  })
                 }
 
                 if (data.error) {
@@ -339,11 +384,19 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     toolName: resolveToolName(data, t('toolCall')),
                     displayMessage: data.display_message ? String(data.display_message) : undefined,
                   }]
+                  console.info('[useStreamingChat] tool_call appended', {
+                    callId,
+                    events: summarizeToolEvents(eventsBuffer),
+                  })
                   setStreamEvents([...eventsBuffer])
                 }
 
                 if (data.event_type === 'tool_result') {
                   const callId = data.call_id ? String(data.call_id) : ''
+                  console.info('[useStreamingChat] tool_result handling start', {
+                    callId,
+                    eventsBefore: summarizeToolEvents(eventsBuffer),
+                  })
                   if (callId) {
                     completeToolCallEvent(
                       callId,
@@ -368,6 +421,10 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       summary: jobMatchSummary,
                     }]
                   }
+                  console.info('[useStreamingChat] tool_result handling end', {
+                    callId,
+                    eventsAfter: summarizeToolEvents(eventsBuffer),
+                  })
                   setStreamEvents([...eventsBuffer])
                 }
 
@@ -378,6 +435,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     callId,
                     toolName: data.tool_display_name || data.tool_name || '',
                     diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                    eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
                   eventsBuffer = [...eventsBuffer, {
                     type: 'tool_pending',
@@ -386,6 +444,10 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     diffSummary: data.diff_summary || '',
                     diffItems: normalizeDiffItems(data.diff_items),
                   }]
+                  console.info('[useStreamingChat] tool_pending appended', {
+                    callId,
+                    eventsAfter: summarizeToolEvents(eventsBuffer),
+                  })
                   setStreamEvents([...eventsBuffer])
 
                   // 5 分钟无操作自动标记为 rejected，避免永久卡在确认按钮
@@ -409,6 +471,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 // tool_confirmed / tool_rejected: 清除超时计时器，更新对应的 pending 事件状态
                 if ((data.tool_confirmed || data.tool_rejected) && data.call_id) {
                   const callId = data.call_id as string
+                  console.info('[useStreamingChat] tool decision handling start', {
+                    callId,
+                    confirmed: Boolean(data.tool_confirmed),
+                    rejected: Boolean(data.tool_rejected),
+                    eventsBefore: summarizeToolEvents(eventsBuffer),
+                  })
                   if (pendingToolTimersRef.current[callId]) {
                     clearTimeout(pendingToolTimersRef.current[callId])
                     delete pendingToolTimersRef.current[callId]
@@ -432,6 +500,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       }
                     }
                     return e
+                  })
+                  console.info('[useStreamingChat] tool decision handling end', {
+                    callId,
+                    newType,
+                    eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
                   setStreamEvents([...eventsBuffer])
                 }
