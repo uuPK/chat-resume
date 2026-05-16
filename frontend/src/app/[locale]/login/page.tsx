@@ -128,7 +128,12 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="label">{t('fields.password')}</label>
+                <div className="flex items-center justify-between gap-4">
+                  <label className="label">{t('fields.password')}</label>
+                  <Link href="/reset-password" className="text-sm font-semibold" style={{ color: '#0052ff' }}>
+                    {t('login.forgotPassword')}
+                  </Link>
+                </div>
                 <div className="relative">
                   <input
                     {...register('password', {
@@ -136,6 +141,7 @@ export default function LoginPage() {
                       minLength: { value: 6, message: t('validation.passwordMin') }
                     })}
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     className={`${errors.password ? 'input-error' : 'input'} pr-12`}
                     placeholder={t('placeholders.password')}
                   />

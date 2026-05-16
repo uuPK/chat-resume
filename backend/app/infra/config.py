@@ -231,6 +231,19 @@ class Settings(BaseSettings):
         os.getenv("JD_OCR_MAX_FILE_SIZE", str(10 * 1024 * 1024))
     )
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "60")
+    )
+    PASSWORD_RESET_EMAIL_FROM: str = os.getenv(
+        "PASSWORD_RESET_EMAIL_FROM", "no-reply@chat-resume.local"
+    )
+    PASSWORD_RESET_SMTP_HOST: str = os.getenv("PASSWORD_RESET_SMTP_HOST", "")
+    PASSWORD_RESET_SMTP_PORT: int = int(os.getenv("PASSWORD_RESET_SMTP_PORT", "587"))
+    PASSWORD_RESET_SMTP_USERNAME: str = os.getenv("PASSWORD_RESET_SMTP_USERNAME", "")
+    PASSWORD_RESET_SMTP_PASSWORD: str = os.getenv("PASSWORD_RESET_SMTP_PASSWORD", "")
+    PASSWORD_RESET_SMTP_TLS: bool = (
+        os.getenv("PASSWORD_RESET_SMTP_TLS", "true").strip().lower() == "true"
+    )
 
     # Runtime logs
     RELEASE_IDENTIFIER: str = os.getenv(

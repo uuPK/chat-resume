@@ -237,6 +237,35 @@ class TestAuth:
         assert resp.status_code == 200
         assert resp.json()["email"] == "cookie_me_user@example.com"
 
+    def test_me_reports_password_login_capability(self, client):
+        """用于验证me接口返回账号是否支持密码登录。"""
+        from app.infra.security import create_access_token
+
+        _register(client, "has_password_me@example.com")
+        token = _login(client, "has_password_me@example.com")
+        password_resp = client.get("/api/auth/me", headers=_auth_headers(token))
+
+        db = _TestingSession()
+        try:
+            google_user = User(
+                email="google_only_me@example.com",
+                hashed_password=None,
+                full_name="Google Only",
+            )
+            db.add(google_user)
+            db.commit()
+            db.refresh(google_user)
+            google_token = create_access_token(google_user.id)
+        finally:
+            db.close()
+
+        google_resp = client.get("/api/auth/me", headers=_auth_headers(google_token))
+
+        assert password_resp.status_code == 200
+        assert password_resp.json()["has_password"] is True
+        assert google_resp.status_code == 200
+        assert google_resp.json()["has_password"] is False
+
     def test_login_wrong_password_returns_401(self, client):
         """用于验证loginwrongpasswordreturns401。"""
         _register(client, "wrong_pw@example.com")
@@ -280,6 +309,121 @@ class TestAuth:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert resp.status_code == 401
+
+    def test_forgot_password_reset_link_changes_email_user_password(
+        self, client, monkeypatch
+    ):
+        """用于验证忘记密码链接可以重置邮箱用户密码。"""
+        from app.entrypoints.http import auth as auth_routes
+
+        class FakePasswordResetMailer:
+            """用于记录测试期间发出的密码重置链接。"""
+
+            def __init__(self):
+                """用于初始化测试邮件发件箱。"""
+                self.reset_links: list[str] = []
+
+            def send_password_reset(self, *, email: str, reset_link: str) -> None:
+                """用于保存密码重置邮件参数。"""
+                assert email == "forgot_password@example.com"
+                self.reset_links.append(reset_link)
+
+        mailer = FakePasswordResetMailer()
+        monkeypatch.setattr(auth_routes, "password_reset_mailer", mailer)
+        _register(client, "forgot_password@example.com", password="oldpass123")
+
+        forgot_resp = client.post(
+            "/api/auth/forgot-password",
+            json={"email": "forgot_password@example.com"},
+        )
+
+        assert forgot_resp.status_code == 200
+        assert forgot_resp.json()["message"]
+        assert len(mailer.reset_links) == 1
+        token = parse_qs(urlparse(mailer.reset_links[0]).query)["token"][0]
+
+        reset_resp = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "password": "newpass123"},
+        )
+
+        assert reset_resp.status_code == 200
+        assert (
+            client.post(
+                "/api/auth/login",
+                data={
+                    "username": "forgot_password@example.com",
+                    "password": "oldpass123",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            ).status_code
+            == 401
+        )
+        assert _login(client, "forgot_password@example.com", "newpass123")
+
+    def test_reset_password_rejects_reused_token(self, client, monkeypatch):
+        """用于验证密码重置token只能使用一次。"""
+        from app.entrypoints.http import auth as auth_routes
+
+        class FakePasswordResetMailer:
+            """用于记录测试期间发出的密码重置链接。"""
+
+            def __init__(self):
+                """用于初始化测试邮件发件箱。"""
+                self.reset_links: list[str] = []
+
+            def send_password_reset(self, *, email: str, reset_link: str) -> None:
+                """用于保存密码重置邮件参数。"""
+                self.reset_links.append(reset_link)
+
+        mailer = FakePasswordResetMailer()
+        monkeypatch.setattr(auth_routes, "password_reset_mailer", mailer)
+        _register(client, "reuse_reset@example.com", password="oldpass123")
+        client.post("/api/auth/forgot-password", json={"email": "reuse_reset@example.com"})
+        token = parse_qs(urlparse(mailer.reset_links[0]).query)["token"][0]
+        first_resp = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "password": "newpass123"},
+        )
+
+        reused_resp = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "password": "againpass123"},
+        )
+
+        assert first_resp.status_code == 200
+        assert reused_resp.status_code == 400
+
+    def test_change_password_requires_current_password(self, client):
+        """用于验证已登录用户修改密码时必须提供正确旧密码。"""
+        _register(client, "change_password@example.com", password="oldpass123")
+        token = _login(client, "change_password@example.com", "oldpass123")
+        wrong_resp = client.post(
+            "/api/auth/change-password",
+            json={"current_password": "badpass123", "new_password": "newpass123"},
+            headers=_auth_headers(token),
+        )
+
+        change_resp = client.post(
+            "/api/auth/change-password",
+            json={"current_password": "oldpass123", "new_password": "newpass123"},
+            headers=_auth_headers(token),
+        )
+
+        assert wrong_resp.status_code == 400
+        assert change_resp.status_code == 200
+        assert (
+            client.post(
+                "/api/auth/login",
+                data={
+                    "username": "change_password@example.com",
+                    "password": "oldpass123",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            ).status_code
+            == 401
+        )
+        assert _login(client, "change_password@example.com", "newpass123")
 
     def test_provider_identity_provider_user_id_is_unique_per_provider(self, client):
         """用于验证provideridentityprovider用户idisuniqueperprovider。"""

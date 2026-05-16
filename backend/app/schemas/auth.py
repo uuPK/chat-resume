@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_active: bool
+    has_password: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -61,3 +62,29 @@ class LogoutResponse(BaseModel):
     """用于返回登出后的确认信息。"""
 
     message: str
+
+
+class AuthMessageResponse(BaseModel):
+    """用于返回认证流程里的通用确认消息。"""
+
+    message: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """用于接收忘记密码流程提交的邮箱。"""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """用于接收密码重置token和新密码。"""
+
+    token: str = Field(min_length=16)
+    password: str = Field(min_length=6)
+
+
+class ChangePasswordRequest(BaseModel):
+    """用于接收已登录用户修改密码的旧密码和新密码。"""
+
+    current_password: str = Field(min_length=6)
+    new_password: str = Field(min_length=6)

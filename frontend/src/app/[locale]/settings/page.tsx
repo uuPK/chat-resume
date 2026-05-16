@@ -7,6 +7,7 @@ import { useRouter } from '@/i18n/navigation'
 import {
   ArrowLeftIcon,
   CheckIcon,
+  KeyIcon,
   SparklesIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
@@ -33,6 +34,7 @@ export default function SettingsPage() {
   const { user, isLoading: authLoading, updateUser } = useAuth()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isPasswordSaving, setIsPasswordSaving] = useState(false)
   const [isBillingLoading, setIsBillingLoading] = useState(false)
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [paypalPlan, setPayPalPlan] = useState<PayPalPlan | null>(null)
@@ -41,6 +43,11 @@ export default function SettingsPage() {
   const [openedFromUpgradeLink, setOpenedFromUpgradeLink] = useState(false)
   const [userLoaded, setUserLoaded] = useState(false)
   const [userSettings, setUserSettings] = useState({ fullName: '', email: '' })
+  const [passwordSettings, setPasswordSettings] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
   const t = useTranslations('dashboard')
   const common = useTranslations('common')
   const auth = useTranslations('auth')
@@ -155,6 +162,43 @@ export default function SettingsPage() {
     }
   }
 
+  // 用于处理已登录用户修改密码。
+  const handleChangePassword = async () => {
+    if (passwordSettings.newPassword.length < 6) {
+      toast.error(auth('validation.passwordMin'))
+      return
+    }
+    if (passwordSettings.newPassword !== passwordSettings.confirmPassword) {
+      toast.error(auth('validation.passwordMismatch'))
+      return
+    }
+    setIsPasswordSaving(true)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/change-password`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            current_password: passwordSettings.currentPassword,
+            new_password: passwordSettings.newPassword,
+          })
+        }
+      )
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || t('settings.passwordSaveFallback'))
+      }
+      setPasswordSettings({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      toast.success(t('settings.passwordSaveSuccess'))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('settings.passwordSaveError'))
+    } finally {
+      setIsPasswordSaving(false)
+    }
+  }
+
   // 用于处理upgradewithpaypal。
   const handleUpgradeWithPayPal = async () => {
     setIsBillingLoading(true)
@@ -191,6 +235,7 @@ export default function SettingsPage() {
   const renderedPlans = plans.map(plan =>
     plan.id === 'Plus' ? { ...plan, price: plusPlanPrice } : plan
   )
+  const canChangePassword = user?.has_password !== false
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
@@ -274,6 +319,73 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {canChangePassword && (
+          <section
+            className="mt-8 p-8"
+            style={{
+              border: '1px solid rgba(91,97,110,0.2)',
+              borderRadius: '24px',
+              backgroundColor: '#ffffff',
+            }}
+          >
+            <div className="mb-8 flex items-start gap-3">
+              <KeyIcon className="mt-1 h-6 w-6 flex-shrink-0" style={{ color: '#0052ff' }} />
+              <div>
+                <h2 className="text-[32px] font-semibold" style={{ color: '#0a0b0d', lineHeight: '1.13' }}>
+                  {t('settings.passwordTitle')}
+                </h2>
+                <p className="mt-2 text-base" style={{ color: '#5b616e', lineHeight: '1.5' }}>
+                  {t('settings.passwordSubtitle')}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="label">{t('settings.currentPassword')}</label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={passwordSettings.currentPassword}
+                  onChange={(e) => setPasswordSettings(prev => ({ ...prev, currentPassword: e.target.value }))}
+                  className="input"
+                  placeholder={auth('placeholders.password')}
+                />
+              </div>
+              <div>
+                <label className="label">{t('settings.newPassword')}</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordSettings.newPassword}
+                  onChange={(e) => setPasswordSettings(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="input"
+                  placeholder={auth('placeholders.newPassword')}
+                />
+              </div>
+              <div>
+                <label className="label">{auth('fields.confirmPassword')}</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordSettings.confirmPassword}
+                  onChange={(e) => setPasswordSettings(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="input"
+                  placeholder={auth('placeholders.confirmPassword')}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                disabled={isPasswordSaving}
+                className="btn-primary btn-sm"
+              >
+                {isPasswordSaving ? common('actions.saving') : t('settings.passwordSave')}
+              </button>
+            </div>
+          </section>
+        )}
 
       </main>
 

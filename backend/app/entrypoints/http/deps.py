@@ -64,6 +64,7 @@ def _build_current_user_payload(user: Any) -> dict[str, Any]:
         "email": user.email,
         "full_name": user.full_name,
         "is_active": user.is_active,
+        "has_password": user.has_password,
         "created_at": user.created_at,
     }
 

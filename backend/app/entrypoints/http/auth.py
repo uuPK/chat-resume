@@ -22,13 +22,21 @@ from app.infra.security import create_access_token
 from app.models.user import User
 from app.schemas.auth import (
     AuthSessionResponse,
+    AuthMessageResponse,
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
     LogoutResponse,
     RefreshTokenRequest,
+    ResetPasswordRequest,
     UserCreate,
     UserResponse,
     UserUpdate,
 )
-from app.services.auth import OAuthStateService
+from app.services.auth import (
+    OAuthStateService,
+    PasswordResetService,
+    SettingsPasswordResetMailer,
+)
 from app.services.auth.google_identity_link_service import (
     GoogleIdentityLinkError,
     GoogleIdentityLinkService,
@@ -47,6 +55,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_STR}/auth/login")
 oauth_state_service = OAuthStateService()
+password_reset_mailer = SettingsPasswordResetMailer()
 
 
 class CookieKwargs(TypedDict, total=False):
@@ -163,6 +172,11 @@ def _oauth_error_redirect(error_code: str) -> RedirectResponse:
     )
 
 
+def _build_password_reset_link(token: str) -> str:
+    """用于生成前端密码重置链接。"""
+    return f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+
+
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
     """用于创建新用户账号并阻止重复邮箱注册。"""
@@ -200,6 +214,63 @@ async def login(
         )
 
     return _issue_auth_session(response, user=user, db=db)
+
+
+@router.post("/forgot-password", response_model=AuthMessageResponse)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """用于给邮箱密码用户发送密码重置链接。"""
+    user_service = UserService(db)
+    user = user_service.get_by_email(payload.email)
+    if user and user.is_active and user.hashed_password:
+        token = PasswordResetService(db).issue_token(user)
+        password_reset_mailer.send_password_reset(
+            email=user.email,
+            reset_link=_build_password_reset_link(token),
+        )
+    return AuthMessageResponse(
+        message="If the email exists, a password reset link has been sent."
+    )
+
+
+@router.post("/reset-password", response_model=AuthMessageResponse)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """用于通过一次性token设置新密码。"""
+    changed = PasswordResetService(db).reset_password(
+        token=payload.token,
+        new_password=payload.password,
+    )
+    if not changed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
+        )
+    return AuthMessageResponse(message="Password has been reset.")
+
+
+@router.post("/change-password", response_model=AuthMessageResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于已登录邮箱密码用户修改自己的密码。"""
+    changed = PasswordResetService(db).change_password(
+        user_id=current_user["id"],
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+    if not changed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect or password login is not enabled.",
+        )
+    return AuthMessageResponse(message="Password has been changed.")
 
 
 @router.get("/google/login")

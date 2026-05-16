@@ -9,6 +9,11 @@ from app.services.auth.oauth_state_service import (
     OAuthStateIssue,
     OAuthStateService,
 )
+from app.services.auth.password_reset_mailer import (
+    PasswordResetMailer,
+    SettingsPasswordResetMailer,
+)
+from app.services.auth.password_reset_service import PasswordResetService
 
 __all__ = [
     "GoogleIdentityLinkError",
@@ -16,4 +21,7 @@ __all__ = [
     "OAuthStateError",
     "OAuthStateIssue",
     "OAuthStateService",
+    "PasswordResetMailer",
+    "PasswordResetService",
+    "SettingsPasswordResetMailer",
 ]
