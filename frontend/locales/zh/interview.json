@@ -43,6 +43,8 @@
     "connecting": "连接中…",
     "retry": "重试连接",
     "hangup": "挂断",
+    "endInterview": "结束面试",
+    "endingInterview": "结束中...",
     "viewReport": "查看报告",
     "home": "返回首页",
     "untitledRole": "未设置岗位",

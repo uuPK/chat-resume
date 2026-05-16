@@ -798,13 +798,25 @@ export default function InterviewPage() {
 
   const {
     session,
+    isSending,
     error: sessionError,
+    endInterview,
   } = useInterviewSession({
     resume,
     enabled: !!resume && isAuthenticated,
     requestedSessionId: requestedSessionId || undefined,
   })
   const shouldAutoStartVoice = (session?.turns?.length || 0) === 0
+  const isCompletedSession = session?.status === 'completed'
+  const canEndInterview = Boolean(session && !isCompletedSession)
+
+  const handleEndInterview = useCallback(async () => {
+    window.__chatResumeVoiceCleanup?.()
+    if (digitalHuman?.conversation_id) {
+      await digitalHumanApi.endConversation(digitalHuman.conversation_id).catch(() => {})
+    }
+    await endInterview()
+  }, [digitalHuman?.conversation_id, endInterview])
 
   const handlePersistMessage = useCallback((
     role: ConversationMessage['role'],
@@ -903,7 +915,44 @@ export default function InterviewPage() {
           </div>
         </div>
 
-        <div />
+        <div className="flex items-center gap-2">
+          {isCompletedSession && (
+            <Link
+              href="/interviews"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-black"
+              style={{
+                backgroundColor: '#0052ff',
+                borderRadius: '56px',
+                border: '1px solid #0052ff',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
+            >
+              {t('viewReport')}
+            </Link>
+          )}
+          {canEndInterview && (
+            <button
+              type="button"
+              onClick={handleEndInterview}
+              disabled={isSending}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black"
+              style={{
+                backgroundColor: '#eef0f3',
+                borderRadius: '56px',
+                border: '1px solid #eef0f3',
+                color: '#0a0b0d',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#282b31'; e.currentTarget.style.borderColor = '#282b31'; e.currentTarget.style.color = '#ffffff' } }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.borderColor = '#eef0f3'; e.currentTarget.style.color = '#0a0b0d' }}
+            >
+              <PhoneXMarkIcon className="h-4 w-4" />
+              {isSending ? t('endingInterview') : t('endInterview')}
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Error banner */}

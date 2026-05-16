@@ -43,6 +43,8 @@
     "connecting": "Connecting...",
     "retry": "Retry connection",
     "hangup": "Hang up",
+    "endInterview": "End interview",
+    "endingInterview": "Ending...",
     "viewReport": "View report",
     "home": "Back home",
     "untitledRole": "Role not set",
