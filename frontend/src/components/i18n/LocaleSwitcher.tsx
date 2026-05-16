@@ -41,7 +41,7 @@ export default function LocaleSwitcher({ compact = false }: { compact?: boolean 
         borderRadius: '56px',
         color: '#0a0b0d',
         border: '1px solid rgba(91,97,110,0.16)',
-        backgroundColor: '#eef0f3',
+        backgroundColor: '#ffffff',
       }}
     >
       <LanguageIcon className="h-4 w-4" />

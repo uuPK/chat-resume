@@ -25,7 +25,9 @@ test.describe('国际化路由', () => {
 
   test('用户可以手动切换语言并持久化选择', async ({ page, context }) => {
     await page.goto('/zh')
-    await page.getByRole('button', { name: 'Switch to English' }).click()
+    const localeButton = page.getByRole('button', { name: 'Switch to English' })
+    await expect(localeButton).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+    await localeButton.click()
 
     await expect(page).toHaveURL(/\/en(?:\/)?$/)
     await expect(page.getByRole('banner').getByRole('link', { name: 'Get started' })).toBeVisible()
