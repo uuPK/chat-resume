@@ -2509,6 +2509,8 @@ class TestInterviewSessions:
         assert created["next_action"] == "voice"
         session_id = created["session"]["id"]
         assert created["session"]["status"] == "interview_ready"
+        assert created["session"]["target_company"] == "测试公司"
+        assert created["session"]["target_title"] == "后端工程师"
         assert created["session"]["turns"] == []
         assert created["session"]["current_turn"] is None
 

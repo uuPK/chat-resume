@@ -7,7 +7,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
-import type { Resume } from '@/lib/api'
+import { resumeApi, type Resume } from '@/lib/api'
 import { Link } from '@/i18n/navigation'
 import {
   ArrowLeftIcon,
@@ -15,6 +15,7 @@ import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  PlayCircleIcon,
   TrashIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
@@ -33,7 +34,9 @@ import type { ChatMessage, JobMatchSummary, StreamEvent } from '@/hooks/useStrea
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
+import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
+import toast from 'react-hot-toast'
 
 // 用于渲染 ToolActivityRow 组件。
 function ToolActivityRow({
@@ -156,6 +159,16 @@ function clearResumeSelectionVisuals() {
   clearNativeSelection()
 }
 
+/** 判断简历是否已有可直接创建面试的岗位上下文。 */
+function hasSavedInterviewContext(resume: Resume) {
+  const jobApplication = resume.content.job_application
+  return Boolean(
+    jobApplication?.target_company?.trim() ||
+    jobApplication?.target_title?.trim() ||
+    jobApplication?.jd_text?.trim()
+  )
+}
+
 /** 多次清理选区视觉，覆盖浏览器在 pointerup/click 后恢复旧选区的时序。 */
 function clearResumeSelectionVisualsAfterEvents() {
   clearResumeSelectionVisuals()
@@ -172,7 +185,9 @@ export default function ResumeEditPage() {
   const params = useParams()
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+  const locale = useLocale() as AppLocale
   const [mounted, setMounted] = useState(false)
+  const [isCreatingInterview, setIsCreatingInterview] = useState(false)
   const [resumeSelectionAction, setResumeSelectionAction] = useState<ResumeSelectionAction | null>(null)
   const [quickEditPrompt, setQuickEditPrompt] = useState('')
   const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
@@ -466,6 +481,36 @@ export default function ResumeEditPage() {
     setFirstRunPhase('analyzing')
   }, [firstRunJdText, firstRunTargetCompany, firstRunTargetTitle, resume, updateResumeContent])
 
+  /**
+   * 从当前简历直接创建面试；没有岗位上下文时交给面试中心弹层补齐信息。
+   */
+  const handleStartInterview = useCallback(async () => {
+    if (!resume || isCreatingInterview) return
+    if (!hasSavedInterviewContext(resume)) {
+      router.push(`/interviews?create=1&resume=${resume.id}`)
+      return
+    }
+    const jobApplication = resume.content.job_application || {}
+    setIsCreatingInterview(true)
+    try {
+      const result = await resumeApi.createInterviewSession({
+        resume_id: resume.id,
+        target_company: jobApplication.target_company?.trim() || undefined,
+        target_title: jobApplication.target_title?.trim() || undefined,
+        jd_text: jobApplication.jd_text?.trim() || undefined,
+        interview_type: 'general',
+        difficulty: 'medium',
+        language: toInterviewLanguage(locale),
+        mode: 'practice',
+      })
+      router.push(`/resume/${resume.id}/interview?session=${result.session.id}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('startInterviewError'))
+    } finally {
+      setIsCreatingInterview(false)
+    }
+  }, [isCreatingInterview, locale, resume, router, t])
+
   if (!mounted || isLoading || resumeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
@@ -515,6 +560,29 @@ export default function ResumeEditPage() {
                 config={layoutConfig}
                 onConfigChange={handleLayoutConfigChange}
               />
+              <button
+                onClick={handleStartInterview}
+                disabled={isCreatingInterview}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  borderRadius: '56px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid rgba(91,97,110,0.25)',
+                  color: '#0a0b0d',
+                }}
+              >
+                {isCreatingInterview ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#0052ff' }} />
+                    <span>{t('startingInterview')}</span>
+                  </>
+                ) : (
+                  <>
+                    <PlayCircleIcon className="w-4 h-4" />
+                    <span>{t('startInterview')}</span>
+                  </>
+                )}
+              </button>
               <button
                 onClick={handleSmartFitHeaderClick}
                 disabled={isSmartFitting}
