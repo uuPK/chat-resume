@@ -2376,7 +2376,7 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
 
-    def test_completed_interview_can_generate_report(self, monkeypatch):
+    def test_completed_interview_can_generate_report(self, monkeypatch, caplog):
         """用于验证completed面试cangenerate报告。"""
 
         class FakeChatService:
@@ -2448,10 +2448,11 @@ class TestInterviewSessions:
         )
         assert end_resp.status_code == 200, end_resp.text
 
-        report_resp = self.client.post(
-            f"/api/interviews/{session_id}/report",
-            headers=self.headers,
-        )
+        with caplog.at_level("INFO", logger="app.services.interview.report_service"):
+            report_resp = self.client.post(
+                f"/api/interviews/{session_id}/report",
+                headers=self.headers,
+            )
 
         assert report_resp.status_code == 200, report_resp.text
         body = report_resp.json()
@@ -2462,8 +2463,17 @@ class TestInterviewSessions:
         assert body["session"]["turns"][0]["evaluation"] == (
             "回答覆盖核心项目\n问题：缺少数据\n亮点：说明了职责"
         )
+        report_logs = [record.message for record in caplog.records]
+        assert "interview_report.requested" in report_logs
+        assert "interview_report.turns_loaded" in report_logs
+        assert "interview_report.llm.started" in report_logs
+        assert "interview_report.llm.completed" in report_logs
+        assert "interview_report.parsed" in report_logs
+        assert "interview_report.saved" in report_logs
 
-    def test_report_generation_skips_empty_completed_interview(self, monkeypatch):
+    def test_report_generation_skips_empty_completed_interview(
+        self, monkeypatch, caplog
+    ):
         """用于验证reportgeneration跳过emptycompleted面试。"""
         called = False
 
@@ -2491,15 +2501,19 @@ class TestInterviewSessions:
         )
         assert end_resp.status_code == 200, end_resp.text
 
-        report_resp = self.client.post(
-            f"/api/interviews/{session_id}/report",
-            headers=self.headers,
-        )
+        with caplog.at_level("INFO", logger="app.services.interview.report_service"):
+            report_resp = self.client.post(
+                f"/api/interviews/{session_id}/report",
+                headers=self.headers,
+            )
 
         assert report_resp.status_code == 200, report_resp.text
         assert report_resp.json()["next_action"] == "report_skipped"
         assert report_resp.json()["session"]["report_data"] is None
         assert called is False
+        report_logs = [record.message for record in caplog.records]
+        assert "interview_report.turns_loaded" in report_logs
+        assert "interview_report.skipped" in report_logs
 
     def test_report_generation_requires_completed_session(self):
         """用于验证reportgenerationrequirescompleted会话。"""

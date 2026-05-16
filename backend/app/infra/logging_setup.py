@@ -200,6 +200,12 @@ def _message_label(message: str, extra: dict[str, Any]) -> str:
     """用于处理消息标签。"""
     if extra.get("agent_trace") and message.startswith("agent.trace."):
         return message.removeprefix("agent.")
+    if message == "request.finished":
+        method = extra.get("http_method", "-")
+        path = extra.get("http_path", "-")
+        status = extra.get("http_status", "-")
+        request_ms = extra.get("request_ms", "-")
+        return f"request.finished {method} {path} {status} {request_ms}ms"
     return message
 
 
