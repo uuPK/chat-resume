@@ -115,6 +115,51 @@ class FakePiAgentStream:
         return events
 
 
+class FakeEarlyToolStartStream(FakePiAgentStream):
+    """用于模拟 first_tool_delta 时先出现的 toolcall_start 事件。"""
+
+    def __init__(self, messages: list[AssistantMessage], early_tool_call: ToolCall):
+        """保存消息和提前展示用的轻量工具调用。"""
+        super().__init__(messages)
+        self.early_tool_call = early_tool_call
+
+    async def __call__(
+        self,
+        model: Model,
+        context: AgentContext,
+        options: SimpleStreamOptions,
+    ) -> StreamResult:
+        """第一轮在完整工具调用事件前插入一个轻量 toolcall_start。"""
+        del model, options
+        self.contexts.append(context)
+        message = self.messages[self.calls]
+        call_index = self.calls
+        self.calls += 1
+        events = self._events_for(message)
+        if call_index == 0:
+            preview = AssistantMessage(
+                api=message.api,
+                provider=message.provider,
+                model=message.model,
+                content=[self.early_tool_call],
+            )
+            events.insert(
+                1,
+                StreamToolCallStartEvent(content_index=0, partial=preview),
+            )
+
+        async def events_iter():
+            """按顺序返回预设模型事件。"""
+            for event in events:
+                yield event
+
+        async def result():
+            """返回当前预设 assistant message。"""
+            return message
+
+        return {"events": events_iter(), "result": result}
+
+
 def fake_pi_text(text: str) -> AssistantMessage:
     """构造 pi-agent-core 文本 assistant message。"""
     return AssistantMessage(content=[TextContent(text=text)], stop_reason="stop")
@@ -1303,6 +1348,63 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("我先说明这次会优化工作经历。", visible_text)
         self.assertIn("已完成优化。", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
+
+    async def test_pi_agent_runtime_stream_shows_running_tool_on_early_start(self):
+        """用于验证 first_tool_delta 时可提前显示 Running 工具名。"""
+        agent = ResumeAgent()
+        tool_call = fake_tool_call(
+            name="update_bullet",
+            args={
+                "section": "work_experience",
+                "item_id": "work_1",
+                "bullet_id": "hl_1",
+                "text": "维护多个后台服务，支撑日活 10 万用户",
+                "reason": "补充业务规模",
+            },
+            call_id="call_pi_early",
+        )
+        early_tool_call = ToolCall(
+            id="call_pi_early",
+            name="update_bullet",
+            arguments={},
+        )
+        agent.runtime = PiAgentRuntime(
+            stream_fn=FakeEarlyToolStartStream(
+                [
+                    fake_pi_message(FakeModelResponse(content="", tool_calls=[tool_call])),
+                    fake_pi_text("已完成优化。"),
+                ],
+                early_tool_call,
+            )
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化这段工作经历",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"work_experience"},
+        ):
+            events.append(event)
+
+        tool_call_events = [
+            event for event in events if event.get("event_type") == "tool_call"
+        ]
+        pending_index = next(
+            index for index, event in enumerate(events) if event.get("tool_pending")
+        )
+        tool_call_index = next(
+            index for index, event in enumerate(events) if event.get("event_type") == "tool_call"
+        )
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertLess(tool_call_index, pending_index)
+        self.assertEqual(tool_call_events[0]["call_id"], "call_pi_early")
+        self.assertEqual(tool_call_events[0]["tool_display_name"], "update_bullet")
+        self.assertTrue(any(event.get("tool_confirmed") for event in events))
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""

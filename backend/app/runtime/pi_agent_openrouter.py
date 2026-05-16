@@ -255,6 +255,7 @@ async def _pump_openrouter_stream(
     text_index = 0
     text_buffer: list[str] = []
     tool_buffers: dict[int, dict[str, Any]] = {}
+    allowed_tool_names = _context_tool_names(context)
     progress = _OpenRouterStreamProgress()
     started_at = monotonic()
 
@@ -293,6 +294,7 @@ async def _pump_openrouter_stream(
                     partial=partial,
                     queue=queue,
                     tool_buffers=tool_buffers,
+                    allowed_tool_names=allowed_tool_names,
                     text_buffer=text_buffer,
                     progress=progress,
                     started_at=started_at,
@@ -353,6 +355,7 @@ async def _consume_openrouter_response(
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
     tool_buffers: dict[int, dict[str, Any]],
+    allowed_tool_names: set[str],
     text_buffer: list[str],
     progress: _OpenRouterStreamProgress,
     started_at: float,
@@ -379,6 +382,7 @@ async def _consume_openrouter_response(
             partial=partial,
             queue=queue,
             tool_buffers=tool_buffers,
+            allowed_tool_names=allowed_tool_names,
             text_buffer=text_buffer,
             progress=progress,
             started_at=started_at,
@@ -395,6 +399,7 @@ def _handle_openrouter_line(
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
     tool_buffers: dict[int, dict[str, Any]],
+    allowed_tool_names: set[str],
     text_buffer: list[str],
     progress: _OpenRouterStreamProgress,
     started_at: float,
@@ -414,9 +419,12 @@ def _handle_openrouter_line(
         partial=partial,
         queue=queue,
         tool_buffers=tool_buffers,
+        allowed_tool_names=allowed_tool_names,
         text_buffer=text_buffer,
         text_started=progress.text_started,
         text_index=text_index,
+        started_at=started_at,
+        model=model,
     )
     _record_chunk_application(
         applied,
@@ -511,6 +519,15 @@ def _openrouter_body(
     if options.max_tokens is not None:
         body["max_tokens"] = options.max_tokens
     return body
+
+
+def _context_tool_names(context: AgentContext) -> set[str]:
+    """用于读取当前请求真正可用的工具名。"""
+    return {
+        str(tool_name)
+        for tool in context.tools
+        if (tool_name := getattr(tool, "name", None))
+    }
 
 
 def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
@@ -768,9 +785,12 @@ def _apply_openrouter_chunk(
     partial: AssistantMessage,
     queue: asyncio.Queue[AssistantMessageEvent | None],
     tool_buffers: dict[int, dict[str, Any]],
+    allowed_tool_names: set[str],
     text_buffer: list[str],
     text_started: bool,
     text_index: int,
+    started_at: float,
+    model: Model,
 ) -> _ChunkApplication:
     """用于应用OpenRouterchunk。"""
     choice = _first_choice(chunk)
@@ -788,6 +808,14 @@ def _apply_openrouter_chunk(
         text_index=text_index,
     )
     tool_names, tool_arg_delta_chars = _apply_tool_delta(delta, tool_buffers)
+    _emit_early_tool_call_starts(
+        tool_buffers=tool_buffers,
+        allowed_tool_names=allowed_tool_names,
+        partial=partial,
+        queue=queue,
+        started_at=started_at,
+        model=model,
+    )
     _apply_usage(chunk, partial)
     return _ChunkApplication(
         text_started=text_started,
@@ -872,6 +900,45 @@ def _apply_tool_delta(
             buffer["args"] += args_delta
             arg_delta_chars += len(args_delta)
     return tool_names, arg_delta_chars
+
+
+def _emit_early_tool_call_starts(
+    *,
+    tool_buffers: dict[int, dict[str, Any]],
+    allowed_tool_names: set[str],
+    partial: AssistantMessage,
+    queue: asyncio.Queue[AssistantMessageEvent | None],
+    started_at: float,
+    model: Model,
+) -> None:
+    """在工具名首次完整可识别时提前发送轻量 start 事件。"""
+    for index in sorted(tool_buffers):
+        raw_call = tool_buffers[index]
+        if raw_call.get("early_start_emitted"):
+            continue
+        tool_name = str(raw_call.get("name") or "")
+        call_id = str(raw_call.get("id") or "")
+        if not tool_name or tool_name not in allowed_tool_names or not call_id:
+            continue
+        raw_call["early_start_emitted"] = True
+        preview_partial = AssistantMessage(
+            api=partial.api,
+            provider=partial.provider,
+            model=partial.model,
+        )
+        preview_partial.content.append(
+            ToolCall(id=call_id, name=tool_name, arguments={})
+        )
+        _log_openrouter_stage(
+            "tool_call_start_emitted_early",
+            started_at=started_at,
+            model=model.id,
+            tool_index=index,
+            tool_name=tool_name,
+        )
+        queue.put_nowait(
+            StreamToolCallStartEvent(content_index=0, partial=preview_partial)
+        )
 
 
 def _emit_tool_calls(

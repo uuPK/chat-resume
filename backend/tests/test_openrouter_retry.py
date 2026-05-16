@@ -10,7 +10,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from pi_agent_core import AgentContext, AssistantMessage, Model, SimpleStreamOptions
+from pi_agent_core import (
+    AgentContext,
+    AgentTool,
+    AgentToolResult,
+    AssistantMessage,
+    Model,
+    SimpleStreamOptions,
+    ToolCall,
+)
 
 from app.runtime import pi_agent_openrouter as openrouter
 from app.runtime.pi_agent_openrouter import (
@@ -138,7 +146,21 @@ def _make_openrouter_stream_args() -> tuple[
 ]:
     """构造调用 _pump_openrouter_stream 所需的最小参数。"""
     model = Model(api="openai-compatible", provider="openrouter", id="test/model")
-    context = AgentContext(system_prompt="system", messages=[], tools=[])
+    async def execute_tool(**_: object) -> AgentToolResult:
+        """用于构造测试工具。"""
+        return AgentToolResult(content=[])
+
+    context = AgentContext(
+        system_prompt="system",
+        messages=[],
+        tools=[
+            AgentTool(
+                name="update_bullet",
+                description="Update bullet",
+                execute=execute_tool,
+            )
+        ],
+    )
     options = SimpleStreamOptions(api_key="test-key", temperature=0.1, max_tokens=8)
     partial = AssistantMessage(api=model.api, provider=model.provider, model=model.id)
     queue: asyncio.Queue = asyncio.Queue()
@@ -228,19 +250,49 @@ async def test_openrouter_stream_logs_first_tool_delta(
             "args_json_status": "object",
         }
     ]
-    final_record = next(
-        record
-        for record in caplog.records
-        if record.getMessage() == "openrouter.stream.tool_buffers_final"
-    )
-    assert getattr(final_record, "finish_reason") == "stop"
-    emitted_record = next(
-        record
-        for record in caplog.records
-        if record.getMessage() == "openrouter.stream.tool_call_emitted"
-    )
-    assert getattr(emitted_record, "tool_name") == "update_bullet"
-    assert getattr(emitted_record, "args_key_count") == 0
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_emits_early_tool_call_start():
+    """工具名可识别时应先发送 start 事件，参数完整后再发送 end 事件。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet"}}]}}]}'
+        ),
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"function":{"arguments":"{\\"section\\":\\"work_experience\\"}"}}]}}]}'
+        ),
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    tool_starts = [
+        event for event in events if getattr(event, "type", "") == "toolcall_start"
+    ]
+    tool_ends = [
+        event for event in events if getattr(event, "type", "") == "toolcall_end"
+    ]
+
+    assert len(tool_starts) == 2
+    assert len(tool_ends) == 1
+    early_tool = tool_starts[0].partial.content[0]
+    assert isinstance(early_tool, ToolCall)
+    assert early_tool.id == "call_1"
+    assert early_tool.name == "update_bullet"
+    assert early_tool.arguments == {}
+    assert tool_ends[0].tool_call.arguments == {"section": "work_experience"}
 
 
 @pytest.mark.asyncio

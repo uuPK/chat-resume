@@ -473,6 +473,18 @@ class PiAgentRuntime:
             raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
         async for raw_event in response["events"]:
+            early_tool_call = self._early_tool_call_from_event(raw_event)
+            if early_tool_call is not None and self._remember_visible_tool_call(
+                state,
+                early_tool_call.id,
+            ):
+                await self._publish_visible_tool_call(
+                    call_id=early_tool_call.id,
+                    tool_name=early_tool_call.name,
+                    tool_input={},
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                )
             delta = self._text_delta_from_event(raw_event)
             if delta:
                 if state["first_token_latency_ms"] is None:
@@ -510,6 +522,32 @@ class PiAgentRuntime:
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""
         return [block for block in message.content if isinstance(block, ToolCall)]
+
+    @staticmethod
+    def _early_tool_call_from_event(raw_event: Any) -> ToolCall | None:
+        """从底层 toolcall_start 事件中读取可提前展示的工具名。"""
+        if str(getattr(raw_event, "type", "") or "") != "toolcall_start":
+            return None
+        content_index = getattr(raw_event, "content_index", None)
+        if not isinstance(content_index, int):
+            return None
+        partial = getattr(raw_event, "partial", None)
+        content = getattr(partial, "content", None)
+        if not isinstance(content, list) or content_index < 0 or content_index >= len(content):
+            return None
+        block = content[content_index]
+        if not isinstance(block, ToolCall) or not block.id or not block.name:
+            return None
+        return block
+
+    @staticmethod
+    def _remember_visible_tool_call(state: dict[str, Any], call_id: str) -> bool:
+        """记录已展示的工具调用，返回当前是否首次出现。"""
+        visible_call_ids = state.setdefault("visible_tool_call_ids", set())
+        if call_id in visible_call_ids:
+            return False
+        visible_call_ids.add(call_id)
+        return True
 
     @staticmethod
     def _text_delta_from_event(raw_event: Any) -> str:
@@ -798,13 +836,14 @@ class PiAgentRuntime:
         )
         needs_confirmation = confirmation_decision.requires_confirmation
         tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
-        await self._publish_visible_tool_call(
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            event_queue=event_queue,
-            event_callback=event_callback,
-        )
+        if self._remember_visible_tool_call(stream_state, call_id):
+            await self._publish_visible_tool_call(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                event_queue=event_queue,
+                event_callback=event_callback,
+            )
         self._trace_tool_requested(
             agent,
             run_id,
@@ -1175,6 +1214,7 @@ class PiAgentRuntime:
             "confirmed_diff_items": [],
             "tool_profile": "",
             "tool_names": [],
+            "visible_tool_call_ids": set(),
             "unexpected_tool_call_names": set(),
             "prompt_chars": 0,
             "tool_call_count": 0,
