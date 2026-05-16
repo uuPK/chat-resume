@@ -184,3 +184,54 @@ test('面试列表对 completed session 显示查看报告', async ({ page }) =>
   await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
   await expect(page.getByRole('link', { name: '继续面试' })).toBeVisible()
 })
+
+test('创建面试表单的简历选择控件和文本输入视觉一致', async ({ page }) => {
+  await mockInterviewApis(page)
+  await page.route('**/api/resumes/', async route => {
+    await route.fulfill({ json: [resume] })
+  })
+  await page.route('**/api/interviews/', async route => {
+    await route.fulfill({ json: [] })
+  })
+
+  await page.goto('/zh/interviews')
+  await page.getByRole('button', { name: '创建面试' }).click()
+
+  const dialog = page.getByRole('dialog', { name: '创建面试' })
+  const resumeSelect = dialog.locator('select')
+  const companyInput = dialog.getByPlaceholder('例如：腾讯 / 字节跳动')
+  const targetInput = dialog.getByPlaceholder('例如：前端工程师 / 产品经理')
+
+  await expect(resumeSelect).toBeVisible()
+  await expect(resumeSelect).toHaveCount(1)
+  await expect(companyInput).toBeVisible()
+  await expect(targetInput).toBeVisible()
+
+  const selectVisualState = await resumeSelect.evaluate((selectElement) => {
+    const selectStyle = window.getComputedStyle(selectElement)
+    const selectRect = selectElement.getBoundingClientRect()
+    return {
+      appearance: selectStyle.appearance,
+      borderColor: selectStyle.borderColor,
+      borderRadius: selectStyle.borderRadius,
+      color: selectStyle.color,
+      height: selectRect.height,
+    }
+  })
+  const companyVisualState = await companyInput.evaluate((companyElement) => {
+    const companyStyle = window.getComputedStyle(companyElement)
+    const companyRect = (companyElement as HTMLElement).getBoundingClientRect()
+    return {
+      borderColor: companyStyle.borderColor,
+      borderRadius: companyStyle.borderRadius,
+      height: companyRect.height,
+    }
+  })
+
+  expect(selectVisualState.appearance).toBe('none')
+  expect(selectVisualState.borderColor).toBe(companyVisualState.borderColor)
+  expect(selectVisualState.borderRadius).toBe(companyVisualState.borderRadius)
+  expect(Math.abs(selectVisualState.height - companyVisualState.height)).toBeLessThan(1)
+  expect(selectVisualState.color).toBe('rgb(156, 163, 175)')
+  await expect(dialog.locator('select + svg')).toHaveCount(1)
+})

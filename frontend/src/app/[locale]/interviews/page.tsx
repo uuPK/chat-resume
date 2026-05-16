@@ -16,6 +16,7 @@ import { resumeApi, type InterviewSessionSummary, type Resume, type ResumeListIt
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
+  ChevronDownIcon,
   ClockIcon,
   MicrophoneIcon,
   PlayCircleIcon,
@@ -410,18 +411,26 @@ export default function InterviewsPage() {
                     <div className="grid gap-5 md:grid-cols-3">
                       <div>
                         <label className="label">{t('form.selectResume')}</label>
-                        <select
-                          value={selectedResumeId}
-                          onChange={(event) => setSelectedResumeId(event.target.value)}
-                          className="input"
-                        >
-                          <option value="">{t('form.selectResumePlaceholder')}</option>
-                          {resumes.map((resume) => (
-                            <option key={resume.id} value={resume.id}>
-                              {resume.title}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative">
+                          <select
+                            value={selectedResumeId}
+                            onChange={(event) => setSelectedResumeId(event.target.value)}
+                            className="input h-[52px] appearance-none px-5 pr-12"
+                            style={{ color: selectedResumeId ? '#0a0b0d' : '#9ca3af' }}
+                          >
+                            <option value="">{t('form.selectResumePlaceholder')}</option>
+                            {resumes.map((resume) => (
+                              <option key={resume.id} value={resume.id}>
+                                {resume.title}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDownIcon
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-5 top-1/2 h-5 w-5 -translate-y-1/2"
+                            style={{ color: '#9ca3af' }}
+                          />
+                        </div>
                       </div>
 
                       <div>
@@ -431,7 +440,7 @@ export default function InterviewsPage() {
                           value={targetCompany}
                           onChange={(event) => setTargetCompany(event.target.value)}
                           placeholder={t('form.targetCompanyPlaceholder')}
-                          className="input"
+                          className="input h-[52px] px-5"
                         />
                       </div>
 
@@ -442,7 +451,7 @@ export default function InterviewsPage() {
                           value={targetTitle}
                           onChange={(event) => setTargetTitle(event.target.value)}
                           placeholder={t('form.targetTitlePlaceholder')}
-                          className="input"
+                          className="input h-[52px] px-5"
                         />
                       </div>
                     </div>
