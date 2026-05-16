@@ -31,6 +31,19 @@ interface UseInterviewSessionOptions {
   defaultMode?: 'practice' | 'simulation'
 }
 
+// 用于避免新增消息热更新滞后时中断面试会话操作。
+function translateOrFallback(
+  t: ReturnType<typeof useTranslations>,
+  key: string,
+  fallback: string,
+) {
+  try {
+    return t(key)
+  } catch {
+    return fallback
+  }
+}
+
 /**
  * 读取求职目标，用于创建实时语音面试上下文。
  */
@@ -163,7 +176,11 @@ export function useInterviewSession({
       const result = await resumeApi.generateInterviewReport(session.id)
       setSession(result.session)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('reportFailed'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : translateOrFallback(t, 'reportFailed', '生成报告失败')
+      )
     } finally {
       setIsSending(false)
     }

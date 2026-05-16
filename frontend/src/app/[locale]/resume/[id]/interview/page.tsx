@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth'
 import { digitalHumanApi, resumeApi } from '@/lib/api'
 import type { DigitalHumanConversation, InterviewSession, Resume } from '@/lib/api'
 import { useInterviewSession } from '@/hooks/useInterviewSession'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const SEND_SAMPLE_RATE = 16000
@@ -42,6 +42,20 @@ interface VoicePanelProps {
   onPersistMessage?: (role: ConversationMessage['role'], content: string) => void
   autoStart?: boolean
   onStatusChange?: (status: VoiceStatus) => void
+}
+
+// 用于在消息热更新滞后时提供稳定的会话文案。
+function sessionText(
+  t: ReturnType<typeof useTranslations>,
+  locale: string,
+  key: string,
+  fallback: { zh: string; en: string },
+) {
+  try {
+    return t(key)
+  } catch {
+    return locale === 'en' ? fallback.en : fallback.zh
+  }
 }
 
 // 用于渲染 VoicePanel 组件。
@@ -782,31 +796,32 @@ function VoicePanel({
 // 用于渲染面试报告摘要。
 function ReportPreview({ report }: { report: InterviewSession['report_data'] }) {
   const t = useTranslations('interview.session')
+  const locale = useLocale()
   if (!report) {
     return (
       <div className="flex flex-1 items-center justify-center bg-white px-5">
         <div className="w-full max-w-3xl border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-          <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('reportTitle')}</h2>
-          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{t('reportPending')}</p>
+          <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
+          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告尚未生成。结束面试后可以生成评估报告。', en: 'The report has not been generated yet. Generate it after ending the interview.' })}</p>
         </div>
       </div>
     )
   }
 
   const sections = [
-    { title: t('reportStrengths'), items: report.strengths || [] },
-    { title: t('reportWeaknesses'), items: report.weaknesses || [] },
-    { title: t('reportTrainingPlan'), items: report.next_training_plan || [] },
-    { title: t('reportResumeFeedback'), items: report.resume_feedback || [] },
+    { title: sessionText(t, locale, 'reportStrengths', { zh: '优势亮点', en: 'Strengths' }), items: report.strengths || [] },
+    { title: sessionText(t, locale, 'reportWeaknesses', { zh: '改进方向', en: 'Areas to improve' }), items: report.weaknesses || [] },
+    { title: sessionText(t, locale, 'reportTrainingPlan', { zh: '训练计划', en: 'Training plan' }), items: report.next_training_plan || [] },
+    { title: sessionText(t, locale, 'reportResumeFeedback', { zh: '简历反馈', en: 'Resume feedback' }), items: report.resume_feedback || [] },
   ].filter((section) => section.items.length > 0)
 
   return (
     <div id="interview-report" className="flex-1 overflow-y-auto bg-white px-5 py-6">
       <div className="mx-auto w-full max-w-4xl">
-        <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{t('reportTitle')}</h2>
+        <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
         {report.summary && (
           <section className="mt-4 border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{t('reportSummary')}</h3>
+            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportSummary', { zh: '整体总结', en: 'Summary' })}</h3>
             <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{report.summary}</p>
           </section>
         )}
@@ -835,6 +850,7 @@ export default function InterviewPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const t = useTranslations('interview.session')
+  const locale = useLocale()
   const resumeId = Number(params?.id as string)
   const requestedSessionId = Number(searchParams?.get('session') || 0)
 
@@ -993,7 +1009,9 @@ export default function InterviewPage() {
               onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
             >
-              {isSending ? t('generatingReport') : t('generateReport')}
+              {isSending
+                ? sessionText(t, locale, 'generatingReport', { zh: '生成中...', en: 'Generating...' })
+                : sessionText(t, locale, 'generateReport', { zh: '生成报告', en: 'Generate report' })}
             </button>
           )}
           {isCompletedSession && (
