@@ -779,6 +779,54 @@ function VoicePanel({
   )
 }
 
+// 用于渲染面试报告摘要。
+function ReportPreview({ report }: { report: InterviewSession['report_data'] }) {
+  const t = useTranslations('interview.session')
+  if (!report) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-white px-5">
+        <div className="w-full max-w-3xl border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+          <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('reportTitle')}</h2>
+          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{t('reportPending')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const sections = [
+    { title: t('reportStrengths'), items: report.strengths || [] },
+    { title: t('reportWeaknesses'), items: report.weaknesses || [] },
+    { title: t('reportTrainingPlan'), items: report.next_training_plan || [] },
+    { title: t('reportResumeFeedback'), items: report.resume_feedback || [] },
+  ].filter((section) => section.items.length > 0)
+
+  return (
+    <div id="interview-report" className="flex-1 overflow-y-auto bg-white px-5 py-6">
+      <div className="mx-auto w-full max-w-4xl">
+        <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{t('reportTitle')}</h2>
+        {report.summary && (
+          <section className="mt-4 border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{t('reportSummary')}</h3>
+            <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{report.summary}</p>
+          </section>
+        )}
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {sections.map((section) => (
+            <section key={section.title} className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
+              <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{section.title}</h3>
+              <ul className="mt-3 space-y-2">
+                {section.items.map((item) => (
+                  <li key={item} className="text-sm leading-6" style={{ color: '#5b616e' }}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── InterviewPage ──────────────────────────────────────────────────────────
 
 // 用于渲染 InterviewPage 组件。
@@ -801,6 +849,7 @@ export default function InterviewPage() {
     isSending,
     error: sessionError,
     endInterview,
+    generateReport,
   } = useInterviewSession({
     resume,
     enabled: !!resume && isAuthenticated,
@@ -808,7 +857,16 @@ export default function InterviewPage() {
   })
   const shouldAutoStartVoice = (session?.turns?.length || 0) === 0
   const isCompletedSession = session?.status === 'completed'
+  const reportData = session?.report_data
+  const hasReport = Boolean(
+    reportData?.summary
+    || reportData?.strengths?.length
+    || reportData?.weaknesses?.length
+    || reportData?.next_training_plan?.length
+    || reportData?.resume_feedback?.length
+  )
   const canEndInterview = Boolean(session && !isCompletedSession)
+  const canGenerateReport = Boolean(isCompletedSession && !hasReport)
 
   const handleEndInterview = useCallback(async () => {
     window.__chatResumeVoiceCleanup?.()
@@ -817,6 +875,10 @@ export default function InterviewPage() {
     }
     await endInterview()
   }, [digitalHuman?.conversation_id, endInterview])
+
+  const handleGenerateReport = useCallback(async () => {
+    await generateReport()
+  }, [generateReport])
 
   const handlePersistMessage = useCallback((
     role: ConversationMessage['role'],
@@ -916,21 +978,42 @@ export default function InterviewPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {isCompletedSession && (
-            <Link
-              href="/interviews"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-black"
+          {canGenerateReport && (
+            <button
+              type="button"
+              onClick={handleGenerateReport}
+              disabled={isSending}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black"
               style={{
                 backgroundColor: '#0052ff',
                 borderRadius: '56px',
                 border: '1px solid #0052ff',
                 letterSpacing: '0.01em',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' }}
+              onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
             >
+              {isSending ? t('generatingReport') : t('generateReport')}
+            </button>
+          )}
+          {isCompletedSession && (
+            <a
+              href={hasReport ? '#interview-report' : '/interviews'}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-black"
+              style={{
+                backgroundColor: hasReport ? '#0052ff' : '#282b31',
+                borderRadius: '56px',
+                border: `1px solid ${hasReport ? '#0052ff' : '#282b31'}`,
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = hasReport ? '#0052ff' : '#282b31'
+                e.currentTarget.style.borderColor = hasReport ? '#0052ff' : '#282b31'
+              }}
+            >
               {t('viewReport')}
-            </Link>
+            </a>
           )}
           {canEndInterview && (
             <button
@@ -971,12 +1054,16 @@ export default function InterviewPage() {
 
       {/* Voice panel fills remaining height */}
       <div className="flex-1 flex flex-col min-h-0">
-        <VoicePanel
-          sessionId={digitalHuman?.session_id}
-          interviewSession={session}
-          onPersistMessage={handlePersistMessage}
-          autoStart={shouldAutoStartVoice}
-        />
+        {isCompletedSession ? (
+          <ReportPreview report={reportData} />
+        ) : (
+          <VoicePanel
+            sessionId={digitalHuman?.session_id}
+            interviewSession={session}
+            onPersistMessage={handlePersistMessage}
+            autoStart={shouldAutoStartVoice}
+          />
+        )}
       </div>
     </div>
   )

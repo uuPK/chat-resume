@@ -14,7 +14,9 @@ from app.services.errors import (
     ServiceError,
     ServiceNotFoundError,
     ServicePermissionError,
+    ServiceValidationError,
 )
+from app.services.interview.report_service import generate_interview_report
 from app.services.interview.serializer import serialize_session
 from app.services.interview.session_service import (
     create_interview_session,
@@ -66,6 +68,10 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
     if isinstance(exc, ServiceNotFoundError):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    if isinstance(exc, ServiceValidationError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
@@ -175,4 +181,23 @@ async def end_interview(
         _raise_service_http_error(exc)
     return InterviewActionResponse(
         session=serialize_session(session), next_action="completed"
+    )
+
+
+@router.post("/{session_id}/report", response_model=InterviewActionResponse)
+async def create_interview_report(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于为已完成面试生成评估报告。"""
+    try:
+        result = await generate_interview_report(
+            db=db, user_id=current_user["id"], session_id=session_id
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
+    return InterviewActionResponse(
+        session=serialize_session(result.session),
+        next_action="report" if result.generated else "report_skipped",
     )

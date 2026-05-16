@@ -17,7 +17,8 @@
   "errors": {
     "sessionMismatch": "面试记录与当前简历不匹配",
     "startFailed": "启动面试失败",
-    "endFailed": "结束面试失败"
+    "endFailed": "结束面试失败",
+    "reportFailed": "生成报告失败"
   },
   "status": {
     "completed": "已完成",
@@ -45,7 +46,16 @@
     "hangup": "挂断",
     "endInterview": "结束面试",
     "endingInterview": "结束中...",
+    "generateReport": "生成报告",
+    "generatingReport": "生成中...",
     "viewReport": "查看报告",
+    "reportTitle": "面试评估报告",
+    "reportPending": "报告尚未生成。结束面试后可以生成评估报告。",
+    "reportSummary": "整体总结",
+    "reportStrengths": "优势亮点",
+    "reportWeaknesses": "改进方向",
+    "reportTrainingPlan": "训练计划",
+    "reportResumeFeedback": "简历反馈",
     "home": "返回首页",
     "untitledRole": "未设置岗位",
     "deleteTitle": "删除面试记录",

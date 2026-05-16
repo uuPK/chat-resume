@@ -151,10 +151,29 @@ export function useInterviewSession({
     }
   }, [isSending, session, t])
 
+  /**
+   * 为已完成面试生成评估报告并刷新 session。
+   */
+  const generateReport = useCallback(async () => {
+    if (!session || isSending || session.status !== 'completed') return
+
+    setIsSending(true)
+    setError(null)
+    try {
+      const result = await resumeApi.generateInterviewReport(session.id)
+      setSession(result.session)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('reportFailed'))
+    } finally {
+      setIsSending(false)
+    }
+  }, [isSending, session, t])
+
   return {
     session,
     isSending,
     error,
     endInterview,
+    generateReport,
   }
 }

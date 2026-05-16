@@ -367,6 +367,14 @@ class ResumeAPI {
     })
     return handleApiResponse<InterviewActionResponse>(response)
   }
+
+  // 用于生成面试评估报告。
+  static async generateInterviewReport(sessionId: number): Promise<InterviewActionResponse> {
+    const response = await apiFetch(`/api/interviews/${sessionId}/report`, {
+      method: 'POST',
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
 }
 
 class DigitalHumanAPI {

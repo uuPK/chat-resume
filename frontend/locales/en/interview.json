@@ -17,7 +17,8 @@
   "errors": {
     "sessionMismatch": "Interview record does not match this resume",
     "startFailed": "Failed to start interview",
-    "endFailed": "Failed to end interview"
+    "endFailed": "Failed to end interview",
+    "reportFailed": "Failed to generate report"
   },
   "status": {
     "completed": "Completed",
@@ -45,7 +46,16 @@
     "hangup": "Hang up",
     "endInterview": "End interview",
     "endingInterview": "Ending...",
+    "generateReport": "Generate report",
+    "generatingReport": "Generating...",
     "viewReport": "View report",
+    "reportTitle": "Interview report",
+    "reportPending": "The report has not been generated yet. Generate it after ending the interview.",
+    "reportSummary": "Summary",
+    "reportStrengths": "Strengths",
+    "reportWeaknesses": "Areas to improve",
+    "reportTrainingPlan": "Training plan",
+    "reportResumeFeedback": "Resume feedback",
     "home": "Back home",
     "untitledRole": "Role not set",
     "deleteTitle": "Delete interview record",

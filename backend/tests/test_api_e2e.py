@@ -2376,6 +2376,151 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
 
+    def test_completed_interview_can_generate_report(self, monkeypatch):
+        """用于验证completed面试cangenerate报告。"""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于处理init。"""
+
+            async def __aenter__(self):
+                """用于处理aenter。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于处理aexit。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于处理chatcompletion。"""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"回答完整但需要更多量化细节",'
+                                    '"strengths":["结构清晰","项目相关","沟通自然"],'
+                                    '"weaknesses":["量化不足"],'
+                                    '"next_training_plan":["补充指标","练习追问","精简表达"],'
+                                    '"resume_feedback":["强化项目成果"],'
+                                    '"dimensions":[{"title":"项目表达","assessment":"良好",'
+                                    '"evidence":"能说明项目背景","advice":"补充结果"}],'
+                                    '"turn_evaluations":[{"turn_index":0,'
+                                    '"summary":"回答覆盖核心项目",'
+                                    '"gaps":["缺少数据"],'
+                                    '"evidence":["说明了职责"],'
+                                    '"advice":"补充影响"}]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        question_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个最有代表性的项目"},
+            headers=self.headers,
+        )
+        assert question_resp.status_code == 200, question_resp.text
+        answer_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我负责前端架构并提升了交付效率"},
+            headers=self.headers,
+        )
+        assert answer_resp.status_code == 200, answer_resp.text
+
+        end_resp = self.client.post(
+            f"/api/interviews/{session_id}/end",
+            headers=self.headers,
+        )
+        assert end_resp.status_code == 200, end_resp.text
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 200, report_resp.text
+        body = report_resp.json()
+        assert body["next_action"] == "report"
+        report = body["session"]["report_data"]
+        assert report["summary"] == "回答完整但需要更多量化细节"
+        assert len(report["strengths"]) >= 3
+        assert body["session"]["turns"][0]["evaluation"] == (
+            "回答覆盖核心项目\n问题：缺少数据\n亮点：说明了职责"
+        )
+
+    def test_report_generation_skips_empty_completed_interview(self, monkeypatch):
+        """用于验证reportgeneration跳过emptycompleted面试。"""
+        called = False
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于处理init。"""
+                nonlocal called
+                called = True
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+        end_resp = self.client.post(
+            f"/api/interviews/{session_id}/end",
+            headers=self.headers,
+        )
+        assert end_resp.status_code == 200, end_resp.text
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 200, report_resp.text
+        assert report_resp.json()["next_action"] == "report_skipped"
+        assert report_resp.json()["session"]["report_data"] is None
+        assert called is False
+
+    def test_report_generation_requires_completed_session(self):
+        """用于验证reportgenerationrequirescompleted会话。"""
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 400
+        assert report_resp.json()["detail"] == (
+            "Interview must be completed before generating report"
+        )
+
     def test_list_interviews_returns_lightweight_summary(self):
         """用于验证listinterviewsreturnslightweightsummary。"""
         create_resp = self.client.post(
@@ -2506,7 +2651,7 @@ class TestInterviewSessions:
                 f"/api/interviews/{session_id}/report",
                 headers=self.headers,
             ).status_code
-            == 404
+            == 405
         )
 
     def test_list_resumes_without_auth_returns_401(self):

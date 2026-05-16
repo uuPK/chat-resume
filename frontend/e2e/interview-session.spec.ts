@@ -55,6 +55,17 @@ const completedSession = {
   report_data: null,
 }
 
+const completedSessionWithReport = {
+  ...completedSession,
+  report_data: {
+    summary: '回答完整但需要补充量化结果',
+    strengths: ['结构清晰', '项目相关', '表达自然'],
+    weaknesses: ['量化不足'],
+    next_training_plan: ['补充数据', '练习追问', '压缩表达'],
+    resume_feedback: ['强化项目成果'],
+  },
+}
+
 /**
  * 为面试页测试准备认证和后端 API mock。
  */
@@ -120,6 +131,31 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   expect(endRequest.method()).toBe('POST')
   await expect(endButton).toBeHidden()
   await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
+})
+
+test('completed 面试可以点击生成报告并展示摘要', async ({ page }) => {
+  await mockInterviewApis(page)
+
+  await page.route(/\/api\/interviews\/456$/, async route => {
+    await route.fulfill({ json: { session: completedSession } })
+  })
+  await page.route(/\/api\/interviews\/456\/report$/, async route => {
+    await route.fulfill({ json: { session: completedSessionWithReport, next_action: 'report' } })
+  })
+
+  await page.goto('/zh/resume/123/interview?session=456')
+
+  const generateButton = page.getByRole('button', { name: '生成报告' })
+  await expect(generateButton).toBeVisible()
+  const [reportRequest] = await Promise.all([
+    page.waitForRequest('**/api/interviews/456/report'),
+    generateButton.click(),
+  ])
+
+  expect(reportRequest.method()).toBe('POST')
+  await expect(generateButton).toBeHidden()
+  await expect(page.getByRole('heading', { name: '面试评估报告' })).toBeVisible()
+  await expect(page.getByText('回答完整但需要补充量化结果')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {
