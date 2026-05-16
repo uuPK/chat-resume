@@ -39,9 +39,9 @@ export default function LocaleSwitcher({ compact = false }: { compact?: boolean 
         height: compact ? '34px' : '38px',
         padding: compact ? '0 10px' : '0 12px',
         borderRadius: '56px',
-        color: '#3f4654',
+        color: '#0a0b0d',
         border: '1px solid rgba(91,97,110,0.16)',
-        backgroundColor: '#f7f8fa',
+        backgroundColor: '#eef0f3',
       }}
     >
       <LanguageIcon className="h-4 w-4" />
