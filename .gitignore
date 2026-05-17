@@ -111,6 +111,7 @@ example/
 
 # Local agent tooling
 .agents/
+.hermes-sandbox/
 .vercel
 .gc/
 .beads/*
