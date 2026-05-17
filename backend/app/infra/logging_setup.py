@@ -205,7 +205,14 @@ def _short_identifier(value: Any, limit: int = 6) -> str:
 
 def _message_label(message: str, extra: dict[str, Any]) -> str:
     """用于处理消息标签。"""
+    if message.startswith("openrouter.stream."):
+        return _openrouter_message_label(message, extra)
+    if message == "resume_agent.run.summary":
+        return _run_summary_message_label(extra)
     if extra.get("agent_trace") and message.startswith("agent.trace."):
+        compact_label = _agent_trace_message_label(message, extra)
+        if compact_label:
+            return compact_label
         return message.removeprefix("agent.")
     if message == "request.finished":
         method = extra.get("http_method", "-")
@@ -224,19 +231,387 @@ def _message_label(message: str, extra: dict[str, Any]) -> str:
         event_type = extra.get("event_type", "-")
         tool_name = extra.get("tool_name") or extra.get("tool_display_name") or "-"
         call_id = extra.get("call_id", "-")
-        client_request_id = _short_identifier(extra.get("client_request_id", "-"), limit=8)
+        client_request_id = _compact_client(extra)
         has_result = extra.get("has_result", "-")
-        return (
-            "sse.tool_event sent "
-            f"event={event_type} tool={tool_name} call={call_id} "
-            f"client={client_request_id} result={has_result}"
+        return _compact_label(
+            "sse.tool_event sent",
+            f"event={event_type}",
+            f"tool={tool_name}",
+            f"call={call_id}",
+            f"client={client_request_id}",
+            f"result={has_result}",
         )
     return message
+
+
+def _openrouter_message_label(message: str, extra: dict[str, Any]) -> str:
+    """用于把 OpenRouter 流式日志压缩成人读主线。"""
+    extra["_compact_text"] = True
+    stage = message.removeprefix("openrouter.stream.")
+    client = _compact_client(extra)
+    elapsed = _compact_ms(extra.get("elapsed_ms"))
+    if stage == "request_started":
+        return _compact_label(
+            "openrouter request",
+            f"client={client}",
+            f"model={extra.get('model', '-')}",
+            f"msgs={extra.get('message_count', '-')}",
+            f"tools={extra.get('tool_count', '-')}",
+            elapsed,
+        )
+    if stage == "headers_received":
+        return _compact_label(
+            "openrouter headers",
+            f"client={client}",
+            f"status={extra.get('status_code', '-')}",
+            elapsed,
+        )
+    if stage in {"first_sse_line", "first_text_delta", "first_tool_delta"}:
+        return _openrouter_first_event_label(stage, client, elapsed, extra)
+    if stage == "tool_call_start_emitted_early":
+        return _compact_label(
+            "openrouter tool_start",
+            f"client={client}",
+            f"tool={extra.get('tool', '-')}",
+            f"index={extra.get('tool_index', '-')}",
+            elapsed,
+        )
+    if stage == "finish_reason":
+        return _compact_label(
+            "openrouter finish",
+            f"client={client}",
+            f"reason={extra.get('finish_reason', '-')}",
+            f"tools={extra.get('tool_count', '-')}",
+            elapsed,
+        )
+    if stage == "tool_args_complete":
+        tool = _first_tool_buffer(extra.get("tool_buffers"))
+        return _compact_label(
+            "openrouter tool_args",
+            f"client={client}",
+            f"tool={tool.get('name', '-')}",
+            f"args={tool.get('args_chars', '-')}",
+            f"json={tool.get('args_json_status', '-')}",
+            f"tools={extra.get('tool_count', '-')}",
+            elapsed,
+        )
+    if stage == "tool_call_emitted":
+        return _compact_label(
+            "openrouter tool_emit",
+            f"client={client}",
+            f"tool={extra.get('tool', '-')}",
+            f"keys={extra.get('args_key_count', '-')}",
+            elapsed,
+        )
+    if stage == "done":
+        return _compact_label(
+            "openrouter done",
+            f"client={client}",
+            f"stop={extra.get('stop_reason', '-')}",
+            f"finish={extra.get('finish_reason', '-')}",
+            f"text={extra.get('text_chars', '-')}",
+            f"tools={extra.get('tool_call_count', '-')}",
+            elapsed,
+        )
+    if stage == "error":
+        return _compact_label(
+            "openrouter error",
+            f"client={client}",
+            f"type={extra.get('error_type', '-')}",
+            f"error={_compact_string(extra.get('error'))}",
+            elapsed,
+        )
+    return _compact_label(f"openrouter {stage}", f"client={client}", elapsed)
+
+
+def _openrouter_first_event_label(
+    stage: str,
+    client: str,
+    elapsed: str | None,
+    extra: dict[str, Any],
+) -> str:
+    """用于压缩 OpenRouter 首事件日志。"""
+    if stage == "first_sse_line":
+        return _compact_label("openrouter first_sse", f"client={client}", elapsed)
+    if stage == "first_text_delta":
+        return _compact_label(
+            "openrouter first_text",
+            f"client={client}",
+            f"chars={extra.get('text_delta_chars', '-')}",
+            elapsed,
+        )
+    tool_names = _compact_list(extra.get("tool_names"))
+    return _compact_label("openrouter first_tool", f"client={client}", tool_names, elapsed)
+
+
+def _agent_trace_message_label(message: str, extra: dict[str, Any]) -> str | None:
+    """用于把 Agent trace 日志压缩成人读主线。"""
+    trace_name = message.removeprefix("agent.trace.")
+    extra["_compact_text"] = True
+    client = _compact_client(extra)
+    run_id = _compact_id(extra.get("run_id"))
+    elapsed = _compact_ms(extra.get("latency_ms"))
+    if trace_name == "run.started":
+        return _compact_label(
+            "trace.run started",
+            f"client={client}",
+            f"run={run_id}",
+            f"mode={extra.get('mode', '-')}",
+            f"history={extra.get('history_count', '-')}",
+            _tool_names_label(extra.get("tool_names")),
+            f"user={_compact_string(extra.get('user_message_preview'))}",
+        )
+    if trace_name == "prompt.rendered":
+        return _compact_label(
+            "trace.prompt rendered",
+            f"client={client}",
+            f"run={run_id}",
+            f"chars={extra.get('prompt_chars', '-')}",
+        )
+    if trace_name == "llm.request":
+        return _compact_label(
+            "llm.request",
+            f"client={client}",
+            f"run={run_id}",
+            f"model={extra.get('model', '-')}",
+            f"msgs={extra.get('message_count', '-')}",
+            f"tools={extra.get('tool_count', '-')}",
+            f"prompt={extra.get('prompt_chars', '-')}",
+        )
+    if trace_name == "llm.response":
+        return _compact_label(
+            "llm.response",
+            f"client={client}",
+            f"run={run_id}",
+            elapsed,
+            _compact_ms(extra.get("first_token_latency_ms"), label="first"),
+            _compact_ms(extra.get("confirmation_wait_ms"), label="wait"),
+            f"chars={extra.get('response_chars', '-')}",
+            f"preview={_compact_string(extra.get('response_preview'))}",
+        )
+    if trace_name == "run.completed":
+        return _compact_label(
+            "trace.run completed",
+            f"client={client}",
+            f"run={run_id}",
+            elapsed,
+        )
+    if trace_name.startswith("tool."):
+        return _tool_trace_message_label(trace_name, client, run_id, elapsed, extra)
+    if trace_name.startswith("reasoning."):
+        return _reasoning_trace_message_label(trace_name, client, run_id, extra)
+    if trace_name == "run.max_iterations_reached":
+        return _compact_label(
+            "trace.run max_iterations",
+            f"client={client}",
+            f"run={run_id}",
+            f"reason={extra.get('reason', '-')}",
+        )
+    return None
+
+
+def _tool_trace_message_label(
+    trace_name: str,
+    client: str,
+    run_id: str,
+    elapsed: str | None,
+    extra: dict[str, Any],
+) -> str:
+    """用于压缩工具 trace 日志。"""
+    if trace_name == "tool.requested":
+        return _compact_label(
+            "tool.requested",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"call={_compact_id(extra.get('call_id'))}",
+            f"confirm={_compact_bool(extra.get('requires_confirmation'))}",
+            _tool_input_label(extra.get("tool_input")),
+        )
+    if trace_name in {"tool.preview", "tool.preview_failed"}:
+        label = "tool.preview_failed" if trace_name.endswith("failed") else "tool.preview"
+        return _compact_label(
+            label,
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"ok={_compact_bool(extra.get('result_success'))}",
+            f"diffs={extra.get('diff_item_count', '-')}",
+            f"diff={_compact_string(extra.get('diff_summary'))}",
+        )
+    if trace_name == "tool.confirmation":
+        return _compact_label(
+            "tool.confirmation",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"confirmed={_compact_bool(extra.get('confirmed'))}",
+            _compact_ms(extra.get("confirmation_wait_ms"), label="wait"),
+        )
+    if trace_name == "tool.executed":
+        result = extra.get("result_summary")
+        diff_count = result.get("diff_item_count", "-") if isinstance(result, dict) else "-"
+        return _compact_label(
+            "tool.executed",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"ok={_compact_bool(extra.get('result_success'))}",
+            elapsed,
+            f"diffs={diff_count}",
+            f"msg={_compact_string(extra.get('display_message'))}",
+        )
+    if trace_name == "tool.rejected":
+        return _compact_label(
+            "tool.rejected",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            elapsed,
+        )
+    return _compact_label(trace_name, f"client={client}", f"run={run_id}", elapsed)
+
+
+def _reasoning_trace_message_label(
+    trace_name: str,
+    client: str,
+    run_id: str,
+    extra: dict[str, Any],
+) -> str:
+    """用于压缩 reasoning trace 日志。"""
+    if trace_name == "reasoning.tool_call_detected":
+        return _compact_label(
+            "reasoning.tool_call",
+            f"client={client}",
+            f"run={run_id}",
+            _tool_names_label(extra.get("tool_names")),
+            f"count={extra.get('tool_call_count', '-')}",
+        )
+    if trace_name == "reasoning.unexpected_tool_call":
+        return _compact_label(
+            "reasoning.unexpected_tool",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"reason={extra.get('reason', '-')}",
+        )
+    if trace_name == "reasoning.extra_tool_calls_ignored":
+        return _compact_label(
+            "reasoning.extra_tools_ignored",
+            f"client={client}",
+            f"run={run_id}",
+            f"tool={extra.get('tool_name', '-')}",
+            f"count={extra.get('tool_call_count', '-')}",
+        )
+    return _compact_label(trace_name, f"client={client}", f"run={run_id}")
+
+
+def _run_summary_message_label(extra: dict[str, Any]) -> str:
+    """用于压缩单次 run 摘要日志。"""
+    extra["_compact_text"] = True
+    return _compact_label(
+        "run.summary",
+        f"client={_compact_client(extra)}",
+        f"run={_compact_id(extra.get('run_id'))}",
+        f"ok={_compact_bool(extra.get('success'))}",
+        f"tools={extra.get('tool_call_count', '-')}",
+        _compact_ms(extra.get("confirmation_wait_ms"), label="wait"),
+        _compact_ms(extra.get("elapsed_ms"), label="total"),
+        f"error={extra.get('error_type', '-')}",
+    )
+
+
+def _compact_label(prefix: str, *parts: str | None) -> str:
+    """用于拼接紧凑 text 日志片段。"""
+    return " ".join([prefix, *(part for part in parts if part)])
+
+
+def _compact_client(extra: dict[str, Any]) -> str:
+    """用于返回短 client_request_id。"""
+    return _short_identifier(extra.get("client_request_id", "-"), limit=8)
+
+
+def _compact_id(value: Any) -> str:
+    """用于返回短业务标识。"""
+    return _short_identifier(value, limit=8)
+
+
+def _compact_bool(value: Any) -> str:
+    """用于输出紧凑布尔值。"""
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value if value is not None else "-")
+
+
+def _compact_ms(value: Any, *, label: str = "ms") -> str | None:
+    """用于格式化毫秒耗时字段。"""
+    if value in {None, "-"}:
+        return None
+    return f"{label}={value}ms"
+
+
+def _compact_string(value: Any, *, limit: int = 48) -> str:
+    """用于输出短字符串并保留空格文本的引号。"""
+    if value in {None, ""}:
+        return "-"
+    text = " ".join(str(value).split())
+    if len(text) > limit:
+        text = f"{text[:limit]}..."
+    if re.fullmatch(r"[\w.\-:/]+", text):
+        return text
+    return json.dumps(text, ensure_ascii=False, default=str)
+
+
+def _compact_list(value: Any) -> str:
+    """用于输出短列表。"""
+    if not isinstance(value, list):
+        return "items=-"
+    names = ",".join(str(item) for item in value[:3])
+    suffix = ",..." if len(value) > 3 else ""
+    return f"items={names}{suffix}"
+
+
+def _tool_names_label(value: Any) -> str:
+    """用于输出工具名列表。"""
+    if not isinstance(value, list):
+        return "tools=-"
+    names = ",".join(str(item) for item in value[:5])
+    suffix = ",..." if len(value) > 5 else ""
+    return f"tools={names}{suffix}"
+
+
+def _first_tool_buffer(value: Any) -> dict[str, Any]:
+    """用于读取第一个工具参数摘要。"""
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return value[0]
+    return {}
+
+
+def _tool_input_label(value: Any) -> str:
+    """用于输出紧凑工具入参摘要。"""
+    if not isinstance(value, dict):
+        return f"input={_compact_string(value)}"
+    label_map = {
+        "section": "section",
+        "item_id": "item",
+        "bullet_id": "bullet",
+        "text_chars": "text",
+        "text_preview": "preview",
+        "reason": "reason",
+    }
+    parts = [
+        f"{label_map[key]}={_compact_string(item)}"
+        for key, item in value.items()
+        if key in label_map
+    ]
+    return f"input={{{' '.join(parts)}}}" if parts else "input={}"
 
 
 def _agent_trace_suffix(extra: dict[str, Any]) -> str:
     """用于处理agent追踪后缀。"""
     if not extra.get("agent_trace"):
+        return ""
+    if extra.get("_compact_text"):
         return ""
     trace_fields = {
         key: value
@@ -254,6 +629,7 @@ def _agent_trace_suffix(extra: dict[str, Any]) -> str:
             "session_id_short",
             "tool_call_id",
             "tool_call_id_short",
+            "_compact_text",
         }
     }
     if not trace_fields:

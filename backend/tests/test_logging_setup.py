@@ -82,3 +82,79 @@ def test_text_sse_tool_event_log_includes_core_fields(tmp_path, monkeypatch):
     assert "call=call_123456789" in file_output
     assert "client=ai_clien" in file_output
     assert "client=ai_client_visible_123" not in file_output
+
+
+def test_text_openrouter_stream_log_uses_compact_mainline(tmp_path, monkeypatch):
+    """用于验证 OpenRouter text 日志只展示人读主线。"""
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setattr(settings, "LOG_FORMAT", "text")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+    monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
+
+    logging_setup.configure_logging()
+    logging.getLogger("app.runtime.pi_agent_openrouter").info(
+        "openrouter.stream.tool_args_complete",
+        extra={
+            "agent_trace": True,
+            "client_request_id": "ai_client_visible_123",
+            "model": "moonshotai/kimi-k2.6",
+            "elapsed_ms": 8215.54,
+            "finish_reason": "tool_calls",
+            "openrouter_host": "openrouter.ai",
+            "stage": "tool_args_complete",
+            "tool_buffers": [
+                {
+                    "args_chars": 137,
+                    "args_json_status": "object",
+                    "id_chars": 25,
+                    "index": 0,
+                    "name": "remove_bullet",
+                }
+            ],
+            "tool_count": 1,
+            "usage_output": 94,
+        },
+    )
+
+    file_output = log_file.read_text(encoding="utf-8")
+
+    assert (
+        "openrouter tool_args client=ai_clien tool=remove_bullet "
+        "args=137 json=object tools=1 ms=8215.54ms"
+    ) in file_output
+    assert "tool_buffers=" not in file_output
+    assert "openrouter_host=" not in file_output
+    assert "stage=tool_args_complete" not in file_output
+
+
+def test_text_agent_tool_trace_uses_compact_mainline(tmp_path, monkeypatch):
+    """用于验证工具 trace text 日志不再展开所有 extra。"""
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setattr(settings, "LOG_FORMAT", "text")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+    monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
+
+    logging_setup.configure_logging()
+    logging.getLogger("app.runtime.pi_agent_runtime").info(
+        "agent.trace.tool.executed",
+        extra={
+            "agent_trace": True,
+            "agent_name": "resume_agent",
+            "client_request_id": "ai_client_visible_123",
+            "run_id": "345c127b099999999",
+            "call_id": "functions.remove_bullet:1",
+            "tool_name": "remove_bullet",
+            "tool_display_name": "删除要点",
+            "result_success": True,
+            "display_message": "项目经历 / Chat Resume - AI驱动的求职辅导平台 删除要点 改前：基于SSE实现...",
+            "result_summary": {"diff_item_count": 1, "success": True},
+            "latency_ms": 1256.71,
+        },
+    )
+
+    file_output = log_file.read_text(encoding="utf-8")
+
+    assert "tool.executed client=ai_clien run=345c127b tool=remove_bullet" in file_output
+    assert "ok=true ms=1256.71ms diffs=1" in file_output
+    assert "agent=resume_agent" not in file_output
+    assert "result=" not in file_output

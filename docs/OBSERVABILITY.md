@@ -12,6 +12,14 @@
 
 本地开发默认通过 `backend.sh` 开启 `AGENT_TRACE_LOG_ENABLED=true`，日志写入 `backend/logs/backend.log`。生产环境如果开启 Agent trace，需要先确认日志访问权限和保留策略，因为 trace 可能包含简历或 JD 摘要。
 
+Text 日志默认使用紧凑主线，适合 `tail -f` 人读；结构化字段仍保留在 LogRecord/JSON 日志里。典型行应该类似：
+
+```text
+openrouter tool_args client=ai_3b0ee tool=remove_bullet args=137 json=object tools=1 ms=8215.54ms
+tool.executed client=ai_3b0ee run=345c127b tool=remove_bullet ok=true ms=1256.71ms diffs=1
+run.summary client=ai_3b0ee run=345c127b ok=true tools=2 wait=2851.25ms total=26616.35ms error=-
+```
+
 ## 常用查询
 
 查看某个前端错误 ID 对应的后端日志：
@@ -35,7 +43,7 @@ rg "<session_id>" backend/logs/backend.log
 查看一次 Agent run 摘要：
 
 ```bash
-rg "resume_agent.run.summary" backend/logs/backend.log
+rg "run.summary|run=<run_id>|client=<client_id>" backend/logs/backend.log
 ```
 
 ## 常见问题
@@ -52,13 +60,13 @@ rg "<错误ID>" backend/logs/backend.log
 
 - `request.failed`：后端未处理异常。
 - `request.finished`：错误请求或慢请求的状态码、耗时和 DB 统计。
-- `resume_agent.run.summary`：本次 Agent run 的模型、工具次数、确认等待、总耗时和成功状态。
-- `openrouter.stream.*`：OpenRouter 慢在连接、首个 SSE、首个 token，还是工具参数完成阶段。
+- `run.summary`：本次 Agent run 的工具次数、确认等待、总耗时和成功状态。
+- `openrouter ...`：OpenRouter 慢在连接、首个 SSE、首个 token，还是工具参数完成阶段。
 
 ### AI 看起来卡住或很慢
 
 ```bash
-rg "resume_agent.run.summary|openrouter.stream" backend/logs/backend.log
+rg "run.summary|openrouter " backend/logs/backend.log
 ```
 
 重点字段：
@@ -74,7 +82,7 @@ rg "resume_agent.run.summary|openrouter.stream" backend/logs/backend.log
 ### 工具状态显示不对
 
 ```bash
-rg "sse.tool_event sent|agent.trace.tool|client=<ID>|client_request_id.*<ID>" backend/logs/backend.log
+rg "sse.tool_event sent|tool\\.|client=<ID>|client_request_id.*<ID>" backend/logs/backend.log
 ```
 
 重点字段：
@@ -88,7 +96,7 @@ rg "sse.tool_event sent|agent.trace.tool|client=<ID>|client_request_id.*<ID>" ba
 - `has_result`
 - `diff_item_count`
 
-工具参数碎片日志 `openrouter.stream.tool_delta` 默认只在 `DEBUG` 级别输出。日常排障先看 `first_tool_delta`、`tool_args_complete`、`tool_call_emitted` 和 `agent.trace.tool.preview_failed`。`agent.trace.tool.requested` 默认只记录工具入参摘要，例如 `section`、`item_id`、`text_chars` 和 `text_preview`。
+工具参数碎片日志 `openrouter.stream.tool_delta` 默认只在 `DEBUG` 级别输出。日常排障先看 `openrouter first_tool`、`openrouter tool_args`、`openrouter tool_emit` 和 `tool.preview_failed`。`tool.requested` 默认只记录工具入参摘要，例如 `section`、`item_id`、`text_chars` 和 `text_preview`。
 
 前端详细工具事件日志默认关闭。需要临时打开时设置：
 
