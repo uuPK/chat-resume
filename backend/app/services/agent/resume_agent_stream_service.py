@@ -54,6 +54,7 @@ class ResumeAgentStreamInput:
     resume_id: int
     user_id: int
     request_id: str | None
+    client_request_id: str | None = None
     chat_history: list[dict[str, str]] = field(default_factory=list)
     visible_modules: list[str] = field(default_factory=list)
     agent_type: str = "resume"
@@ -76,7 +77,11 @@ class ResumeAgentStreamService:
         session_id = uuid4().hex
         confirmation_queue = confirmation_manager.create(session_id)
 
-        with log_context(request_id=request.request_id, session_id=session_id):
+        with log_context(
+            request_id=request.request_id,
+            session_id=session_id,
+            client_request_id=request.client_request_id,
+        ):
             final_content_parts: list[str] = []
             latest_resume_content: dict[str, Any] | None = None
 

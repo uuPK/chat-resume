@@ -52,7 +52,10 @@ def test_unhandled_error_response_and_log_share_debug_context(caplog):
     with caplog.at_level(logging.ERROR, logger="app.main"):
         response = client.get(
             f"{_FAILURE_PATH}?candidate_id=42&access_token=secret",
-            headers={"X-Request-ID": request_id},
+            headers={
+                "X-Request-ID": request_id,
+                "X-Client-Request-ID": "ai_client_debug_123456789",
+            },
         )
 
     assert response.status_code == 500
@@ -69,6 +72,7 @@ def test_unhandled_error_response_and_log_share_debug_context(caplog):
 
     record = failed_records[0]
     assert record.request_id == request_id
+    assert record.client_request_id == "ai_client_debug_123456789"
     assert record.http_method == "GET"
     assert record.http_path == _FAILURE_PATH
     assert record.http_route == _FAILURE_PATH

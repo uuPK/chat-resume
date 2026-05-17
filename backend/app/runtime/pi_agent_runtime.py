@@ -186,6 +186,7 @@ class PiAgentRuntime:
         run_id = uuid4().hex
         executed_tools: list[dict[str, Any]] = []
         state = self._new_stream_state()
+        error_type: str | None = None
         pi_context, prompts, config = self._build_loop_inputs(
             agent=agent,
             user_message=user_message,
@@ -204,24 +205,37 @@ class PiAgentRuntime:
             event_callback,
             self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
         )
-        await self._run_react_loop(
-            agent=agent,
-            run_id=run_id,
-            pi_context=pi_context,
-            prompts=prompts,
-            config=config,
-            context=context,
-            confirmation_queue=None,
-            event_queue=None,
-            event_callback=event_callback,
-            state=state,
-            executed_tools=executed_tools,
-        )
-        response_event = self._llm_response_event(agent, state)
-        self._trace_llm_response(agent, run_id, response_event)
-        self._emit_event(event_callback, response_event)
-        self._trace_run_completed(agent, run_id, "sync", state)
-        return {"content": "".join(state["response_parts"]), "tool_calls": executed_tools}
+        try:
+            await self._run_react_loop(
+                agent=agent,
+                run_id=run_id,
+                pi_context=pi_context,
+                prompts=prompts,
+                config=config,
+                context=context,
+                confirmation_queue=None,
+                event_queue=None,
+                event_callback=event_callback,
+                state=state,
+                executed_tools=executed_tools,
+            )
+            response_event = self._llm_response_event(agent, state)
+            self._trace_llm_response(agent, run_id, response_event)
+            self._emit_event(event_callback, response_event)
+            self._trace_run_completed(agent, run_id, "sync", state)
+            return {"content": "".join(state["response_parts"]), "tool_calls": executed_tools}
+        except Exception as exc:
+            error_type = type(exc).__name__
+            raise
+        finally:
+            self._log_run_summary(
+                agent=agent,
+                run_id=run_id,
+                mode="sync",
+                state=state,
+                success=error_type is None,
+                error_type=error_type,
+            )
 
     async def run_stream(
         self,
@@ -312,6 +326,9 @@ class PiAgentRuntime:
                 state=state,
                 executed_tools=executed_tools,
             )
+        except Exception as exc:
+            state["error_type"] = type(exc).__name__
+            raise
         finally:
             response_event = self._llm_response_event(agent, state)
             self._trace_llm_response(agent, run_id, response_event)
@@ -319,6 +336,15 @@ class PiAgentRuntime:
                 event_queue=event_queue,
                 event_callback=event_callback,
                 event=response_event,
+            )
+            error_type = state.get("error_type")
+            self._log_run_summary(
+                agent=agent,
+                run_id=run_id,
+                mode="stream",
+                state=state,
+                success=not isinstance(error_type, str),
+                error_type=error_type if isinstance(error_type, str) else None,
             )
             await event_queue.put(_SENTINEL)
 
@@ -1380,6 +1406,36 @@ class PiAgentRuntime:
             agent_name=agent.prompt_spec.name,
             mode=mode,
             latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
+        )
+
+    def _log_run_summary(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        mode: str,
+        state: dict[str, Any],
+        success: bool,
+        error_type: str | None,
+    ) -> None:
+        """用于记录一次 Resume Agent run 的单条结构化摘要。"""
+        logger.info(
+            "resume_agent.run.summary",
+            extra={
+                "agent_trace": True,
+                "agent_name": agent.prompt_spec.name,
+                "run_id": run_id,
+                "mode": mode,
+                "model": self._chat_model_name(),
+                "tool_call_count": int(state.get("tool_call_count") or 0),
+                "confirmation_wait_ms": round(
+                    float(state.get("confirmation_wait_ms") or 0.0),
+                    2,
+                ),
+                "elapsed_ms": round((perf_counter() - state["started_at"]) * 1000, 2),
+                "success": success,
+                "error_type": error_type or "-",
+            },
         )
 
     def _trace_tool_requested(

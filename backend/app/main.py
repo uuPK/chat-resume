@@ -118,6 +118,14 @@ def _safe_param_value(key: str, value: str) -> str:
     return _truncate_log_value(value, limit=160)
 
 
+def _client_request_id(request: Request) -> str | None:
+    """用于读取前端生成的请求关联 ID。"""
+    value = request.headers.get("X-Client-Request-ID")
+    if not value:
+        return None
+    return _truncate_log_value(value, limit=80)
+
+
 def _request_user_id(request: Request) -> str:
     """用于从请求状态中提取当前用户 ID，没有登录则返回占位符。"""
     current_user = getattr(request.state, "current_user", None)
@@ -140,6 +148,7 @@ def _failure_log_context(
     """用于生成未处理异常日志所需的定位上下文。"""
     return {
         "request_id": request_id,
+        "client_request_id": getattr(request.state, "client_request_id", None) or "-",
         "http_method": request.method,
         "http_path": request.url.path,
         "http_route": _route_template(request),
@@ -207,8 +216,13 @@ async def authenticate_protected_api_requests(request: Request, call_next):
 async def log_requests(request: Request, call_next):
     """用于记录请求日志和慢数据库访问上下文。"""
     request_id = request.headers.get("X-Request-ID") or uuid4().hex
+    client_request_id = _client_request_id(request)
     request.state.request_id = request_id
-    context_tokens = bind_log_context(request_id=request_id)
+    request.state.client_request_id = client_request_id
+    context_tokens = bind_log_context(
+        request_id=request_id,
+        client_request_id=client_request_id,
+    )
     request_started_at = perf_counter()
     metrics_token = start_request_metrics()
     response = None
@@ -247,6 +261,7 @@ async def log_requests(request: Request, call_next):
                     "http_path": request.url.path,
                     "http_status": status_code,
                     "request_ms": round(request_elapsed_ms, 2),
+                    "client_request_id": client_request_id or "-",
                 },
             )
         elif should_log_request and metrics is not None:
@@ -257,6 +272,7 @@ async def log_requests(request: Request, call_next):
                     "http_path": request.url.path,
                     "http_status": status_code,
                     "request_ms": round(request_elapsed_ms, 2),
+                    "client_request_id": client_request_id or "-",
                     "db_checkout_count": metrics.checkout_count,
                     "db_checkout_ms": round(metrics.checkout_ms_total, 2),
                     "db_query_count": metrics.query_count,

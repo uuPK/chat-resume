@@ -28,3 +28,28 @@ def test_text_logging_colors_terminal_but_not_file(tmp_path, monkeypatch, capsys
     assert "app.ready" in terminal_output
     assert "app.ready" in file_output
     assert not _ANSI_PATTERN.search(file_output)
+
+
+def test_text_request_logs_include_client_request_id(tmp_path, monkeypatch):
+    """用于验证本地文本日志可以按前端请求 ID grep。"""
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setattr(settings, "LOG_FORMAT", "text")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+    monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
+
+    logging_setup.configure_logging()
+    logging.getLogger("app.main").info(
+        "request.finished",
+        extra={
+            "http_method": "POST",
+            "http_path": "/api/ai/chat/stream",
+            "http_status": 500,
+            "request_ms": 1200.0,
+            "client_request_id": "ai_client_visible_123",
+        },
+    )
+
+    file_output = log_file.read_text(encoding="utf-8")
+
+    assert "request.finished POST /api/ai/chat/stream 500 1200.0ms" in file_output
+    assert "client=ai_client_visible_123" in file_output

@@ -272,6 +272,7 @@ class AgentSessionStore:
             "request_id": context["request_id"],
             "session_id": session_id or context["session_id"],
             "tool_call_id": context["tool_call_id"],
+            "client_request_id": context["client_request_id"],
         }
         return {
             key: value

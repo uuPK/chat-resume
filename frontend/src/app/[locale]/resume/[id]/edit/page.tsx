@@ -346,6 +346,7 @@ export default function ResumeEditPage() {
       event.type === 'tool_rejected'
     )
     if (toolEvents.length === 0) return
+    if (process.env.NEXT_PUBLIC_AI_STREAM_DEBUG !== 'true') return
     const callIds = Array.from(
       new Set(toolEvents.flatMap((event) => ('callId' in event ? [event.callId] : [])))
     )

@@ -1502,6 +1502,38 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("content") == "你好" for event in events))
         self.assertIn("agent.trace.intermediate.chunk", trace_messages)
 
+    async def test_pi_agent_runtime_stream_logs_single_run_summary(self):
+        """用于验证每次流式 run 只记录一条结构化摘要。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
+        resume = self._sample_resume()
+
+        with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
+            events = []
+            async for event in agent.optimize_stream(
+                user_message="帮我看看简历",
+                resume_content=resume,
+                conversation_history=[],
+                allowed_sections={"work_experience", "projects"},
+            ):
+                events.append(event)
+
+        summary_records = [
+            record
+            for record in logs.records
+            if record.getMessage() == "resume_agent.run.summary"
+        ]
+        self.assertTrue(any(event.get("content") == "你好" for event in events))
+        self.assertEqual(len(summary_records), 1)
+        summary = summary_records[0]
+        self.assertEqual(getattr(summary, "agent_name"), "resume_agent")
+        self.assertEqual(getattr(summary, "mode"), "stream")
+        self.assertEqual(getattr(summary, "tool_call_count"), 0)
+        self.assertEqual(getattr(summary, "confirmation_wait_ms"), 0.0)
+        self.assertGreaterEqual(getattr(summary, "elapsed_ms"), 0)
+        self.assertTrue(getattr(summary, "success"))
+        self.assertEqual(getattr(summary, "error_type"), "-")
+
 
 class ChatServiceChunkParsingTests(unittest.TestCase):
     def test_extract_sse_data_accepts_data_prefix_without_space(self):

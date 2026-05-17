@@ -43,6 +43,7 @@ _TRACE_VALUE_LIMIT = 48
 _TRACE_KEY_LABELS = {
     "agent_name": "agent",
     "call_id": "call",
+    "client_request_id": "client",
     "confirmed": "confirmed",
     "diff_item_count": "diffs",
     "diff_summary": "diff",
@@ -92,6 +93,7 @@ def _context_defaults() -> dict[str, str]:
         "request_id": context["request_id"] or "-",
         "session_id": context["session_id"] or "-",
         "tool_call_id": context["tool_call_id"] or "-",
+        "client_request_id": context["client_request_id"] or "-",
     }
 
 
@@ -114,6 +116,11 @@ class JsonFormatter(logging.Formatter):
                 record,
                 "tool_call_id",
                 context["tool_call_id"],
+            ),
+            "client_request_id": getattr(
+                record,
+                "client_request_id",
+                context["client_request_id"],
             ),
         }
         for key, value in record.__dict__.items():
@@ -205,7 +212,14 @@ def _message_label(message: str, extra: dict[str, Any]) -> str:
         path = extra.get("http_path", "-")
         status = extra.get("http_status", "-")
         request_ms = extra.get("request_ms", "-")
-        return f"request.finished {method} {path} {status} {request_ms}ms"
+        client_request_id = extra.get("client_request_id", "-")
+        return (
+            f"request.finished {method} {path} {status} {request_ms}ms "
+            f"client={client_request_id}"
+        )
+    if message == "request.failed":
+        client_request_id = extra.get("client_request_id", "-")
+        return f"request.failed client={client_request_id}"
     return message
 
 
@@ -315,6 +329,7 @@ def _json_sink(message: Any) -> None:
         "request_id": extra.get("request_id", "-"),
         "session_id": extra.get("session_id", "-"),
         "tool_call_id": extra.get("tool_call_id", "-"),
+        "client_request_id": extra.get("client_request_id", "-"),
     }
     for key, value in extra.items():
         if key in payload or key.startswith("_"):

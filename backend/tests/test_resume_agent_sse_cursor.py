@@ -144,6 +144,7 @@ class ResumeAgentSseStreamServiceTests(unittest.IsolatedAsyncioTestCase):
             resume_id=self.resume.id,
             user_id=self.user.id,
             request_id="req_sse_cursor",
+            client_request_id="ai_client_sse_123",
         )
 
         with patch(
@@ -161,6 +162,10 @@ class ResumeAgentSseStreamServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(stored), len(events))
         self.assertEqual(stored[0].payload["session_id"], session_id)
+        self.assertEqual(
+            stored[0].payload["log_context"]["client_request_id"],
+            "ai_client_sse_123",
+        )
         self.assertEqual(stored[1].payload["content"], "已开始优化")
 
     async def test_done_event_does_not_auto_append_job_match_summary(self):

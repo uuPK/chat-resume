@@ -90,6 +90,7 @@ async def chat_with_resume_stream(
         resume_id=chat_request.resume_id,
         user_id=current_user["id"],
         request_id=getattr(request.state, "request_id", None),
+        client_request_id=getattr(request.state, "client_request_id", None),
         chat_history=cast(list[dict[str, str]], chat_request.chat_history),
         visible_modules=chat_request.visible_modules,
         agent_type=chat_request.agent_type,
@@ -103,6 +104,7 @@ async def chat_with_resume_stream(
             "resume_id": chat_request.resume_id,
             "user_id": current_user["id"],
             "message_chars": len(chat_request.message or ""),
+            "client_request_id": stream_input.client_request_id or "-",
         },
     )
     stream_service = ResumeAgentStreamService(db)
@@ -198,6 +200,7 @@ async def confirm_tool(
         request_id=getattr(http_request.state, "request_id", None),
         session_id=request.session_id,
         tool_call_id=request.call_id,
+        client_request_id=getattr(http_request.state, "client_request_id", None),
     ):
         store = AgentSessionStore(db)
         service = ResumeAgentSessionService(
@@ -246,6 +249,7 @@ async def resume_agent_session(
     with log_context(
         request_id=getattr(http_request.state, "request_id", None),
         session_id=request.session_id,
+        client_request_id=getattr(http_request.state, "client_request_id", None),
     ):
         service = ResumeAgentStreamService(db)
         return service.resume_session(

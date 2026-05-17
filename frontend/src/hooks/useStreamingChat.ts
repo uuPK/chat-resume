@@ -149,6 +149,41 @@ const TOOL_NAME_ALIASES: Record<string, string> = {
   remove_highlight: 'remove_bullet',
 }
 
+// 用于判断是否开启 AI stream 详细调试日志。
+function isAiStreamDebugEnabled(): boolean {
+  if (process.env.NEXT_PUBLIC_AI_STREAM_DEBUG === 'true') return true
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem('ai_stream_debug') === 'true'
+}
+
+// 用于输出默认关闭的 AI stream 调试日志。
+function debugStreamLog(message: string, payload?: Record<string, unknown>) {
+  if (!isAiStreamDebugEnabled()) return
+  if (payload === undefined) {
+    console.info(message)
+    return
+  }
+  console.info(message, payload)
+}
+
+// 用于生成一次 AI stream 的前端关联 ID。
+function createClientRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `ai_${crypto.randomUUID()}`
+  }
+  return `ai_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+// 用于生成展示给用户的短错误 ID。
+function shortClientRequestId(clientRequestId: string): string {
+  return clientRequestId.replace(/^ai_/, '').slice(0, 8)
+}
+
+// 用于在 UI 错误中追加可排查的短 ID。
+function formatStreamError(message: string, clientRequestId: string): string {
+  return `${message} (错误ID: ${shortClientRequestId(clientRequestId)})`
+}
+
 // 用于标准化工具名称。
 function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
@@ -211,7 +246,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
     // 使用 ref 做立即检查，防止并发调用
     if (isStreamingLockRef.current) {
-      console.log('[useStreamingChat] 已有流式请求进行中，跳过重复调用')
+      debugStreamLog('[useStreamingChat] 已有流式请求进行中，跳过重复调用')
       return
     }
     // 立即加锁
@@ -223,6 +258,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
     // 创建中止控制器
     abortControllerRef.current = new AbortController()
+    const clientRequestId = createClientRequestId()
 
     try {
       // 转换聊天记录格式为后端需要的 OpenAI 格式
@@ -239,6 +275,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       while (true) {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'X-Client-Request-ID': clientRequestId,
       }
       if (lastEventIdRef.current) {
         headers['Last-Event-ID'] = lastEventIdRef.current
@@ -277,7 +314,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         toolName: string,
         displayMessage?: string,
       ) => {
-        console.info('[useStreamingChat] completeToolCallEvent before', {
+        debugStreamLog('[useStreamingChat] completeToolCallEvent before', {
           callId,
           toolName,
           displayMessage,
@@ -304,7 +341,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             displayMessage,
           }]
         }
-        console.info('[useStreamingChat] completeToolCallEvent after', {
+        debugStreamLog('[useStreamingChat] completeToolCallEvent after', {
           callId,
           updatedToolCall: updated,
           events: summarizeToolEvents(eventsBuffer),
@@ -345,7 +382,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   Boolean(data.tool_pending || data.tool_confirmed || data.tool_rejected)
                 if (isToolEvent) {
                   sseEventSequenceRef.current += 1
-                  console.info('[useStreamingChat] tool SSE received', {
+                  debugStreamLog('[useStreamingChat] tool SSE received', {
                     seq: sseEventSequenceRef.current,
                     eventType,
                     eventId: lastEventIdRef.current,
@@ -361,14 +398,16 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 }
 
                 if (data.error) {
-                  onError?.(data.error)
+                  onError?.(formatStreamError(data.error, clientRequestId))
                   return
                 }
 
                 if (data.done) {
                   // done 事件携带最终 resume_content 用于刷新预览
                   if (data.resume_content) {
-                    console.log('[useStreamingChat] done 事件收到 resume_content', Object.keys(data.resume_content))
+                    debugStreamLog('[useStreamingChat] done 事件收到 resume_content', {
+                      sections: Object.keys(data.resume_content),
+                    })
                     onResumeUpdate?.(data.resume_content)
                   }
                   const jobMatchSummary = normalizeJobMatchSummary(data.job_match_summary)
@@ -414,7 +453,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     toolName: resolveToolName(data, t('toolCall')),
                     displayMessage: data.display_message ? String(data.display_message) : undefined,
                   }]
-                  console.info('[useStreamingChat] tool_call appended', {
+                  debugStreamLog('[useStreamingChat] tool_call appended', {
                     callId,
                     events: summarizeToolEvents(eventsBuffer),
                   })
@@ -423,7 +462,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 if (data.event_type === 'tool_result') {
                   const callId = data.call_id ? String(data.call_id) : ''
-                  console.info('[useStreamingChat] tool_result handling start', {
+                  debugStreamLog('[useStreamingChat] tool_result handling start', {
                     callId,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
@@ -451,7 +490,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                       summary: jobMatchSummary,
                     }]
                   }
-                  console.info('[useStreamingChat] tool_result handling end', {
+                  debugStreamLog('[useStreamingChat] tool_result handling end', {
                     callId,
                     eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
@@ -461,7 +500,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 // tool_pending: agent 暂停，等待用户确认
                 if (data.tool_pending && data.call_id) {
                   const callId = data.call_id as string
-                  console.info('[useStreamingChat] tool_pending received', {
+                  debugStreamLog('[useStreamingChat] tool_pending received', {
                     callId,
                     toolName: data.tool_display_name || data.tool_name || '',
                     diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
@@ -474,7 +513,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     diffSummary: data.diff_summary || '',
                     diffItems: normalizeDiffItems(data.diff_items),
                   }]
-                  console.info('[useStreamingChat] tool_pending appended', {
+                  debugStreamLog('[useStreamingChat] tool_pending appended', {
                     callId,
                     eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
@@ -501,7 +540,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 // tool_confirmed / tool_rejected: 清除超时计时器，更新对应的 pending 事件状态
                 if ((data.tool_confirmed || data.tool_rejected) && data.call_id) {
                   const callId = data.call_id as string
-                  console.info('[useStreamingChat] tool decision handling start', {
+                  debugStreamLog('[useStreamingChat] tool decision handling start', {
                     callId,
                     confirmed: Boolean(data.tool_confirmed),
                     rejected: Boolean(data.tool_rejected),
@@ -531,7 +570,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     }
                     return e
                   })
-                  console.info('[useStreamingChat] tool decision handling end', {
+                  debugStreamLog('[useStreamingChat] tool decision handling end', {
                     callId,
                     newType,
                     eventsAfter: summarizeToolEvents(eventsBuffer),
@@ -541,7 +580,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
                 // 处理简历更新
                 if (data.resume_content) {
-                  console.log('[useStreamingChat] 收到 resume_content，触发预览更新', Object.keys(data.resume_content))
+                  debugStreamLog('[useStreamingChat] 收到 resume_content，触发预览更新', {
+                    sections: Object.keys(data.resume_content),
+                  })
                   onResumeUpdate?.(data.resume_content)
                 }
 
@@ -575,11 +616,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Streaming aborted')
+        debugStreamLog('Streaming aborted', { clientRequestId })
       } else {
-        console.error('Streaming error:', error)
+        console.error('Streaming error:', { error, clientRequestId })
         const errorMessage = error instanceof Error ? error.message : 'Unknown streaming error'
-        onError?.(errorMessage)
+        onError?.(formatStreamError(errorMessage, clientRequestId))
       }
     } finally {
       // 清理所有 tool_pending 超时计时器
@@ -616,7 +657,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       return
     }
     confirmingToolCallsRef.current.add(callId)
-    console.info('[confirmTool] request', {
+    debugStreamLog('[confirmTool] request', {
       callId,
       confirmed,
       source,
@@ -644,7 +685,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       throw new Error(detail || `工具确认失败: ${response.status}`)
     }
     const body = await response.json().catch(() => null)
-    console.info('[confirmTool] response', {
+    debugStreamLog('[confirmTool] response', {
       callId,
       confirmed,
       source,
