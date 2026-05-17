@@ -36,6 +36,18 @@ class JobMatchSummary(TypedDict):
     missing_keywords: list[str]
     resume_changes: list[str]
     fact_gaps: list[str]
+    top_gaps: list["JobMatchTopGap"]
+
+
+class JobMatchTopGap(TypedDict):
+    """用于描述本轮最值得处理的岗位缺口。"""
+
+    gap: str
+    priority_reason: str
+    jd_evidence: list[str]
+    resume_anchor: str
+    suggested_edit: str
+    risk: str
 
 
 class ResumeStreamEvent(TypedDict, total=False):
@@ -143,6 +155,7 @@ def stream_error_event(error: str) -> ResumeStreamEvent:
 __all__ = [
     "DiffItem",
     "JobMatchSummary",
+    "JobMatchTopGap",
     "ResumeStreamEvent",
     "ResumeStreamEventType",
     "public_resume_stream_event",

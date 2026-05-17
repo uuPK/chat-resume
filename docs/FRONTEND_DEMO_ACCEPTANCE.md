@@ -4,16 +4,18 @@
 
 ## Demo 主线
 
-目标：用一条完整链路证明系统具备 `目标输入 -> Agent 工具调用 -> Top gaps 分析 -> diff 确认 -> 简历更新` 的闭环。
+目标：用一条完整链路证明系统具备 `目标输入 -> Agent 工具调用 -> JD 匹配摘要 -> diff 确认 -> 简历更新` 的闭环。
+
+当前事实边界：代码里只保留一个 JD 分析工具 `generate_job_match_summary`。它返回 `matched_keywords`、`missing_keywords`、`resume_changes`、`fact_gaps` 和 `top_gaps`；前端“岗位匹配摘要”优先展示 Top gaps 行动建议，并保留命中/缺失关键词作为二级信息。
 
 建议 3 分钟 Demo 顺序：
 
 1. 进入简历编辑页，展示左侧结构化编辑、中间预览、右侧 Agent 对话的三栏工作台。
 2. 在目标岗位弹窗或岗位信息区粘贴 Agent 开发工程师 JD。
 3. 发送或触发“分析简历与目标岗位匹配情况”的请求。
-4. 展示 Agent 工具状态：`Running/Ran generate_job_match_summary` 或后续 `analyze_jd_top_gaps`。
+4. 展示 Agent 工具状态：`Running/Ran generate_job_match_summary`。
 5. 展示“岗位匹配摘要”卡片，重点停留在“优先补强 Top 3”区域。
-6. 展示 Agent 生成的结构化 diff 确认卡，用户点击接受。
+6. 展示 Agent 生成的结构化 diff 确认卡，用户点击确认修改。
 7. 展示简历内容更新，并说明可重新跑匹配进入下一轮。
 
 ## 推荐演示数据
@@ -32,7 +34,7 @@ JD 应包含清晰的 Agent 工程关键词，便于 Top gaps 和 diff 建议稳
 4. 熟悉 MySQL、Redis、RabbitMQ 等工程基础设施。
 ```
 
-简历应至少包含一个可承接补强的项目，例如 `Deep Research Agent`、`Chat Resume` 或类似 Agent 项目。否则 Top gaps 会合理标记为“需要确认”或“缺少证据”，不适合做主 Demo。
+简历应至少包含一个可承接补强的项目，例如 `Deep Research Agent`、`Chat Resume` 或类似 Agent 项目。否则 JD 摘要会出现较多缺失关键词，后续 diff 也更容易进入需要用户补充真实事实的状态。
 
 ## 必拍页面状态
 
@@ -72,12 +74,12 @@ JD 应包含清晰的 Agent 工程关键词，便于 Top gaps 和 diff 建议稳
 画面要点：
 
 - 工具调用活动卡片显示工具执行状态。
-- 当前实现中可见 `generate_job_match_summary`。
-- 后续如果 Agent 明确调用 `analyze_jd_top_gaps`，优先拍该工具名。
+- 当前实现中只应出现 `generate_job_match_summary`。
+- 不要在 Demo 话术中声称调用了独立 `analyze_jd_top_gaps` 工具；Top gaps 是 `generate_job_match_summary` 的结构化返回字段。
 
 用途：证明前端可观测真实 tool call / tool result，不是只展示最终文本。
 
-### 4. Top gaps 行动面板
+### 4. JD 匹配摘要卡片
 
 组件：`JobMatchSummaryCard`
 
@@ -85,16 +87,11 @@ JD 应包含清晰的 Agent 工程关键词，便于 Top gaps 和 diff 建议稳
 
 - 标题：`岗位匹配摘要`
 - 指标：命中率、命中数量、缺失数量。
-- 主区：`优先补强 Top 3`
-- 每个 gap 包含：
-  - 缺口名称
-  - 风险标签：`可直接补强` / `需要确认` / `缺少证据`
-  - 优先级原因
-  - 建议位置
-  - 建议补法
-  - JD 证据
+- 主区：`优先补强 Top 3`。
+- 每个 gap 包含缺口名称、风险标签、优先级原因、建议位置、建议补法和 JD 证据。
+- 二级信息：命中关键词列表、缺失关键词列表。
 
-用途：展示 task #12 的核心成果，即“不是一次性列出全部缺失关键词，而是给出本轮可行动的 Top gaps”。
+用途：展示一个 JD 工具从真实 JD 和简历正文中生成“匹配总览 + 优先补强建议”，但不把它包装成完整语义匹配。
 
 ### 5. Diff 确认卡
 
@@ -107,7 +104,7 @@ JD 应包含清晰的 Agent 工程关键词，便于 Top gaps 和 diff 建议稳
 - 修改摘要。
 - 改前 / 改后内容。
 - 修改理由。
-- `接受修改` / `拒绝` 按钮。
+- `确认修改` / `拒绝` 按钮。
 
 用途：展示 human-in-the-loop confirmation gate，证明系统不会让 Agent 直接写简历。
 
@@ -129,7 +126,7 @@ JD 应包含清晰的 Agent 工程关键词，便于 Top gaps 和 diff 建议稳
 2. 点击 `开始分析` 或发送分析请求。
 3. 等待工具调用卡片出现。
 4. 停留在 `优先补强 Top 3`。
-5. 展示 diff 卡并点击 `接受修改`。
+5. 展示 diff 卡并点击 `确认修改`。
 6. 简历预览内容变化。
 
 如果只录 10 秒短 GIF，优先保留第 3-5 步。
@@ -140,19 +137,18 @@ Demo 前应确认：
 
 - 页面使用中文 locale：`/zh/...`。
 - 工作台三栏布局在 1440px 宽度下不重叠。
-- JD 输入框、Agent 对话输入、Top gaps 卡片和 diff 确认按钮均可见。
-- Top gaps 主展示最多 3 条。
-- Top gaps 不是单纯关键词列表，每条都包含原因、建议位置和 JD 证据。
-- 全部缺失关键词只作为二级信息，不抢主行动区。
+- JD 输入框、Agent 对话输入、岗位匹配摘要卡片和 diff 确认按钮均可见。
+- `岗位匹配摘要` 可显示命中率、命中数量、缺失数量、Top gaps、命中关键词和缺失关键词。
+- Top gaps 最多 3 条，每条包含原因、建议位置和 JD 证据。
+- Demo 只声称一个 JD 工具返回 Top gaps，不声称存在第二个 JD 工具。
 - Agent 修改必须经过确认按钮，不能直接静默写入。
 - README 中测试结果只写已真实验证的命令，不写未跑过的 Playwright 全量覆盖。
 
 ## 当前风险
 
-- 当前 `generate_job_match_summary` 已能返回并展示 `top_gaps`，但它的 gap 生成仍偏启发式，文案可能机械。
-- 如果要强调“LLM 自主判断 Top gaps”，Demo 中应尽量让 Agent 调用 `analyze_jd_top_gaps`，并在话术里说明这是工具化能力。
+- 当前 `generate_job_match_summary` 的 Top gaps 仍是轻量规则和能力归并，不是完整语义模型判断。
 - 如果简历没有可承接的真实项目，Top gaps 会出现“需要确认/缺少证据”，这是正确安全行为，但不适合作为最亮眼 Demo。
-- 当前截图应避免出现明显不准确的 gap，例如把完全无关的技术硬塞到项目里；必要时先准备一份和 JD 接近的样例简历。
+- 当前截图应避免把轻量关键词摘要讲成完整语义匹配。
 
 ## 与其他任务的交付边界
 

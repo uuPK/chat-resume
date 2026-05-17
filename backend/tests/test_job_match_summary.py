@@ -1,6 +1,9 @@
 """用于覆盖 JD 匹配摘要生成的回归测试。"""
 
-from app.services.agent.job_match_summary import build_job_match_summary
+from app.services.agent.job_match_summary import (
+    build_job_match_summary,
+    build_job_match_top_gaps,
+)
 from app.tools.resume.job_match_summary_tool import generate_job_match_summary
 
 
@@ -45,6 +48,7 @@ def test_build_job_match_summary_extracts_evidence_from_jd_resume_and_diff():
     assert "React" in summary["matched_keywords"]
     assert "性能优化" in summary["matched_keywords"]
     assert "TypeScript" in summary["missing_keywords"]
+    assert summary["top_gaps"]
     assert summary["resume_changes"] == [
         "补充岗位关键词和量化结果：负责 React 前端开发，首屏性能优化 35%"
     ]
@@ -85,3 +89,54 @@ def test_generate_job_match_summary_tool_returns_summary_payload():
     assert result["job_match_summary"]["resume_changes"] == [
         "补充岗位关键词：负责 Agent 后端服务，支撑高并发接口"
     ]
+    assert result["job_match_summary"]["top_gaps"]
+
+
+def test_build_job_match_top_gaps_groups_keywords_into_capability_gaps():
+    """用于验证 JD 工具返回能力缺口，而不是只返回零散关键词。"""
+    resume = {
+        "job_application": {
+            "jd_text": (
+                "负责基于 LLM 的 Agent 应用开发，设计 tool calling、workflow "
+                "orchestration 和 human-in-the-loop 机制。构建 RAG、LlamaIndex "
+                "或 LangChain 工具链，熟悉 FastAPI、React、SSE。"
+            )
+        },
+        "projects": [
+            {
+                "name": "Chat Resume",
+                "overview": "基于 Agent 的简历优化工具",
+                "highlights": [{"text": "实现 FastAPI 后端和 React 前端"}],
+            }
+        ],
+    }
+
+    summary = build_job_match_summary(
+        original_resume=resume,
+        latest_resume_content=resume,
+        confirmed_diff_items=[],
+    )
+
+    assert summary is not None
+    top_gaps = summary["top_gaps"]
+    assert 1 <= len(top_gaps) <= 3
+    assert any(gap["gap"] == "RAG / LlamaIndex 落地经验" for gap in top_gaps)
+    assert all(gap["jd_evidence"] for gap in top_gaps)
+    assert all(gap["resume_anchor"] for gap in top_gaps)
+    assert all(
+        gap["risk"]
+        in {"can_improve", "needs_user_confirmation", "insufficient_evidence"}
+        for gap in top_gaps
+    )
+
+
+def test_build_job_match_top_gaps_returns_empty_without_missing_keywords():
+    """用于验证没有缺失关键词时不生成空洞 Top gaps。"""
+    gaps = build_job_match_top_gaps(
+        resume_content={"projects": [{"name": "Agent", "overview": "RAG FastAPI"}]},
+        matched_keywords=["Agent", "RAG", "FastAPI"],
+        missing_keywords=[],
+        jd_text="要求 Agent、RAG、FastAPI。",
+    )
+
+    assert gaps == []

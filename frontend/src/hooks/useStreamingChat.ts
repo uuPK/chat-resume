@@ -14,6 +14,16 @@ export type JobMatchSummary = {
   missing_keywords: string[]
   resume_changes: string[]
   fact_gaps: string[]
+  top_gaps: JobMatchTopGap[]
+}
+
+export type JobMatchTopGap = {
+  gap: string
+  priority_reason: string
+  jd_evidence: string[]
+  resume_anchor: string
+  suggested_edit: string
+  risk: 'can_improve' | 'needs_user_confirmation' | 'insufficient_evidence' | string
 }
 
 export type StreamEvent =
@@ -89,8 +99,28 @@ function normalizeJobMatchSummary(value: unknown): JobMatchSummary | null {
     missing_keywords: normalizeStringList(record.missing_keywords),
     resume_changes: normalizeStringList(record.resume_changes),
     fact_gaps: normalizeStringList(record.fact_gaps),
+    top_gaps: normalizeJobMatchTopGaps(record.top_gaps),
   }
   return Object.values(summary).some((items) => items.length > 0) ? summary : null
+}
+
+// 用于标准化岗位 Top gaps。
+function normalizeJobMatchTopGaps(value: unknown): JobMatchTopGap[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const gap = String(record.gap || '').trim()
+    if (!gap) return []
+    return [{
+      gap,
+      priority_reason: String(record.priority_reason || '').trim(),
+      jd_evidence: normalizeStringList(record.jd_evidence),
+      resume_anchor: String(record.resume_anchor || '').trim(),
+      suggested_edit: String(record.suggested_edit || '').trim(),
+      risk: String(record.risk || '').trim(),
+    }]
+  }).slice(0, 3)
 }
 
 // 用于标准化差异条目。
