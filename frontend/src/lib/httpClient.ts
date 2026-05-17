@@ -26,11 +26,16 @@ export async function fetchWithTimeout(
   baseUrl = API_BASE_URL,
 ) {
   const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
     return await apiFetch(path, { ...init, signal: controller.signal }, baseUrl)
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`API请求超时: ${path} (${timeoutMs}ms)`)
+    }
+    throw error
   } finally {
-    window.clearTimeout(timeoutId)
+    clearTimeout(timeoutId)
   }
 }
 
