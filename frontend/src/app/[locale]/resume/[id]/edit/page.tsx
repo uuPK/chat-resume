@@ -52,48 +52,60 @@ function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
 }
 
-// 用于渲染岗位匹配摘要的一组条目。
-function SummaryList({
-  title,
-  items,
-  tone,
-}: {
-  title: string
-  items: string[]
-  tone: 'green' | 'amber' | 'blue' | 'slate'
-}) {
-  if (items.length === 0) return null
-  const toneClass = {
-    green: 'border-green-100 bg-green-50 text-green-700',
-    amber: 'border-amber-100 bg-amber-50 text-amber-700',
-    blue: 'border-blue-100 bg-blue-50 text-blue-700',
-    slate: 'border-slate-100 bg-slate-50 text-slate-700',
-  }[tone]
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
-      <div className="mb-1 text-xs font-semibold text-[#0a0b0d]">{title}</div>
-      <ul className="space-y-1">
-        {items.map((item) => (
-          <li key={item} className="text-xs leading-relaxed">{item}</li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 // 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
 function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
+  const matchedCount = summary.matched_keywords.length
+  const missingCount = summary.missing_keywords.length
+  const total = matchedCount + missingCount
+  const matchPct = total > 0 ? Math.round((matchedCount / total) * 100) : null
+
   return (
-    <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-3 text-xs shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-[#0a0b0d]">岗位匹配摘要</div>
-        <div className="text-[11px] text-[#5b616e]">基于 JD、简历和已确认改动</div>
+    <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs shadow-sm">
+      {/* 标题 + 匹配度一行 */}
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <span className="text-xs font-semibold text-gray-900">岗位匹配摘要</span>
+        {matchPct !== null && (
+          <div className="flex items-center gap-1.5 text-[11px] text-[#5b616e]">
+            <span className="font-semibold text-[#0a0b0d]">命中率 {matchPct}%</span>
+            <span className="text-gray-300">·</span>
+            <span className={matchedCount > 0 ? 'font-medium text-emerald-600' : ''}>命中 {matchedCount}</span>
+            <span className="text-gray-300">·</span>
+            <span className={missingCount > 0 ? 'font-medium text-rose-600' : ''}>缺失 {missingCount}</span>
+          </div>
+        )}
       </div>
-      <div className="grid grid-cols-1 gap-2">
-        <SummaryList title="已命中关键词" items={summary.matched_keywords} tone="green" />
-        <SummaryList title="缺失关键词" items={summary.missing_keywords} tone="amber" />
-        <SummaryList title="需要补充事实" items={summary.fact_gaps} tone="slate" />
+
+      {/* 分隔线 */}
+      <div className="mb-2 border-t border-gray-100" />
+
+      <div className="space-y-2">
+        {/* 缺失关键词 — rose 红色系，明确传递"需关注" */}
+        {missingCount > 0 && (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+            <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-rose-600">
+              缺失
+            </span>
+            {summary.missing_keywords.map((item) => (
+              <span key={item} className="rounded-full border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 已命中 — emerald 翠绿系，清晰传递"通过" */}
+        {matchedCount > 0 && (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+            <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+              命中
+            </span>
+            {summary.matched_keywords.map((item) => (
+              <span key={item} className="rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
