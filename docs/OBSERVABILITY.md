@@ -74,7 +74,7 @@ rg "resume_agent.run.summary|openrouter.stream" backend/logs/backend.log
 ### 工具状态显示不对
 
 ```bash
-rg "resume_agent.sse.tool_event.sent|agent.trace.tool|client_request_id=<ID>" backend/logs/backend.log
+rg "resume_agent.sse.tool_event.sent|agent.trace.tool|client=<ID>|client_request_id.*<ID>" backend/logs/backend.log
 ```
 
 重点字段：
