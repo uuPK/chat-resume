@@ -442,7 +442,7 @@ def _handle_openrouter_line(
             started_at=started_at,
             model=model.id,
             finish_reason=progress.finish_reason,
-            tool_buffers=_tool_buffer_summary(tool_buffers),
+            tool_count=len(tool_buffers),
         )
     return True
 

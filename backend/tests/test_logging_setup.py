@@ -80,4 +80,5 @@ def test_text_sse_tool_event_log_includes_core_fields(tmp_path, monkeypatch):
     assert "event=tool_call" in file_output
     assert "tool=update_bullet" in file_output
     assert "call=call_123456789" in file_output
-    assert "client=ai_client_visible_123" in file_output
+    assert "client=ai_clien" in file_output
+    assert "client=ai_client_visible_123" not in file_output

@@ -217,7 +217,7 @@ async def test_openrouter_stream_logs_first_tool_delta(
         (
             'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
             '"id":"call_1","function":{"name":"update_bullet",'
-            '"arguments":"{}"}}]}}]}'
+            '"arguments":"{}"}}]},"finish_reason":"tool_calls"}]}'
         ),
         "data: [DONE]",
     ]
@@ -248,6 +248,13 @@ async def test_openrouter_stream_logs_first_tool_delta(
         if record.getMessage() == "openrouter.stream.first_tool_delta"
     )
     assert getattr(tool_record, "tool_names") == ["update_bullet"]
+    finish_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.finish_reason"
+    )
+    assert getattr(finish_record, "tool_count") == 1
+    assert not hasattr(finish_record, "tool_buffers")
     complete_record = next(
         record
         for record in caplog.records

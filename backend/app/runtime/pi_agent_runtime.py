@@ -1667,11 +1667,19 @@ class PiAgentRuntime:
     @classmethod
     def _safe_tool_input(cls, tool_input: dict[str, Any]) -> dict[str, Any]:
         """用于处理安全工具input。"""
-        return {
-            key: cls._summarize_value(value)
-            for key, value in tool_input.items()
-            if key not in {"resume_content", "content"}
-        }
+        summary: dict[str, Any] = {}
+        for key, value in tool_input.items():
+            if key in {"resume_content", "content"}:
+                continue
+            if key == "text" and isinstance(value, str):
+                summary["text_chars"] = len(value)
+                summary["text_preview"] = cls._preview_text(value, limit=80)
+                continue
+            if key == "reason" and isinstance(value, str):
+                summary[key] = cls._preview_text(value, limit=80)
+                continue
+            summary[key] = cls._summarize_value(value)
+        return summary
 
     @classmethod
     def _summarize_value(cls, value: Any) -> Any:

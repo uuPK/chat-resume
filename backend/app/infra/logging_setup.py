@@ -224,7 +224,7 @@ def _message_label(message: str, extra: dict[str, Any]) -> str:
         event_type = extra.get("event_type", "-")
         tool_name = extra.get("tool_name") or extra.get("tool_display_name") or "-"
         call_id = extra.get("call_id", "-")
-        client_request_id = extra.get("client_request_id", "-")
+        client_request_id = _short_identifier(extra.get("client_request_id", "-"), limit=8)
         has_result = extra.get("has_result", "-")
         return (
             "sse.tool_event sent "

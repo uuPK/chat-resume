@@ -230,6 +230,43 @@ def test_failed_tool_preview_logs_warning(
     assert getattr(preview_record, "result_success") is False
 
 
+def test_tool_requested_trace_summarizes_large_text_input(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """用于验证工具请求日志只记录可读摘要而不是完整文本。"""
+    agent = ResumeAgent()
+    long_text = "基于 LlamaIndex 构建文档索引与向量存储层，支撑 RAG 检索。" * 8
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        agent.runtime._trace_tool_requested(
+            agent.definition,
+            "run_test",
+            "call_requested",
+            "add_bullet",
+            {
+                "item_id": "proj_1",
+                "reason": "补充 JD 要求的 LlamaIndex 技术栈，强化 RAG 向量检索能力",
+                "section": "projects",
+                "text": long_text,
+            },
+            True,
+        )
+
+    requested_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "agent.trace.tool.requested"
+    )
+    tool_input = getattr(requested_record, "tool_input")
+    assert tool_input["item_id"] == "proj_1"
+    assert tool_input["section"] == "projects"
+    assert tool_input["text_chars"] == len(long_text)
+    assert tool_input["text_preview"].startswith("基于 LlamaIndex")
+    assert "text" not in tool_input
+
+
 def test_convert_resume_messages_filters_internal_only_messages():
     """用于验证 convert_to_llm 不会把 UI 或内部事件送进模型。"""
     user = UserMessage(content=[TextContent(text="用户问题")])

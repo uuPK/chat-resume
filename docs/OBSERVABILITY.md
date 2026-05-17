@@ -74,7 +74,7 @@ rg "resume_agent.run.summary|openrouter.stream" backend/logs/backend.log
 ### 工具状态显示不对
 
 ```bash
-rg "resume_agent.sse.tool_event.sent|agent.trace.tool|client=<ID>|client_request_id.*<ID>" backend/logs/backend.log
+rg "sse.tool_event sent|agent.trace.tool|client=<ID>|client_request_id.*<ID>" backend/logs/backend.log
 ```
 
 重点字段：
@@ -88,7 +88,7 @@ rg "resume_agent.sse.tool_event.sent|agent.trace.tool|client=<ID>|client_request
 - `has_result`
 - `diff_item_count`
 
-工具参数碎片日志 `openrouter.stream.tool_delta` 默认只在 `DEBUG` 级别输出。日常排障先看 `first_tool_delta`、`tool_args_complete`、`tool_call_emitted` 和 `agent.trace.tool.preview_failed`。
+工具参数碎片日志 `openrouter.stream.tool_delta` 默认只在 `DEBUG` 级别输出。日常排障先看 `first_tool_delta`、`tool_args_complete`、`tool_call_emitted` 和 `agent.trace.tool.preview_failed`。`agent.trace.tool.requested` 默认只记录工具入参摘要，例如 `section`、`item_id`、`text_chars` 和 `text_preview`。
 
 前端详细工具事件日志默认关闭。需要临时打开时设置：
 
