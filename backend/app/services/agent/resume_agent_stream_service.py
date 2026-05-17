@@ -16,6 +16,7 @@ from app.agents.resume.agent import ResumeAgent
 from app.infra.request_context import log_context
 from app.runtime.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
+from app.services.agent.job_match_summary import build_job_match_summary
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore
 from app.types.stream import (
@@ -92,6 +93,8 @@ class ResumeAgentStreamService:
                     request.visible_modules,
                 )
                 original_resume = deepcopy(resume_dict)
+                confirmed_diff_items: list[dict[str, Any]] = []
+                needs_final_job_match_summary = False
                 conversation_history = (
                     []
                     if self._should_ignore_history_for_request(request.message)
@@ -128,6 +131,14 @@ class ResumeAgentStreamService:
                     resume_content = event.get("resume_content")
                     if isinstance(resume_content, dict):
                         latest_resume_content = resume_content
+                    if event.get("tool_confirmed"):
+                        confirmed_diff_items.extend(self._event_diff_items(event))
+                        needs_final_job_match_summary = True
+                    elif (
+                        needs_final_job_match_summary
+                        and self._event_has_job_match_summary(event)
+                    ):
+                        needs_final_job_match_summary = False
                     content = event.get("content")
                     if content:
                         final_content_parts.append(content)
@@ -144,11 +155,18 @@ class ResumeAgentStreamService:
                     original_resume=original_resume,
                 )
                 logger.debug("Resume agent stream completed")
+                final_job_match_summary = self._build_final_job_match_summary(
+                    original_resume=original_resume,
+                    latest_resume_content=latest_resume_content,
+                    confirmed_diff_items=confirmed_diff_items,
+                    enabled=needs_final_job_match_summary,
+                )
                 yield self._record_stream_event(
                     store,
                     session_id=session_id,
                     event=stream_done_event(
                         resume_content=latest_resume_content,
+                        job_match_summary=final_job_match_summary,
                     ),
                 )
             except HTTPException as exc:
@@ -343,6 +361,39 @@ class ResumeAgentStreamService:
         if latest_resume_content is None or latest_resume_content == original_resume:
             return
         resume_service.update(resume_id, {"content": latest_resume_content})
+
+    @staticmethod
+    def _event_diff_items(event: ResumeStreamEvent) -> list[dict[str, Any]]:
+        """用于从确认事件中提取已确认 diff，供最终 JD 趋势摘要复用。"""
+        diff_items = event.get("diff_items")
+        if not isinstance(diff_items, list):
+            return []
+        return [item for item in diff_items if isinstance(item, dict)]
+
+    @staticmethod
+    def _event_has_job_match_summary(event: ResumeStreamEvent) -> bool:
+        """用于判断本轮确认修改后是否已经产生过新的岗位匹配摘要。"""
+        result = event.get("result")
+        return isinstance(result, dict) and isinstance(result.get("job_match_summary"), dict)
+
+    @staticmethod
+    def _build_final_job_match_summary(
+        *,
+        original_resume: dict[str, Any],
+        latest_resume_content: dict[str, Any] | None,
+        confirmed_diff_items: list[dict[str, Any]],
+        enabled: bool,
+    ):
+        """用于在确认改动后基于最新简历生成本轮结束时的岗位匹配摘要。"""
+        if not enabled:
+            return None
+        if latest_resume_content is None or latest_resume_content == original_resume:
+            return None
+        return build_job_match_summary(
+            original_resume=original_resume,
+            latest_resume_content=latest_resume_content,
+            confirmed_diff_items=confirmed_diff_items,
+        )
 
     @staticmethod
     def _record_stream_event(

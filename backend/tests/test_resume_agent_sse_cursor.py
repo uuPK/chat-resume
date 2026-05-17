@@ -74,6 +74,16 @@ class FakeResumeAgentWithConfirmedChange:
             event_callback,
             user_id,
         )
+        updated_resume = {
+            **resume_content,
+            "work_experience": [
+                {
+                    "highlights": [
+                        {"text": "负责 Agent 后端服务，支撑高并发 API"}
+                    ]
+                }
+            ],
+        }
         yield {
             "tool_confirmed": True,
             "call_id": "call_summary",
@@ -83,7 +93,7 @@ class FakeResumeAgentWithConfirmedChange:
                     "reason": "补充岗位关键词",
                 }
             ],
-            "resume_content": resume_content,
+            "resume_content": updated_resume,
         }
 
 
@@ -163,8 +173,8 @@ class ResumeAgentSseStreamServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stored[0].payload["session_id"], session_id)
         self.assertEqual(stored[1].payload["content"], "已开始优化")
 
-    async def test_done_event_does_not_auto_append_job_match_summary(self):
-        """用于验证普通回答完成时不会自动附带岗位匹配摘要卡片。"""
+    async def test_done_event_appends_job_match_summary_after_confirmed_change(self):
+        """用于验证确认改动完成时自动附带最新岗位匹配摘要。"""
         self.resume.content = {
             "job_application": {"jd_text": "要求 Agent、后端、API、高并发、Redis。"},
             "work_experience": [{"highlights": [{"text": "负责 Agent 后端服务"}]}],
@@ -186,7 +196,14 @@ class ResumeAgentSseStreamServiceTests(unittest.IsolatedAsyncioTestCase):
 
         done_event = events[-1]
         self.assertTrue(done_event["done"])
-        self.assertNotIn("job_match_summary", done_event)
+        self.assertIn("job_match_summary", done_event)
+        summary = done_event["job_match_summary"]
+        self.assertIn("API", summary["matched_keywords"])
+        self.assertIn("Redis", summary["missing_keywords"])
+        self.assertEqual(
+            summary["resume_changes"],
+            ["补充岗位关键词：负责 Agent 后端服务，支撑高并发 API"],
+        )
 
     def test_replay_stream_events_returns_payloads_after_cursor(self):
         """用于验证服务可按cursor回放公开stream事件。"""
