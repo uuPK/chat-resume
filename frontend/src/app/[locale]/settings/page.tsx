@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { billingApi, type BillingStatus, type PayPalPlan } from '@/lib/api'
+import { apiFetch, handleApiResponse } from '@/lib/httpClient'
 import { useTranslations } from 'next-intl'
 
 // 用于格式化套餐卡片价格。
@@ -138,20 +139,15 @@ export default function SettingsPage() {
     }
     setIsLoading(true)
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`,
-        {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full_name: userSettings.fullName.trim() })
-        }
+      const response = await apiFetch('/api/auth/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: userSettings.fullName.trim() })
+      })
+      const updatedUser = await handleApiResponse<{ full_name?: string; email?: string }>(
+        response,
+        t('settings.saveFallback')
       )
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || t('settings.saveFallback'))
-      }
-      const updatedUser = await response.json()
       setUserSettings({ fullName: updatedUser.full_name || '', email: updatedUser.email || '' })
       updateUser(updatedUser)
       toast.success(t('settings.saveSuccess'))
@@ -174,22 +170,15 @@ export default function SettingsPage() {
     }
     setIsPasswordSaving(true)
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/change-password`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            current_password: passwordSettings.currentPassword,
-            new_password: passwordSettings.newPassword,
-          })
-        }
-      )
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || t('settings.passwordSaveFallback'))
-      }
+      const response = await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: passwordSettings.currentPassword,
+          new_password: passwordSettings.newPassword,
+        })
+      })
+      await handleApiResponse(response, t('settings.passwordSaveFallback'))
       setPasswordSettings({ currentPassword: '', newPassword: '', confirmPassword: '' })
       toast.success(t('settings.passwordSaveSuccess'))
     } catch (error) {

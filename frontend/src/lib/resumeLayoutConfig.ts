@@ -5,6 +5,7 @@
  */
 
 import type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
+import { apiUrl } from '@/lib/httpClient'
 
 export type { ModuleConfig, ResumeModule, ResumeTemplateStyle } from '@/types/resumeLayout'
 
@@ -94,7 +95,6 @@ export const DEFAULT_LAYOUT_CONFIG: ResumeLayoutConfig = {
   templateStyle: 'classic',
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 /**
  * 将服务端返回的 layout_config 原始对象转换为 ResumeLayoutConfig
@@ -168,7 +168,7 @@ export async function saveLayoutConfigToServer(resumeId: number, config: ResumeL
   // 同步更新本地缓存
   saveLayoutConfig(resumeId, config)
 
-  await fetch(`${API_BASE_URL}/api/resumes/${resumeId}/layout`, {
+  await fetch(apiUrl(`/api/resumes/${resumeId}/layout`), {
     method: 'PUT',
     credentials: 'include',
     headers: {
