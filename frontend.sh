@@ -10,6 +10,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 FRONTEND_LOG_FILE="${FRONTEND_LOG_FILE:-${ROOT_DIR}/frontend.log}"
+FRONTEND_URL="http://localhost:${FRONTEND_PORT}"
+FRONTEND_AUTO_OPEN="${FRONTEND_AUTO_OPEN:-1}"
 export FORCE_COLOR="${FORCE_COLOR:-1}"
 
 echo "🚀 重启 Chat Resume 前端服务..."
@@ -65,6 +67,45 @@ stop_port() {
     fi
 }
 
+# 打开前端页面，优先使用 macOS open，兼容 Linux 桌面环境。
+open_frontend_url() {
+    local url="$1"
+
+    if command -v open &> /dev/null; then
+        open "${url}"
+        return
+    fi
+
+    if command -v xdg-open &> /dev/null; then
+        xdg-open "${url}"
+        return
+    fi
+
+    return 1
+}
+
+# 等待开发服务器可访问后自动打开浏览器。
+open_frontend_when_ready() {
+    local url="$1"
+
+    if [ "${FRONTEND_AUTO_OPEN}" != "1" ]; then
+        return
+    fi
+
+    (
+        for _ in {1..60}; do
+            if curl -fsS --max-time 1 "${url}" > /dev/null 2>&1; then
+                echo "🌐 在浏览器中打开 ${url}"
+                open_frontend_url "${url}" > /dev/null 2>&1 || echo "⚠️ 无法自动打开浏览器，请手动访问 ${url}"
+                return
+            fi
+            sleep 0.5
+        done
+
+        echo "⚠️ 前端服务启动后未能自动确认可访问，请手动访问 ${url}"
+    ) &
+}
+
 filter_terminal_logs() {
     if [ "${FRONTEND_TERMINAL_VERBOSE:-0}" = "1" ]; then
         cat
@@ -104,7 +145,7 @@ write_plain_log_and_stdout() {
 }
 
 # 检查是否已安装依赖
-if [ ! -d "node_modules" ]; then
+if [ ! -d "node_modules" ] || [ ! -x "node_modules/.bin/next" ]; then
     echo "📦 安装依赖包..."
     npm install
 fi
@@ -116,12 +157,15 @@ mkdir -p "$(dirname "${FRONTEND_LOG_FILE}")"
 : > "${FRONTEND_LOG_FILE}"
 
 echo "🌟 启动前端开发服务器..."
-echo "前端将在 http://localhost:${FRONTEND_PORT} 运行"
+echo "前端将在 ${FRONTEND_URL} 运行"
 echo "日志文件: ${FRONTEND_LOG_FILE}"
 echo "终端彩色输出；日志文件保持无色纯文本。"
 echo "终端会显示 Ready 和 Compiled 热更新完成提示；如需原始日志，设置 FRONTEND_TERMINAL_VERBOSE=1。"
+echo "启动后会自动打开浏览器；如需关闭，设置 FRONTEND_AUTO_OPEN=0。"
 echo "按 Ctrl+C 停止服务"
 echo ""
+
+open_frontend_when_ready "${FRONTEND_URL}"
 
 npm run dev -- --port "${FRONTEND_PORT}" 2>&1 \
     | write_plain_log_and_stdout \
