@@ -58,7 +58,6 @@ function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
   const missingCount = summary.missing_keywords.length
   const total = matchedCount + missingCount
   const matchPct = total > 0 ? Math.round((matchedCount / total) * 100) : null
-  const topGaps = summary.top_gaps || []
 
   return (
     <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs shadow-sm">
@@ -80,46 +79,6 @@ function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
       <div className="mb-2 border-t border-gray-100" />
 
       <div className="space-y-2">
-        {topGaps.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-gray-900">优先补强</span>
-              <span className="text-[10px] font-medium text-gray-500">Top {topGaps.length}</span>
-            </div>
-            {topGaps.map((gap, index) => (
-              <div key={`${gap.gap}-${index}`} className="rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-2">
-                <div className="flex items-start gap-2">
-                  <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-semibold text-gray-900">{gap.gap}</span>
-                      <span className="rounded-full border border-blue-200 bg-white px-1.5 py-0.5 text-[10px] text-blue-700">
-                        {formatTopGapRisk(gap.risk)}
-                      </span>
-                    </div>
-                    {gap.priority_reason && (
-                      <p className="mt-1 leading-relaxed text-gray-600">{gap.priority_reason}</p>
-                    )}
-                    {gap.resume_anchor && (
-                      <p className="mt-1 leading-relaxed text-gray-600">建议位置：{gap.resume_anchor}</p>
-                    )}
-                    {gap.suggested_edit && (
-                      <p className="mt-1 leading-relaxed text-gray-800">{gap.suggested_edit}</p>
-                    )}
-                    {gap.jd_evidence.length > 0 && (
-                      <p className="mt-1 line-clamp-2 leading-relaxed text-gray-500">
-                        JD 证据：{gap.jd_evidence.join(' / ')}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* 缺失关键词 — rose 红色系，明确传递"需关注" */}
         {missingCount > 0 && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
@@ -150,13 +109,6 @@ function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
       </div>
     </div>
   )
-}
-
-function formatTopGapRisk(risk: string) {
-  if (risk === 'can_improve') return '可直接补强'
-  if (risk === 'needs_user_confirmation') return '需要确认'
-  if (risk === 'insufficient_evidence') return '缺少证据'
-  return risk || '待判断'
 }
 
 interface ResumeSelectionAction {
