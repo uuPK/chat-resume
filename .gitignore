@@ -114,6 +114,8 @@ example/
 .hermes-sandbox/
 .vercel
 .gc/
+.dolt/
+.beads-credential-key
 .beads/*
 !.beads/issues.jsonl
 
