@@ -186,7 +186,7 @@ async def test_openrouter_stream_logs_latency_stages(caplog: pytest.LogCaptureFi
     ]
     _FakeOpenRouterClient.delay_seconds = 0.0
 
-    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+    with caplog.at_level(logging.DEBUG, logger="app.runtime.pi_agent_openrouter"), patch(
         "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
         _FakeOpenRouterClient,
     ):
@@ -223,25 +223,38 @@ async def test_openrouter_stream_logs_first_tool_delta(
     ]
     _FakeOpenRouterClient.delay_seconds = 0.0
 
-    with caplog.at_level(logging.INFO, logger="app.runtime.pi_agent_openrouter"), patch(
+    with caplog.at_level(logging.DEBUG, logger="app.runtime.pi_agent_openrouter"), patch(
         "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
         _FakeOpenRouterClient,
     ):
         await _pump_openrouter_stream(model, context, options, partial, queue)
 
+    info_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.INFO
+    ]
+    assert "openrouter.stream.tool_delta" not in info_messages
+    delta_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "openrouter.stream.tool_delta"
+    )
+    assert delta_record.levelno == logging.DEBUG
+    assert getattr(delta_record, "arg_delta_chars") == 2
     tool_record = next(
         record
         for record in caplog.records
         if record.getMessage() == "openrouter.stream.first_tool_delta"
     )
     assert getattr(tool_record, "tool_names") == ["update_bullet"]
-    delta_record = next(
+    complete_record = next(
         record
         for record in caplog.records
-        if record.getMessage() == "openrouter.stream.tool_delta"
+        if record.getMessage() == "openrouter.stream.tool_args_complete"
     )
-    assert getattr(delta_record, "arg_delta_chars") == 2
-    assert getattr(delta_record, "tool_buffers") == [
+    assert getattr(complete_record, "tool_count") == 1
+    assert getattr(complete_record, "tool_buffers") == [
         {
             "index": 0,
             "id_chars": 6,

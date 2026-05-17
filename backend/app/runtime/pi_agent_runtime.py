@@ -1469,8 +1469,15 @@ class PiAgentRuntime:
         """用于处理追踪工具preview。"""
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
+        result_success = self._tool_success(preview_result)
+        message = (
+            "agent.trace.tool.preview_failed"
+            if result_success is False
+            else "agent.trace.tool.preview"
+        )
         self._trace(
-            "agent.trace.tool.preview",
+            message,
+            log_level=logging.WARNING if result_success is False else logging.INFO,
             run_id=run_id,
             agent_name=agent.prompt_spec.name,
             call_id=call_id,
@@ -1478,7 +1485,7 @@ class PiAgentRuntime:
             tool_display_name=preview_result["tool_name"],
             diff_summary=self._preview_text(preview_result.get("display_message")),
             diff_item_count=len(diff_items),
-            result_success=self._tool_success(preview_result),
+            result_success=result_success,
         )
 
     def _trace_tool_confirmation(
@@ -1694,7 +1701,8 @@ class PiAgentRuntime:
         """用于处理追踪。"""
         if not settings.AGENT_TRACE_LOG_ENABLED:
             return
-        logger.info(message, extra={"agent_trace": True, **fields})
+        level = int(fields.pop("log_level", logging.INFO))
+        logger.log(level, message, extra={"agent_trace": True, **fields})
 
     @staticmethod
     def _trace_chunk(message: str, **fields: Any) -> None:

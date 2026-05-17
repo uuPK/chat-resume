@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -196,6 +197,37 @@ def test_allowed_tool_call_uses_normal_detection_trace(
     messages = [record.getMessage() for record in caplog.records]
     assert "agent.trace.reasoning.unexpected_tool_call" not in messages
     assert messages.count("agent.trace.reasoning.tool_call_detected") == 2
+
+
+def test_failed_tool_preview_logs_warning(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """用于验证工具预览失败在日志里更醒目。"""
+    agent = ResumeAgent()
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        agent.runtime._trace_tool_preview(
+            agent.definition,
+            "run_test",
+            "call_preview",
+            "update_bullet",
+            {
+                "tool_name": "优化要点",
+                "display_message": "update_bullet 缺少必填参数: section",
+                "result": {"success": False, "error": "missing section"},
+            },
+        )
+
+    preview_record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "agent.trace.tool.preview_failed"
+    )
+    assert preview_record.levelno == logging.WARNING
+    assert getattr(preview_record, "tool_name") == "update_bullet"
+    assert getattr(preview_record, "result_success") is False
 
 
 def test_convert_resume_messages_filters_internal_only_messages():

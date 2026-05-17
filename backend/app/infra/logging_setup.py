@@ -220,6 +220,17 @@ def _message_label(message: str, extra: dict[str, Any]) -> str:
     if message == "request.failed":
         client_request_id = extra.get("client_request_id", "-")
         return f"request.failed client={client_request_id}"
+    if message == "resume_agent.sse.tool_event.sent":
+        event_type = extra.get("event_type", "-")
+        tool_name = extra.get("tool_name") or extra.get("tool_display_name") or "-"
+        call_id = extra.get("call_id", "-")
+        client_request_id = extra.get("client_request_id", "-")
+        has_result = extra.get("has_result", "-")
+        return (
+            "sse.tool_event sent "
+            f"event={event_type} tool={tool_name} call={call_id} "
+            f"client={client_request_id} result={has_result}"
+        )
     return message
 
 
@@ -248,6 +259,7 @@ def _agent_trace_suffix(extra: dict[str, Any]) -> str:
     if not trace_fields:
         return ""
     ordered_keys = [
+        "client_request_id",
         "run_id",
         "agent_name",
         "mode",

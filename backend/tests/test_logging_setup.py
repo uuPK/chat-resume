@@ -53,3 +53,31 @@ def test_text_request_logs_include_client_request_id(tmp_path, monkeypatch):
 
     assert "request.finished POST /api/ai/chat/stream 500 1200.0ms" in file_output
     assert "client=ai_client_visible_123" in file_output
+
+
+def test_text_sse_tool_event_log_includes_core_fields(tmp_path, monkeypatch):
+    """用于验证 SSE 工具事件日志默认可读。"""
+    log_file = tmp_path / "backend.log"
+    monkeypatch.setattr(settings, "LOG_FORMAT", "text")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+    monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
+
+    logging_setup.configure_logging()
+    logging.getLogger("app.entrypoints.http.resume_agent").info(
+        "resume_agent.sse.tool_event.sent",
+        extra={
+            "event_type": "tool_call",
+            "tool_name": "update_bullet",
+            "call_id": "call_123456789",
+            "client_request_id": "ai_client_visible_123",
+            "has_result": False,
+        },
+    )
+
+    file_output = log_file.read_text(encoding="utf-8")
+
+    assert "sse.tool_event sent" in file_output
+    assert "event=tool_call" in file_output
+    assert "tool=update_bullet" in file_output
+    assert "call=call_123456789" in file_output
+    assert "client=ai_client_visible_123" in file_output

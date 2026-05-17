@@ -320,11 +320,12 @@ async def _pump_openrouter_stream(
         )
     if tool_buffers:
         _log_openrouter_stage(
-            "tool_buffers_final",
+            "tool_args_complete",
             started_at=started_at,
             model=model.id,
             finish_reason=progress.finish_reason,
             usage_output=getattr(partial.usage, "output", 0) if partial.usage else 0,
+            tool_count=len(tool_buffers),
             tool_buffers=_tool_buffer_summary(tool_buffers),
         )
     _emit_tool_calls(
@@ -496,6 +497,7 @@ def _record_chunk_application(
             tool_names=list(applied.tool_names),
             arg_delta_chars=applied.tool_arg_delta_chars,
             tool_buffers=_tool_buffer_summary(tool_buffers),
+            log_level=logging.DEBUG,
         )
 
 
@@ -554,7 +556,9 @@ def _elapsed_ms(started_at: float) -> float:
 
 def _log_openrouter_stage(stage: str, *, started_at: float, **fields: Any) -> None:
     """用于记录 OpenRouter 流式请求的阶段性耗时。"""
-    _logger.info(
+    level = int(fields.pop("log_level", logging.INFO))
+    _logger.log(
+        level,
         "openrouter.stream.%s",
         stage,
         extra={

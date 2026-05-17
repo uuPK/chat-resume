@@ -53,7 +53,7 @@ rg "<错误ID>" backend/logs/backend.log
 - `request.failed`：后端未处理异常。
 - `request.finished`：错误请求或慢请求的状态码、耗时和 DB 统计。
 - `resume_agent.run.summary`：本次 Agent run 的模型、工具次数、确认等待、总耗时和成功状态。
-- `openrouter.stream.*`：OpenRouter 慢在连接、首个 SSE、首个 token，还是流式输出阶段。
+- `openrouter.stream.*`：OpenRouter 慢在连接、首个 SSE、首个 token，还是工具参数完成阶段。
 
 ### AI 看起来卡住或很慢
 
@@ -87,6 +87,8 @@ rg "resume_agent.sse.tool_event.sent|agent.trace.tool|client=<ID>|client_request
 - `tool_rejected`
 - `has_result`
 - `diff_item_count`
+
+工具参数碎片日志 `openrouter.stream.tool_delta` 默认只在 `DEBUG` 级别输出。日常排障先看 `first_tool_delta`、`tool_args_complete`、`tool_call_emitted` 和 `agent.trace.tool.preview_failed`。
 
 前端详细工具事件日志默认关闭。需要临时打开时设置：
 
