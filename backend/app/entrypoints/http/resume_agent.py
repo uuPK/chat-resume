@@ -6,6 +6,7 @@
 
 import json
 import logging
+from time import perf_counter
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -14,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.entrypoints.http.deps import get_current_user
+from app.infra.config import settings
 from app.infra.database import get_db
 from app.infra.request_context import log_context
 from app.runtime.permissions import confirmation_manager
@@ -31,6 +33,31 @@ from app.types.stream import public_resume_stream_event
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def log_stream_phase(
+    phase: str,
+    *,
+    started_at: float,
+    stream_input: ResumeAgentStreamInput,
+    **fields,
+) -> None:
+    """用于按开关记录 Resume Agent SSE 阶段耗时。"""
+    if not settings.AGENT_TRACE_LOG_ENABLED:
+        return
+    logger.info(
+        "resume_agent.stream.%s",
+        phase,
+        extra={
+            "agent_trace": True,
+            "stream_phase": phase,
+            "elapsed_ms": round((perf_counter() - started_at) * 1000, 2),
+            "client_request_id": stream_input.client_request_id or "-",
+            "resume_id": stream_input.resume_id,
+            "user_id": stream_input.user_id,
+            **fields,
+        },
+    )
 
 
 def parse_sse_event_id(value: str | None) -> tuple[str, int] | None:
@@ -143,10 +170,48 @@ async def chat_with_resume_stream(
 
     async def generate_stream():
         """用于生成简历 Agent 的流式响应。"""
+        stream_started_at = perf_counter()
+        first_public_sse_sent = False
+        first_content_sent = False
+        log_stream_phase(
+            "stream_start",
+            started_at=stream_started_at,
+            stream_input=stream_input,
+            message_chars=len(stream_input.message or ""),
+            visible_module_count=len(stream_input.visible_modules),
+        )
         async for event in stream_service.stream_events(stream_input):
             payload = public_resume_stream_event(event)
             event_id = payload.get("event_id")
             event_type = payload.get("event_type")
+            if not first_public_sse_sent:
+                first_public_sse_sent = True
+                log_stream_phase(
+                    "first_public_sse_sent",
+                    started_at=stream_started_at,
+                    stream_input=stream_input,
+                    event_type=event_type or "-",
+                    event_id=event_id or "-",
+                )
+            if payload.get("content") and not first_content_sent:
+                first_content_sent = True
+                log_stream_phase(
+                    "first_content_sent",
+                    started_at=stream_started_at,
+                    stream_input=stream_input,
+                    event_type=event_type or "-",
+                    event_id=event_id or "-",
+                    content_chars=len(str(payload.get("content") or "")),
+                )
+            if payload.get("done"):
+                log_stream_phase(
+                    "stream_done",
+                    started_at=stream_started_at,
+                    stream_input=stream_input,
+                    event_type=event_type or "-",
+                    event_id=event_id or "-",
+                    had_content=first_content_sent,
+                )
             if event_type in {
                 "tool_call",
                 "tool_pending",

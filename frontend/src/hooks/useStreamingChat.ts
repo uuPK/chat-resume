@@ -184,6 +184,21 @@ function formatStreamError(message: string, clientRequestId: string): string {
   return `${message} (错误ID: ${shortClientRequestId(clientRequestId)})`
 }
 
+// 用于记录流式请求关键阶段耗时，默认关闭。
+function logStreamPhase(
+  phase: string,
+  startedAt: number,
+  clientRequestId: string,
+  payload: Record<string, unknown> = {},
+) {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  debugStreamLog(`[useStreamingChat] phase.${phase}`, {
+    clientRequestId,
+    elapsedMs: Math.round((now - startedAt) * 100) / 100,
+    ...payload,
+  })
+}
+
 // 用于标准化工具名称。
 function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
@@ -259,6 +274,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     // 创建中止控制器
     abortControllerRef.current = new AbortController()
     const clientRequestId = createClientRequestId()
+    const streamStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
     try {
       // 转换聊天记录格式为后端需要的 OpenAI 格式
@@ -271,82 +287,93 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       let streamingContent = ''
       let eventsBuffer: StreamEvent[] = []
       let pendingSseEventId: string | null = null
+      let firstSseReceivedLogged = false
+      let firstContentRenderedLogged = false
 
       while (true) {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Client-Request-ID': clientRequestId,
-      }
-      if (lastEventIdRef.current) {
-        headers['Last-Event-ID'] = lastEventIdRef.current
-      }
-
-      const response = await fetch(apiUrl('/api/ai/chat/stream', apiBaseUrl), {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify({
-          message,
-          resume_id: resumeId,
-          chat_history: historyToSend,
-          visible_modules: visibleModules,
-          agent_type: agentType,
-        }),
-        signal: abortControllerRef.current.signal
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error(t('authExpired'))
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Client-Request-ID': clientRequestId,
         }
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
+        if (lastEventIdRef.current) {
+          headers['Last-Event-ID'] = lastEventIdRef.current
+        }
 
-      if (!response.body) {
-        throw new Error('Response body is null')
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      // 用于处理complete工具callevent。
-      const completeToolCallEvent = (
-        callId: string,
-        toolName: string,
-        displayMessage?: string,
-      ) => {
-        debugStreamLog('[useStreamingChat] completeToolCallEvent before', {
-          callId,
-          toolName,
-          displayMessage,
-          events: summarizeToolEvents(eventsBuffer),
+        logStreamPhase('fetch_start', streamStartedAt, clientRequestId, {
+          replay: replayAttempted,
+          hasLastEventId: Boolean(lastEventIdRef.current),
         })
-        let updated = false
-        eventsBuffer = eventsBuffer.map((event) => {
-          if (event.type === 'tool_call' && event.callId === callId) {
-            updated = true
-            return {
-              type: 'tool_result' as const,
-              callId,
-              toolName: event.toolName || toolName,
-              displayMessage,
-            }
+        const response = await fetch(apiUrl('/api/ai/chat/stream', apiBaseUrl), {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({
+            message,
+            resume_id: resumeId,
+            chat_history: historyToSend,
+            visible_modules: visibleModules,
+            agent_type: agentType,
+          }),
+          signal: abortControllerRef.current.signal
+        })
+        logStreamPhase('headers_received', streamStartedAt, clientRequestId, {
+          replay: replayAttempted,
+          status: response.status,
+          ok: response.ok,
+        })
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error(t('authExpired'))
           }
-          return event
-        })
-        if (!updated && !eventsBuffer.some((event) => event.type === 'tool_result' && event.callId === callId)) {
-          eventsBuffer = [...eventsBuffer, {
-            type: 'tool_result',
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        if (!response.body) {
+          throw new Error('Response body is null')
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        // 用于处理complete工具callevent。
+        const completeToolCallEvent = (
+          callId: string,
+          toolName: string,
+          displayMessage?: string,
+        ) => {
+          debugStreamLog('[useStreamingChat] completeToolCallEvent before', {
             callId,
             toolName,
             displayMessage,
-          }]
+            events: summarizeToolEvents(eventsBuffer),
+          })
+          let updated = false
+          eventsBuffer = eventsBuffer.map((event) => {
+            if (event.type === 'tool_call' && event.callId === callId) {
+              updated = true
+              return {
+                type: 'tool_result' as const,
+                callId,
+                toolName: event.toolName || toolName,
+                displayMessage,
+              }
+            }
+            return event
+          })
+          if (!updated && !eventsBuffer.some((event) => event.type === 'tool_result' && event.callId === callId)) {
+            eventsBuffer = [...eventsBuffer, {
+              type: 'tool_result',
+              callId,
+              toolName,
+              displayMessage,
+            }]
+          }
+          debugStreamLog('[useStreamingChat] completeToolCallEvent after', {
+            callId,
+            updatedToolCall: updated,
+            events: summarizeToolEvents(eventsBuffer),
+          })
         }
-        debugStreamLog('[useStreamingChat] completeToolCallEvent after', {
-          callId,
-          updatedToolCall: updated,
-          events: summarizeToolEvents(eventsBuffer),
-        })
-      }
 
       try {
         while (true) {
@@ -369,6 +396,15 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
+                if (!firstSseReceivedLogged) {
+                  firstSseReceivedLogged = true
+                  logStreamPhase('first_sse_received', streamStartedAt, clientRequestId, {
+                    replay: replayAttempted,
+                    eventType: typeof data.event_type === 'string' ? data.event_type : '',
+                    hasContent: Boolean(data.content),
+                    done: Boolean(data.done),
+                  })
+                }
                 if (pendingSseEventId) {
                   lastEventIdRef.current = pendingSseEventId
                   pendingSseEventId = null
@@ -403,6 +439,11 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 }
 
                 if (data.done) {
+                  logStreamPhase('done_received', streamStartedAt, clientRequestId, {
+                    eventType: typeof data.event_type === 'string' ? data.event_type : '',
+                    hadContent: Boolean(streamingContent),
+                    streamEventCount: eventsBuffer.length,
+                  })
                   // done 事件携带最终 resume_content 用于刷新预览
                   if (data.resume_content) {
                     debugStreamLog('[useStreamingChat] done 事件收到 resume_content', {
@@ -596,6 +637,15 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     eventsBuffer = [...eventsBuffer, { type: 'text', content: data.content }]
                   }
                   setStreamEvents([...eventsBuffer])
+                  if (!firstContentRenderedLogged) {
+                    firstContentRenderedLogged = true
+                    window.requestAnimationFrame(() => {
+                      logStreamPhase('first_content_rendered', streamStartedAt, clientRequestId, {
+                        contentChars: String(data.content).length,
+                        streamEventCount: eventsBuffer.length,
+                      })
+                    })
+                  }
                 }
               } catch {
                 console.warn('Failed to parse SSE data:', line)
