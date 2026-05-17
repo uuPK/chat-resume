@@ -3,8 +3,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import createIntlProxy from 'next-intl/middleware'
 import { isAppLocale, routing } from './i18n/routing'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { apiUrl } from '@/lib/httpClient'
 const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes']
 const PUBLIC_PATHS = new Set(['/login', '/register', '/', '/resume/print'])
 const intlProxy = createIntlProxy(routing)
@@ -12,7 +11,7 @@ const intlProxy = createIntlProxy(routing)
 // 这里通过后端 /auth/me 校验 token 真伪，避免只凭 cookie 存在就放行受保护页面。
 async function hasValidSession(accessToken: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    const response = await fetch(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
     })
