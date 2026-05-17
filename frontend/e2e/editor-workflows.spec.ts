@@ -199,6 +199,19 @@ async function installResumeAgentMock(page: Page) {
             pushEvent({ content: '我建议先强化项目结果表达。', done: false })
             await sleep(50)
             pushEvent({
+              event_type: 'tool_call',
+              tool_call_started: true,
+              call_id: 'call_e2e',
+              tool_id: 'update_bullet',
+              tool_name: '优化项目经历',
+              tool_display_name: '优化项目经历',
+              tool_input: { section: 'projects', item_id: 'proj_1' },
+              display_message: '正在调用 update_bullet',
+              done: false,
+            })
+            await sleep(50)
+            pushEvent({
+              event_type: 'tool_pending',
               tool_pending: true,
               call_id: 'call_e2e',
               tool_name: '优化项目经历',
@@ -883,7 +896,9 @@ test.describe('编辑页工作流', () => {
     await input.fill('请帮我优化项目经历')
     await input.press('Enter')
 
-    await expect(page.getByText('优化项目经历')).toBeVisible()
+    await expect(page.getByText('我建议先强化项目结果表达。')).toBeVisible()
+    await expect(page.getByText('工具运行中')).toBeVisible()
+    await expect(page.locator('span').filter({ hasText: /^优化项目经历$/ }).first()).toBeVisible()
     await expect(page.getByText('主导前端重构，首屏加载提速 35%')).toBeVisible()
     await page.getByRole('button', { name: '确认修改' }).click()
 

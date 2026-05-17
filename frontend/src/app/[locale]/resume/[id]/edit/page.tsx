@@ -20,6 +20,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline'
 import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
+import { AgentToolActivity } from '@/components/editor/AgentToolActivity'
 import { DiffGroupCards } from '@/components/editor/DiffReviewCard'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
@@ -37,30 +38,6 @@ import { useResumeEditor } from '@/hooks/useResumeEditor'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import toast from 'react-hot-toast'
-
-// 用于渲染 ToolActivityRow 组件。
-function ToolActivityRow({
-  event,
-  live = false,
-}: {
-  event: Extract<StreamEvent, { type: 'tool_call' | 'tool_result' }>
-  live?: boolean
-}) {
-  const isResult = event.type === 'tool_result'
-  const actionText = isResult || !live ? 'Ran' : 'Running'
-
-  return (
-    <div className="mb-2 flex items-center gap-2 px-1 py-1 text-sm">
-      <span
-        className={`h-2 w-2 flex-shrink-0 rounded-full ${
-          isResult || !live ? 'bg-[#0a0b0d]' : 'bg-[#0a0b0d] animate-pulse'
-        }`}
-      />
-      <span className="font-semibold text-[#0a0b0d]">{actionText}</span>
-      <code className="min-w-0 truncate font-mono text-[#3f4654]">{event.toolName}</code>
-    </div>
-  )
-}
 
 // 用于压缩编辑页工具事件渲染状态。
 function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
@@ -1015,7 +992,7 @@ export default function ResumeEditPage() {
                                   )
                                 }
                                 if (event.type === 'tool_call' || event.type === 'tool_result') {
-                                  return <ToolActivityRow key={idx} event={event} />
+                                  return <AgentToolActivity key={idx} event={event} />
                                 }
                                 if (event.type === 'job_match_summary') {
                                   return <JobMatchSummaryCard key={idx} summary={event.summary} />
@@ -1115,7 +1092,7 @@ export default function ResumeEditPage() {
                             )
                           }
                           if (event.type === 'tool_call' || event.type === 'tool_result') {
-                            return <ToolActivityRow key={idx} event={event} live />
+                            return <AgentToolActivity key={idx} event={event} live />
                           }
                           if (event.type === 'job_match_summary') {
                             return <JobMatchSummaryCard key={idx} summary={event.summary} />

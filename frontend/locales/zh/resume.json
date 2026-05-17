@@ -68,6 +68,8 @@
     "clearSuccess": "已清空消息记录",
     "clearError": "清空消息失败",
     "toolCall": "工具调用",
+    "toolRunning": "工具运行中",
+    "toolResult": "工具已完成",
     "agentErrorPrefix": "抱歉，发生了错误："
   },
   "sections": {

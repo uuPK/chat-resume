@@ -1083,11 +1083,12 @@ class PiAgentRuntime:
         needs_confirmation: bool,
     ) -> None:
         """用于发布工具结果。"""
+        tool_display_name = str(tool_result.get("tool_name") or tool_name)
         if self._is_tool_failure(tool_result):
             event = tool_call_failed_event(
                 call_id=call_id,
                 tool_id=tool_name,
-                tool_display_name=tool_result["tool_name"],
+                tool_display_name=tool_display_name,
                 tool_calls=executed_tools,
                 result=result,
                 display_message=display_message,
@@ -1096,7 +1097,7 @@ class PiAgentRuntime:
             event = tool_confirmed_event(
                 call_id=call_id,
                 tool_id=tool_name,
-                tool_display_name=tool_result["tool_name"],
+                tool_display_name=tool_display_name,
                 tool_calls=executed_tools,
                 qr_images=[tool_result["qr_image"]] if tool_result.get("qr_image") else [],
                 result=result,
@@ -1109,7 +1110,7 @@ class PiAgentRuntime:
             event = tool_result_event(
                 call_id=call_id,
                 tool_id=tool_name,
-                tool_display_name=tool_result["tool_name"],
+                tool_display_name=tool_display_name,
                 tool_calls=executed_tools,
                 result=result,
                 display_message=display_message,

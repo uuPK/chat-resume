@@ -68,6 +68,8 @@
     "clearSuccess": "Messages cleared",
     "clearError": "Failed to clear messages",
     "toolCall": "Tool call",
+    "toolRunning": "Tool running",
+    "toolResult": "Tool result",
     "agentErrorPrefix": "Sorry, an error occurred: "
   },
   "sections": {
