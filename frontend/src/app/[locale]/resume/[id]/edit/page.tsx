@@ -540,10 +540,6 @@ export default function ResumeEditPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ResumeLayoutControls
-                config={layoutConfig}
-                onConfigChange={handleLayoutConfigChange}
-              />
               <button
                 onClick={handleStartInterview}
                 disabled={isCreatingInterview}
@@ -567,6 +563,10 @@ export default function ResumeEditPage() {
                   </>
                 )}
               </button>
+              <ResumeLayoutControls
+                config={layoutConfig}
+                onConfigChange={handleLayoutConfigChange}
+              />
               <button
                 onClick={handleSmartFitHeaderClick}
                 disabled={isSmartFitting}
