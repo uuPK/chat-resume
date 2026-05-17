@@ -86,9 +86,7 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "精准更新某个条目下单条 bullet 的文本。用于改写已有 bullet，"
                 "section 只能是 education、work_experience、projects；"
                 "item_id 和 bullet_id 必须来自当前简历 JSON。适合在原 bullet "
-                "已能承载岗位关键词或结果表达时使用。不能把 JD 缺口写成用户"
-                "未确认的经历；遇到 needs_user_confirmation 或 insufficient_evidence "
-                "缺口时，必须先等用户补充真实事实。"
+                "已能承载岗位关键词或结果表达时使用。"
             ),
             "parameters": {
                 "type": "object",
@@ -128,8 +126,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "向某个条目新增一条 bullet。section 只能是 education、"
                 "work_experience、projects；item_id 必须来自当前简历 JSON。"
                 "仅在已有 bullet 无法承载用户目标或 JD 关键词时使用，不要编造事实。"
-                "如果缺口风险是 needs_user_confirmation 或 insufficient_evidence，"
-                "必须先获得用户补充的真实事实，不能直接新增经历。"
             ),
             "parameters": {
                 "type": "object",

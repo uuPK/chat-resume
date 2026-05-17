@@ -31,7 +31,7 @@ import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import type { AtsKeywordCoverage, ChatMessage, JobMatchSummary, JobMatchTopGap, StreamEvent } from '@/hooks/useStreamingChat'
+import type { ChatMessage, JobMatchSummary, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
@@ -52,395 +52,12 @@ function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
     .map((event, index) => `${index}:${event.type}:${'callId' in event ? event.callId : 'none'}:${'toolName' in event ? event.toolName : ''}`)
 }
 
-type JobMatchMetrics = {
-  matchPct: number | null
-  matchedCount: number
-  missingCount: number
-}
-
-type JobMatchTrend = {
-  before: JobMatchMetrics
-  after: JobMatchMetrics
-}
-
-function getJobMatchMetrics(summary: JobMatchSummary): JobMatchMetrics {
+// 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
+function JobMatchSummaryCard({ summary }: { summary: JobMatchSummary }) {
   const matchedCount = summary.matched_keywords.length
   const missingCount = summary.missing_keywords.length
   const total = matchedCount + missingCount
-  return {
-    matchPct: total > 0 ? Math.round((matchedCount / total) * 100) : null,
-    matchedCount,
-    missingCount,
-  }
-}
-
-function findJobMatchTrend(events: StreamEvent[], summaryIndex: number): JobMatchTrend | null {
-  const current = events[summaryIndex]
-  if (current?.type !== 'job_match_summary') return null
-
-  let previousSummaryIndex = -1
-  for (let index = summaryIndex - 1; index >= 0; index -= 1) {
-    if (events[index].type === 'job_match_summary') {
-      previousSummaryIndex = index
-      break
-    }
-  }
-  if (previousSummaryIndex < 0) return null
-
-  const hasConfirmedChange = events
-    .slice(previousSummaryIndex + 1, summaryIndex)
-    .some((event) => event.type === 'tool_confirmed')
-  if (!hasConfirmedChange) return null
-
-  const previous = events[previousSummaryIndex]
-  if (previous.type !== 'job_match_summary') return null
-
-  return {
-    before: getJobMatchMetrics(previous.summary),
-    after: getJobMatchMetrics(current.summary),
-  }
-}
-
-function formatMetric(value: number | null, suffix = '') {
-  return value === null ? '-' : `${value}${suffix}`
-}
-
-function metricDeltaClass(delta: number, higherIsBetter = true) {
-  if (delta === 0) return 'text-gray-500'
-  const improved = higherIsBetter ? delta > 0 : delta < 0
-  return improved ? 'text-emerald-600' : 'text-rose-600'
-}
-
-function TrendMetric({
-  label,
-  before,
-  after,
-  suffix = '',
-  higherIsBetter = true,
-}: {
-  label: string
-  before: number | null
-  after: number | null
-  suffix?: string
-  higherIsBetter?: boolean
-}) {
-  const delta = before !== null && after !== null ? after - before : 0
-  return (
-    <div className="min-w-0 rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-2">
-      <div className="mb-1 text-[10px] font-semibold text-gray-500">{label}</div>
-      <div className="flex items-baseline gap-1.5 whitespace-nowrap text-xs text-gray-700">
-        <span>{formatMetric(before, suffix)}</span>
-        <span className="text-gray-300">→</span>
-        <span className="font-semibold text-gray-900">{formatMetric(after, suffix)}</span>
-      </div>
-      {before !== null && after !== null && (
-        <div className={`mt-0.5 text-[10px] font-medium ${metricDeltaClass(delta, higherIsBetter)}`}>
-          {delta === 0 ? '无变化' : `${delta > 0 ? '+' : ''}${delta}${suffix}`}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function JobMatchTrendCard({ trend }: { trend: JobMatchTrend }) {
-  return (
-    <div className="mb-3 rounded-2xl border border-emerald-100 bg-white px-3 py-2.5 text-xs shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-gray-900">本次优化趋势</span>
-        <span className="text-[10px] font-medium text-gray-500">确认修改后刷新</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <TrendMetric
-          label="匹配度"
-          before={trend.before.matchPct}
-          after={trend.after.matchPct}
-          suffix="%"
-        />
-        <TrendMetric
-          label="命中"
-          before={trend.before.matchedCount}
-          after={trend.after.matchedCount}
-        />
-        <TrendMetric
-          label="缺失"
-          before={trend.before.missingCount}
-          after={trend.after.missingCount}
-          higherIsBetter={false}
-        />
-      </div>
-    </div>
-  )
-}
-
-type AtsCoverageStatus = 'covered' | 'weak' | 'missing'
-
-const ATS_COVERAGE_COPY: Record<AtsCoverageStatus, {
-  label: string
-  className: string
-  sourcePrefix: string
-}> = {
-  covered: {
-    label: '已覆盖',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    sourcePrefix: '简历命中',
-  },
-  weak: {
-    label: '弱覆盖',
-    className: 'border-amber-200 bg-amber-50 text-amber-700',
-    sourcePrefix: '可补到',
-  },
-  missing: {
-    label: '未覆盖',
-    className: 'border-rose-200 bg-rose-50 text-rose-700',
-    sourcePrefix: 'JD 提到',
-  },
-}
-
-function getAtsStatus(status: string): AtsCoverageStatus {
-  if (status === 'covered' || status === 'weak' || status === 'missing') {
-    return status
-  }
-  return 'missing'
-}
-
-function groupAtsCoverage(items: AtsKeywordCoverage[]) {
-  return {
-    covered: items.filter((item) => getAtsStatus(item.status) === 'covered'),
-    weak: items.filter((item) => getAtsStatus(item.status) === 'weak'),
-    missing: items.filter((item) => getAtsStatus(item.status) === 'missing'),
-  }
-}
-
-function getAtsSourceText(item: AtsKeywordCoverage, status: AtsCoverageStatus) {
-  if (status === 'covered' || status === 'weak') {
-    return item.resume_anchor || '简历已有相关内容'
-  }
-  return item.jd_evidence[0] || '目标 JD'
-}
-
-function AtsCoverageChip({
-  item,
-  onRequestSuggestion,
-  suggestionDisabled,
-}: {
-  item: AtsKeywordCoverage
-  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
-  suggestionDisabled?: boolean
-}) {
-  const status = getAtsStatus(item.status)
-  const copy = ATS_COVERAGE_COPY[status]
-  const source = getAtsSourceText(item, status)
-  return (
-    <span
-      className={`group inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${copy.className}`}
-      title={`${copy.sourcePrefix}：${source}${item.action_hint ? `｜${item.action_hint}` : ''}`}
-    >
-      <span className="truncate">{item.keyword}</span>
-      {(status === 'weak' || status === 'missing') && (
-        <button
-          type="button"
-          disabled={suggestionDisabled}
-          onClick={() => onRequestSuggestion?.(item)}
-          className="rounded-full border border-current/20 px-1 text-[9px] leading-4 opacity-80 transition-opacity hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label={`为 ${item.keyword} 生成建议`}
-          title={`生成 ${item.keyword} 的补强建议`}
-        >
-          建议
-        </button>
-      )}
-    </span>
-  )
-}
-
-function AtsCoverageRow({
-  status,
-  items,
-  onRequestSuggestion,
-  suggestionDisabled,
-}: {
-  status: AtsCoverageStatus
-  items: AtsKeywordCoverage[]
-  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
-  suggestionDisabled?: boolean
-}) {
-  const copy = ATS_COVERAGE_COPY[status]
-  if (items.length === 0) return null
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5">
-      <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide text-gray-600">
-        {copy.label}
-      </span>
-      {items.map((item) => (
-        <AtsCoverageChip
-          key={`${status}-${item.keyword}`}
-          item={item}
-          onRequestSuggestion={onRequestSuggestion}
-          suggestionDisabled={suggestionDisabled}
-        />
-      ))}
-    </div>
-  )
-}
-
-function AtsKeywordCoveragePanel({
-  summary,
-  onRequestSuggestion,
-  suggestionDisabled,
-}: {
-  summary: JobMatchSummary
-  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
-  suggestionDisabled?: boolean
-}) {
-  if (summary.ats_keyword_coverage.length === 0) return null
-  const grouped = groupAtsCoverage(summary.ats_keyword_coverage)
-  return (
-    <div className="space-y-1.5 border-b border-gray-100 pb-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-gray-800">ATS 关键词覆盖</span>
-        <span className="text-[10px] text-gray-400">来自 JD / 简历命中</span>
-      </div>
-      <AtsCoverageRow status="covered" items={grouped.covered} />
-      <AtsCoverageRow
-        status="weak"
-        items={grouped.weak}
-        onRequestSuggestion={onRequestSuggestion}
-        suggestionDisabled={suggestionDisabled}
-      />
-      <AtsCoverageRow
-        status="missing"
-        items={grouped.missing}
-        onRequestSuggestion={onRequestSuggestion}
-        suggestionDisabled={suggestionDisabled}
-      />
-    </div>
-  )
-}
-
-function findFactCollectionGap(summary: JobMatchSummary): JobMatchTopGap | null {
-  return summary.top_gaps.find((gap) => (
-    gap.risk === 'needs_user_confirmation' || gap.risk === 'insufficient_evidence'
-  )) || null
-}
-
-function FactCollectionForm({
-  gap,
-  disabled,
-  onSubmit,
-}: {
-  gap: JobMatchTopGap
-  disabled: boolean
-  onSubmit: (message: string) => void
-}) {
-  const [hasExperience, setHasExperience] = useState<'yes' | 'no' | 'unsure'>('unsure')
-  const [tools, setTools] = useState('')
-  const [result, setResult] = useState('')
-  const [scope, setScope] = useState('')
-  const canSubmit = !disabled && (
-    hasExperience === 'no' ||
-    tools.trim().length > 0 ||
-    result.trim().length > 0 ||
-    scope.trim().length > 0
-  )
-
-  const submitFacts = () => {
-    if (!canSubmit) return
-    const hasExperienceText = {
-      yes: '确认做过相关经历',
-      no: '确认没有做过相关经历',
-      unsure: '不确定是否足够支撑，需要继续判断',
-    }[hasExperience]
-    onSubmit([
-      `针对 JD 缺口「${gap.gap}」，我补充事实如下：`,
-      `- 经历确认：${hasExperienceText}`,
-      tools.trim() ? `- 用过的工具/框架/技术：${tools.trim()}` : '',
-      scope.trim() ? `- 具体做了什么：${scope.trim()}` : '',
-      result.trim() ? `- 结果或量化影响：${result.trim()}` : '',
-      '',
-      hasExperience === 'no'
-        ? '请不要把这个缺口写进简历，给我一个安全替代建议。'
-        : '请只基于以上已确认事实判断是否能改简历；如果足够支撑，请生成一条需要我确认的 diff；如果仍不足，请继续只问一个具体问题。不要编造我没有填写的信息。',
-    ].filter(Boolean).join('\n'))
-  }
-
-  return (
-    <div className="mt-2 border-t border-amber-100 pt-2">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-gray-900">补充事实后再改写</span>
-        <span className="text-[10px] text-amber-700">{gap.risk === 'insufficient_evidence' ? '缺少证据' : '需要确认'}</span>
-      </div>
-      <p className="mb-2 text-[11px] leading-4 text-gray-600">{gap.gap}</p>
-      <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-1">
-          {[
-            ['yes', '做过'],
-            ['unsure', '不确定'],
-            ['no', '没做过'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              disabled={disabled}
-              onClick={() => setHasExperience(value as 'yes' | 'no' | 'unsure')}
-              className={`rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50 ${
-                hasExperience === value
-                  ? 'border-amber-300 bg-amber-50 text-amber-800'
-                  : 'border-gray-200 bg-white text-gray-600'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <input
-          value={tools}
-          disabled={disabled || hasExperience === 'no'}
-          onChange={(event) => setTools(event.target.value)}
-          placeholder="用过哪些工具/框架？"
-          className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-[11px] outline-none focus:border-amber-300 disabled:bg-gray-50"
-        />
-        <input
-          value={scope}
-          disabled={disabled || hasExperience === 'no'}
-          onChange={(event) => setScope(event.target.value)}
-          placeholder="具体做了什么？"
-          className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-[11px] outline-none focus:border-amber-300 disabled:bg-gray-50"
-        />
-        <input
-          value={result}
-          disabled={disabled || hasExperience === 'no'}
-          onChange={(event) => setResult(event.target.value)}
-          placeholder="有没有结果或量化影响？"
-          className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-[11px] outline-none focus:border-amber-300 disabled:bg-gray-50"
-        />
-        <button
-          type="button"
-          disabled={!canSubmit}
-          onClick={submitFacts}
-          className="w-full rounded-full bg-[#0052ff] px-3 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          提交事实
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// 用于渲染 Agent 完成后的 JD 匹配证据链摘要。
-function JobMatchSummaryCard({
-  summary,
-  factFormDisabled,
-  onSubmitFactCollection,
-  onRequestSuggestion,
-  suggestionDisabled,
-}: {
-  summary: JobMatchSummary
-  factFormDisabled: boolean
-  onSubmitFactCollection: (message: string) => void
-  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
-  suggestionDisabled?: boolean
-}) {
-  const { matchedCount, missingCount, matchPct } = getJobMatchMetrics(summary)
-  const factCollectionGap = findFactCollectionGap(summary)
+  const matchPct = total > 0 ? Math.round((matchedCount / total) * 100) : null
 
   return (
     <div className="mb-3 rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-xs shadow-sm">
@@ -462,12 +79,6 @@ function JobMatchSummaryCard({
       <div className="mb-2 border-t border-gray-100" />
 
       <div className="space-y-2">
-        <AtsKeywordCoveragePanel
-          summary={summary}
-          onRequestSuggestion={onRequestSuggestion}
-          suggestionDisabled={suggestionDisabled}
-        />
-
         {/* 缺失关键词 — rose 红色系，明确传递"需关注" */}
         {missingCount > 0 && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
@@ -494,13 +105,6 @@ function JobMatchSummaryCard({
               </span>
             ))}
           </div>
-        )}
-        {factCollectionGap && (
-          <FactCollectionForm
-            gap={factCollectionGap}
-            disabled={factFormDisabled}
-            onSubmit={onSubmitFactCollection}
-          />
         )}
       </div>
     </div>
@@ -646,19 +250,6 @@ export default function ResumeEditPage() {
     onResumeUpdate: (content) => applyAgentResumeContent(content as Resume['content']),
     enabled: mounted && isAuthenticated,
   })
-
-  const handleSubmitFactCollection = useCallback((message: string) => {
-    void sendMessageWithContext('', message)
-  }, [sendMessageWithContext])
-
-  const requestAtsKeywordSuggestion = useCallback((item: AtsKeywordCoverage) => {
-    if (isSending || isStreaming) return
-    const source = item.resume_anchor || item.jd_evidence[0] || '目标 JD'
-    void sendMessageWithContext(
-      '',
-      `请只针对 JD 关键词「${item.keyword}」生成一条简历补强建议。来源：${source}。先判断能不能基于现有简历证据补强；如果证据不足，只提出需要我补充的事实，不要直接修改简历。`
-    )
-  }, [isSending, isStreaming, sendMessageWithContext])
 
   useEffect(() => {
     setMounted(true)
@@ -1416,19 +1007,7 @@ export default function ResumeEditPage() {
                                   return <AgentToolActivity key={idx} event={event} />
                                 }
                                 if (event.type === 'job_match_summary') {
-                                  const trend = findJobMatchTrend(message.streamEvents!, idx)
-                                  return (
-                                    <div key={idx}>
-                                      {trend && <JobMatchTrendCard trend={trend} />}
-                                      <JobMatchSummaryCard
-                                        summary={event.summary}
-                                        factFormDisabled={isSending || isStreaming}
-                                        onSubmitFactCollection={handleSubmitFactCollection}
-                                        onRequestSuggestion={requestAtsKeywordSuggestion}
-                                        suggestionDisabled={isSending || isStreaming}
-                                      />
-                                    </div>
-                                  )
+                                  return <JobMatchSummaryCard key={idx} summary={event.summary} />
                                 }
                                 if (event.type === 'text') return (
                                   <div key={idx}>
@@ -1528,19 +1107,7 @@ export default function ResumeEditPage() {
                             return <AgentToolActivity key={idx} event={event} live />
                           }
                           if (event.type === 'job_match_summary') {
-                            const trend = findJobMatchTrend(streamEvents, idx)
-                            return (
-                              <div key={idx}>
-                                {trend && <JobMatchTrendCard trend={trend} />}
-                                <JobMatchSummaryCard
-                                  summary={event.summary}
-                                  factFormDisabled={isSending || isStreaming}
-                                  onSubmitFactCollection={handleSubmitFactCollection}
-                                  onRequestSuggestion={requestAtsKeywordSuggestion}
-                                  suggestionDisabled={isSending || isStreaming}
-                                />
-                              </div>
-                            )
+                            return <JobMatchSummaryCard key={idx} summary={event.summary} />
                           }
                           if (event.type === 'tool') {
                             return (

@@ -59,18 +59,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("reason", properties)
         self.assertEqual(properties["reason"]["type"], "string")
 
-    def test_resume_tools_schema_requires_confirmed_facts_for_high_risk_gaps(self):
-        """用于验证写入工具描述要求高风险缺口先补事实。"""
-        descriptions = {
-            tool["function"]["name"]: tool["function"]["description"]
-            for tool in RESUME_TOOLS_SCHEMA
-        }
-
-        self.assertIn("needs_user_confirmation", descriptions["update_bullet"])
-        self.assertIn("insufficient_evidence", descriptions["update_bullet"])
-        self.assertIn("必须先等用户补充真实事实", descriptions["update_bullet"])
-        self.assertIn("必须先获得用户补充的真实事实", descriptions["add_bullet"])
-
     def test_resume_tools_schema_exposes_bullet_tools(self):
         """用于验证简历toolsschemaexposesbullettools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
@@ -88,22 +76,6 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertNotIn("read_user_memory", tool_names)
         self.assertNotIn("write_user_memory", tool_names)
-
-    def test_resume_system_prompt_blocks_unconfirmed_jd_gap_rewrites(self):
-        """用于验证系统提示要求缺少证据的 JD 缺口先收集事实。"""
-        rendered = _render_resume_system_prompt(
-            target_title="AI Agent 工程师",
-            target_company="测试公司",
-            jd_text="要求 RAG 和向量检索经验",
-            resume_json='{"projects":[]}',
-        )
-
-        self.assertIn("needs_user_confirmation", rendered)
-        self.assertIn("insufficient_evidence", rendered)
-        self.assertIn("先要求用户补充真实事实", rendered)
-        self.assertIn("不能为了覆盖关键词直接新增 bullet", rendered)
-        self.assertNotIn("update_bullet", rendered)
-        self.assertNotIn("add_bullet", rendered)
 
     def test_resume_tool_result_includes_structured_diff_reason(self):
         """用于验证简历tool结果includesstructureddiffreason。"""

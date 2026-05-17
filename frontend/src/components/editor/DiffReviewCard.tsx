@@ -32,11 +32,11 @@ function parseDiffSummary(raw: string): DiffLine[] {
     if (line.startsWith(DIFF_BEFORE_LABEL) || line.startsWith(`  ${DIFF_BEFORE_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_BEFORE_LABEL}`), '').trim()
       if (text === DIFF_CREATED_MARKER) continue
-      result.push({ type: 'remove', text })
+      result.push({ type: 'remove', text: `- ${text}` })
     } else if (line.startsWith(DIFF_AFTER_LABEL) || line.startsWith(`  ${DIFF_AFTER_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_AFTER_LABEL}`), '').trim()
       if (text === DIFF_DELETED_MARKER) continue
-      result.push({ type: 'add', text })
+      result.push({ type: 'add', text: `+ ${text}` })
     } else if (line.startsWith(DIFF_REASON_LABEL) || line.startsWith(`  ${DIFF_REASON_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_REASON_LABEL}`), '').trim()
       if (text) result.push({ type: 'reason', text })
@@ -73,8 +73,8 @@ function groupDiffItems(items: DiffItem[]): DiffGroup[] {
   return items
     .map((item) => {
       const group: DiffGroup = {}
-      if (item.before) group.remove = item.before
-      if (item.after) group.add = item.after
+      if (item.before) group.remove = `- ${item.before}`
+      if (item.after) group.add = `+ ${item.after}`
       if (item.reason) group.reason = item.reason
       return group
     })
@@ -128,41 +128,25 @@ export function DiffGroupCards({
   return (
     <div className="divide-y divide-gray-100">
       {groups.map((group, index) => (
-        <div key={index} className="px-3 py-2.5 space-y-2 text-xs">
+        <div key={index} className="px-3 py-2 space-y-0.5 font-mono text-xs">
           {group.remove && (
-            <div className="space-y-1">
-              <span className="inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
-                {group.add ? '修改前' : '删除'}
-              </span>
-              <div className="rounded border border-red-100 bg-red-50 px-2 py-1.5 font-mono text-red-700 whitespace-pre-wrap">
-                {group.remove}
-              </div>
+            <div className="px-2 py-1 rounded bg-red-50 text-red-600 whitespace-pre-wrap">
+              {group.remove}
             </div>
           )}
           {group.add && (
-            <div className="space-y-1">
-              <span
-                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                  isConfirmed === false ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
-                }`}
-              >
-                {group.remove ? '修改后' : '新增'}
-              </span>
-              <div
-                className={`rounded border px-2 py-1.5 font-mono whitespace-pre-wrap ${
-                  isConfirmed === false
-                    ? 'border-gray-200 bg-gray-100 text-gray-400'
-                    : 'border-green-100 bg-green-50 text-green-700'
-                }`}
-              >
-                <HighlightNumbers text={group.add} active={addActive} />
-              </div>
+            <div
+              className={`px-2 py-1 rounded whitespace-pre-wrap ${
+                isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-700'
+              }`}
+            >
+              <HighlightNumbers text={group.add} active={addActive} />
             </div>
           )}
           {group.reason && (
-            <div className="rounded bg-amber-50 px-2 py-1.5 text-amber-800">
-              <span className="mr-1 font-semibold">改动理由</span>
-              <span>{group.reason}</span>
+            <div className="px-2 py-1 rounded bg-amber-50 flex items-start gap-1 font-sans not-italic">
+              <span className="flex-shrink-0">💡</span>
+              <span className="italic text-amber-700">{group.reason}</span>
             </div>
           )}
         </div>
