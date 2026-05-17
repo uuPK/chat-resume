@@ -17,6 +17,7 @@ class JobMatchSummary(TypedDict):
     resume_changes: list[str]
     fact_gaps: list[str]
     top_gaps: list["JobMatchTopGap"]
+    ats_keyword_coverage: list["AtsKeywordCoverage"]
 
 
 class JobMatchTopGap(TypedDict):
@@ -28,6 +29,16 @@ class JobMatchTopGap(TypedDict):
     resume_anchor: str
     suggested_edit: str
     risk: str
+
+
+class AtsKeywordCoverage(TypedDict):
+    """用于描述 ATS 关键词覆盖状态。"""
+
+    keyword: str
+    status: str
+    jd_evidence: list[str]
+    resume_anchor: str
+    action_hint: str
 
 
 @dataclass(frozen=True)
@@ -147,9 +158,23 @@ def build_job_match_summary(
         missing_keywords=missing_keywords,
         jd_text=jd_text,
     )
+    ats_keyword_coverage = build_ats_keyword_coverage(
+        resume_content=source_resume,
+        matched_keywords=matched_keywords,
+        missing_keywords=missing_keywords,
+        jd_text=jd_text,
+        top_gaps=top_gaps,
+    )
 
     if not any(
-        [matched_keywords, missing_keywords, resume_changes, fact_gaps, top_gaps]
+        [
+            matched_keywords,
+            missing_keywords,
+            resume_changes,
+            fact_gaps,
+            top_gaps,
+            ats_keyword_coverage,
+        ]
     ):
         return None
     return {
@@ -158,7 +183,63 @@ def build_job_match_summary(
         "resume_changes": resume_changes,
         "fact_gaps": fact_gaps,
         "top_gaps": top_gaps,
+        "ats_keyword_coverage": ats_keyword_coverage,
     }
+
+
+def build_ats_keyword_coverage(
+    *,
+    resume_content: dict[str, Any],
+    matched_keywords: list[str],
+    missing_keywords: list[str],
+    jd_text: str,
+    top_gaps: list[JobMatchTopGap],
+    limit: int = 12,
+) -> list[AtsKeywordCoverage]:
+    """用于把 JD 关键词归类为已覆盖、弱覆盖和未覆盖。"""
+    if not jd_text:
+        return []
+
+    result: list[AtsKeywordCoverage] = []
+    for keyword in _dedupe(matched_keywords + missing_keywords):
+        evidence = _find_jd_evidence_for_keywords((keyword,), jd_text)
+        if keyword in matched_keywords:
+            anchor, _risk = _find_resume_anchor(resume_content, [keyword])
+            result.append(
+                {
+                    "keyword": keyword,
+                    "status": "covered",
+                    "jd_evidence": evidence,
+                    "resume_anchor": anchor,
+                    "action_hint": "已在简历中命中，可作为当前优势保留。",
+                }
+            )
+            continue
+
+        gap = _find_top_gap_for_keyword(keyword, top_gaps)
+        if gap and gap["risk"] in {"can_improve", "needs_user_confirmation"}:
+            result.append(
+                {
+                    "keyword": keyword,
+                    "status": "weak",
+                    "jd_evidence": evidence,
+                    "resume_anchor": gap["resume_anchor"],
+                    "action_hint": "可生成建议，但需要基于已有经历或用户确认事实。",
+                }
+            )
+            continue
+
+        result.append(
+            {
+                "keyword": keyword,
+                "status": "missing",
+                "jd_evidence": evidence,
+                "resume_anchor": "未在简历中发现明确证据",
+                "action_hint": "可生成建议入口，但不能直接写入简历。",
+            }
+        )
+
+    return result[: max(1, min(limit, 12))]
 
 
 def build_job_match_top_gaps(
@@ -277,6 +358,25 @@ def _keyword_gap_candidates(
             }
         )
     return result
+
+
+def _find_top_gap_for_keyword(
+    keyword: str,
+    top_gaps: list[JobMatchTopGap],
+) -> JobMatchTopGap | None:
+    """用于从 Top gaps 中找到关键词对应的能力缺口。"""
+    for gap in top_gaps:
+        searchable = " ".join(
+            [
+                gap["gap"],
+                gap["priority_reason"],
+                gap["suggested_edit"],
+                " ".join(gap["jd_evidence"]),
+            ]
+        )
+        if _contains_keyword(searchable, keyword):
+            return gap
+    return None
 
 
 def _extract_jd_text(resume_content: dict[str, Any]) -> str:
@@ -553,8 +653,10 @@ def _dedupe(values: list[str]) -> list[str]:
 
 
 __all__ = [
+    "AtsKeywordCoverage",
     "JobMatchSummary",
     "JobMatchTopGap",
+    "build_ats_keyword_coverage",
     "build_job_match_summary",
     "build_job_match_top_gaps",
 ]

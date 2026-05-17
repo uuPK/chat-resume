@@ -15,6 +15,7 @@ export type JobMatchSummary = {
   resume_changes: string[]
   fact_gaps: string[]
   top_gaps: JobMatchTopGap[]
+  ats_keyword_coverage: AtsKeywordCoverage[]
 }
 
 export type JobMatchTopGap = {
@@ -24,6 +25,14 @@ export type JobMatchTopGap = {
   resume_anchor: string
   suggested_edit: string
   risk: 'can_improve' | 'needs_user_confirmation' | 'insufficient_evidence' | string
+}
+
+export type AtsKeywordCoverage = {
+  keyword: string
+  status: 'covered' | 'weak' | 'missing' | string
+  jd_evidence: string[]
+  resume_anchor: string
+  action_hint: string
 }
 
 export type StreamEvent =
@@ -100,8 +109,27 @@ function normalizeJobMatchSummary(value: unknown): JobMatchSummary | null {
     resume_changes: normalizeStringList(record.resume_changes),
     fact_gaps: normalizeStringList(record.fact_gaps),
     top_gaps: normalizeJobMatchTopGaps(record.top_gaps),
+    ats_keyword_coverage: normalizeAtsKeywordCoverage(record.ats_keyword_coverage),
   }
   return Object.values(summary).some((items) => items.length > 0) ? summary : null
+}
+
+// 用于标准化 ATS 关键词覆盖面板数据。
+function normalizeAtsKeywordCoverage(value: unknown): AtsKeywordCoverage[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const record = item as Record<string, unknown>
+    const keyword = String(record.keyword || '').trim()
+    if (!keyword) return []
+    return [{
+      keyword,
+      status: String(record.status || '').trim(),
+      jd_evidence: normalizeStringList(record.jd_evidence),
+      resume_anchor: String(record.resume_anchor || '').trim(),
+      action_hint: String(record.action_hint || '').trim(),
+    }]
+  }).slice(0, 12)
 }
 
 // 用于标准化岗位 Top gaps。

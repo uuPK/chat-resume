@@ -49,6 +49,13 @@ def test_build_job_match_summary_extracts_evidence_from_jd_resume_and_diff():
     assert "性能优化" in summary["matched_keywords"]
     assert "TypeScript" in summary["missing_keywords"]
     assert summary["top_gaps"]
+    coverage_by_keyword = {
+        item["keyword"]: item for item in summary["ats_keyword_coverage"]
+    }
+    assert coverage_by_keyword["React"]["status"] == "covered"
+    assert coverage_by_keyword["React"]["resume_anchor"] == "项目经历 · 简历编辑器"
+    assert coverage_by_keyword["TypeScript"]["status"] in {"weak", "missing"}
+    assert coverage_by_keyword["TypeScript"]["jd_evidence"]
     assert summary["resume_changes"] == [
         "补充岗位关键词和量化结果：负责 React 前端开发，首屏性能优化 35%"
     ]
@@ -90,6 +97,7 @@ def test_generate_job_match_summary_tool_returns_summary_payload():
         "补充岗位关键词：负责 Agent 后端服务，支撑高并发接口"
     ]
     assert result["job_match_summary"]["top_gaps"]
+    assert result["job_match_summary"]["ats_keyword_coverage"]
 
 
 def test_build_job_match_top_gaps_groups_keywords_into_capability_gaps():
@@ -128,6 +136,13 @@ def test_build_job_match_top_gaps_groups_keywords_into_capability_gaps():
         in {"can_improve", "needs_user_confirmation", "insufficient_evidence"}
         for gap in top_gaps
     )
+    coverage_statuses = {
+        item["keyword"]: item["status"]
+        for item in summary["ats_keyword_coverage"]
+    }
+    assert coverage_statuses["Agent"] == "covered"
+    assert coverage_statuses["RAG"] in {"weak", "missing"}
+    assert coverage_statuses["LlamaIndex"] in {"weak", "missing"}
 
 
 def test_build_job_match_top_gaps_returns_empty_without_missing_keywords():

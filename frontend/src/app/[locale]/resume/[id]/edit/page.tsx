@@ -31,7 +31,7 @@ import ResumePreview from '@/components/preview/ResumePreview'
 import ResumeLayoutControls from '@/components/preview/ResumeLayoutControls'
 import MarkdownMessage from '@/components/ui/MarkdownMessage'
 import StreamingMessage from '@/components/ui/StreamingMessage'
-import type { ChatMessage, JobMatchSummary, JobMatchTopGap, StreamEvent } from '@/hooks/useStreamingChat'
+import type { AtsKeywordCoverage, ChatMessage, JobMatchSummary, JobMatchTopGap, StreamEvent } from '@/hooks/useStreamingChat'
 import { usePanelLayout } from '@/hooks/usePanelLayout'
 import { useResumeChatPanel } from '@/hooks/useResumeChatPanel'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
@@ -172,6 +172,150 @@ function JobMatchTrendCard({ trend }: { trend: JobMatchTrend }) {
   )
 }
 
+type AtsCoverageStatus = 'covered' | 'weak' | 'missing'
+
+const ATS_COVERAGE_COPY: Record<AtsCoverageStatus, {
+  label: string
+  className: string
+  sourcePrefix: string
+}> = {
+  covered: {
+    label: '已覆盖',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    sourcePrefix: '简历命中',
+  },
+  weak: {
+    label: '弱覆盖',
+    className: 'border-amber-200 bg-amber-50 text-amber-700',
+    sourcePrefix: '可补到',
+  },
+  missing: {
+    label: '未覆盖',
+    className: 'border-rose-200 bg-rose-50 text-rose-700',
+    sourcePrefix: 'JD 提到',
+  },
+}
+
+function getAtsStatus(status: string): AtsCoverageStatus {
+  if (status === 'covered' || status === 'weak' || status === 'missing') {
+    return status
+  }
+  return 'missing'
+}
+
+function groupAtsCoverage(items: AtsKeywordCoverage[]) {
+  return {
+    covered: items.filter((item) => getAtsStatus(item.status) === 'covered'),
+    weak: items.filter((item) => getAtsStatus(item.status) === 'weak'),
+    missing: items.filter((item) => getAtsStatus(item.status) === 'missing'),
+  }
+}
+
+function getAtsSourceText(item: AtsKeywordCoverage, status: AtsCoverageStatus) {
+  if (status === 'covered' || status === 'weak') {
+    return item.resume_anchor || '简历已有相关内容'
+  }
+  return item.jd_evidence[0] || '目标 JD'
+}
+
+function AtsCoverageChip({
+  item,
+  onRequestSuggestion,
+  suggestionDisabled,
+}: {
+  item: AtsKeywordCoverage
+  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
+  suggestionDisabled?: boolean
+}) {
+  const status = getAtsStatus(item.status)
+  const copy = ATS_COVERAGE_COPY[status]
+  const source = getAtsSourceText(item, status)
+  return (
+    <span
+      className={`group inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${copy.className}`}
+      title={`${copy.sourcePrefix}：${source}${item.action_hint ? `｜${item.action_hint}` : ''}`}
+    >
+      <span className="truncate">{item.keyword}</span>
+      {(status === 'weak' || status === 'missing') && (
+        <button
+          type="button"
+          disabled={suggestionDisabled}
+          onClick={() => onRequestSuggestion?.(item)}
+          className="rounded-full border border-current/20 px-1 text-[9px] leading-4 opacity-80 transition-opacity hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label={`为 ${item.keyword} 生成建议`}
+          title={`生成 ${item.keyword} 的补强建议`}
+        >
+          建议
+        </button>
+      )}
+    </span>
+  )
+}
+
+function AtsCoverageRow({
+  status,
+  items,
+  onRequestSuggestion,
+  suggestionDisabled,
+}: {
+  status: AtsCoverageStatus
+  items: AtsKeywordCoverage[]
+  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
+  suggestionDisabled?: boolean
+}) {
+  const copy = ATS_COVERAGE_COPY[status]
+  if (items.length === 0) return null
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1.5">
+      <span className="mr-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide text-gray-600">
+        {copy.label}
+      </span>
+      {items.map((item) => (
+        <AtsCoverageChip
+          key={`${status}-${item.keyword}`}
+          item={item}
+          onRequestSuggestion={onRequestSuggestion}
+          suggestionDisabled={suggestionDisabled}
+        />
+      ))}
+    </div>
+  )
+}
+
+function AtsKeywordCoveragePanel({
+  summary,
+  onRequestSuggestion,
+  suggestionDisabled,
+}: {
+  summary: JobMatchSummary
+  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
+  suggestionDisabled?: boolean
+}) {
+  if (summary.ats_keyword_coverage.length === 0) return null
+  const grouped = groupAtsCoverage(summary.ats_keyword_coverage)
+  return (
+    <div className="space-y-1.5 border-b border-gray-100 pb-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-gray-800">ATS 关键词覆盖</span>
+        <span className="text-[10px] text-gray-400">来自 JD / 简历命中</span>
+      </div>
+      <AtsCoverageRow status="covered" items={grouped.covered} />
+      <AtsCoverageRow
+        status="weak"
+        items={grouped.weak}
+        onRequestSuggestion={onRequestSuggestion}
+        suggestionDisabled={suggestionDisabled}
+      />
+      <AtsCoverageRow
+        status="missing"
+        items={grouped.missing}
+        onRequestSuggestion={onRequestSuggestion}
+        suggestionDisabled={suggestionDisabled}
+      />
+    </div>
+  )
+}
+
 function findFactCollectionGap(summary: JobMatchSummary): JobMatchTopGap | null {
   return summary.top_gaps.find((gap) => (
     gap.risk === 'needs_user_confirmation' || gap.risk === 'insufficient_evidence'
@@ -286,10 +430,14 @@ function JobMatchSummaryCard({
   summary,
   factFormDisabled,
   onSubmitFactCollection,
+  onRequestSuggestion,
+  suggestionDisabled,
 }: {
   summary: JobMatchSummary
   factFormDisabled: boolean
   onSubmitFactCollection: (message: string) => void
+  onRequestSuggestion?: (item: AtsKeywordCoverage) => void
+  suggestionDisabled?: boolean
 }) {
   const { matchedCount, missingCount, matchPct } = getJobMatchMetrics(summary)
   const factCollectionGap = findFactCollectionGap(summary)
@@ -314,6 +462,12 @@ function JobMatchSummaryCard({
       <div className="mb-2 border-t border-gray-100" />
 
       <div className="space-y-2">
+        <AtsKeywordCoveragePanel
+          summary={summary}
+          onRequestSuggestion={onRequestSuggestion}
+          suggestionDisabled={suggestionDisabled}
+        />
+
         {/* 缺失关键词 — rose 红色系，明确传递"需关注" */}
         {missingCount > 0 && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
@@ -496,6 +650,15 @@ export default function ResumeEditPage() {
   const handleSubmitFactCollection = useCallback((message: string) => {
     void sendMessageWithContext('', message)
   }, [sendMessageWithContext])
+
+  const requestAtsKeywordSuggestion = useCallback((item: AtsKeywordCoverage) => {
+    if (isSending || isStreaming) return
+    const source = item.resume_anchor || item.jd_evidence[0] || '目标 JD'
+    void sendMessageWithContext(
+      '',
+      `请只针对 JD 关键词「${item.keyword}」生成一条简历补强建议。来源：${source}。先判断能不能基于现有简历证据补强；如果证据不足，只提出需要我补充的事实，不要直接修改简历。`
+    )
+  }, [isSending, isStreaming, sendMessageWithContext])
 
   useEffect(() => {
     setMounted(true)
@@ -1261,6 +1424,8 @@ export default function ResumeEditPage() {
                                         summary={event.summary}
                                         factFormDisabled={isSending || isStreaming}
                                         onSubmitFactCollection={handleSubmitFactCollection}
+                                        onRequestSuggestion={requestAtsKeywordSuggestion}
+                                        suggestionDisabled={isSending || isStreaming}
                                       />
                                     </div>
                                   )
@@ -1371,6 +1536,8 @@ export default function ResumeEditPage() {
                                   summary={event.summary}
                                   factFormDisabled={isSending || isStreaming}
                                   onSubmitFactCollection={handleSubmitFactCollection}
+                                  onRequestSuggestion={requestAtsKeywordSuggestion}
+                                  suggestionDisabled={isSending || isStreaming}
                                 />
                               </div>
                             )
