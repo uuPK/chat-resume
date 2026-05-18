@@ -16,6 +16,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PlayCircleIcon,
+  StopIcon,
   TrashIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
@@ -236,6 +237,7 @@ export default function ResumeEditPage() {
     isStreaming,
     streamEvents,
     confirmTool,
+    stopStreaming,
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
@@ -1186,15 +1188,25 @@ export default function ResumeEditPage() {
                       />
                     </div>
                     <button
-                      onClick={sendMessage}
-                      disabled={(!inputMessage.trim() && !selectedResumeContext.trim()) || isSending || isStreaming}
+                      type="button"
+                      aria-label={isStreaming ? '停止 Agent' : '发送消息'}
+                      onClick={isStreaming ? stopStreaming : sendMessage}
+                      disabled={!isStreaming && ((!inputMessage.trim() && !selectedResumeContext.trim()) || isSending)}
                       className="absolute right-3 bottom-3 w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:cursor-not-allowed"
                       style={{
-                        backgroundColor: (inputMessage.trim() || selectedResumeContext.trim()) ? '#0052ff' : '#eef0f3',
-                        color: (inputMessage.trim() || selectedResumeContext.trim()) ? '#ffffff' : '#9ca3af',
+                        backgroundColor: isStreaming
+                          ? '#eef0f3'
+                          : ((inputMessage.trim() || selectedResumeContext.trim()) ? '#0052ff' : '#eef0f3'),
+                        color: isStreaming
+                          ? '#111827'
+                          : ((inputMessage.trim() || selectedResumeContext.trim()) ? '#ffffff' : '#9ca3af'),
                       }}
                     >
-                      <ArrowUpIcon className="w-4 h-4" />
+                      {isStreaming ? (
+                        <StopIcon className="w-4 h-4" />
+                      ) : (
+                        <ArrowUpIcon className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>

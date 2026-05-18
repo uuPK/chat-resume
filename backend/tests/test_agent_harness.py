@@ -56,6 +56,31 @@ class FakeResumeAgent:
         yield {"content": "已完成优化。", "resume_content": resume_content}
 
 
+class CancelledResumeAgent:
+    async def optimize_stream(
+        self,
+        user_message: str,
+        resume_content: dict[str, Any],
+        conversation_history: list[dict[str, str]],
+        confirmation_queue: asyncio.Queue | None,
+        allowed_sections: set[str],
+        event_callback=None,
+        user_id: int | None = None,
+    ):
+        """用于模拟用户主动中断 Agent 流程。"""
+        del (
+            user_message,
+            resume_content,
+            conversation_history,
+            confirmation_queue,
+            allowed_sections,
+            event_callback,
+            user_id,
+        )
+        yield {"content": "正在分析"}
+        raise asyncio.CancelledError()
+
+
 class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """用于准备测试前置状态。"""
@@ -192,4 +217,41 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             store.get_latest_event(session_id).event_type,
             "session_completed",
+        )
+
+    async def test_resume_stream_marks_session_cancelled_when_agent_is_cancelled(self):
+        """用于验证用户停止 Agent 时 session 收敛为 cancelled。"""
+        harness = AgentHarness(self.db)
+        store = AgentSessionStore(self.db)
+        session_id = "harness_cancelled_session"
+
+        harness.create_resume_session(
+            session_id=session_id,
+            user_id=self.user.id,
+            resume_id=self.resume.id,
+            user_message="停止前的请求",
+            visible_modules=["projects"],
+        )
+
+        events = []
+        with self.assertRaises(asyncio.CancelledError):
+            async for event in harness.run_resume_stream(
+                session_id=session_id,
+                agent=CancelledResumeAgent(),  # type: ignore[arg-type]
+                user_message="停止前的请求",
+                resume_content={"projects": []},
+                conversation_history=[],
+                confirmation_queue=None,
+                allowed_sections={"projects"},
+            ):
+                events.append(event)
+
+        session = store.get_session(session_id)
+        self.assertIsNotNone(session)
+        self.assertEqual(session.status, "cancelled")
+        self.assertEqual(session.failed_reason, "user_cancelled")
+        self.assertEqual([event.get("content") for event in events], ["正在分析"])
+        self.assertNotIn(
+            "session_completed",
+            [event.event_type for event in store.list_events(session_id)],
         )

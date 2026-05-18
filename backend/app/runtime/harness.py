@@ -100,6 +100,9 @@ class AgentHarness:
             logger.exception("AgentHarness run_resume_stream failed")
             self.record_failure(session_id, exc)
             raise
+        except asyncio.CancelledError:
+            self.record_cancelled(session_id)
+            raise
 
         self.complete_resume_session(
             session_id=session_id,
@@ -123,6 +126,24 @@ class AgentHarness:
             event_type="session_failed",
             source="system",
             payload={"error": str(exc)},
+        )
+
+    def record_cancelled(self, session_id: str) -> None:
+        """用于在用户主动停止流式执行时收敛 session 状态。"""
+        if not self.session_store.get_session(session_id):
+            return
+        logger.info("AgentHarness record_cancelled session_id=%s", session_id)
+        self.session_store.update_status(
+            session_id,
+            "cancelled",
+            failed_reason="user_cancelled",
+            clear_current_step=True,
+        )
+        self.session_store.append_event(
+            session_id=session_id,
+            event_type="session_cancelled",
+            source="system",
+            payload={"reason": "user_cancelled"},
         )
 
     def complete_resume_session(

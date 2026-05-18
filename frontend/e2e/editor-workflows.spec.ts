@@ -508,6 +508,63 @@ test.describe('编辑页工作流', () => {
     await expect(quickEditInput).toBeHidden()
   })
 
+  test('Agent 运行时发送按钮会变成停止并中断 stream', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    let streamAbortDetected = false
+    await installEditorApiMock(page, resume)
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window)
+      window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const requestUrl =
+          typeof input === 'string'
+            ? input
+            : input instanceof Request
+              ? input.url
+              : input.toString()
+        if (!requestUrl.includes('/api/ai/chat/stream')) {
+          return originalFetch(input, init)
+        }
+        return new Promise<Response>((resolve, reject) => {
+          const signal = init?.signal
+          signal?.addEventListener('abort', () => {
+            ;(window as Window & { __resumeAgentStreamAborted?: boolean }).__resumeAgentStreamAborted = true
+            reject(new DOMException('Aborted', 'AbortError'))
+          })
+          const encoder = new TextEncoder()
+          const stream = new ReadableStream({
+            // 用于保持 stream 运行直到用户停止。
+            start(controller) {
+              controller.enqueue(encoder.encode('data: {"session_id":"stop_test","content":"思考中","done":false}\\n\\n'))
+            },
+          })
+          resolve(new Response(stream, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream' },
+          }))
+        })
+      }
+    })
+
+    await page.goto('/zh/resume/123/edit')
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await page.getByRole('button', { name: '发送消息' }).click()
+
+    const stopButton = page.getByRole('button', { name: '停止 Agent' })
+    await expect(stopButton).toBeVisible()
+    await expect(page.getByRole('button', { name: '发送消息' })).toHaveCount(0)
+    await stopButton.click()
+
+    await expect.poll(() => page.evaluate(() => (
+      Boolean((window as Window & { __resumeAgentStreamAborted?: boolean }).__resumeAgentStreamAborted)
+    ))).toBe(true)
+    streamAbortDetected = await page.evaluate(() => (
+      Boolean((window as Window & { __resumeAgentStreamAborted?: boolean }).__resumeAgentStreamAborted)
+    ))
+    expect(streamAbortDetected).toBe(true)
+    await expect(page.getByRole('button', { name: '发送消息' })).toBeVisible()
+  })
+
   test('发送快速优化后会立刻关闭输入框', async ({ page }) => {
     const resume = buildResumeResponse(123)
     resume.content.work_experience = [

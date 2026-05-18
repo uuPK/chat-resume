@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
@@ -289,12 +290,18 @@ class PiAgentRuntime:
                 executed_tools=executed_tools,
             )
         )
-        while True:
-            event = await event_queue.get()
-            if event is _SENTINEL:
-                break
-            yield event
-        await producer
+        try:
+            while True:
+                event = await event_queue.get()
+                if event is _SENTINEL:
+                    break
+                yield event
+            await producer
+        finally:
+            if not producer.done():
+                producer.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await producer
         self._trace_run_completed(agent, run_id, "stream", state)
 
     async def _produce_stream_events(
@@ -480,6 +487,7 @@ class PiAgentRuntime:
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
         """流式拉取单轮 assistant 响应，text delta 实时发布不缓冲。"""
+        cancel_event = asyncio.Event()
         response = self.stream_fn(
             config.model,
             llm_context,
@@ -492,59 +500,63 @@ class PiAgentRuntime:
                 transport=config.transport,
                 thinking_budgets=config.thinking_budgets,
                 max_retry_delay_ms=config.max_retry_delay_ms,
+                cancel_event=cancel_event,
             ),
         )
-        if inspect.isawaitable(response):
-            response = await response
-        if not isinstance(response, dict) or "events" not in response or "result" not in response:
-            raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
+        try:
+            if inspect.isawaitable(response):
+                response = await response
+            if not isinstance(response, dict) or "events" not in response or "result" not in response:
+                raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
-        async for raw_event in response["events"]:
-            early_tool_call = self._early_tool_call_from_event(raw_event)
-            if early_tool_call is not None and self._remember_visible_tool_call(
-                state,
-                early_tool_call.id,
-            ):
-                await self._publish_visible_tool_call(
-                    call_id=early_tool_call.id,
-                    tool_name=early_tool_call.name,
-                    tool_input={},
-                    event_queue=event_queue,
-                    event_callback=event_callback,
-                )
-            delta = self._text_delta_from_event(raw_event)
-            if delta:
-                if state["first_token_latency_ms"] is None:
-                    state["first_token_latency_ms"] = round(
-                        (perf_counter() - state["started_at"]) * 1000,
-                        2,
+            async for raw_event in response["events"]:
+                early_tool_call = self._early_tool_call_from_event(raw_event)
+                if early_tool_call is not None and self._remember_visible_tool_call(
+                    state,
+                    early_tool_call.id,
+                ):
+                    await self._publish_visible_tool_call(
+                        call_id=early_tool_call.id,
+                        tool_name=early_tool_call.name,
+                        tool_input={},
+                        event_queue=event_queue,
+                        event_callback=event_callback,
                     )
-                state["chunk_index"] += 1
-                state["response_parts"].append(delta)
-                self._trace_chunk(
-                    "agent.trace.intermediate.chunk",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    chunk_index=state["chunk_index"],
-                    content_preview=self._preview_text(delta),
-                    content_chars=len(delta),
-                )
-                await self._publish_event(
-                    event_queue=event_queue,
-                    event_callback=event_callback,
-                    event=text_delta_event(content=delta),
-                )
+                delta = self._text_delta_from_event(raw_event)
+                if delta:
+                    if state["first_token_latency_ms"] is None:
+                        state["first_token_latency_ms"] = round(
+                            (perf_counter() - state["started_at"]) * 1000,
+                            2,
+                        )
+                    state["chunk_index"] += 1
+                    state["response_parts"].append(delta)
+                    self._trace_chunk(
+                        "agent.trace.intermediate.chunk",
+                        run_id=run_id,
+                        agent_name=agent.prompt_spec.name,
+                        chunk_index=state["chunk_index"],
+                        content_preview=self._preview_text(delta),
+                        content_chars=len(delta),
+                    )
+                    await self._publish_event(
+                        event_queue=event_queue,
+                        event_callback=event_callback,
+                        event=text_delta_event(content=delta),
+                    )
 
-        result = response["result"]()
-        if inspect.isawaitable(result):
-            result = await result
-        if not isinstance(result, AssistantMessage):
-            raise TypeError("StreamFn result must be an AssistantMessage")
-        assistant_message = _ReActStreamFn._single_tool_message(result)
-        state["last_assistant_text"] = self._assistant_text(assistant_message)
-        state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-        # text deltas already published above; return empty list to skip re-publish
-        return assistant_message, []
+            result = response["result"]()
+            if inspect.isawaitable(result):
+                result = await result
+            if not isinstance(result, AssistantMessage):
+                raise TypeError("StreamFn result must be an AssistantMessage")
+            assistant_message = _ReActStreamFn._single_tool_message(result)
+            state["last_assistant_text"] = self._assistant_text(assistant_message)
+            state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
+            # text deltas already published above; return empty list to skip re-publish
+            return assistant_message, []
+        finally:
+            cancel_event.set()
 
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""

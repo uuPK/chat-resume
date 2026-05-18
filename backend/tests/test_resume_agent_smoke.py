@@ -50,6 +50,7 @@ class FakePiAgentStream:
         """用于处理init。"""
         self.messages = list(messages)
         self.contexts: list[AgentContext] = []
+        self.options: list[SimpleStreamOptions] = []
         self.calls = 0
 
     async def __call__(
@@ -59,8 +60,9 @@ class FakePiAgentStream:
         options: SimpleStreamOptions,
     ) -> StreamResult:
         """返回 pi-agent-core 期望的 stream result。"""
-        del model, options
+        del model
         self.contexts.append(context)
+        self.options.append(options)
         message = self.messages[self.calls]
         self.calls += 1
         events = self._events_for(message)
@@ -130,8 +132,9 @@ class FakeEarlyToolStartStream(FakePiAgentStream):
         options: SimpleStreamOptions,
     ) -> StreamResult:
         """第一轮在完整工具调用事件前插入一个轻量 toolcall_start。"""
-        del model, options
+        del model
         self.contexts.append(context)
+        self.options.append(options)
         message = self.messages[self.calls]
         call_index = self.calls
         self.calls += 1
@@ -156,6 +159,40 @@ class FakeEarlyToolStartStream(FakePiAgentStream):
         async def result():
             """返回当前预设 assistant message。"""
             return message
+
+        return {"events": events_iter(), "result": result}
+
+
+class HangingPiAgentStream:
+    """用于模拟永不自然结束的模型流，便于验证取消信号。"""
+
+    def __init__(self):
+        """保存 stream options 供断言。"""
+        self.options: list[SimpleStreamOptions] = []
+        self.started = asyncio.Event()
+        self.released = asyncio.Event()
+
+    async def __call__(
+        self,
+        model: Model,
+        context: AgentContext,
+        options: SimpleStreamOptions,
+    ) -> StreamResult:
+        """返回一个会一直等待的流式结果。"""
+        del model, context
+        self.options.append(options)
+        self.started.set()
+
+        async def events_iter():
+            """保持流运行直到测试取消。"""
+            await self.released.wait()
+            if False:
+                yield StreamStartEvent(partial=AssistantMessage())
+
+        async def result():
+            """返回空文本结果。"""
+            await self.released.wait()
+            return fake_pi_text("")
 
         return {"events": events_iter(), "result": result}
 
@@ -1499,6 +1536,34 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "当前不支持直接写入",
             "".join(event.get("content", "") for event in events),
         )
+
+    async def test_pi_agent_runtime_sets_provider_cancel_event_when_stream_is_cancelled(self):
+        """用于验证消费端取消时通知底层模型流停止。"""
+        stream = HangingPiAgentStream()
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(stream_fn=stream)
+
+        async def consume_stream():
+            """消费 Agent 流直到测试主动取消。"""
+            async for _event in agent.optimize_stream(
+                user_message="优化这段工作经历",
+                resume_content=self._sample_resume(),
+                conversation_history=[],
+                confirmation_queue=None,
+                allowed_sections={"work_experience"},
+            ):
+                pass
+
+        task = asyncio.create_task(consume_stream())
+        await asyncio.wait_for(stream.started.wait(), timeout=1)
+        self.assertEqual(len(stream.options), 1)
+        self.assertIsNotNone(stream.options[0].cancel_event)
+
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        self.assertTrue(stream.options[0].cancel_event.is_set())
 
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""

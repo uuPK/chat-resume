@@ -302,6 +302,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     agentType = 'resume'
   } = options
 
+  // 用于清理待确认工具的本地计时器。
+  const clearPendingToolState = () => {
+    Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
+    pendingToolTimersRef.current = {}
+    pendingToolTimingsRef.current = {}
+    confirmingToolCallsRef.current.clear()
+  }
+
   // 用于处理send流式消息。
   const sendStreamingMessage = async (message: string, chatHistory: ChatMessage[] = []) => {
     // 使用 ref 做立即检查，防止并发调用
@@ -741,10 +749,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       }
     } finally {
       // 清理所有 tool_pending 超时计时器
-      Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
-      pendingToolTimersRef.current = {}
-      pendingToolTimingsRef.current = {}
-      confirmingToolCallsRef.current.clear()
+      clearPendingToolState()
       // 释放锁
       isStreamingLockRef.current = false
       setIsStreaming(false)
@@ -761,6 +766,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
+    clearPendingToolState()
+    isStreamingLockRef.current = false
+    setIsStreaming(false)
+    setCurrentStreamingMessage('')
+    setStreamEvents([])
+    setSessionId(null)
+    sessionIdRef.current = null
   }
 
   // 用于处理confirm工具。

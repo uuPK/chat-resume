@@ -65,6 +65,7 @@ export function useResumeChatPanel({
     currentStreamingMessage,
     streamEvents,
     sendStreamingMessage,
+    stopStreaming,
     confirmTool,
   } = useStreamingChat(parseInt(resumeId || '0', 10), {
     visibleModules,
@@ -327,6 +328,7 @@ export function useResumeChatPanel({
     currentStreamingMessage,
     streamEvents,
     confirmTool,
+    stopStreaming,
     handleMessagesScroll,
     handleClearMessages,
     handleKeyPress,
