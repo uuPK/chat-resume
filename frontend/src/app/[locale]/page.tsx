@@ -86,7 +86,7 @@ export default function LandingPage() {
       <section className="pt-16" style={{ backgroundColor: '#ffffff' }}>
         <div className="max-w-7xl mx-auto px-6 py-28 text-center">
           <motion.div
-            initial={{ opacity: 0, y: 32 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
@@ -128,7 +128,7 @@ export default function LandingPage() {
 
           {/* Hero visual */}
           <motion.div
-            initial={{ opacity: 0, y: 48 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
             className="mt-20 mx-auto"
@@ -178,7 +178,7 @@ export default function LandingPage() {
       <section style={{ backgroundColor: '#ffffff' }}>
         <div className="max-w-7xl mx-auto px-6 py-28">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
@@ -199,7 +199,7 @@ export default function LandingPage() {
             {featureItems.map((item, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 24 }}
+                initial={false}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
@@ -228,7 +228,7 @@ export default function LandingPage() {
       <section style={{ backgroundColor: '#eef0f3' }}>
         <div className="max-w-7xl mx-auto px-6 py-28">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
@@ -246,7 +246,7 @@ export default function LandingPage() {
             {stepItems.map((item, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 24 }}
+                initial={false}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
@@ -272,7 +272,7 @@ export default function LandingPage() {
       <section style={{ backgroundColor: '#ffffff' }}>
         <div className="max-w-7xl mx-auto px-6 py-28">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
@@ -337,7 +337,7 @@ export default function LandingPage() {
       <section style={{ backgroundColor: '#eef0f3' }}>
         <div className="max-w-7xl mx-auto px-6 py-28 text-center">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
