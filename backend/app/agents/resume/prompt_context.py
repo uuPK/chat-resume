@@ -18,6 +18,7 @@ def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
         if isinstance(items, list):
             for item in items:
                 item.pop("achievements", None)
+                item.pop("technologies", None)
     return content
 
 
@@ -30,7 +31,7 @@ def build_resume_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         else {}
     )
     prompt_resume = maybe_compact_resume_context(
-        resume_content=resume_content,
+        resume_content=strip_redundant_fields(resume_content),
         confirmed_diff_items=context.get("confirmed_diff_items"),
         conversation_history=context.get("conversation_history"),
     )

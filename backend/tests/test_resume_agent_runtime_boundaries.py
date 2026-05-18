@@ -133,6 +133,46 @@ def test_system_prompt_tool_list_matches_requested_profile():
     assert "update_bullet" not in pi_context.system_prompt
 
 
+def test_system_prompt_resume_json_hides_technologies_compat_fields():
+    """用于验证提示词中的简历 JSON 不暴露兼容用 technologies 字段。"""
+    agent = ResumeAgent()
+    state = agent.runtime._new_stream_state()
+    context = {
+        "resume_content": {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "company": "某科技公司",
+                    "technologies": ["Python"],
+                }
+            ],
+            "projects": [
+                {
+                    "id": "proj_1",
+                    "name": "Deep Research Agent",
+                    "technologies": ["LangChain"],
+                }
+            ],
+        }
+    }
+
+    pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
+        agent=agent.definition,
+        user_message="补充 Python 技术栈",
+        context=context,
+        conversation_history=[],
+        run_id="run_test",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+
+    assert "technologies" not in pi_context.system_prompt
+    assert "Deep Research Agent" in pi_context.system_prompt
+
+
 def test_job_match_message_still_exposes_resume_tools_for_model_choice():
     """用于验证岗位匹配消息不再由后端收窄工具集。"""
     agent = ResumeAgent()

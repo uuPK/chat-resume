@@ -1448,6 +1448,58 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "".join(event.get("content", "") for event in events),
         )
 
+    async def test_pi_agent_runtime_stream_failed_preview_skips_confirmation_card(self):
+        """用于验证工具预览失败时不展示待确认空 diff 卡片。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(
+            stream_fn=FakePiAgentStream(
+                [
+                    fake_pi_tool_call(
+                        name="update_item_fields",
+                        args={
+                            "section": "projects",
+                            "item_id": "proj_1",
+                            "fields": {"technologies": ["Python"]},
+                            "reason": "用户要求补充 Python 到项目技术栈",
+                        },
+                        call_id="call_pi_invalid_preview",
+                    ),
+                    fake_pi_text("项目技术栈字段当前不支持直接写入，我会改为更新项目简介。"),
+                ]
+            )
+        )
+        resume = {
+            "projects": [
+                {
+                    "id": "proj_1",
+                    "name": "Deep Research Agent",
+                    "overview": "基于 LangChain 构建研究智能体。",
+                    "technologies": ["LangChain"],
+                }
+            ]
+        }
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="Python",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"projects"},
+        ):
+            events.append(event)
+
+        self.assertTrue(any(event.get("tool_call_failed") for event in events))
+        self.assertFalse(any(event.get("tool_pending") for event in events))
+        self.assertEqual(resume["projects"][0]["technologies"], ["LangChain"])
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
+        self.assertIn(
+            "当前不支持直接写入",
+            "".join(event.get("content", "") for event in events),
+        )
+
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""
         agent = ResumeAgent()

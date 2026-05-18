@@ -1009,6 +1009,30 @@ class PiAgentRuntime:
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
         self._trace_tool_preview(agent, run_id, call_id, tool_name, preview_result)
+        if self._is_tool_failure(preview_result):
+            display_message = preview_result.get("display_message")
+            self._trace_tool_executed(
+                agent,
+                run_id,
+                call_id,
+                tool_name,
+                preview_result,
+                tool_started_at,
+            )
+            executed_tools.append(self._executed_tool_summary(preview_result, result))
+            await self._publish_tool_result(
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_result=preview_result,
+                result=result,
+                display_message=display_message,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                context=context,
+                needs_confirmation=False,
+            )
+            return json.dumps(result, ensure_ascii=False)
         await self._publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
