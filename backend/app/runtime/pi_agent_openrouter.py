@@ -893,13 +893,13 @@ def _apply_tool_delta(
             continue
         index = int(raw_call.get("index") or 0)
         buffer = tool_buffers.setdefault(index, {"id": "", "name": "", "args": ""})
-        if isinstance(raw_call.get("id"), str):
-            buffer["id"] += raw_call["id"]
+        if isinstance(raw_call.get("id"), str) and not buffer["id"]:
+            buffer["id"] = raw_call["id"]
         function = raw_call.get("function")
         if not isinstance(function, dict):
             continue
-        if isinstance(function.get("name"), str):
-            buffer["name"] += function["name"]
+        if isinstance(function.get("name"), str) and not buffer["name"]:
+            buffer["name"] = function["name"]
             if buffer["name"]:
                 tool_names.append(str(buffer["name"]))
         if isinstance(function.get("arguments"), str):
