@@ -14,9 +14,11 @@ from pi_agent_core import (
     AgentContext,
     AgentTool,
     AgentToolResult,
+    AgentToolSchema,
     AssistantMessage,
     Model,
     SimpleStreamOptions,
+    TextContent,
     ToolCall,
 )
 
@@ -27,6 +29,8 @@ from app.runtime.pi_agent_openrouter import (
     OpenRouterFirstTokenTimeoutError,
     OpenRouterHTTPError,
     _is_retryable_status,
+    _openai_message,
+    _openai_tools,
     _openrouter_body,
     _pump_openrouter_stream,
     _pump_with_retry,
@@ -167,13 +171,92 @@ def _make_openrouter_stream_args() -> tuple[
     return model, context, options, partial, queue
 
 
-def test_openrouter_body_disables_reasoning_explicitly():
-    """OpenRouter 请求体应显式关闭 reasoning，避免 provider 默认开启深度推理。"""
+def test_openrouter_body_omits_reasoning_by_default():
+    """OpenRouter 请求体默认不硬塞 reasoning，避免禁用部分模型工具调用。"""
     model, context, options, _, _ = _make_openrouter_stream_args()
 
     body = _openrouter_body(model, context, options)
 
-    assert body["reasoning"] == {"effort": "none"}
+    assert "reasoning" not in body
+
+
+def test_openrouter_body_passes_explicit_reasoning_effort():
+    """调用方显式要求 reasoning 时才传递 OpenRouter reasoning effort。"""
+    model, context, _, _, _ = _make_openrouter_stream_args()
+    options = SimpleStreamOptions(api_key="test-key", reasoning="medium")
+
+    body = _openrouter_body(model, context, options)
+
+    assert body["reasoning"] == {"effort": "medium"}
+
+
+def test_openrouter_body_omits_reasoning_when_explicitly_off():
+    """reasoning=off 在 OpenRouter 主链路中也不发送 none。"""
+    model, context, _, _, _ = _make_openrouter_stream_args()
+    options = SimpleStreamOptions(api_key="test-key", reasoning="off")
+
+    body = _openrouter_body(model, context, options)
+
+    assert "reasoning" not in body
+
+
+def test_openai_assistant_tool_call_omits_empty_content():
+    """assistant 只有工具调用时不发送空 content，兼容 Kimi 类接口。"""
+    message = AssistantMessage(api="openai-compatible", provider="openrouter", model="m")
+    message.content.append(ToolCall(id="call_1", name="update_bullet", arguments={}))
+
+    payload = _openai_message(message)
+
+    assert payload is not None
+    assert "content" not in payload
+    assert payload["tool_calls"][0]["id"] == "call_1"
+
+
+def test_openai_assistant_tool_call_keeps_non_empty_content():
+    """assistant 工具调用带可见文本时保留 content。"""
+    message = AssistantMessage(api="openai-compatible", provider="openrouter", model="m")
+    message.content.append(TextContent(text="我会更新。"))
+    message.content.append(ToolCall(id="call_1", name="update_bullet", arguments={}))
+
+    payload = _openai_message(message)
+
+    assert payload is not None
+    assert payload["content"] == "我会更新。"
+
+
+def test_openai_tools_normalizes_enum_property_types():
+    """工具 schema 中 enum-only 字段应补 type，避免 Kimi/OpenRouter 兼容层拒绝。"""
+    async def execute_tool() -> AgentToolResult:
+        """用于构造测试工具。"""
+        return AgentToolResult(content=[])
+
+    context = AgentContext(
+        system_prompt="system",
+        messages=[],
+        tools=[
+            AgentTool(
+                name="update_profile",
+                description="Update profile",
+                parameters=AgentToolSchema(
+                    properties={
+                        "tone": {"enum": ["formal", "direct"]},
+                        "meta": {
+                            "type": "object",
+                            "properties": {"level": {"enum": [1, 2]}},
+                        },
+                    },
+                    required=["tone"],
+                ),
+                execute=execute_tool,
+            )
+        ],
+    )
+
+    tool = _openai_tools(context)[0]
+    properties = tool["function"]["parameters"]["properties"]
+
+    assert properties["tone"]["type"] == "string"
+    assert properties["meta"]["properties"]["level"]["type"] == "number"
 
 
 @pytest.mark.asyncio
@@ -313,6 +396,65 @@ async def test_openrouter_stream_emits_early_tool_call_start():
     assert early_tool.name == "update_bullet"
     assert early_tool.arguments == {}
     assert tool_ends[0].tool_call.arguments == {"section": "work_experience"}
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_does_not_concatenate_repeated_tool_id_or_name():
+    """同一 index 的重复 id/name 只设置一次，arguments 才累加。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet",'
+            '"arguments":"{\\"section\\":"}}]}}]}'
+        ),
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_1","function":{"name":"update_bullet",'
+            '"arguments":"\\"work_experience\\"}"}}]},'
+            '"finish_reason":"tool_calls"}]}'
+        ),
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    tool_ends = [
+        event for event in events if getattr(event, "type", "") == "toolcall_end"
+    ]
+
+    assert len(tool_ends) == 1
+    assert tool_ends[0].tool_call.id == "call_1"
+    assert tool_ends[0].tool_call.name == "update_bullet"
+    assert tool_ends[0].tool_call.arguments == {"section": "work_experience"}
+
+
+@pytest.mark.asyncio
+async def test_openrouter_stream_ignores_tool_finish_reason_without_tool_call():
+    """仅 finish_reason=tool_calls 不能让主循环进入工具调用分支。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    assert partial.stop_reason == "stop"
+    assert partial.content == []
 
 
 @pytest.mark.asyncio
