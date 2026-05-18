@@ -181,7 +181,7 @@ _CAPABILITY_SPECS = (
 )
 _ENGLISH_KEYWORD_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+#.\-]{1,}\b")
 _NUMBER_RE = re.compile(r"\d")
-_KEYWORD_LIMIT = 15
+_KEYWORD_LIMIT = 20
 _SEMANTIC_JOB_MATCH_SYSTEM_PROMPT = (
     "你是简历岗位匹配证据分析器，只做证据分类，不改写简历。"
     "根据 JD 和简历正文输出严格 JSON："

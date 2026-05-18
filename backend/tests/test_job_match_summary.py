@@ -69,7 +69,7 @@ class CountingSemanticAnalyzer:
 
 
 class LongSemanticAnalyzer:
-    """用于验证岗位匹配关键词最多保留 15 个。"""
+    """用于验证岗位匹配关键词最多保留 20 个。"""
 
     async def analyze(self, *, jd_text: str, resume_text: str):
         """用于返回超过展示上限的语义匹配结果。"""
@@ -244,8 +244,8 @@ async def test_generate_job_match_summary_falls_back_when_semantic_fails():
 
 
 @pytest.mark.asyncio
-async def test_generate_job_match_summary_keeps_up_to_fifteen_keywords():
-    """用于验证岗位匹配摘要不再把命中和缺失关键词截到 6 个。"""
+async def test_generate_job_match_summary_keeps_up_to_twenty_keywords():
+    """用于验证岗位匹配摘要最多保留 20 个命中和缺失关键词。"""
     result = await generate_job_match_summary(
         {
             "job_application": {"jd_text": "要求多个岗位关键词。"},
@@ -255,8 +255,8 @@ async def test_generate_job_match_summary_keeps_up_to_fifteen_keywords():
     )
 
     summary = result["job_match_summary"]
-    assert summary["matched_keywords"] == [f"命中{i}" for i in range(1, 16)]
-    assert summary["missing_keywords"] == [f"缺失{i}" for i in range(1, 16)]
+    assert summary["matched_keywords"] == [f"命中{i}" for i in range(1, 21)]
+    assert summary["missing_keywords"] == [f"缺失{i}" for i in range(1, 21)]
 
 
 def test_build_job_match_summary_extracts_evidence_from_jd_resume_and_diff():
