@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Awaitable
+from inspect import isawaitable
+from typing import Any, Literal, overload
 
 from app.tools.base import ToolExecutor
 from app.tools.resume.registry import execute_resume_tool
@@ -70,10 +72,60 @@ TOOL_DISPLAY_NAMES = {
     "generate_job_match_summary": "岗位匹配摘要",
     "read_resume": "读取简历",
 }
+_SYNC_TOOL_NAME = Literal[
+    "update_summary",
+    "update_profile",
+    "update_item_fields",
+    "upsert_job_application",
+    "update_skills",
+    "add_resume_item",
+    "remove_resume_item",
+    "update_overview",
+    "update_bullet",
+    "add_bullet",
+    "remove_bullet",
+    "update_highlight",
+    "add_highlight",
+    "remove_highlight",
+    "read_resume",
+]
 
 
 class ResumeToolExecutor(ToolExecutor):
     """用于把 runtime 的工具调用转换成可落库的简历编辑结果。"""
+
+    @overload
+    def execute(
+        self,
+        *,
+        tool_name: Literal["generate_job_match_summary"],
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+    ) -> Awaitable[dict[str, Any]]:
+        """用于声明岗位匹配工具返回异步结果。"""
+        ...
+
+    @overload
+    def execute(
+        self,
+        *,
+        tool_name: _SYNC_TOOL_NAME,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """用于声明同步简历工具直接返回结果。"""
+        ...
+
+    @overload
+    def execute(
+        self,
+        *,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any] | Awaitable[dict[str, Any]]:
+        """用于声明动态工具名可能返回同步或异步结果。"""
+        ...
 
     def execute(
         self,
@@ -81,7 +133,7 @@ class ResumeToolExecutor(ToolExecutor):
         tool_name: str,
         tool_input: dict[str, Any],
         context: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | Awaitable[dict[str, Any]]:
         """用于执行单次简历工具调用并补齐展示字段。"""
         resume_content = context["resume_content"]
         allowed_sections = context.get("allowed_sections")
@@ -114,13 +166,20 @@ class ResumeToolExecutor(ToolExecutor):
         try:
             if tool_name == "generate_job_match_summary":
                 tool_input = {
-                    "confirmed_diff_items": context.get("confirmed_diff_items", [])
+                    "confirmed_diff_items": context.get("confirmed_diff_items", []),
+                    "semantic_analyzer": context.get("semantic_analyzer"),
                 }
             result = execute_resume_tool(
                 tool_name=tool_name,
                 resume_content=resume_content,
                 **tool_input,
             )
+            if isawaitable(result):
+                return self._wrap_async_result(
+                    result,
+                    tool_name=tool_name,
+                    updated_section=target_section,
+                )
         except TypeError as exc:
             return self.error_result(
                 tool_name,
@@ -139,6 +198,53 @@ class ResumeToolExecutor(ToolExecutor):
                 updated_section=target_section,
             )
 
+        return self._wrap_success_result(
+            tool_name=tool_name,
+            result=result,
+            updated_section=target_section,
+        )
+
+    async def _wrap_async_result(
+        self,
+        pending_result: Awaitable[dict[str, Any]],
+        *,
+        tool_name: str,
+        updated_section: str | None,
+    ) -> dict[str, Any]:
+        """用于等待异步工具并包装成统一工具结果结构。"""
+        try:
+            result = await pending_result
+        except TypeError as exc:
+            return self.error_result(
+                tool_name,
+                "tool_argument_type_error",
+                f"{tool_name} 参数不匹配: {exc}",
+                recoverable=True,
+                expected_arguments=sorted(TOOL_REQUIRED_ARGS.get(tool_name, set())),
+                updated_section=updated_section,
+            )
+        except Exception as exc:
+            return self.error_result(
+                tool_name,
+                "tool_execution_error",
+                f"{tool_name} 执行失败: {exc}",
+                recoverable=False,
+                updated_section=updated_section,
+            )
+        return self._wrap_success_result(
+            tool_name=tool_name,
+            result=result,
+            updated_section=updated_section,
+        )
+
+    def _wrap_success_result(
+        self,
+        *,
+        tool_name: str,
+        result: dict[str, Any],
+        updated_section: str | None,
+    ) -> dict[str, Any]:
+        """用于把工具成功返回包装成 runtime 统一结构。"""
         return {
             "tool_name": TOOL_DISPLAY_NAMES.get(tool_name, tool_name),
             "result": result,
@@ -151,7 +257,9 @@ class ResumeToolExecutor(ToolExecutor):
             if isinstance(result, dict)
             else None,
             "updated_section_name": self._get_section_name(
-                result.get("updated_section") if isinstance(result, dict) else None
+                result.get("updated_section")
+                if isinstance(result, dict)
+                else updated_section
             ),
         }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from typing import Any
 
 
@@ -28,6 +29,6 @@ class ToolExecutor(ABC):
         tool_name: str,
         tool_input: dict[str, Any],
         context: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | Awaitable[dict[str, Any]]:
         """用于根据工具名和上下文执行一次工具调用。"""
         raise NotImplementedError

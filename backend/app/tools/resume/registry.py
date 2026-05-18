@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +20,7 @@ from .update_summary_tool import update_summary
 from .upsert_job_application_tool import upsert_job_application
 
 _BULLET_SECTIONS = ["education", "work_experience", "projects"]
+ResumeToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,7 @@ class ResumeToolDefinition:
     """用于把工具 schema、handler 和分类收敛成一个定义单元。"""
 
     name: str
-    handler: Callable[..., dict[str, Any]]
+    handler: Callable[..., ResumeToolResult]
     schema: dict[str, Any] | None = None
     category: str = "resume"
 
@@ -554,7 +555,7 @@ def execute_resume_tool(
     *,
     resume_content: dict[str, Any],
     **kwargs: Any,
-) -> dict[str, Any]:
+) -> ResumeToolResult:
     """用于按工具名分发到对应的简历工具实现。"""
     handler = _RESUME_TOOL_HANDLERS.get(tool_name)
     if handler is None:
@@ -566,5 +567,6 @@ __all__ = [
     "RESUME_TOOL_CATALOG",
     "RESUME_TOOLS_SCHEMA",
     "ResumeToolDefinition",
+    "ResumeToolResult",
     "execute_resume_tool",
 ]

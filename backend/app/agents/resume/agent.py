@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
@@ -269,11 +269,11 @@ class ResumeAgent:
         if error_result is not None:
             return error_result
         assert tool_args is not None
-        return self.tool_executor.execute(
+        return cast(Dict[str, Any], self.tool_executor.execute(
             tool_name=tool_name,
             tool_input=tool_args,
             context=context,
-        )
+        ))
 
     def _collect_qr_images(self, tool_calls: List[Dict[str, Any]]) -> List[str]:
         """用于保留统一扩展点，后续如有二维码结果可在这里汇总。"""

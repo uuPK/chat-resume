@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from app.prompts import AgentPromptSpec
 
-ToolExecutor = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
+ToolResult = dict[str, Any] | Awaitable[dict[str, Any]]
+ToolExecutor = Callable[[dict[str, Any], dict[str, Any]], ToolResult]
 PromptContextBuilder = Callable[[dict[str, Any]], dict[str, Any]]
 RuntimeEventCallback = Callable[[Mapping[str, Any]], None]
 
@@ -33,4 +34,5 @@ __all__ = [
     "PromptContextBuilder",
     "RuntimeEventCallback",
     "ToolExecutor",
+    "ToolResult",
 ]

@@ -1016,7 +1016,11 @@ class PiAgentRuntime:
             return None
         assert confirmation_queue is not None
         preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
-        preview_result = agent.tool_executor(tool_call, preview_context)
+        preview_result = await self._call_tool_executor(
+            agent=agent,
+            tool_call=tool_call,
+            context=preview_context,
+        )
         diff_summary = preview_result.get("display_message") or "执行完成"
         result = preview_result.get("result", {})
         diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
@@ -1120,7 +1124,11 @@ class PiAgentRuntime:
         stream_state: dict[str, Any],
     ) -> str:
         """用于处理run已确认工具。"""
-        tool_result = agent.tool_executor(tool_call, context)
+        tool_result = await self._call_tool_executor(
+            agent=agent,
+            tool_call=tool_call,
+            context=context,
+        )
         result = tool_result.get("result", {})
         if needs_confirmation:
             self._remember_confirmed_diff_items(stream_state, result)
@@ -1147,6 +1155,19 @@ class PiAgentRuntime:
             needs_confirmation=needs_confirmation,
         )
         return json.dumps(result, ensure_ascii=False)
+
+    async def _call_tool_executor(
+        self,
+        *,
+        agent: AgentDefinition,
+        tool_call: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """用于兼容同步和异步业务工具执行器。"""
+        result = agent.tool_executor(tool_call, context)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
     async def _publish_terminal_text(
         self,

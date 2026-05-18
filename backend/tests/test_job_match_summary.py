@@ -1,10 +1,224 @@
 """用于覆盖 JD 匹配摘要生成的回归测试。"""
 
+import pytest
+
+from app.services.agent import job_match_summary
 from app.services.agent.job_match_summary import (
     build_job_match_summary,
     build_job_match_top_gaps,
 )
 from app.tools.resume.job_match_summary_tool import generate_job_match_summary
+
+
+class FakeSemanticJobMatchAnalyzer:
+    """用于在测试中模拟岗位匹配语义模型。"""
+
+    def __init__(self):
+        """用于记录语义分析调用次数。"""
+        self.calls = 0
+
+    async def analyze(self, *, jd_text: str, resume_text: str):
+        """用于返回可预测的语义匹配结果。"""
+        self.calls += 1
+        assert "React" in jd_text
+        assert "前端框架" in resume_text
+        return {
+            "matched_keywords": ["React", "数据分析", "高并发"],
+            "missing_keywords": ["Redis"],
+            "fact_gaps": ["需要补充 Redis 缓存或队列相关真实经历"],
+        }
+
+
+class FakeAgentBackendAnalyzer:
+    """用于模拟 Agent 后端岗位匹配结果。"""
+
+    async def analyze(self, *, jd_text: str, resume_text: str):
+        """用于返回 Agent 后端匹配证据。"""
+        assert "Redis" in jd_text
+        assert "Agent" in resume_text
+        return {
+            "matched_keywords": ["Agent", "后端"],
+            "missing_keywords": ["Redis"],
+            "fact_gaps": ["需要补充 Redis 相关真实经历"],
+        }
+
+
+class FailingSemanticAnalyzer:
+    """用于模拟语义模型调用失败。"""
+
+    async def analyze(self, *, jd_text: str, resume_text: str):
+        """用于抛出语义分析异常。"""
+        raise RuntimeError("semantic service unavailable")
+
+
+class CountingSemanticAnalyzer:
+    """用于验证无 JD 时不会触发语义分析。"""
+
+    def __init__(self):
+        """用于记录调用次数。"""
+        self.calls = 0
+
+    async def analyze(self, *, jd_text: str, resume_text: str):
+        """用于记录语义分析调用。"""
+        self.calls += 1
+        return {
+            "matched_keywords": [],
+            "missing_keywords": [],
+            "fact_gaps": [],
+        }
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_uses_semantic_evidence():
+    """用于验证岗位匹配摘要能识别语义相近但措辞不同的证据。"""
+    analyzer = FakeSemanticJobMatchAnalyzer()
+    resume = {
+        "job_application": {
+            "jd_text": "要求 React、数据分析、高并发和 Redis 经验。",
+        },
+        "projects": [
+            {
+                "name": "增长分析平台",
+                "highlights": [
+                    {"text": "负责前端框架建设，搭建 BI 报表，支撑百万 QPS 服务。"}
+                ],
+            }
+        ],
+    }
+
+    result = await generate_job_match_summary(
+        resume,
+        semantic_analyzer=analyzer,
+    )
+
+    assert analyzer.calls == 1
+    assert result["success"] is True
+    summary = result["job_match_summary"]
+    assert summary["matched_keywords"] == ["React", "数据分析", "高并发"]
+    assert summary["missing_keywords"] == ["Redis"]
+    assert "需要补充 Redis 缓存或队列相关真实经历" in summary["fact_gaps"]
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch):
+    """用于验证默认工具路径会调用 LLM 生成语义匹配证据。"""
+    calls: list[dict[str, object]] = []
+
+    class FakeChatService:
+        """用于模拟项目统一 LLM 服务。"""
+
+        @staticmethod
+        def _coerce_content_text(value):
+            """用于返回模型文本内容。"""
+            return value if isinstance(value, str) else ""
+
+        async def __aenter__(self):
+            """用于进入异步上下文。"""
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            """用于退出异步上下文。"""
+            return None
+
+        async def chat_completion(self, **kwargs):
+            """用于返回语义匹配 JSON。"""
+            calls.append(kwargs)
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"matched_keywords":["React"],'
+                                '"missing_keywords":["Redis"],'
+                                '"fact_gaps":["需要补充 Redis 相关真实经历"]}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(job_match_summary, "ChatService", FakeChatService, raising=False)
+    resume = {
+        "job_application": {"jd_text": "要求 React 和 Redis 经验。"},
+        "projects": [{"name": "前端平台", "overview": "负责前端框架建设"}],
+    }
+
+    result = await generate_job_match_summary(resume)
+
+    assert len(calls) == 1
+    assert result["success"] is True
+    assert result["job_match_summary"]["matched_keywords"] == ["React"]
+    assert result["job_match_summary"]["missing_keywords"] == ["Redis"]
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_reuses_default_semantic_cache(monkeypatch):
+    """用于验证相同 JD 和简历会复用默认语义匹配缓存。"""
+    calls = 0
+
+    class FakeChatService:
+        """用于模拟可计数的 LLM 服务。"""
+
+        @staticmethod
+        def _coerce_content_text(value):
+            """用于返回模型文本内容。"""
+            return value if isinstance(value, str) else ""
+
+        async def __aenter__(self):
+            """用于进入异步上下文。"""
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            """用于退出异步上下文。"""
+            return None
+
+        async def chat_completion(self, **kwargs):
+            """用于返回岗位匹配 JSON 并计数。"""
+            nonlocal calls
+            calls += 1
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"matched_keywords":["数据分析"],'
+                                '"missing_keywords":["Redis"],'
+                                '"fact_gaps":["需要补充 Redis 相关真实经历"]}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(job_match_summary, "ChatService", FakeChatService, raising=False)
+    resume = {
+        "job_application": {"jd_text": "要求数据分析和 Redis 经验。"},
+        "projects": [{"name": "分析平台", "overview": "搭建 BI 报表"}],
+    }
+
+    first = await generate_job_match_summary(resume)
+    second = await generate_job_match_summary(resume)
+
+    assert calls == 1
+    assert first["job_match_summary"] == second["job_match_summary"]
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_falls_back_when_semantic_fails():
+    """用于验证语义分析失败时仍返回规则版岗位匹配摘要。"""
+    resume = {
+        "job_application": {"jd_text": "要求 Agent、后端和 Redis 经验。"},
+        "work_experience": [{"highlights": [{"text": "负责 Agent 后端服务"}]}],
+    }
+
+    result = await generate_job_match_summary(
+        resume,
+        semantic_analyzer=FailingSemanticAnalyzer(),
+    )
+
+    assert result["success"] is True
+    assert result["job_match_summary"]["matched_keywords"] == ["Agent", "后端"]
+    assert "Redis" in result["job_match_summary"]["missing_keywords"]
 
 
 def test_build_job_match_summary_extracts_evidence_from_jd_resume_and_diff():
@@ -66,14 +280,30 @@ def test_build_job_match_summary_returns_none_without_jd_text():
     assert summary is None
 
 
-def test_generate_job_match_summary_tool_returns_summary_payload():
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_does_not_call_semantic_without_jd():
+    """用于验证缺少 JD 时不会调用语义模型。"""
+    analyzer = CountingSemanticAnalyzer()
+
+    result = await generate_job_match_summary(
+        {"projects": [{"name": "内部系统"}]},
+        semantic_analyzer=analyzer,
+    )
+
+    assert analyzer.calls == 0
+    assert result["success"] is False
+    assert "缺少 JD" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_tool_returns_summary_payload():
     """用于验证岗位匹配摘要工具返回前端可直接消费的 payload。"""
     resume = {
         "job_application": {"jd_text": "要求 Agent、后端和 Redis 经验。"},
         "work_experience": [{"highlights": [{"text": "负责 Agent 后端服务"}]}],
     }
 
-    result = generate_job_match_summary(
+    result = await generate_job_match_summary(
         resume,
         confirmed_diff_items=[
             {
@@ -81,6 +311,7 @@ def test_generate_job_match_summary_tool_returns_summary_payload():
                 "reason": "补充岗位关键词",
             }
         ],
+        semantic_analyzer=FakeAgentBackendAnalyzer(),
     )
 
     assert result["success"] is True

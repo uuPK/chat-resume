@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import re
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
+from app.services.llm import ChatService
 from app.tools.resume.shared import summarize_value
+
+logger = logging.getLogger(__name__)
 
 
 class JobMatchSummary(TypedDict):
@@ -28,6 +34,63 @@ class JobMatchTopGap(TypedDict):
     resume_anchor: str
     suggested_edit: str
     risk: str
+
+
+class SemanticJobMatchResult(TypedDict):
+    """用于描述语义模型返回的岗位匹配基础证据。"""
+
+    matched_keywords: list[str]
+    missing_keywords: list[str]
+    fact_gaps: list[str]
+
+
+class SemanticJobMatchAnalyzer(Protocol):
+    """用于约束岗位匹配语义分析器的最小接口。"""
+
+    async def analyze(
+        self,
+        *,
+        jd_text: str,
+        resume_text: str,
+    ) -> SemanticJobMatchResult:
+        """用于根据 JD 和简历正文返回语义匹配证据。"""
+        ...
+
+
+class OpenRouterSemanticJobMatchAnalyzer:
+    """用于通过项目统一 LLM 服务生成岗位匹配语义证据。"""
+
+    async def analyze(
+        self,
+        *,
+        jd_text: str,
+        resume_text: str,
+    ) -> SemanticJobMatchResult:
+        """用于调用 LLM 并解析出岗位匹配 JSON。"""
+        cache_key = _semantic_cache_key(jd_text, resume_text)
+        cached = _SEMANTIC_JOB_MATCH_CACHE.get(cache_key)
+        if cached is not None:
+            return _clone_semantic_result(cached)
+
+        payload = {
+            "jd_text": jd_text[:12000],
+            "resume_text": resume_text[:18000],
+        }
+        async with ChatService() as chat_service:
+            response = await chat_service.chat_completion(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": json.dumps(payload, ensure_ascii=False),
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=1000,
+                system_prompt=_SEMANTIC_JOB_MATCH_SYSTEM_PROMPT,
+            )
+        result = _parse_semantic_job_match_response(response)
+        _remember_semantic_result(cache_key, result)
+        return result
 
 
 @dataclass(frozen=True)
@@ -117,6 +180,18 @@ _CAPABILITY_SPECS = (
 )
 _ENGLISH_KEYWORD_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+#.\-]{1,}\b")
 _NUMBER_RE = re.compile(r"\d")
+_SEMANTIC_JOB_MATCH_SYSTEM_PROMPT = (
+    "你是简历岗位匹配证据分析器，只做证据分类，不改写简历。"
+    "根据 JD 和简历正文输出严格 JSON："
+    '{"matched_keywords":[],"missing_keywords":[],"fact_gaps":[]}'
+    "matched_keywords 表示 JD 要求已被简历事实语义支撑；"
+    "missing_keywords 表示 JD 要求缺少足够简历证据；"
+    "fact_gaps 表示必须向用户补充真实事实后才能写入的缺口。"
+    "可以识别语义等价，如 React≈前端框架，数据分析≈BI 报表，"
+    "高并发≈百万 QPS。没有证据时必须判为 missing/fact_gaps，不能猜测。"
+)
+_SEMANTIC_JOB_MATCH_CACHE: dict[str, SemanticJobMatchResult] = {}
+_SEMANTIC_JOB_MATCH_CACHE_LIMIT = 128
 
 
 def build_job_match_summary(
@@ -148,6 +223,57 @@ def build_job_match_summary(
         jd_text=jd_text,
     )
 
+    if not any(
+        [matched_keywords, missing_keywords, resume_changes, fact_gaps, top_gaps]
+    ):
+        return None
+    return {
+        "matched_keywords": matched_keywords[:6],
+        "missing_keywords": missing_keywords[:6],
+        "resume_changes": resume_changes,
+        "fact_gaps": fact_gaps,
+        "top_gaps": top_gaps,
+    }
+
+
+async def build_job_match_summary_async(
+    *,
+    original_resume: dict[str, Any],
+    latest_resume_content: dict[str, Any] | None,
+    confirmed_diff_items: list[dict[str, Any]],
+    semantic_analyzer: SemanticJobMatchAnalyzer | None = None,
+) -> JobMatchSummary | None:
+    """用于通过语义分析优先生成岗位匹配摘要。"""
+    source_resume = latest_resume_content or original_resume
+    jd_text = _extract_jd_text(source_resume)
+    if not jd_text:
+        return None
+    if semantic_analyzer is None:
+        semantic_analyzer = OpenRouterSemanticJobMatchAnalyzer()
+
+    resume_text = _flatten_resume_text_without_jd(source_resume)
+    try:
+        semantic_result = await semantic_analyzer.analyze(
+            jd_text=jd_text,
+            resume_text=resume_text,
+        )
+    except Exception as exc:
+        logger.warning("job_match_summary.semantic_failed", extra={"error": str(exc)})
+        return build_job_match_summary(
+            original_resume=original_resume,
+            latest_resume_content=latest_resume_content,
+            confirmed_diff_items=confirmed_diff_items,
+        )
+    matched_keywords = _dedupe(semantic_result.get("matched_keywords", []))[:6]
+    missing_keywords = _dedupe(semantic_result.get("missing_keywords", []))[:8]
+    resume_changes = _summarize_confirmed_changes(confirmed_diff_items)
+    fact_gaps = _dedupe(semantic_result.get("fact_gaps", []))[:4]
+    top_gaps = build_job_match_top_gaps(
+        resume_content=source_resume,
+        matched_keywords=matched_keywords,
+        missing_keywords=missing_keywords,
+        jd_text=jd_text,
+    )
     if not any(
         [matched_keywords, missing_keywords, resume_changes, fact_gaps, top_gaps]
     ):
@@ -354,6 +480,74 @@ def _build_fact_gaps(
     return _dedupe(gaps)[:4]
 
 
+def _parse_semantic_job_match_response(response: dict[str, Any]) -> SemanticJobMatchResult:
+    """用于从 LLM 响应中解析岗位匹配语义 JSON。"""
+    content = ChatService._coerce_content_text(
+        response.get("choices", [{}])[0].get("message", {}).get("content", "")
+    )
+    if not content:
+        raise ValueError("job match semantic response is empty")
+    parsed = json.loads(_extract_json_object(content))
+    if not isinstance(parsed, dict):
+        raise ValueError("job match semantic response is not an object")
+    return {
+        "matched_keywords": _string_list(parsed.get("matched_keywords"))[:6],
+        "missing_keywords": _string_list(parsed.get("missing_keywords"))[:8],
+        "fact_gaps": _string_list(parsed.get("fact_gaps"))[:4],
+    }
+
+
+def _extract_json_object(content: str) -> str:
+    """用于提取模型回复中的首个 JSON 对象文本。"""
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        stripped = stripped.removeprefix("json").strip()
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start < 0 or end <= start:
+        return stripped
+    return stripped[start : end + 1]
+
+
+def _string_list(value: Any) -> list[str]:
+    """用于把模型返回值标准化为字符串列表。"""
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _semantic_cache_key(jd_text: str, resume_text: str) -> str:
+    """用于生成语义匹配 prompt 缓存键。"""
+    digest = hashlib.sha256()
+    digest.update(jd_text.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(resume_text.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _remember_semantic_result(
+    cache_key: str,
+    result: SemanticJobMatchResult,
+) -> None:
+    """用于保存最近的语义匹配结果，减少重复 LLM 调用。"""
+    if len(_SEMANTIC_JOB_MATCH_CACHE) >= _SEMANTIC_JOB_MATCH_CACHE_LIMIT:
+        oldest_key = next(iter(_SEMANTIC_JOB_MATCH_CACHE))
+        _SEMANTIC_JOB_MATCH_CACHE.pop(oldest_key, None)
+    _SEMANTIC_JOB_MATCH_CACHE[cache_key] = _clone_semantic_result(result)
+
+
+def _clone_semantic_result(
+    result: SemanticJobMatchResult,
+) -> SemanticJobMatchResult:
+    """用于复制缓存结果，避免调用方修改缓存对象。"""
+    return {
+        "matched_keywords": list(result["matched_keywords"]),
+        "missing_keywords": list(result["missing_keywords"]),
+        "fact_gaps": list(result["fact_gaps"]),
+    }
+
+
 def _find_jd_evidence_for_keywords(
     keywords: tuple[str, ...],
     jd_text: str,
@@ -555,6 +749,10 @@ def _dedupe(values: list[str]) -> list[str]:
 __all__ = [
     "JobMatchSummary",
     "JobMatchTopGap",
+    "SemanticJobMatchAnalyzer",
+    "SemanticJobMatchResult",
+    "OpenRouterSemanticJobMatchAnalyzer",
     "build_job_match_summary",
+    "build_job_match_summary_async",
     "build_job_match_top_gaps",
 ]
