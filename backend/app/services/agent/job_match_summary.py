@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol, TypedDict
 
+from app.infra.config import settings
 from app.services.llm import ChatService
 from app.tools.resume.shared import summarize_value
 
@@ -76,7 +77,7 @@ class OpenRouterSemanticJobMatchAnalyzer:
             "jd_text": jd_text[:12000],
             "resume_text": resume_text[:18000],
         }
-        async with ChatService() as chat_service:
+        async with ChatService(model=settings.OPENROUTER_JOB_MATCH_MODEL) as chat_service:
             response = await chat_service.chat_completion(
                 messages=[
                     {
@@ -180,6 +181,7 @@ _CAPABILITY_SPECS = (
 )
 _ENGLISH_KEYWORD_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+#.\-]{1,}\b")
 _NUMBER_RE = re.compile(r"\d")
+_KEYWORD_LIMIT = 15
 _SEMANTIC_JOB_MATCH_SYSTEM_PROMPT = (
     "你是简历岗位匹配证据分析器，只做证据分类，不改写简历。"
     "根据 JD 和简历正文输出严格 JSON："
@@ -210,10 +212,10 @@ def build_job_match_summary(
     keywords = _extract_keywords(jd_text)
     matched_keywords = [
         keyword for keyword in keywords if _contains_keyword(resume_text, keyword)
-    ][:6]
+    ][:_KEYWORD_LIMIT]
     missing_keywords = [
         keyword for keyword in keywords if not _contains_keyword(resume_text, keyword)
-    ][:8]
+    ][:_KEYWORD_LIMIT]
     resume_changes = _summarize_confirmed_changes(confirmed_diff_items)
     fact_gaps = _build_fact_gaps(missing_keywords, jd_text, resume_changes)
     top_gaps = build_job_match_top_gaps(
@@ -228,8 +230,8 @@ def build_job_match_summary(
     ):
         return None
     return {
-        "matched_keywords": matched_keywords[:6],
-        "missing_keywords": missing_keywords[:6],
+        "matched_keywords": matched_keywords[:_KEYWORD_LIMIT],
+        "missing_keywords": missing_keywords[:_KEYWORD_LIMIT],
         "resume_changes": resume_changes,
         "fact_gaps": fact_gaps,
         "top_gaps": top_gaps,
@@ -264,8 +266,12 @@ async def build_job_match_summary_async(
             latest_resume_content=latest_resume_content,
             confirmed_diff_items=confirmed_diff_items,
         )
-    matched_keywords = _dedupe(semantic_result.get("matched_keywords", []))[:6]
-    missing_keywords = _dedupe(semantic_result.get("missing_keywords", []))[:8]
+    matched_keywords = _dedupe(semantic_result.get("matched_keywords", []))[
+        :_KEYWORD_LIMIT
+    ]
+    missing_keywords = _dedupe(semantic_result.get("missing_keywords", []))[
+        :_KEYWORD_LIMIT
+    ]
     resume_changes = _summarize_confirmed_changes(confirmed_diff_items)
     fact_gaps = _dedupe(semantic_result.get("fact_gaps", []))[:4]
     top_gaps = build_job_match_top_gaps(
@@ -279,8 +285,8 @@ async def build_job_match_summary_async(
     ):
         return None
     return {
-        "matched_keywords": matched_keywords[:6],
-        "missing_keywords": missing_keywords[:6],
+        "matched_keywords": matched_keywords[:_KEYWORD_LIMIT],
+        "missing_keywords": missing_keywords[:_KEYWORD_LIMIT],
         "resume_changes": resume_changes,
         "fact_gaps": fact_gaps,
         "top_gaps": top_gaps,
@@ -491,8 +497,12 @@ def _parse_semantic_job_match_response(response: dict[str, Any]) -> SemanticJobM
     if not isinstance(parsed, dict):
         raise ValueError("job match semantic response is not an object")
     return {
-        "matched_keywords": _string_list(parsed.get("matched_keywords"))[:6],
-        "missing_keywords": _string_list(parsed.get("missing_keywords"))[:8],
+        "matched_keywords": _string_list(parsed.get("matched_keywords"))[
+            :_KEYWORD_LIMIT
+        ],
+        "missing_keywords": _string_list(parsed.get("missing_keywords"))[
+            :_KEYWORD_LIMIT
+        ],
         "fact_gaps": _string_list(parsed.get("fact_gaps"))[:4],
     }
 

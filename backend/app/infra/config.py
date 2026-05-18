@@ -111,6 +111,10 @@ class Settings(BaseSettings):
         "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
     )
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+    OPENROUTER_JOB_MATCH_MODEL: str = os.getenv(
+        "OPENROUTER_JOB_MATCH_MODEL",
+        "deepseek/deepseek-v4-flash",
+    )
     OPENROUTER_VISION_MODEL: str = os.getenv(
         "OPENROUTER_VISION_MODEL",
         "qwen/qwen2.5-vl-72b-instruct",

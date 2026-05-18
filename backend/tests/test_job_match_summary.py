@@ -68,6 +68,18 @@ class CountingSemanticAnalyzer:
         }
 
 
+class LongSemanticAnalyzer:
+    """用于验证岗位匹配关键词最多保留 15 个。"""
+
+    async def analyze(self, *, jd_text: str, resume_text: str):
+        """用于返回超过展示上限的语义匹配结果。"""
+        return {
+            "matched_keywords": [f"命中{i}" for i in range(1, 21)],
+            "missing_keywords": [f"缺失{i}" for i in range(1, 21)],
+            "fact_gaps": [],
+        }
+
+
 @pytest.mark.asyncio
 async def test_generate_job_match_summary_uses_semantic_evidence():
     """用于验证岗位匹配摘要能识别语义相近但措辞不同的证据。"""
@@ -103,9 +115,14 @@ async def test_generate_job_match_summary_uses_semantic_evidence():
 async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch):
     """用于验证默认工具路径会调用 LLM 生成语义匹配证据。"""
     calls: list[dict[str, object]] = []
+    models: list[str | None] = []
 
     class FakeChatService:
         """用于模拟项目统一 LLM 服务。"""
+
+        def __init__(self, model: str | None = None):
+            """用于记录岗位匹配工具使用的模型。"""
+            models.append(model)
 
         @staticmethod
         def _coerce_content_text(value):
@@ -146,6 +163,7 @@ async def test_generate_job_match_summary_uses_default_semantic_llm(monkeypatch)
     result = await generate_job_match_summary(resume)
 
     assert len(calls) == 1
+    assert models == ["deepseek/deepseek-v4-flash"]
     assert result["success"] is True
     assert result["job_match_summary"]["matched_keywords"] == ["React"]
     assert result["job_match_summary"]["missing_keywords"] == ["Redis"]
@@ -158,6 +176,10 @@ async def test_generate_job_match_summary_reuses_default_semantic_cache(monkeypa
 
     class FakeChatService:
         """用于模拟可计数的 LLM 服务。"""
+
+        def __init__(self, model: str | None = None):
+            """用于兼容生产代码传入的岗位匹配模型。"""
+            self.model = model
 
         @staticmethod
         def _coerce_content_text(value):
@@ -219,6 +241,22 @@ async def test_generate_job_match_summary_falls_back_when_semantic_fails():
     assert result["success"] is True
     assert result["job_match_summary"]["matched_keywords"] == ["Agent", "后端"]
     assert "Redis" in result["job_match_summary"]["missing_keywords"]
+
+
+@pytest.mark.asyncio
+async def test_generate_job_match_summary_keeps_up_to_fifteen_keywords():
+    """用于验证岗位匹配摘要不再把命中和缺失关键词截到 6 个。"""
+    result = await generate_job_match_summary(
+        {
+            "job_application": {"jd_text": "要求多个岗位关键词。"},
+            "projects": [{"name": "测试项目", "overview": "覆盖多个关键词"}],
+        },
+        semantic_analyzer=LongSemanticAnalyzer(),
+    )
+
+    summary = result["job_match_summary"]
+    assert summary["matched_keywords"] == [f"命中{i}" for i in range(1, 16)]
+    assert summary["missing_keywords"] == [f"缺失{i}" for i in range(1, 16)]
 
 
 def test_build_job_match_summary_extracts_evidence_from_jd_resume_and_diff():
