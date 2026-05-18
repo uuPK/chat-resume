@@ -1406,6 +1406,48 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tool_call_events[0]["tool_display_name"], "update_bullet")
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
 
+    async def test_pi_agent_runtime_stream_failed_event_for_invalid_tool_arguments_marker(self):
+        """用于验证模型工具参数损坏时走失败事件而不是确认卡片。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(
+            stream_fn=FakePiAgentStream(
+                [
+                    fake_pi_tool_call(
+                        name="update_bullet",
+                        args={
+                            "__tool_arguments_parse_error": {
+                                "type": "invalid_arguments_json",
+                                "message": "Expecting property name",
+                            }
+                        },
+                        call_id="call_pi_bad_args",
+                    ),
+                    fake_pi_text("工具参数格式有误，我会重新生成。"),
+                ]
+            )
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化这段工作经历",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"work_experience"},
+        ):
+            events.append(event)
+
+        self.assertTrue(any(event.get("tool_call_failed") for event in events))
+        self.assertFalse(any(event.get("tool_pending") for event in events))
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
+        self.assertIn(
+            "工具参数格式有误",
+            "".join(event.get("content", "") for event in events),
+        )
+
     async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""
         agent = ResumeAgent()

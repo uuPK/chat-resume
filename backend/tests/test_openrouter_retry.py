@@ -316,6 +316,41 @@ async def test_openrouter_stream_emits_early_tool_call_start():
 
 
 @pytest.mark.asyncio
+async def test_openrouter_stream_keeps_invalid_tool_arguments_recoverable():
+    """工具参数 JSON 损坏时应生成可恢复工具错误，而不是中断整条流。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        (
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
+            '"id":"call_bad","function":{"name":"update_bullet",'
+            '"arguments":"{\\"section\\":\\"projects\\","}}]},'
+            '"finish_reason":"tool_calls"}]}'
+        ),
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    tool_ends = [
+        event for event in events if getattr(event, "type", "") == "toolcall_end"
+    ]
+
+    assert partial.stop_reason == "toolUse"
+    assert len(tool_ends) == 1
+    assert tool_ends[0].tool_call.arguments["__tool_arguments_parse_error"]["type"] == (
+        "invalid_arguments_json"
+    )
+
+
+@pytest.mark.asyncio
 async def test_openrouter_stream_times_out_before_first_event(
     monkeypatch: pytest.MonkeyPatch,
 ):

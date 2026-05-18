@@ -60,6 +60,7 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
+_TOOL_ARGUMENTS_PARSE_ERROR_KEY = "__tool_arguments_parse_error"
 
 
 class _ReActStreamFn:
@@ -878,6 +879,19 @@ class PiAgentRuntime:
             tool_input,
             needs_confirmation,
         )
+        if self._has_tool_argument_parse_error(tool_input):
+            return await self._publish_invalid_tool_arguments(
+                agent=agent,
+                run_id=run_id,
+                call_id=call_id,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                context=context,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                executed_tools=executed_tools,
+                tool_started_at=tool_started_at,
+            )
         preview = await self._maybe_confirm_tool(
             agent=agent,
             run_id=run_id,
@@ -910,6 +924,62 @@ class PiAgentRuntime:
             tool_started_at=tool_started_at,
             stream_state=stream_state,
         )
+
+    async def _publish_invalid_tool_arguments(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        call_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: dict[str, Any],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        executed_tools: list[dict[str, Any]],
+        tool_started_at: float,
+    ) -> str:
+        """把模型生成的坏工具参数作为可恢复工具错误发布。"""
+        parse_error = tool_input.get(_TOOL_ARGUMENTS_PARSE_ERROR_KEY)
+        message = self._invalid_tool_arguments_message(tool_name, parse_error)
+        result = {
+            "success": False,
+            "error": {
+                "type": "invalid_arguments_json",
+                "message": message,
+                "recoverable": True,
+            },
+            "message": message,
+        }
+        tool_result = {
+            "tool_name": tool_name,
+            "result": result,
+            "display_message": message,
+            "qr_image": None,
+            "updated_section_name": None,
+        }
+        self._trace_tool_executed(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            tool_result,
+            tool_started_at,
+        )
+        executed_tools.append(self._executed_tool_summary(tool_result, result))
+        await self._publish_tool_result(
+            call_id=call_id,
+            tool_name=tool_name,
+            tool_result=tool_result,
+            result=result,
+            display_message=message,
+            event_queue=event_queue,
+            event_callback=event_callback,
+            executed_tools=executed_tools,
+            context=context,
+            needs_confirmation=False,
+        )
+        return json.dumps(result, ensure_ascii=False)
 
     async def _maybe_confirm_tool(
         self,
@@ -1639,6 +1709,21 @@ class PiAgentRuntime:
         """用于判断工具failure。"""
         result = tool_result.get("result")
         return isinstance(result, dict) and result.get("success") is False
+
+    @staticmethod
+    def _has_tool_argument_parse_error(tool_input: dict[str, Any]) -> bool:
+        """判断工具参数是否来自 OpenRouter JSON 解析错误。"""
+        return isinstance(tool_input.get(_TOOL_ARGUMENTS_PARSE_ERROR_KEY), dict)
+
+    @classmethod
+    def _invalid_tool_arguments_message(cls, tool_name: str, parse_error: Any) -> str:
+        """生成可回灌给模型的坏参数错误信息。"""
+        detail = ""
+        if isinstance(parse_error, dict):
+            detail = cls._preview_text(parse_error.get("message"))
+        if detail:
+            return f"{tool_name} 工具参数不是合法 JSON，无法执行：{detail}"
+        return f"{tool_name} 工具参数不是合法 JSON，无法执行。"
 
     @staticmethod
     def _tool_success(tool_result: dict[str, Any]) -> bool | None:

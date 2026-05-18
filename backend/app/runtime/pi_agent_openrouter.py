@@ -87,6 +87,7 @@ _logger = logging.getLogger(__name__)
 _RETRY_STATUS_CODES = {429, 502, 503, 504}
 _RETRY_BASE_SECONDS = 1.0
 _RETRY_MAX_WAIT_SECONDS = 30.0
+_TOOL_ARGUMENTS_PARSE_ERROR_KEY = "__tool_arguments_parse_error"
 
 
 class OpenRouterHTTPError(Exception):
@@ -996,7 +997,7 @@ def _parse_tool_arguments(raw: Any) -> dict[str, Any]:
         return raw
     if not isinstance(raw, str) or not raw.strip():
         return {}
-    parsed = json.loads(raw)
+    parsed = json.loads(raw, strict=False)
     return parsed if isinstance(parsed, dict) else {}
 
 
@@ -1021,7 +1022,13 @@ def _parse_tool_arguments_with_log(
             args_chars=len(raw) if isinstance(raw, str) else 0,
             json_error=str(exc),
         )
-        raise
+        return {
+            _TOOL_ARGUMENTS_PARSE_ERROR_KEY: {
+                "type": "invalid_arguments_json",
+                "message": str(exc),
+                "raw_chars": len(raw) if isinstance(raw, str) else 0,
+            }
+        }
 
 
 def _tool_buffer_summary(tool_buffers: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:

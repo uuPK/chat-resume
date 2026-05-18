@@ -328,6 +328,19 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("首轮", rendered)
         self.assertNotIn("必须直接调用工具产出改动", rendered)
 
+    def test_system_prompt_uses_kimi_style_tool_turn_contract(self):
+        """用于验证工具轮协议采用 Kimi 风格：调用工具时不输出解释。"""
+        rendered = _render_resume_system_prompt(
+            target_title="产品经理",
+            target_company="美团",
+            jd_text="负责策略优化与跨团队协同",
+            resume_json='{"work_experience": [{"id": "work_1", "highlights": []}]}',
+        )
+
+        self.assertIn("当你调用工具时，不要输出解释", rendered)
+        self.assertIn("工具调用本身应该自解释", rendered)
+        self.assertNotIn("问不能生成文字生成知己", rendered)
+
     def test_tool_schema_descriptions_carry_tool_protocol(self):
         """用于验证工具使用协议收敛在工具 schema 描述中。"""
         descriptions = {
