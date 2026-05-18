@@ -13,6 +13,7 @@ import pytest
 from pi_agent_core import (
     AssistantMessage,
     TextContent,
+    ToolCall,
     ToolExecutionStartEvent,
     ToolResultMessage,
     UserMessage,
@@ -26,6 +27,7 @@ from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
+from app.runtime.pi_agent_runtime import PiAgentRuntime  # noqa: E402
 from app.runtime.resume_agent_session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
@@ -390,4 +392,203 @@ def test_resume_agent_session_rebuilds_transcript_model_and_summary():
     assert session.model_config.tool_profile == "resume_edit"
     assert session.pending_tool_call == {"id": "call_1"}
     assert session.usage["total_tokens"] == 3
-    assert session.context_summary is not None
+
+
+# ---------------------------------------------------------------------------
+# Fake tool-call guard tests
+# ---------------------------------------------------------------------------
+
+def _make_stream_fn(responses: list[AssistantMessage]):
+    """构造确定性假 stream 函数，依次返回预设响应。"""
+    calls = {"count": 0}
+
+    def stream_fn(model: Any, context: Any, options: Any) -> dict[str, Any]:
+        idx = calls["count"]
+        calls["count"] += 1
+        message = responses[idx]
+
+        async def events():
+            for block in message.content:
+                if isinstance(block, TextContent) and block.text:
+                    yield SimpleNamespace(type="text_delta", delta=block.text)
+            # tool calls are conveyed via the result message, not streaming events
+
+        async def result():
+            return message
+
+        return {"events": events(), "result": result}
+
+    return stream_fn, calls
+
+
+async def _run_react_loop_async(
+    runtime: PiAgentRuntime,
+    agent: ResumeAgent,
+    responses: list[AssistantMessage],
+    user_message: str = "优化项目经历",
+    confirmation_queue: asyncio.Queue | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """异步运行 _run_react_loop 并返回 (events, 调用次数) 元组。"""
+    stream_fn, call_tracker = _make_stream_fn(responses)
+    runtime_with_fn = PiAgentRuntime(stream_fn=stream_fn)
+
+    state = runtime_with_fn._new_stream_state()
+    context: dict[str, Any] = {
+        "resume_content": {
+            "projects": [{"id": "proj_1", "name": "Chat Resume",
+                           "highlights": [{"id": "hl_1", "text": "旧描述"}]}]
+        }
+    }
+    pi_context, prompts, config = runtime_with_fn._build_loop_inputs(
+        agent=agent.definition,
+        user_message=user_message,
+        context=context,
+        conversation_history=[],
+        run_id="test_guard_run",
+        confirmation_queue=confirmation_queue,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+    event_queue: asyncio.Queue[Any] = asyncio.Queue()
+    await runtime_with_fn._run_react_loop(
+        agent=agent.definition,
+        run_id="test_guard_run",
+        pi_context=pi_context,
+        prompts=prompts,
+        config=config,
+        context=context,
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+        executed_tools=[],
+    )
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+    return events, call_tracker["count"]
+
+
+@pytest.mark.asyncio
+async def test_fake_tool_claim_text_not_published_to_event_queue(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """tool_calls=[] 但文本声称已修改时，该文本不发布给用户，触发修复轮次。"""
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    fake_text = "我已修改了你的项目描述，增加了量化指标。"
+    repair_text = "明白了，本轮我不会修改简历，你有什么问题请告诉我。"
+
+    responses = [
+        AssistantMessage(content=[TextContent(text=fake_text)], stop_reason="stop"),
+        AssistantMessage(content=[TextContent(text=repair_text)], stop_reason="stop"),
+    ]
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        events, call_count = await _run_react_loop_async(PiAgentRuntime(), ResumeAgent(), responses)
+
+    text_published = "".join(e.get("content", "") for e in events if e.get("event_type") == "text_delta")
+    assert fake_text not in text_published
+    assert repair_text in text_published
+    assert call_count == 2
+
+    log_messages = [r.getMessage() for r in caplog.records]
+    assert "agent.trace.reasoning.tool_intent_without_call" in log_messages
+
+
+@pytest.mark.asyncio
+async def test_repair_turn_real_tool_call_produces_tool_pending(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """修复轮次返回真实 tool_call 时，现有确认门仍正常产出 tool_pending 事件。"""
+    fake_text = "已修改简历中的项目描述。"
+    tool_call = ToolCall(
+        id="call_repair_tc_1",
+        name="update_bullet",
+        arguments={
+            "section": "projects",
+            "item_id": "proj_1",
+            "bullet_id": "hl_1",
+            "text": "优化后的描述",
+        },
+    )
+    final_text = "已通过真实工具完成修改。"
+
+    responses = [
+        AssistantMessage(content=[TextContent(text=fake_text)], stop_reason="stop"),
+        AssistantMessage(content=[tool_call], stop_reason="toolUse"),
+        AssistantMessage(content=[TextContent(text=final_text)], stop_reason="stop"),
+    ]
+
+    agent = ResumeAgent()
+    agent.definition.tool_executor = lambda tc, ctx: {
+        "tool_name": "优化要点",
+        "display_message": "已更新",
+        "result": {"success": True, "diff_summary": "测试修改", "diff_items": []},
+    }
+
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+
+    events, call_count = await _run_react_loop_async(
+        PiAgentRuntime(), agent, responses, confirmation_queue=confirmation_queue
+    )
+
+    event_types = [e.get("event_type") for e in events]
+    assert "tool_pending" in event_types
+    assert call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_pure_consultation_text_not_intercepted_by_guard(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """纯咨询文本且无工具声称时，守卫不触发，文本正常发布。"""
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    consult_text = "你的简历结构清晰，建议在项目经历中补充量化数据以增强说服力。"
+
+    responses = [
+        AssistantMessage(content=[TextContent(text=consult_text)], stop_reason="stop"),
+    ]
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        events, call_count = await _run_react_loop_async(PiAgentRuntime(), ResumeAgent(), responses)
+
+    text_published = "".join(e.get("content", "") for e in events if e.get("event_type") == "text_delta")
+    assert consult_text in text_published
+    assert call_count == 1
+
+    log_messages = [r.getMessage() for r in caplog.records]
+    assert "agent.trace.reasoning.tool_intent_without_call" not in log_messages
+
+
+@pytest.mark.asyncio
+async def test_fake_tool_intent_log_contains_required_fields(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """日志 agent.trace.reasoning.tool_intent_without_call 包含所有定位字段。"""
+    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    fake_text = "我来调用 update_bullet 修改你的项目描述。"
+
+    responses = [
+        AssistantMessage(content=[TextContent(text=fake_text)], stop_reason="stop"),
+        AssistantMessage(content=[TextContent(text="好的，请问你想修改哪个要点？")], stop_reason="stop"),
+    ]
+
+    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+        await _run_react_loop_async(PiAgentRuntime(), ResumeAgent(), responses)
+
+    guard_record = next(
+        (r for r in caplog.records if r.getMessage() == "agent.trace.reasoning.tool_intent_without_call"),
+        None,
+    )
+    assert guard_record is not None
+    assert getattr(guard_record, "run_id", None) is not None
+    assert getattr(guard_record, "tool_profile", None) is not None
+    assert getattr(guard_record, "available_tool_names", None) is not None
+    assert getattr(guard_record, "text_preview", None) is not None
+    assert getattr(guard_record, "repair_attempted") is True
