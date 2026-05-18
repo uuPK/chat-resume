@@ -512,25 +512,16 @@ def _openrouter_body(
         "model": model.id,
         "messages": _openai_messages(context),
         "tools": _openai_tools(context),
+        "reasoning": {"effort": "none"},
         "stream": True,
         "stream_options": {"include_usage": True},
         "parallel_tool_calls": False,
     }
-    if reasoning := _openrouter_reasoning_payload(options):
-        body["reasoning"] = reasoning
     if options.temperature is not None:
         body["temperature"] = options.temperature
     if options.max_tokens is not None:
         body["max_tokens"] = options.max_tokens
     return body
-
-
-def _openrouter_reasoning_payload(options: SimpleStreamOptions) -> dict[str, str] | None:
-    """用于按调用方显式配置生成 OpenRouter reasoning 参数。"""
-    if options.reasoning is None or options.reasoning == "off":
-        return None
-    effort = "high" if options.reasoning == "xhigh" else options.reasoning
-    return {"effort": effort}
 
 
 def _context_tool_names(context: AgentContext) -> set[str]:
@@ -729,9 +720,7 @@ def _openai_assistant_message(message: Any) -> dict[str, Any]:
                 }
             )
     content = _text_content(message)
-    payload: dict[str, Any] = {"role": "assistant"}
-    if content or not tool_calls:
-        payload["content"] = content
+    payload: dict[str, Any] = {"role": "assistant", "content": content or None}
     if tool_calls:
         payload["tool_calls"] = tool_calls
     return payload
@@ -750,58 +739,17 @@ def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
     """用于处理OpenAI 兼容工具列表。"""
     tools = []
     for tool in context.tools:
-        parameters = _normalize_tool_schema(tool.parameters.model_dump())
         tools.append(
             {
                 "type": "function",
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": parameters,
+                    "parameters": tool.parameters.model_dump(),
                 },
             }
         )
     return tools
-
-
-def _normalize_tool_schema(schema: Any) -> Any:
-    """用于补齐 OpenAI 兼容 provider 需要的 JSON Schema type 字段。"""
-    if isinstance(schema, list):
-        return [_normalize_tool_schema(item) for item in schema]
-    if not isinstance(schema, dict):
-        return schema
-    normalized = {key: _normalize_tool_schema(value) for key, value in schema.items()}
-    if "type" not in normalized and (schema_type := _infer_schema_type(normalized)):
-        normalized["type"] = schema_type
-    return normalized
-
-
-def _infer_schema_type(schema: dict[str, Any]) -> str | None:
-    """用于从 schema 结构或 enum 值推断缺失的 type。"""
-    if isinstance(schema.get("properties"), dict):
-        return "object"
-    if "items" in schema:
-        return "array"
-    enum_values = schema.get("enum")
-    if not isinstance(enum_values, list) or not enum_values:
-        return None
-    return _infer_enum_schema_type(enum_values)
-
-
-def _infer_enum_schema_type(values: list[Any]) -> str | None:
-    """用于从 enum 值类型推断 JSON Schema type。"""
-    if all(isinstance(value, bool) for value in values):
-        return "boolean"
-    if all(isinstance(value, str) for value in values):
-        return "string"
-    if all(_is_json_number(value) for value in values):
-        return "number"
-    return None
-
-
-def _is_json_number(value: Any) -> bool:
-    """用于判断 enum 值是否应按 JSON number 处理。"""
-    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 async def _raise_for_openrouter_error(response: httpx.Response) -> None:
@@ -943,13 +891,13 @@ def _apply_tool_delta(
             continue
         index = int(raw_call.get("index") or 0)
         buffer = tool_buffers.setdefault(index, {"id": "", "name": "", "args": ""})
-        if isinstance(raw_call.get("id"), str) and not buffer["id"]:
-            buffer["id"] = raw_call["id"]
+        if isinstance(raw_call.get("id"), str):
+            buffer["id"] += raw_call["id"]
         function = raw_call.get("function")
         if not isinstance(function, dict):
             continue
-        if isinstance(function.get("name"), str) and not buffer["name"]:
-            buffer["name"] = function["name"]
+        if isinstance(function.get("name"), str):
+            buffer["name"] += function["name"]
             if buffer["name"]:
                 tool_names.append(str(buffer["name"]))
         if isinstance(function.get("arguments"), str):
