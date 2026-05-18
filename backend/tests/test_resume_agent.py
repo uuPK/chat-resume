@@ -481,8 +481,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("${guidelines}", rendered)
         self.assertNotIn("Pi 文档", rendered)
 
-    def test_system_prompt_leaves_tool_choice_to_model(self):
-        """用于验证系统提示词把工具选择交给模型判断。"""
+    def test_system_prompt_requires_tools_for_resume_mutations(self):
+        """用于验证修改简历内容时必须使用真实简历工具。"""
         rendered = _render_resume_system_prompt(
             target_title="产品经理",
             target_company="美团",
@@ -492,10 +492,12 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertIn("按 ReAct 方式工作", rendered)
         self.assertIn("每轮最多调用 1 个工具", rendered)
-        self.assertIn("是否调用工具、调用哪个工具、何时继续调用下一个工具", rendered)
+        self.assertIn("用户请求新增、修改、删除、拆分、重写、精简或优化任何简历内容", rendered)
+        self.assertIn("必须使用合适的简历工具产生真实改动", rendered)
+        self.assertIn("不要只用文本描述结果", rendered)
+        self.assertIn("纯咨询可直接回答", rendered)
         self.assertNotIn("默认执行 `optimize-first`", rendered)
         self.assertNotIn("首轮", rendered)
-        self.assertNotIn("必须直接调用工具产出改动", rendered)
 
     def test_system_prompt_uses_kimi_style_tool_turn_contract(self):
         """用于验证工具轮协议采用 Kimi 风格：调用工具时不输出解释。"""
