@@ -10,6 +10,7 @@ API 端到端集成测试
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -2617,6 +2618,264 @@ class TestInterviewSessions:
         assert "interview_report.parsed" in report_logs
         assert "interview_report.saved" in report_logs
 
+    def test_report_generation_keeps_action_report_strategy_fields(
+        self, monkeypatch
+    ):
+        """用于验证面试报告保留行动报告策略字段。"""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化假 LLM 服务。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于返回包含行动报告策略字段的结构化结果。"""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"初筛可推进，但技术深挖有风险",'
+                                    '"candidate_verdict":{"level":"borderline",'
+                                    '"label":"边缘通过","reason":"项目相关但证据不足"},'
+                                    '"job_match":{"target_title":"Agent工程师",'
+                                    '"required_capabilities":["Agent编排","技术深度"],'
+                                    '"covered_capabilities":["Agent编排"],'
+                                    '"missing_capabilities":["量化结果"],'
+                                    '"interviewer_concerns":["无法判断负责边界"],'
+                                    '"likely_followups":["你具体负责哪一层？"]},'
+                                    '"strengths":["项目方向相关","回答完整","沟通自然"],'
+                                    '"weaknesses":["缺少量化结果"],'
+                                    '"interviewer_risks":["负责边界不清"],'
+                                    '"next_training_plan":["准备STAR项目版本","补两个指标","练技术追问"],'
+                                    '"resume_feedback":["把负责边界写进项目经历"],'
+                                    '"answer_rewrites":[{"turn_index":0,'
+                                    '"original_problem":"回答没有量化结果",'
+                                    '"recommended_answer":"我负责Agent工具编排，首轮响应耗时降低30%。",'
+                                    '"why_better":"补充了职责边界和量化结果"}],'
+                                    '"dimensions":[{"title":"岗位相关度","score":4,'
+                                    '"assessment":"相关","evidence":"提到了Agent项目",'
+                                    '"advice":"补充工程细节"}],'
+                                    '"turn_evaluations":[{"turn_index":0,'
+                                    '"summary":"回答覆盖Agent项目",'
+                                    '"gaps":["缺少指标"],'
+                                    '"evidence":["提到了Agent项目"],'
+                                    '"advice":"补充延迟或转化率"}]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "target_title": "Agent工程师",
+                "jd_text": "负责Agent编排、工具调用和线上效果优化。",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个Agent项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过简历优化Agent。"},
+            headers=self.headers,
+        )
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 200, report_resp.text
+        report = report_resp.json()["session"]["report_data"]
+        assert report["candidate_verdict"]["label"] == "边缘通过"
+        assert report["job_match"]["missing_capabilities"] == ["量化结果"]
+        assert report["interviewer_risks"] == ["负责边界不清"]
+        assert report["answer_rewrites"][0]["recommended_answer"].startswith(
+            "我负责Agent工具编排"
+        )
+        assert report["dimensions"][0]["score"] == 4
+
+    def test_report_prompt_requests_action_report_strategy(self, monkeypatch):
+        """用于验证报告生成提示词要求行动报告策略字段。"""
+        captured_prompt = ""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化假 LLM 服务。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于捕获报告生成提示词。"""
+                nonlocal captured_prompt
+                captured_prompt = kwargs.get("system_prompt") or ""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"可推进",'
+                                    '"strengths":["相关","清晰","完整"],'
+                                    '"weaknesses":["缺少证据"],'
+                                    '"next_training_plan":["补证据","练追问","改简历"],'
+                                    '"resume_feedback":["补项目边界"],'
+                                    '"dimensions":[],'
+                                    '"turn_evaluations":[]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id, "target_title": "Agent工程师"},
+            headers=self.headers,
+        )
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍你的Agent项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过工具调用。"},
+            headers=self.headers,
+        )
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 200, report_resp.text
+        assert "candidate_verdict" in captured_prompt
+        assert "job_match" in captured_prompt
+        assert "interviewer_risks" in captured_prompt
+        assert "answer_rewrites" in captured_prompt
+        assert "面试官视角" in captured_prompt
+
+    def test_report_prompt_payload_includes_question_intent(self, monkeypatch):
+        """用于验证报告输入包含题目考察意图。"""
+        captured_user_payload: dict = {}
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化假 LLM 服务。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, messages, *args, **kwargs):
+                """用于捕获发送给报告模型的用户 payload。"""
+                nonlocal captured_user_payload
+                captured_user_payload = json.loads(messages[0]["content"])
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"可推进",'
+                                    '"strengths":["相关","清晰","完整"],'
+                                    '"weaknesses":["缺少证据"],'
+                                    '"next_training_plan":["补证据","练追问","改简历"],'
+                                    '"resume_feedback":["补项目边界"],'
+                                    '"dimensions":[],'
+                                    '"turn_evaluations":[]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id, "target_title": "Agent工程师"},
+            headers=self.headers,
+        )
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "讲一个技术权衡案例"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我在工具调用链路做过取舍。"},
+            headers=self.headers,
+        )
+        with _TestingSession() as db:
+            turn = (
+                db.query(InterviewTurn)
+                .filter(InterviewTurn.session_id == session_id)
+                .one()
+            )
+            turn.question_type = "technical_depth"
+            turn.intent = "考察候选人是否能解释工程权衡"
+            turn.expected_points = ["约束条件", "取舍理由", "结果指标"]
+            db.commit()
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        report_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert report_resp.status_code == 200, report_resp.text
+        turn_payload = captured_user_payload["turns"][0]
+        assert turn_payload["question_type"] == "technical_depth"
+        assert turn_payload["intent"] == "考察候选人是否能解释工程权衡"
+        assert turn_payload["expected_points"] == [
+            "约束条件",
+            "取舍理由",
+            "结果指标",
+        ]
+
     def test_report_generation_skips_empty_completed_interview(
         self, monkeypatch, caplog
     ):
@@ -2733,6 +2992,10 @@ class TestInterviewSessions:
         report = body["session"]["report_data"]
         assert body["next_action"] == "report"
         assert report["summary"]
+        assert report["candidate_verdict"]["level"] == "risky"
+        assert report["job_match"]["interviewer_concerns"]
+        assert report["interviewer_risks"]
+        assert report["answer_rewrites"][0]["recommended_answer"]
         assert len(report["strengths"]) == 3
         assert body["session"]["turns"][0]["evaluation"].startswith(
             "已记录本轮问答"

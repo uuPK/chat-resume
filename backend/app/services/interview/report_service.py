@@ -179,6 +179,9 @@ def _report_prompt_payload(
         "turns": [
             {
                 "turn_index": turn.turn_index,
+                "question_type": turn.question_type,
+                "intent": turn.intent or "",
+                "expected_points": turn.expected_points or [],
                 "question": turn.question,
                 "answer": turn.answer or "",
             }
@@ -252,25 +255,91 @@ def _public_report(report: dict[str, Any]) -> dict[str, Any]:
     """整理前端可展示的报告字段。"""
     return {
         "summary": _as_text(report.get("summary")),
+        "candidate_verdict": _candidate_verdict(report.get("candidate_verdict")),
+        "job_match": _job_match(report.get("job_match")),
         "strengths": _string_list(report.get("strengths")),
         "weaknesses": _string_list(report.get("weaknesses")),
+        "interviewer_risks": _string_list(report.get("interviewer_risks")),
         "next_training_plan": _string_list(report.get("next_training_plan")),
         "resume_feedback": _string_list(report.get("resume_feedback")),
+        "answer_rewrites": _answer_rewrites(report.get("answer_rewrites")),
         "dimensions": _dimensions(report.get("dimensions")),
     }
 
 
-def _dimensions(value: Any) -> list[dict[str, str]]:
+def _dimensions(value: Any) -> list[dict[str, Any]]:
     """标准化报告维度列表。"""
     return [
         {
             "title": _as_text(item.get("title")),
+            "score": _bounded_score(item.get("score")),
             "assessment": _as_text(item.get("assessment")),
             "evidence": _as_text(item.get("evidence")),
             "advice": _as_text(item.get("advice")),
         }
         for item in _list_of_dicts(value)
     ]
+
+
+def _candidate_verdict(value: Any) -> dict[str, str]:
+    """标准化候选人推进结论。"""
+    if not isinstance(value, dict):
+        return {"level": "", "label": "", "reason": ""}
+    return {
+        "level": _as_text(value.get("level")),
+        "label": _as_text(value.get("label")),
+        "reason": _as_text(value.get("reason")),
+    }
+
+
+def _job_match(value: Any) -> dict[str, Any]:
+    """标准化岗位匹配判断。"""
+    if not isinstance(value, dict):
+        return {
+            "target_title": "",
+            "target_company": "",
+            "required_capabilities": [],
+            "covered_capabilities": [],
+            "missing_capabilities": [],
+            "interviewer_concerns": [],
+            "likely_followups": [],
+        }
+    return {
+        "target_title": _as_text(value.get("target_title")),
+        "target_company": _as_text(value.get("target_company")),
+        "required_capabilities": _string_list(value.get("required_capabilities")),
+        "covered_capabilities": _string_list(value.get("covered_capabilities")),
+        "missing_capabilities": _string_list(value.get("missing_capabilities")),
+        "interviewer_concerns": _string_list(value.get("interviewer_concerns")),
+        "likely_followups": _string_list(value.get("likely_followups")),
+    }
+
+
+def _answer_rewrites(value: Any) -> list[dict[str, Any]]:
+    """标准化可直接复述的示范回答。"""
+    rewrites: list[dict[str, Any]] = []
+    for item in _list_of_dicts(value):
+        rewrites.append(
+            {
+                "turn_index": _turn_index(item.get("turn_index")),
+                "original_problem": _as_text(item.get("original_problem")),
+                "recommended_answer": _as_text(item.get("recommended_answer")),
+                "why_better": _as_text(item.get("why_better")),
+            }
+        )
+    return rewrites
+
+
+def _bounded_score(value: Any) -> int:
+    """标准化 1 到 5 分的维度评分。"""
+    if not isinstance(value, int):
+        return 0
+    return max(1, min(value, 5))
+
+
+def _turn_index(value: Any) -> int | None:
+    """标准化逐题关联的 turn_index。"""
+    return value if isinstance(value, int) and value >= 0 else None
 
 
 def _list_of_dicts(value: Any) -> list[dict[str, Any]]:
@@ -315,6 +384,24 @@ def _fallback_report_from_text(
 
     return {
         "summary": summary,
+        "candidate_verdict": {
+            "level": "risky",
+            "label": "需要重新复盘",
+            "reason": "模型没有返回可验证的结构化评估，当前只能基于已保存问答给出保守建议。",
+        },
+        "job_match": {
+            "target_title": "",
+            "target_company": "",
+            "required_capabilities": [],
+            "covered_capabilities": [],
+            "missing_capabilities": ["结构化面试证据不足"],
+            "interviewer_concerns": [
+                "本次报告缺少完整维度分析，暂时无法可靠判断岗位匹配度。"
+            ],
+            "likely_followups": [
+                "请重新生成报告后，再针对最弱回答准备追问。"
+            ],
+        },
         "strengths": [
             f"已完成 {len(turns)} 轮可复盘问答",
             "面试问题和回答已经保存",
@@ -322,6 +409,9 @@ def _fallback_report_from_text(
         ],
         "weaknesses": [
             "本次模型返回的结构化格式不完整，详细维度需要重新生成",
+        ],
+        "interviewer_risks": [
+            "面试官视角的核心风险尚未被可靠解析，需要重新生成结构化报告。",
         ],
         "next_training_plan": [
             "重新生成报告以获取完整结构化评估",
@@ -331,9 +421,18 @@ def _fallback_report_from_text(
         "resume_feedback": [
             "将面试中提到的项目职责、技术栈和量化成果同步回简历。",
         ],
+        "answer_rewrites": [
+            {
+                "turn_index": turns[0].turn_index if turns else None,
+                "original_problem": "当前模型未能生成可靠示范回答。",
+                "recommended_answer": "请先用 STAR 结构重写最核心项目：背景、你的职责、关键动作、量化结果。",
+                "why_better": "该结构能先补足面试官最关心的职责边界和结果证据。",
+            }
+        ],
         "dimensions": [
             {
                 "title": "报告完整性",
+                "score": 1,
                 "assessment": "需要重新生成",
                 "evidence": "模型返回内容不是严格 JSON，系统已生成保守降级报告。",
                 "advice": "重新点击生成报告，或减少单次面试内容后再生成。",
@@ -359,15 +458,22 @@ def _elapsed_ms(started_at: float) -> float:
 
 
 _REPORT_SYSTEM_PROMPT = """
-你是严谨的中文面试评估专家。请只返回 JSON，不要 Markdown。
+你是严谨、直接、以行动为导向的中文面试教练。报告目标不是打分，而是告诉用户下一次面试最该改哪几件事。
+请从面试官视角判断候选人是否像目标岗位需要的人，并基于原始回答证据给出可执行建议。
+请只返回 JSON，不要 Markdown。
 JSON 字段必须包含：
-- summary: 整体总结
+- summary: 一句话结论，说明当前更像“可推进 / 边缘 / 风险较高”的哪一种
+- candidate_verdict: 对象，包含 level/label/reason。level 可用 strong/borderline/risky
+- job_match: 对象，包含 target_title/target_company/required_capabilities/covered_capabilities/missing_capabilities/interviewer_concerns/likely_followups
 - strengths: 至少 3 条优势
 - weaknesses: 至少 1 条改进点
+- interviewer_risks: 至少 1 条面试官可能犹豫或追问的风险点
 - next_training_plan: 至少 3 条训练建议
 - resume_feedback: 至少 1 条简历反馈
-- dimensions: 数组，每项包含 title/assessment/evidence/advice
+- answer_rewrites: 数组，每项包含 turn_index/original_problem/recommended_answer/why_better。至少为最弱的 1 道题生成可直接复述的推荐回答
+- dimensions: 数组，每项包含 title/score/assessment/evidence/advice。维度建议覆盖岗位相关度、技术深度、项目表达清晰度、证据/量化结果、沟通结构
 - turn_evaluations: 数组，每项包含 turn_index/summary/gaps/evidence/advice
-逐题点评必须基于输入中的问题和候选人回答，不要编造不存在的事实。
+所有判断必须基于输入中的 JD、问题和候选人回答。没有证据就写“未证明”，不要编造不存在的事实。
+建议要具体到下次怎么说、怎么练、简历怎么补，不要写泛泛鼓励。
 输出必须是一个紧凑 JSON 对象，不要代码块，不要解释文字，不要在字符串里使用未转义的双引号。
 """.strip()
