@@ -12,18 +12,22 @@ JOB_APPLICATION_FIELDS = {"target_company", "target_title", "jd_text"}
 
 def upsert_job_application(
     resume_content: dict[str, Any],
+    fields: Any = None,
+    reason: Any = None,
     target_company: Any = _MISSING,
     target_title: Any = _MISSING,
     jd_text: Any = _MISSING,
-    reason: Any = None,
 ) -> dict[str, Any]:
     """用于维护当前简历唯一的目标公司、目标岗位和 JD 文本。"""
-    fields = _provided_fields(
+    field_result = _provided_fields(
+        fields,
         target_company=target_company,
         target_title=target_title,
         jd_text=jd_text,
     )
-    if not fields:
+    if isinstance(field_result, str):
+        return {"success": False, "message": field_result}
+    if not field_result:
         return {"success": False, "message": "求职目标更新字段不能为空"}
 
     job_application = resume_content.get("job_application")
@@ -31,7 +35,7 @@ def upsert_job_application(
         job_application = {}
 
     before = snapshot(job_application)
-    changed_fields = _changed_fields(before=before, fields=fields)
+    changed_fields = _changed_fields(before=before, fields=field_result)
     if not changed_fields:
         return {
             "success": True,
@@ -58,12 +62,27 @@ def upsert_job_application(
     }
 
 
-def _provided_fields(**values: Any) -> dict[str, str]:
+def _provided_fields(fields: Any, **legacy_values: Any) -> dict[str, str] | str:
     """用于只保留调用方明确传入的求职目标字段。"""
+    if fields is not None:
+        return _fields_from_payload(fields)
     return {
         key: str(value or "").strip()
-        for key, value in values.items()
+        for key, value in legacy_values.items()
         if value is not _MISSING
+    }
+
+
+def _fields_from_payload(fields: Any) -> dict[str, str] | str:
+    """用于校验fields载荷并提取允许修改的求职目标字段。"""
+    if not isinstance(fields, dict):
+        return "求职目标 fields 必须是对象"
+    invalid_fields = sorted(set(str(key) for key in fields) - JOB_APPLICATION_FIELDS)
+    if invalid_fields:
+        return f"upsert_job_application 不支持修改字段: {', '.join(invalid_fields)}"
+    return {
+        str(key): str(value or "").strip()
+        for key, value in fields.items()
     }
 
 

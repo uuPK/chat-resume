@@ -93,6 +93,22 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             agent.definition.tool_profiles["resume_edit"],
         )
 
+    def test_upsert_job_application_schema_uses_fields_payload(self):
+        """用于验证求职目标工具使用fields载荷以便只传实际修改字段。"""
+        schema = next(
+            tool
+            for tool in RESUME_TOOLS_SCHEMA
+            if tool["function"]["name"] == "upsert_job_application"
+        )
+        parameters = schema["function"]["parameters"]
+        properties = parameters["properties"]
+
+        self.assertEqual(parameters["required"], ["fields"])
+        self.assertIn("fields", properties)
+        self.assertNotIn("target_company", properties)
+        self.assertNotIn("target_title", properties)
+        self.assertNotIn("jd_text", properties)
+
     def test_resume_tools_schema_does_not_expose_custom_memory_tools(self):
         """用于验证简历toolsschemadoesnotexposecustommemorytools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
@@ -156,7 +172,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         result = executor.execute(
             tool_name="upsert_job_application",
             tool_input={
-                "target_company": "Anthropic",
+                "fields": {"target_company": "Anthropic"},
                 "reason": "用户要求改目标公司",
             },
             context={"resume_content": resume_content},
@@ -173,6 +189,34 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(result["updated_section_name"], "求职目标")
         self.assertIn("用户要求改目标公司", result["result"]["diff_summary"])
 
+    def test_upsert_job_application_fields_payload_updates_only_named_fields(self):
+        """用于验证fields载荷只更新明确传入的求职目标字段。"""
+        resume_content: dict[str, Any] = {
+            "job_application": {
+                "target_company": "腾讯",
+                "target_title": "AGENT开发岗",
+            }
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={
+                "fields": {"target_title": "AI应用开发岗"},
+                "reason": "用户只要求修改岗位",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["job_application"]["target_company"], "腾讯")
+        self.assertEqual(
+            resume_content["job_application"]["target_title"], "AI应用开发岗"
+        )
+        self.assertEqual(len(result["result"]["diff_items"]), 1)
+        self.assertNotIn("腾讯", result["result"]["diff_summary"])
+        self.assertIn("AI应用开发岗", result["result"]["diff_summary"])
+
     def test_upsert_job_application_diff_shows_changed_values_only(self):
         """用于验证求职目标diff只展示修改值而不是字段JSON包装。"""
         resume_content: dict[str, Any] = {
@@ -182,7 +226,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         result = executor.execute(
             tool_name="upsert_job_application",
-            tool_input={"target_title": "AGENT开发岗"},
+            tool_input={"fields": {"target_title": "AGENT开发岗"}},
             context={"resume_content": resume_content},
         )
 
@@ -204,8 +248,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         result = executor.execute(
             tool_name="upsert_job_application",
             tool_input={
-                "target_company": "腾讯",
-                "target_title": "AI应用开发岗",
+                "fields": {
+                    "target_company": "腾讯",
+                    "target_title": "AI应用开发岗",
+                },
             },
             context={"resume_content": resume_content},
         )
@@ -235,8 +281,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         result = executor.execute(
             tool_name="upsert_job_application",
             tool_input={
-                "target_company": "腾讯",
-                "target_title": "AI应用开发岗",
+                "fields": {
+                    "target_company": "腾讯",
+                    "target_title": "AI应用开发岗",
+                },
             },
             context={"resume_content": resume_content},
         )
@@ -253,8 +301,10 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         result = executor.execute(
             tool_name="upsert_job_application",
             tool_input={
-                "target_company": "OpenAI",
-                "target_title": "AI Engineer",
+                "fields": {
+                    "target_company": "OpenAI",
+                    "target_title": "AI Engineer",
+                },
                 "reason": "用户指定新的面试目标",
             },
             context={"resume_content": resume_content},
@@ -275,7 +325,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             {
                 "function": {
                     "name": "upsert_job_application",
-                    "arguments": {"target_company": "OpenAI"},
+                    "arguments": {"fields": {"target_company": "OpenAI"}},
                 }
             },
             {"resume_content": resume_content},

@@ -11,7 +11,7 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_summary": {"text"},
     "update_profile": {"fields"},
     "update_item_fields": {"section", "item_id", "fields"},
-    "upsert_job_application": set(),
+    "upsert_job_application": {"fields"},
     "update_skills": {"category_id", "items"},
     "add_resume_item": {"section", "item", "source"},
     "remove_resume_item": {"section", "item_id"},

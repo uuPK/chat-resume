@@ -230,32 +230,40 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "upsert_job_application",
             "description": (
-                "创建或更新当前简历的唯一求职目标上下文，包括目标公司、"
-                "目标岗位和 JD 文本。适合用户要求修改面试公司、投递公司、"
-                "面试岗位或目标岗位时使用；只修改 job_application，"
-                "不要修改候选人的 personal_info.position。未传字段保持原样。"
+                "创建或更新当前简历的唯一求职目标上下文。适合用户要求修改"
+                "面试公司、投递公司、面试岗位、目标岗位或 JD 时使用；"
+                "fields 只传用户明确要求修改的 target_company、target_title "
+                "或 jd_text，未传字段保持原样；只修改 job_application，"
+                "不要修改候选人的 personal_info.position。"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "target_company": {
-                        "type": "string",
-                        "description": "目标公司或面试公司",
-                    },
-                    "target_title": {
-                        "type": "string",
-                        "description": "目标岗位或面试岗位",
-                    },
-                    "jd_text": {
-                        "type": "string",
-                        "description": "目标岗位 JD 原文",
+                    "fields": {
+                        "type": "object",
+                        "description": "只包含本次要修改的求职目标字段和值",
+                        "properties": {
+                            "target_company": {
+                                "type": "string",
+                                "description": "目标公司或面试公司",
+                            },
+                            "target_title": {
+                                "type": "string",
+                                "description": "目标岗位或面试岗位",
+                            },
+                            "jd_text": {
+                                "type": "string",
+                                "description": "目标岗位 JD 原文",
+                            },
+                        },
+                        "additionalProperties": False,
                     },
                     "reason": {
                         "type": "string",
                         "description": "本次修改的简短理由，供前端展示",
                     },
                 },
-                "required": [],
+                "required": ["fields"],
             },
         },
     },
