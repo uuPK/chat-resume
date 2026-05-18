@@ -267,6 +267,14 @@ async def confirm_tool(
         tool_call_id=request.call_id,
         client_request_id=getattr(http_request.state, "client_request_id", None),
     ):
+        started_at = perf_counter()
+        logger.info(
+            "resume_agent.confirm_tool.received",
+            extra={
+                "confirmed": request.confirmed,
+                "source": request.source or "-",
+            },
+        )
         store = AgentSessionStore(db)
         service = ResumeAgentSessionService(
             store,
@@ -300,6 +308,17 @@ async def confirm_tool(
                     "source": request.source or "-",
                 },
             )
+        logger.info(
+            "resume_agent.confirm_tool.completed",
+            extra={
+                "confirmed": request.confirmed,
+                "source": request.source or "-",
+                "ok": result.ok,
+                "duplicate": result.duplicate,
+                "resumable": result.resumable,
+                "elapsed_ms": round((perf_counter() - started_at) * 1000, 2),
+            },
+        )
         return result.to_response()
 
 

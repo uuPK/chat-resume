@@ -82,6 +82,13 @@ interface StreamingChatOptions {
   agentType?: 'resume'
 }
 
+type PendingToolTiming = {
+  receivedAt: number
+  appendedAt: number
+  streamStartedAt: number
+  clientRequestId: string
+}
+
 // 用于标准化字符串列表。
 function normalizeStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
@@ -226,6 +233,16 @@ function logStreamPhase(
   })
 }
 
+// 用于读取浏览器单调时钟，方便排查确认链路延迟。
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+// 用于把耗时压缩为稳定的两位小数。
+function elapsedMsSince(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 100) / 100
+}
+
 // 用于标准化工具名称。
 function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] || name
@@ -271,6 +288,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
   const lastEventIdRef = useRef<string | null>(null)
   // tool_pending 超时计时器：key=callId, value=timerId
   const pendingToolTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pendingToolTimingsRef = useRef<Record<string, PendingToolTiming>>({})
   const confirmingToolCallsRef = useRef<Set<string>>(new Set())
   const sseEventSequenceRef = useRef(0)
 
@@ -568,10 +586,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                 // tool_pending: agent 暂停，等待用户确认
                 if (data.tool_pending && data.call_id) {
                   const callId = data.call_id as string
+                  const receivedAt = nowMs()
                   debugStreamLog('[useStreamingChat] tool_pending received', {
                     callId,
                     toolName: data.tool_display_name || data.tool_name || '',
                     diffItemCount: Array.isArray(data.diff_items) ? data.diff_items.length : 0,
+                    elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
                   eventsBuffer = [...eventsBuffer, {
@@ -581,11 +601,30 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     diffSummary: data.diff_summary || '',
                     diffItems: normalizeDiffItems(data.diff_items),
                   }]
+                  const appendedAt = nowMs()
+                  pendingToolTimingsRef.current[callId] = {
+                    receivedAt,
+                    appendedAt,
+                    streamStartedAt,
+                    clientRequestId,
+                  }
                   debugStreamLog('[useStreamingChat] tool_pending appended', {
                     callId,
+                    elapsedSinceReceivedMs: Math.round((appendedAt - receivedAt) * 100) / 100,
                     eventsAfter: summarizeToolEvents(eventsBuffer),
                   })
                   setStreamEvents([...eventsBuffer])
+                  window.requestAnimationFrame(() => {
+                    const timing = pendingToolTimingsRef.current[callId]
+                    if (!timing) return
+                    debugStreamLog('[useStreamingChat] tool_pending rendered', {
+                      callId,
+                      clientRequestId: timing.clientRequestId,
+                      elapsedSinceStreamStartMs: elapsedMsSince(timing.streamStartedAt),
+                      elapsedSinceReceivedMs: elapsedMsSince(timing.receivedAt),
+                      elapsedSinceAppendedMs: elapsedMsSince(timing.appendedAt),
+                    })
+                  })
 
                   // 5 分钟无操作自动标记为 rejected，避免永久卡在确认按钮
                   pendingToolTimersRef.current[callId] = setTimeout(() => {
@@ -618,6 +657,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     clearTimeout(pendingToolTimersRef.current[callId])
                     delete pendingToolTimersRef.current[callId]
                   }
+                  delete pendingToolTimingsRef.current[callId]
                   const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
                     ? 'tool_confirmed'
                     : 'tool_rejected'
@@ -703,6 +743,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       // 清理所有 tool_pending 超时计时器
       Object.values(pendingToolTimersRef.current).forEach(clearTimeout)
       pendingToolTimersRef.current = {}
+      pendingToolTimingsRef.current = {}
       confirmingToolCallsRef.current.clear()
       // 释放锁
       isStreamingLockRef.current = false
@@ -724,23 +765,53 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
   // 用于处理confirm工具。
   const confirmTool = async (callId: string, confirmed: boolean, source = 'unknown') => {
+    const clickedAt = nowMs()
+    const timing = pendingToolTimingsRef.current[callId]
     const sid = sessionIdRef.current
     if (!sid) {
       console.warn('[confirmTool] 没有活跃 session', { callId, confirmed, source })
+      debugStreamLog('[confirmTool] no active session', {
+        callId,
+        confirmed,
+        source,
+        elapsedSincePendingReceivedMs: timing
+          ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
+          : null,
+      })
       return
     }
     if (confirmingToolCallsRef.current.has(callId)) {
       console.warn('[confirmTool] 正在确认中，忽略重复点击', { callId, confirmed, source })
+      debugStreamLog('[confirmTool] duplicate click ignored', {
+        callId,
+        confirmed,
+        source,
+        sessionIdShort: sid.slice(0, 8),
+      })
       return
     }
     confirmingToolCallsRef.current.add(callId)
-    debugStreamLog('[confirmTool] request', {
+    debugStreamLog('[confirmTool] click', {
       callId,
       confirmed,
       source,
       sessionIdShort: sid.slice(0, 8),
+      elapsedSincePendingReceivedMs: timing
+        ? Math.round((clickedAt - timing.receivedAt) * 100) / 100
+        : null,
+      elapsedSincePendingRenderedEstimateMs: timing
+        ? Math.round((clickedAt - timing.appendedAt) * 100) / 100
+        : null,
     })
     const apiBaseUrl = options.apiBaseUrl || API_BASE_URL
+    const fetchStartedAt = nowMs()
+    debugStreamLog('[confirmTool] fetch start', {
+      callId,
+      confirmed,
+      source,
+      sessionIdShort: sid.slice(0, 8),
+      elapsedSinceClickMs: Math.round((fetchStartedAt - clickedAt) * 100) / 100,
+    })
     const response = await fetch(apiUrl('/api/ai/chat/confirm-tool', apiBaseUrl), {
       method: 'POST',
       credentials: 'include',
@@ -755,6 +826,13 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
         confirmed,
         source,
       })
+      debugStreamLog('[confirmTool] conflict response', {
+        callId,
+        confirmed,
+        source,
+        status: response.status,
+        elapsedSinceFetchStartMs: elapsedMsSince(fetchStartedAt),
+      })
       return
     }
     if (!response.ok) {
@@ -766,9 +844,12 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
       callId,
       confirmed,
       source,
+      status: response.status,
       ok: Boolean(body?.ok),
       resumable: Boolean(body?.resumable),
       duplicate: Boolean(body?.duplicate),
+      elapsedSinceFetchStartMs: elapsedMsSince(fetchStartedAt),
+      elapsedSinceClickMs: elapsedMsSince(clickedAt),
     })
     if (body?.resumable === true) {
       await resumePausedSession(sid)
