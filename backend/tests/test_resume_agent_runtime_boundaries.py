@@ -35,6 +35,7 @@ from app.runtime.tool_confirmation import ToolConfirmationPolicy  # noqa: E402
 RESUME_EDIT_TOOL_NAMES = {
     "update_summary",
     "update_profile",
+    "upsert_job_application",
     "update_item_fields",
     "update_skills",
     "add_resume_item",

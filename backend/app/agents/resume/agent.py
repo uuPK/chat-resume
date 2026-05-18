@@ -27,6 +27,7 @@ _TOOL_PROFILES: dict[str, set[str]] = {
     "resume_edit": {
         "update_summary",
         "update_profile",
+        "upsert_job_application",
         "update_item_fields",
         "update_skills",
         "add_resume_item",

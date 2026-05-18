@@ -11,6 +11,7 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "update_summary": {"text"},
     "update_profile": {"fields"},
     "update_item_fields": {"section", "item_id", "fields"},
+    "upsert_job_application": set(),
     "update_skills": {"category_id", "items"},
     "add_resume_item": {"section", "item", "source"},
     "remove_resume_item": {"section", "item_id"},
@@ -54,6 +55,7 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
 TOOL_DISPLAY_NAMES = {
     "update_summary": "优化总结",
     "update_profile": "优化个人信息",
+    "upsert_job_application": "更新求职目标",
     "update_item_fields": "优化条目字段",
     "update_skills": "优化技能",
     "add_resume_item": "新增简历条目",
@@ -196,6 +198,7 @@ class ResumeToolExecutor(ToolExecutor):
             "skills": "技能专长",
             "projects": "项目经历",
             "summary": "个人总结",
+            "job_application": "求职目标",
             "languages": "语言能力",
         }
         if not section_key:

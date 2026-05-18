@@ -4,6 +4,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -77,10 +78,20 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertIn("update_summary", tool_names)
         self.assertIn("update_profile", tool_names)
+        self.assertIn("upsert_job_application", tool_names)
         self.assertIn("update_item_fields", tool_names)
         self.assertIn("update_skills", tool_names)
         self.assertIn("add_resume_item", tool_names)
         self.assertIn("remove_resume_item", tool_names)
+
+    def test_resume_edit_profile_exposes_job_application_upsert_tool(self):
+        """用于验证resume_edit工具profile暴露求职目标upsert工具。"""
+        agent = ResumeAgent()
+
+        self.assertIn(
+            "upsert_job_application",
+            agent.definition.tool_profiles["resume_edit"],
+        )
 
     def test_resume_tools_schema_does_not_expose_custom_memory_tools(self):
         """用于验证简历toolsschemadoesnotexposecustommemorytools。"""
@@ -130,6 +141,76 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(resume_content["personal_info"]["position"], "AI 应用工程师")
         self.assertIn("Agent 工具调用", resume_content["personal_info"]["headline"])
         self.assertIn("强化目标岗位定位", result["result"]["diff_summary"])
+
+    def test_upsert_job_application_updates_existing_target_fields(self):
+        """用于验证upsert_job_application更新已有求职目标并保留未提字段。"""
+        resume_content: dict[str, Any] = {
+            "job_application": {
+                "target_company": "OpenAI",
+                "target_title": "AI Engineer",
+                "jd_text": "旧 JD",
+            }
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={
+                "target_company": "Anthropic",
+                "reason": "用户要求改目标公司",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume_content["job_application"]["target_company"], "Anthropic"
+        )
+        self.assertEqual(
+            resume_content["job_application"]["target_title"], "AI Engineer"
+        )
+        self.assertEqual(resume_content["job_application"]["jd_text"], "旧 JD")
+        self.assertEqual(result["updated_section_name"], "求职目标")
+        self.assertIn("用户要求改目标公司", result["result"]["diff_summary"])
+
+    def test_upsert_job_application_creates_missing_target_context(self):
+        """用于验证upsert_job_application在缺失时创建求职目标上下文。"""
+        resume_content: dict[str, Any] = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={
+                "target_company": "OpenAI",
+                "target_title": "AI Engineer",
+                "reason": "用户指定新的面试目标",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["job_application"]["target_company"], "OpenAI")
+        self.assertEqual(resume_content["job_application"]["target_title"], "AI Engineer")
+        self.assertEqual(result["tool_name"], "更新求职目标")
+        self.assertIn("求职目标 修改内容", result["display_message"])
+
+    def test_upsert_job_application_allows_omitted_reason(self):
+        """用于验证upsert_job_application无需reason也可响应简单目标修改。"""
+        agent = ResumeAgent()
+        resume_content: dict[str, Any] = {"job_application": {"target_title": "后端"}}
+
+        result = agent._run_tool(
+            {
+                "function": {
+                    "name": "upsert_job_application",
+                    "arguments": {"target_company": "OpenAI"},
+                }
+            },
+            {"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["job_application"]["target_company"], "OpenAI")
 
     def test_update_item_fields_tool_updates_project_fields(self):
         """用于验证update_item_fields修改项目条目的非bullet字段。"""
