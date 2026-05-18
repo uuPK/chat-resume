@@ -6,6 +6,8 @@ import { isAppLocale, routing } from './i18n/routing'
 import { apiUrl } from '@/lib/httpClient'
 const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes']
 const PUBLIC_PATHS = new Set(['/login', '/register', '/', '/resume/print'])
+const CANONICAL_ORIGIN = 'https://www.chatresume.tech'
+const CANONICAL_REDIRECT_HOSTS = new Set(['chatresu.vercel.app', 'chatresume.tech'])
 const intlProxy = createIntlProxy(routing)
 
 // 这里通过后端 /auth/me 校验 token 真伪，避免只凭 cookie 存在就放行受保护页面。
@@ -23,6 +25,11 @@ async function hasValidSession(accessToken: string): Promise<boolean> {
 
 // 用于处理proxy。
 export async function proxy(request: NextRequest) {
+  const canonicalRedirect = getCanonicalRedirect(request)
+  if (canonicalRedirect) {
+    return canonicalRedirect
+  }
+
   const { pathname, search } = request.nextUrl
   const accessToken = request.cookies.get('access_token')?.value
   const refreshToken = request.cookies.get('refresh_token')?.value
@@ -77,6 +84,24 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.redirect(loginUrl)
   response.cookies.delete('access_token')
   return response
+}
+
+// 用于将线上旧域名规范化到正式域名。
+function getCanonicalRedirect(request: NextRequest) {
+  const host = getRequestHost(request)
+  if (!CANONICAL_REDIRECT_HOSTS.has(host)) {
+    return undefined
+  }
+
+  const redirectUrl = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, CANONICAL_ORIGIN)
+  return NextResponse.redirect(redirectUrl, 308)
+}
+
+// 用于读取代理后的真实请求host。
+function getRequestHost(request: NextRequest) {
+  const forwardedHost = request.headers.get('x-forwarded-host') || ''
+  const host = forwardedHost || request.headers.get('host') || request.nextUrl.hostname
+  return host.split(',')[0].trim().toLowerCase().replace(/:\d+$/, '')
 }
 
 // 用于获取路径语言环境。
