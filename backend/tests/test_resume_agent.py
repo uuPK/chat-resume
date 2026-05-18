@@ -191,6 +191,60 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(result["result"]["diff_items"][0]["after"], "AGENT开发岗")
         self.assertNotIn("target_title", result["result"]["diff_summary"])
 
+    def test_upsert_job_application_hides_unchanged_fields_from_diff(self):
+        """用于验证求职目标diff不展示未变化字段。"""
+        resume_content: dict[str, Any] = {
+            "job_application": {
+                "target_company": "腾讯",
+                "target_title": "AGENT开发岗",
+            }
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={
+                "target_company": "腾讯",
+                "target_title": "AI应用开发岗",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume_content["job_application"]["target_company"], "腾讯"
+        )
+        self.assertEqual(
+            resume_content["job_application"]["target_title"], "AI应用开发岗"
+        )
+        self.assertEqual(len(result["result"]["diff_items"]), 1)
+        self.assertEqual(result["result"]["diff_items"][0]["before"], "AGENT开发岗")
+        self.assertEqual(result["result"]["diff_items"][0]["after"], "AI应用开发岗")
+        self.assertNotIn("腾讯", result["result"]["diff_summary"])
+
+    def test_upsert_job_application_returns_no_diff_when_nothing_changes(self):
+        """用于验证求职目标完全未变化时不产生假diff。"""
+        resume_content: dict[str, Any] = {
+            "job_application": {
+                "target_company": "腾讯",
+                "target_title": "AI应用开发岗",
+            }
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={
+                "target_company": "腾讯",
+                "target_title": "AI应用开发岗",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["result"]["diff_items"], [])
+        self.assertEqual(result["result"]["message"], "求职目标没有实际变化")
+
     def test_upsert_job_application_creates_missing_target_context(self):
         """用于验证upsert_job_application在缺失时创建求职目标上下文。"""
         resume_content: dict[str, Any] = {"projects": []}

@@ -31,13 +31,23 @@ def upsert_job_application(
         job_application = {}
 
     before = snapshot(job_application)
-    job_application.update(fields)
+    changed_fields = _changed_fields(before=before, fields=fields)
+    if not changed_fields:
+        return {
+            "success": True,
+            "message": "求职目标没有实际变化",
+            "updated_section": "job_application",
+            "diff_summary": "求职目标没有实际变化",
+            "diff_items": [],
+        }
+
+    job_application.update(changed_fields)
     resume_content["job_application"] = job_application
 
     diff_payload = _build_job_application_diff(
         before=before,
         after=job_application,
-        fields=fields,
+        fields=changed_fields,
         reason=normalize_reason(reason),
     )
     return {
@@ -54,6 +64,15 @@ def _provided_fields(**values: Any) -> dict[str, str]:
         key: str(value or "").strip()
         for key, value in values.items()
         if value is not _MISSING
+    }
+
+
+def _changed_fields(*, before: dict[str, Any], fields: dict[str, str]) -> dict[str, str]:
+    """用于过滤求职目标里没有实际变化的字段。"""
+    return {
+        key: value
+        for key, value in fields.items()
+        if str(before.get(key) or "").strip() != value
     }
 
 
