@@ -416,6 +416,34 @@ async def test_openrouter_stream_keeps_invalid_tool_arguments_recoverable():
 
 
 @pytest.mark.asyncio
+async def test_openrouter_stream_ignores_tool_finish_reason_without_tool_call():
+    """仅 finish_reason=tool_calls 不能让主循环进入工具调用分支。"""
+    model, context, options, partial, queue = _make_openrouter_stream_args()
+    _FakeOpenRouterClient.lines = [
+        'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}',
+        "data: [DONE]",
+    ]
+    _FakeOpenRouterClient.delay_seconds = 0.0
+
+    with patch(
+        "app.runtime.pi_agent_openrouter.httpx.AsyncClient",
+        _FakeOpenRouterClient,
+    ):
+        await _pump_openrouter_stream(model, context, options, partial, queue)
+
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    tool_events = [
+        event for event in events if str(getattr(event, "type", "")).startswith("toolcall")
+    ]
+
+    assert partial.stop_reason == "stop"
+    assert partial.content == []
+    assert tool_events == []
+
+
+@pytest.mark.asyncio
 async def test_openrouter_stream_times_out_before_first_event(
     monkeypatch: pytest.MonkeyPatch,
 ):
