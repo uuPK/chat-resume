@@ -334,8 +334,10 @@ export default function ResumeEditPage() {
     null
   )
   const lastStreamEvent = streamEvents[streamEvents.length - 1]
+  const isToolInteractionEvent =
+    lastStreamEvent?.type === 'tool_call' || lastStreamEvent?.type === 'tool_pending'
   const shouldShowStreamingThinking =
-    isStreaming && streamEvents.length > 0 && lastStreamEvent?.type !== 'text'
+    isStreaming && streamEvents.length > 0 && lastStreamEvent?.type !== 'text' && !isToolInteractionEvent
 
   useEffect(() => {
     const toolEvents = streamEvents.filter((event) =>

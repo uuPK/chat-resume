@@ -129,8 +129,11 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
  * 在浏览器里注入一个可控的 Resume Agent mock，用于真实驱动流式 diff 确认交互。
  */
 // 用于处理install简历agentmock。
-async function installResumeAgentMock(page: Page) {
-  await page.addInitScript(() => {
+async function installResumeAgentMock(
+  page: Page,
+  options: { pauseAfterToolCall?: boolean } = {}
+) {
+  await page.addInitScript(({ pauseAfterToolCall }) => {
     const originalFetch = window.fetch.bind(window)
     const diffSummary = [
       '改前：负责前端开发',
@@ -141,6 +144,7 @@ async function installResumeAgentMock(page: Page) {
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
       __resumeAgentResolve?: (confirmed: boolean) => void
+      __resumeAgentContinueAfterToolCall?: () => void
     }).__resumeAgentConfirmCalls = []
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -183,6 +187,7 @@ async function installResumeAgentMock(page: Page) {
           async start(controller) {
             const runtimeWindow = window as Window & {
               __resumeAgentResolve?: (confirmed: boolean) => void
+              __resumeAgentContinueAfterToolCall?: () => void
             }
             const decision = new Promise<boolean>((resolve) => {
               runtimeWindow.__resumeAgentResolve = resolve
@@ -209,6 +214,11 @@ async function installResumeAgentMock(page: Page) {
               display_message: '正在调用 update_bullet',
               done: false,
             })
+            if (pauseAfterToolCall) {
+              await new Promise<void>((resolve) => {
+                runtimeWindow.__resumeAgentContinueAfterToolCall = resolve
+              })
+            }
             await sleep(50)
             pushEvent({
               event_type: 'tool_pending',
@@ -263,7 +273,7 @@ async function installResumeAgentMock(page: Page) {
 
       return originalFetch(input, init)
     }
-  })
+  }, options)
 }
 
 /**
@@ -912,6 +922,31 @@ test.describe('编辑页工作流', () => {
     })
   })
 
+  test('Resume Agent 在工具事件阶段不额外显示思考中', async ({ page }) => {
+    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agenttoolstate'))
+
+    await installResumeAgentMock(page, { pauseAfterToolCall: true })
+    await page.goto(`/resume/${resumeId}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByText('工具运行中')).toBeVisible()
+    await expect(page.getByText('思考中')).toHaveCount(0)
+
+    await page.evaluate(() => {
+      const runtimeWindow = window as Window & {
+        __resumeAgentContinueAfterToolCall?: () => void
+      }
+      runtimeWindow.__resumeAgentContinueAfterToolCall?.()
+    })
+
+    await expect(page.getByText('主导前端重构，首屏加载提速 35%')).toBeVisible()
+    await expect(page.getByText('思考中')).toHaveCount(0)
+  })
+
   test('Resume Agent 可以拒绝待确认的 diff 修改', async ({ page }) => {
     const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentreject'))
 
@@ -923,7 +958,7 @@ test.describe('编辑页工作流', () => {
     await input.fill('请帮我优化项目经历')
     await input.press('Enter')
 
-    await expect(page.getByText('优化项目经历')).toBeVisible()
+    await expect(page.locator('span').filter({ hasText: /^优化项目经历$/ }).first()).toBeVisible()
     await page.getByRole('button', { name: '拒绝' }).click()
 
     await expect(page.getByText('已保留原文。')).toBeVisible()
