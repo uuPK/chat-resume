@@ -14,6 +14,7 @@ from app.agents.resume.stream_events import (  # noqa: E402
     normalize_resume_stream_payload,
     tool_pending_event,
 )
+from app.agents.resume.executor import ResumeToolExecutor  # noqa: E402
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA  # noqa: E402
 from app.tools.resume.update_highlight_tool import update_highlight  # noqa: E402
 from app.types.stream import public_resume_stream_event  # noqa: E402
@@ -70,12 +71,180 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertNotIn("add_highlight", tool_names)
         self.assertNotIn("remove_highlight", tool_names)
 
+    def test_resume_tools_schema_exposes_full_resume_edit_tools(self):
+        """用于验证简历toolsschema暴露全简历编辑工具。"""
+        tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+
+        self.assertIn("update_summary", tool_names)
+        self.assertIn("update_profile", tool_names)
+        self.assertIn("update_item_fields", tool_names)
+        self.assertIn("update_skills", tool_names)
+        self.assertIn("add_resume_item", tool_names)
+        self.assertIn("remove_resume_item", tool_names)
+
     def test_resume_tools_schema_does_not_expose_custom_memory_tools(self):
         """用于验证简历toolsschemadoesnotexposecustommemorytools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
 
         self.assertNotIn("read_user_memory", tool_names)
         self.assertNotIn("write_user_memory", tool_names)
+
+    def test_update_summary_tool_updates_summary_text_with_diff(self):
+        """用于验证update_summary通过执行器修改个人总结并返回diff。"""
+        resume_content = {"summary": {"text": "3年后端开发经验"}}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_summary",
+            tool_input={"text": "3年 AI 应用工程经验，熟悉 Agent 工具调用", "reason": "贴合 JD 定位"},
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(
+            resume_content["summary"]["text"],
+            "3年 AI 应用工程经验，熟悉 Agent 工具调用",
+        )
+        self.assertIn("贴合 JD 定位", result["result"]["diff_summary"])
+        self.assertEqual(result["updated_section_name"], "个人总结")
+
+    def test_update_profile_tool_updates_safe_profile_fields(self):
+        """用于验证update_profile只修改可安全优化的个人信息字段。"""
+        resume_content = {"personal_info": {"name": "张三", "position": "后端开发"}}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_profile",
+            tool_input={
+                "fields": {
+                    "position": "AI 应用工程师",
+                    "headline": "熟悉 Agent 工具调用与后端工程化",
+                },
+                "reason": "强化目标岗位定位",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["personal_info"]["name"], "张三")
+        self.assertEqual(resume_content["personal_info"]["position"], "AI 应用工程师")
+        self.assertIn("Agent 工具调用", resume_content["personal_info"]["headline"])
+        self.assertIn("强化目标岗位定位", result["result"]["diff_summary"])
+
+    def test_update_item_fields_tool_updates_project_fields(self):
+        """用于验证update_item_fields修改项目条目的非bullet字段。"""
+        resume_content = {
+            "projects": [
+                {
+                    "id": "proj_1",
+                    "name": "Chat Resume",
+                    "overview": "简历编辑器",
+                    "role": "开发",
+                }
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_item_fields",
+            tool_input={
+                "section": "projects",
+                "item_id": "proj_1",
+                "fields": {
+                    "overview": "基于 ReAct Agent 的简历优化工作台",
+                    "role": "全栈负责人",
+                    "technologies": ["FastAPI", "Next.js", "Agent Tools"],
+                },
+                "reason": "补强项目定位和技术栈",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        project = resume_content["projects"][0]
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(project["role"], "全栈负责人")
+        self.assertIn("ReAct Agent", project["overview"])
+        self.assertIn("Agent Tools", project["technologies"])
+        self.assertIn("补强项目定位和技术栈", result["result"]["diff_summary"])
+
+    def test_update_skills_tool_replaces_skill_items(self):
+        """用于验证update_skills精确更新技能分类和技能列表。"""
+        resume_content = {
+            "skills": [
+                {"id": "skill_1", "category": "后端", "items": ["Python", "FastAPI"]},
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_skills",
+            tool_input={
+                "category_id": "skill_1",
+                "category": "AI 应用工程",
+                "items": ["Python", "FastAPI", "Agent Tools", "RAG"],
+                "mode": "replace",
+                "reason": "补充 JD 关键词",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["skills"][0]["category"], "AI 应用工程")
+        self.assertEqual(
+            resume_content["skills"][0]["items"],
+            ["Python", "FastAPI", "Agent Tools", "RAG"],
+        )
+        self.assertIn("补充 JD 关键词", result["result"]["diff_summary"])
+
+    def test_add_resume_item_tool_requires_source_and_adds_project(self):
+        """用于验证add_resume_item带事实来源新增项目条目。"""
+        resume_content = {"projects": []}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="add_resume_item",
+            tool_input={
+                "section": "projects",
+                "item": {
+                    "name": "Agent 简历优化",
+                    "overview": "用户明确提供的项目经历",
+                    "role": "负责人",
+                },
+                "source": "用户在本轮消息中明确提供",
+                "reason": "补充目标岗位相关项目",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(len(resume_content["projects"]), 1)
+        self.assertTrue(resume_content["projects"][0]["id"].startswith("proj_"))
+        self.assertEqual(resume_content["projects"][0]["role"], "负责人")
+        self.assertIn("补充目标岗位相关项目", result["result"]["diff_summary"])
+
+    def test_remove_resume_item_tool_removes_existing_skill_category(self):
+        """用于验证remove_resume_item删除已有技能分类。"""
+        resume_content = {
+            "skills": [
+                {"id": "skill_1", "category": "旧技能", "items": ["jQuery"]},
+                {"id": "skill_2", "category": "后端", "items": ["Python"]},
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="remove_resume_item",
+            tool_input={
+                "section": "skills",
+                "item_id": "skill_1",
+                "reason": "删除与目标岗位弱相关的技能分类",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual([item["id"] for item in resume_content["skills"]], ["skill_2"])
+        self.assertIn("删除与目标岗位弱相关", result["result"]["diff_summary"])
 
     def test_resume_tool_result_includes_structured_diff_reason(self):
         """用于验证简历tool结果includesstructureddiffreason。"""

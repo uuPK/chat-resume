@@ -8,6 +8,12 @@ from app.tools.base import ToolExecutor
 from app.tools.resume.registry import execute_resume_tool
 
 TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
+    "update_summary": {"text"},
+    "update_profile": {"fields"},
+    "update_item_fields": {"section", "item_id", "fields"},
+    "update_skills": {"category_id", "items"},
+    "add_resume_item": {"section", "item", "source"},
+    "remove_resume_item": {"section", "item_id"},
     "update_overview": {"section", "item_id", "overview"},
     "update_bullet": {"section", "item_id", "bullet_id", "text"},
     "add_bullet": {"section", "item_id", "text"},
@@ -20,6 +26,23 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
 
 TOOL_SECTION_ENUMS: dict[str, set[str]] = {
     "update_overview": {"projects"},
+    "update_item_fields": {"education", "work_experience", "projects"},
+    "add_resume_item": {
+        "education",
+        "work_experience",
+        "projects",
+        "skills",
+        "languages",
+        "custom_sections",
+    },
+    "remove_resume_item": {
+        "education",
+        "work_experience",
+        "projects",
+        "skills",
+        "languages",
+        "custom_sections",
+    },
     "update_bullet": {"education", "work_experience", "projects"},
     "add_bullet": {"education", "work_experience", "projects"},
     "remove_bullet": {"education", "work_experience", "projects"},
@@ -29,6 +52,12 @@ TOOL_SECTION_ENUMS: dict[str, set[str]] = {
 }
 
 TOOL_DISPLAY_NAMES = {
+    "update_summary": "优化总结",
+    "update_profile": "优化个人信息",
+    "update_item_fields": "优化条目字段",
+    "update_skills": "优化技能",
+    "add_resume_item": "新增简历条目",
+    "remove_resume_item": "删除简历条目",
     "update_overview": "优化简介",
     "update_bullet": "优化要点",
     "add_bullet": "新增要点",

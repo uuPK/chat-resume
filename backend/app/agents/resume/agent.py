@@ -25,6 +25,12 @@ _AUTO_EXECUTE_TOOL_NAMES: set[str] = {
 }
 _TOOL_PROFILES: dict[str, set[str]] = {
     "resume_edit": {
+        "update_summary",
+        "update_profile",
+        "update_item_fields",
+        "update_skills",
+        "add_resume_item",
+        "remove_resume_item",
         "update_overview",
         "update_bullet",
         "add_bullet",

@@ -32,6 +32,20 @@ from app.runtime.resume_agent_session import (  # noqa: E402
 )
 from app.runtime.tool_confirmation import ToolConfirmationPolicy  # noqa: E402
 
+RESUME_EDIT_TOOL_NAMES = {
+    "update_summary",
+    "update_profile",
+    "update_item_fields",
+    "update_skills",
+    "add_resume_item",
+    "remove_resume_item",
+    "update_overview",
+    "update_bullet",
+    "add_bullet",
+    "remove_bullet",
+    "generate_job_match_summary",
+}
+
 
 def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, dict[str, Any]]:
     """用于生成最小 runtime 输入并返回 pi_context 和 state。"""
@@ -61,13 +75,7 @@ def test_plain_message_exposes_resume_tools_for_model_choice():
     pi_context, state = _build_runtime_inputs(agent, "这份简历有哪些问题？")
 
     assert state["tool_profile"] == "resume_edit"
-    assert {tool.name for tool in pi_context.tools} == {
-        "update_overview",
-        "update_bullet",
-        "add_bullet",
-        "remove_bullet",
-        "generate_job_match_summary",
-    }
+    assert {tool.name for tool in pi_context.tools} == RESUME_EDIT_TOOL_NAMES
 
 
 def test_system_prompt_does_not_mirror_active_tools():
@@ -79,13 +87,7 @@ def test_system_prompt_does_not_mirror_active_tools():
     assert "## 可用工具" not in pi_context.system_prompt
     assert "update_bullet" not in pi_context.system_prompt
     assert "generate_job_match_summary" not in pi_context.system_prompt
-    assert state["tool_names"] == [
-        "update_overview",
-        "update_bullet",
-        "add_bullet",
-        "remove_bullet",
-        "generate_job_match_summary",
-    ]
+    assert set(state["tool_names"]) == RESUME_EDIT_TOOL_NAMES
 
 
 def test_system_prompt_template_omits_tool_summary_variables():
@@ -137,13 +139,7 @@ def test_job_match_message_still_exposes_resume_tools_for_model_choice():
     pi_context, state = _build_runtime_inputs(agent, "这个 JD 的岗位匹配度怎么样？")
 
     assert state["tool_profile"] == "resume_edit"
-    assert {tool.name for tool in pi_context.tools} == {
-        "update_overview",
-        "update_bullet",
-        "add_bullet",
-        "remove_bullet",
-        "generate_job_match_summary",
-    }
+    assert {tool.name for tool in pi_context.tools} == RESUME_EDIT_TOOL_NAMES
 
 
 def test_llm_request_event_records_profile_counts_and_prompt_size():
@@ -154,7 +150,7 @@ def test_llm_request_event_records_profile_counts_and_prompt_size():
     event = agent.runtime._llm_request_event(agent.definition, pi_context, [], state)
 
     assert event["tool_profile"] == "resume_edit"
-    assert event["tool_count"] == 5
+    assert event["tool_count"] == len(RESUME_EDIT_TOOL_NAMES)
     assert event["message_count"] == 1
     assert event["prompt_chars"] > 0
 
