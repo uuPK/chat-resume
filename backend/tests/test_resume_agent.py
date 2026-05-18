@@ -173,6 +173,24 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(result["updated_section_name"], "求职目标")
         self.assertIn("用户要求改目标公司", result["result"]["diff_summary"])
 
+    def test_upsert_job_application_diff_shows_changed_values_only(self):
+        """用于验证求职目标diff只展示修改值而不是字段JSON包装。"""
+        resume_content: dict[str, Any] = {
+            "job_application": {"target_title": "AEGNK开发岗"}
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="upsert_job_application",
+            tool_input={"target_title": "AGENT开发岗"},
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(result["result"]["diff_items"][0]["before"], "AEGNK开发岗")
+        self.assertEqual(result["result"]["diff_items"][0]["after"], "AGENT开发岗")
+        self.assertNotIn("target_title", result["result"]["diff_summary"])
+
     def test_upsert_job_application_creates_missing_target_context(self):
         """用于验证upsert_job_application在缺失时创建求职目标上下文。"""
         resume_content: dict[str, Any] = {"projects": []}

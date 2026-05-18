@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .shared import build_diff_payload, normalize_reason, snapshot
+from .shared import normalize_reason, snapshot, summarize_value
 
 _MISSING = object()
 JOB_APPLICATION_FIELDS = {"target_company", "target_title", "jd_text"}
@@ -34,10 +34,10 @@ def upsert_job_application(
     job_application.update(fields)
     resume_content["job_application"] = job_application
 
-    diff_payload = build_diff_payload(
-        title="求职目标 修改内容",
-        before={key: before.get(key) for key in fields},
-        after={key: job_application.get(key) for key in fields},
+    diff_payload = _build_job_application_diff(
+        before=before,
+        after=job_application,
+        fields=fields,
         reason=normalize_reason(reason),
     )
     return {
@@ -55,6 +55,31 @@ def _provided_fields(**values: Any) -> dict[str, str]:
         for key, value in values.items()
         if value is not _MISSING
     }
+
+
+def _build_job_application_diff(
+    *,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    fields: dict[str, str],
+    reason: str,
+) -> dict[str, Any]:
+    """用于生成只展示被修改值的求职目标 diff。"""
+    diff_items = [
+        {
+            "before": summarize_value(before.get(key)),
+            "after": summarize_value(after.get(key)),
+            "reason": reason,
+        }
+        for key in fields
+    ]
+    lines = ["求职目标 修改内容"]
+    for item in diff_items:
+        lines.append(f"  改前：{item['before']}")
+        lines.append(f"  改后：{item['after']}")
+        if item["reason"]:
+            lines.append(f"  改动理由：{item['reason']}")
+    return {"diff_summary": "\n".join(lines), "diff_items": diff_items}
 
 
 __all__ = ["JOB_APPLICATION_FIELDS", "upsert_job_application"]
