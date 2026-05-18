@@ -1,5 +1,5 @@
 ## 项目概述
-一个AGENT驱动的简历优化和模拟面试网站
+一个 Agent 驱动的简历优化和模拟面试网站
 
 ## 本地日志
 - 当你需要程序的报错信息和性能信息时，请阅读 `backend/logs/backend.log`。
@@ -9,7 +9,7 @@
 
 - 测试驱动开发，在构建功能时，先打造一个微小的、端到端的功能切片，寻求反馈，然后在此基础上逐步扩展。 曳光弹的概念源自《程序员修炼之道》。在构建系统时，你希望编写能尽快获得反馈的代码。曳光弹是贯穿系统所有层的小功能切片，让你能尽早测试和验证方法。这有助于识别潜在问题，并确保在投入大量开发时间之前，整体架构是稳健的。
 
-- 解决问题信息不足时请添加日志，获取足够的错误信息来DEBUG。
+- 解决问题信息不足时请添加日志，获取足够的错误信息来调试。
 
 - 代码嵌套不能超过3层
 
@@ -28,180 +28,177 @@
 - 每次进行一次修改后都要告诉用户如何验收并检查改动后的正确性
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
+## Beads 任务追踪器
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+本项目使用 **bd (beads)** 做任务追踪。运行 `bd prime` 查看完整工作流上下文和命令。
 
-### Quick Reference
+### 快速参考
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd ready              # 查找可开始的任务
+bd show <id>          # 查看任务详情
+bd update <id> --claim  # 认领任务
+bd close <id>         # 完成任务
 ```
 
-### Rules
+### 规则
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- 所有任务追踪都使用 `bd`，不要使用 TodoWrite、TaskCreate 或 Markdown TODO 列表
+- 运行 `bd prime` 查看详细命令参考和会话收尾协议
+- 使用 `bd remember` 保存持久知识，不要使用 MEMORY.md 文件
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+**一句话架构：** 任务存放在本地 Dolt 数据库中；同步使用 Git 远端的 `refs/dolt/data`；`.beads/issues.jsonl` 只是被动导出文件。细节和反模式见 https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md。
 
-## Session Completion
+## 会话收尾
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**结束一次工作会话时**，必须完成下面所有步骤。只有 `git push` 成功后，工作才算完成。
 
-**MANDATORY WORKFLOW:**
+**强制工作流：**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **为剩余工作创建任务** - 所有需要后续处理的事项都要创建任务
+2. **运行质量门禁**（如果改了代码）- 测试、类型检查、构建
+3. **更新任务状态** - 关闭已完成任务，更新进行中的任务
+4. **推送到远端** - 这是强制要求：
    ```bash
    git pull --rebase
    git push
-   git status  # MUST show "up to date with origin"
+   git status  # 必须显示已与 origin 同步
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. **清理** - 清理 stash，清理不再需要的远端分支
+6. **验证** - 所有改动都已提交并推送
+7. **交接** - 为下一次会话提供上下文
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+**关键规则：**
+- `git push` 成功之前，工作不算完成
+- 推送前绝不停止，否则改动会滞留在本地
+- 不要说“你准备好了我再推送”，你必须完成推送
+- 如果推送失败，解决问题并重试，直到成功
 <!-- END BEADS INTEGRATION -->
 
-### Using bv as an AI sidecar
+### 把 bv 作为 AI 辅助工具
 
-bv is a graph-aware triage engine for Beads projects (.beads/beads.jsonl). Instead of parsing JSONL or hallucinating graph traversal, use robot flags for deterministic, dependency-aware outputs with precomputed metrics (PageRank, betweenness, critical path, cycles, HITS, eigenvector, k-core).
+bv 是面向 Beads 项目（`.beads/beads.jsonl`）的图感知分诊引擎。不要自己解析 JSONL，也不要凭空推测图遍历结果；使用 robot 参数可以得到确定性的、依赖感知的输出，并包含预计算指标（PageRank、中介中心性、关键路径、环、HITS、特征向量、k-core）。
 
-**Scope boundary:** bv handles *what to work on* (triage, priority, planning). For agent-to-agent coordination (messaging, work claiming, file reservations), use [MCP Agent Mail](https://github.com/Dicklesworthstone/mcp_agent_mail).
+**职责边界：** bv 负责判断*该做什么*（分诊、优先级、规划）。Agent 之间的协作（消息、任务认领、文件预约）使用 [MCP Agent Mail](https://github.com/Dicklesworthstone/mcp_agent_mail)。
 
-**⚠️ CRITICAL: Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.**
+**⚠️ 重要：只使用 `--robot-*` 参数。裸跑 `bv` 会启动交互式 TUI，并阻塞当前会话。**
 
-#### The Workflow: Start With Triage
+#### 工作流：从分诊开始
 
-**`bv --robot-triage` is your single entry point.** It returns everything you need in one call:
-- `quick_ref`: at-a-glance counts + top 3 picks
-- `recommendations`: ranked actionable items with scores, reasons, unblock info
-- `quick_wins`: low-effort high-impact items
-- `blockers_to_clear`: items that unblock the most downstream work
-- `project_health`: status/type/priority distributions, graph metrics
-- `commands`: copy-paste shell commands for next steps
+**`bv --robot-triage` 是统一入口。** 它一次调用就返回所需信息：
+- `quick_ref`：总览计数和前 3 个推荐项
+- `recommendations`：可执行事项排序，包含分数、原因和解除阻塞信息
+- `quick_wins`：低成本、高影响的事项
+- `blockers_to_clear`：能解除最多下游阻塞的事项
+- `project_health`：状态、类型、优先级分布和图指标
+- `commands`：可直接复制执行的下一步 shell 命令
 
-bv --robot-triage        # THE MEGA-COMMAND: start here
-bv --robot-next          # Minimal: just the single top pick + claim command
+bv --robot-triage        # 入口命令：从这里开始
+bv --robot-next          # 最小输出：只返回一个最高优先级任务和认领命令
 
-# Token-optimized output (TOON) for lower LLM context usage:
+# 面向低 LLM 上下文消耗的 token 优化输出（TOON）：
 bv --robot-triage --format toon
 export BV_OUTPUT_FORMAT=toon
 bv --robot-next
 
-Before claiming, verify the current bead state with `br show <id> --json` or
-`br ready --json`. `recommendations` can include graph-important blocked or
-assigned work; only `quick_ref.top_picks` and non-empty `claim_command` fields
-represent claimable work.
+认领前，用 `br show <id> --json` 或 `br ready --json` 验证当前 bead 状态。`recommendations` 可能包含图上重要但已阻塞或已分配的工作；只有 `quick_ref.top_picks` 和非空 `claim_command` 字段才表示可认领工作。
 
-#### Other Commands
+#### 其他命令
 
-**Planning:**
-| Command | Returns |
+**规划：**
+| 命令 | 返回内容 |
 |---------|---------|
-| `--robot-plan` | Parallel execution tracks with `unblocks` lists |
-| `--robot-priority` | Priority misalignment detection with confidence |
+| `--robot-plan` | 并行执行轨道，以及 `unblocks` 列表 |
+| `--robot-priority` | 优先级错配检测和置信度 |
 
-**Graph Analysis:**
-| Command | Returns |
+**图分析：**
+| 命令 | 返回内容 |
 |---------|---------|
-| `--robot-insights` | Full metrics: PageRank, betweenness, HITS (hubs/authorities), eigenvector, critical path, cycles, k-core, articulation points, slack |
-| `--robot-label-health` | Per-label health: `health_level` (healthy\|warning\|critical), `velocity_score`, `staleness`, `blocked_count` |
-| `--robot-label-flow` | Cross-label dependency: `flow_matrix`, `dependencies`, `bottleneck_labels` |
-| `--robot-label-attention [--attention-limit=N]` | Attention-ranked labels by: (pagerank × staleness × block_impact) / velocity |
+| `--robot-insights` | 完整指标：PageRank、中介中心性、HITS（枢纽/权威）、特征向量、关键路径、环、k-core、割点、松弛量 |
+| `--robot-label-health` | 按标签统计健康度：`health_level`（healthy\|warning\|critical）、`velocity_score`、`staleness`、`blocked_count` |
+| `--robot-label-flow` | 跨标签依赖：`flow_matrix`、`dependencies`、`bottleneck_labels` |
+| `--robot-label-attention [--attention-limit=N]` | 按 `(pagerank × staleness × block_impact) / velocity` 排序的标签关注度 |
 
-**History & Change Tracking:**
-| Command | Returns |
+**历史与变更追踪：**
+| 命令 | 返回内容 |
 |---------|---------|
-| `--robot-history` | Bead-to-commit correlations: `stats`, `histories` (per-bead events/commits/milestones), `commit_index` |
-| `--robot-diff --diff-since <ref>` | Changes since ref: new/closed/modified issues, cycles introduced/resolved |
+| `--robot-history` | bead 与 commit 的关联：`stats`、`histories`（每个 bead 的事件/提交/里程碑）、`commit_index` |
+| `--robot-diff --diff-since <ref>` | 自指定 ref 以来的变化：新增/关闭/修改的 issue，引入/解决的环 |
 
-**Other Commands:**
-| Command | Returns |
+**其他命令：**
+| 命令 | 返回内容 |
 |---------|---------|
-| `--robot-burndown <sprint>` | Sprint burndown, scope changes, at-risk items |
-| `--robot-forecast <id\|all>` | ETA predictions with dependency-aware scheduling |
-| `--robot-alerts` | Stale issues, blocking cascades, priority mismatches |
-| `--robot-suggest` | Hygiene: duplicates, missing deps, label suggestions, cycle breaks |
-| `--robot-graph [--graph-format=json\|dot\|mermaid]` | Dependency graph export |
-| `--export-graph <file.html>` | Self-contained interactive HTML visualization |
+| `--robot-burndown <sprint>` | 迭代燃尽、范围变化、有风险事项 |
+| `--robot-forecast <id\|all>` | 依赖感知排期下的预计完成时间预测 |
+| `--robot-alerts` | 陈旧 issue、阻塞级联、优先级错配 |
+| `--robot-suggest` | 卫生检查：重复项、缺失依赖、标签建议、环路打断建议 |
+| `--robot-graph [--graph-format=json\|dot\|mermaid]` | 导出依赖图 |
+| `--export-graph <file.html>` | 自包含的交互式 HTML 可视化 |
 
-#### Scoping & Filtering
+#### 范围与过滤
 
-bv --robot-plan --label backend              # Scope to label's subgraph
-bv --robot-insights --as-of HEAD~30          # Historical point-in-time
-bv --recipe actionable --robot-plan          # Pre-filter: ready to work (no blockers)
-bv --recipe high-impact --robot-triage       # Pre-filter: top PageRank scores
-bv --robot-triage --robot-triage-by-track    # Group by parallel work streams
-bv --robot-triage --robot-triage-by-label    # Group by domain
+bv --robot-plan --label backend              # 限定到该标签的子图
+bv --robot-insights --as-of HEAD~30          # 历史时间点分析
+bv --recipe actionable --robot-plan          # 预过滤：可开始工作（无阻塞）
+bv --recipe high-impact --robot-triage       # 预过滤：PageRank 高分任务
+bv --robot-triage --robot-triage-by-track    # 按并行工作流分组
+bv --robot-triage --robot-triage-by-label    # 按领域分组
 
-#### Understanding Robot Output
+#### 理解 robot 输出
 
-**All robot JSON includes:**
-- `data_hash` — Fingerprint of source beads.jsonl (verify consistency across calls)
-- `status` — Per-metric state: `computed|approx|timeout|skipped` + elapsed ms
-- `as_of` / `as_of_commit` — Present when using `--as-of`; contains ref and resolved SHA
+**所有 robot JSON 都包含：**
+- `data_hash`：源 beads.jsonl 的指纹（用于验证多次调用的一致性）
+- `status`：每个指标的状态：`computed|approx|timeout|skipped` + 耗时毫秒
+- `as_of` / `as_of_commit`：使用 `--as-of` 时出现，包含 ref 和解析后的 SHA
 
-**Two-phase analysis:**
-- **Phase 1 (instant):** degree, topo sort, density — always available immediately
-- **Phase 2 (async, 500ms timeout):** PageRank, betweenness, HITS, eigenvector, cycles — check `status` flags
+**两阶段分析：**
+- **阶段 1（即时）：** 度数、拓扑排序、密度，总是立即可用
+- **阶段 2（异步，500ms 超时）：** PageRank、中介中心性、HITS、特征向量、环；需要检查 `status` 标记
 
-**For large graphs (>500 nodes):** Some metrics may be approximated or skipped. Always check `status`.
+**大型图（超过 500 个节点）：** 部分指标可能被近似计算或跳过。务必检查 `status`。
 
-#### jq Quick Reference
+#### jq 快速参考
 
-bv --robot-triage | jq '.quick_ref'                        # At-a-glance summary
-bv --robot-triage | jq '.recommendations[0]'               # Top recommendation
-bv --robot-plan | jq '.plan.summary.highest_impact'        # Best unblock target
-bv --robot-insights | jq '.status'                         # Check metric readiness
-bv --robot-insights | jq '.Cycles'                         # Circular deps (must fix!)
+bv --robot-triage | jq '.quick_ref'                        # 总览摘要
+bv --robot-triage | jq '.recommendations[0]'               # 最高推荐项
+bv --robot-plan | jq '.plan.summary.highest_impact'        # 最佳解除阻塞目标
+bv --robot-insights | jq '.status'                         # 检查指标就绪状态
+bv --robot-insights | jq '.Cycles'                         # 环形依赖（必须修复）
 bv --robot-label-health | jq '.results.labels[] | select(.health_level == "critical")'
 
-**Performance:** Phase 1 instant, Phase 2 async (500ms timeout). Prefer `--robot-plan` over `--robot-insights` when speed matters. Results cached by data hash.
+**性能：** 阶段 1 即时返回，阶段 2 异步执行（500ms 超时）。如果速度更重要，优先用 `--robot-plan`，不要用 `--robot-insights`。结果按 data hash 缓存。
 
-Use bv instead of parsing beads.jsonl—it computes PageRank, critical paths, cycles, and parallel tracks deterministically.
+使用 bv，不要自己解析 beads.jsonl；它会确定性地计算 PageRank、关键路径、环和并行轨道。
 
 
-## MCP Agent Mail: coordination for multi-agent workflows
+## MCP Agent Mail：多 Agent 工作流协作
 
-What it is
-- A mail-like layer that lets coding agents coordinate asynchronously via MCP tools and resources.
-- Provides identities, inbox/outbox, searchable threads, and advisory file reservations, with human-auditable artifacts in Git.
+它是什么
+- 一个类似邮件的协作层，让编码 Agent 通过 MCP 工具和资源异步协作。
+- 提供身份、收件箱/发件箱、可搜索线程和建议式文件预约，并把人类可审计的产物保存在 Git 中。
 
-Why it's useful
-- Prevents agents from stepping on each other with explicit file reservations (leases) for files/globs.
-- Keeps communication out of your token budget by storing messages in a per-project archive.
-- Offers quick reads (`resource://inbox/...`, `resource://thread/...`) and macros that bundle common flows.
+为什么有用
+- 通过对文件或 glob 显式做文件预约（租约），避免多个 Agent 互相覆盖改动。
+- 把消息存入每个项目的归档中，避免把沟通内容长期塞进 token 上下文。
+- 提供快速读取资源（`resource://inbox/...`、`resource://thread/...`）和封装常见流程的宏命令。
 
-How to use effectively
-1) Same repository
-   - Register an identity: call `ensure_project`, then `register_agent` using this repo's absolute path as `project_key`.
-   - Reserve files before you edit: `file_reservation_paths(project_key, agent_name, ["src/**"], ttl_seconds=3600, exclusive=true)` to signal intent and avoid conflict.
-   - Communicate with threads: use `send_message(..., thread_id="FEAT-123")`; check inbox with `fetch_inbox` and acknowledge with `acknowledge_message`.
-   - Read fast: `resource://inbox/{Agent}?project=<abs-path>&limit=20&agent_token=<registration_token>` or `resource://thread/{id}?project=<abs-path>&agent=<Agent>&agent_token=<registration_token>&include_bodies=true` unless the current MCP session already authenticated as that agent.
-   - Tip: set `AGENT_NAME` in your environment so the pre-commit guard can block commits that conflict with others' active exclusive file reservations.
+如何有效使用
+1) 同一个仓库
+   - 注册身份：调用 `ensure_project`，然后用本仓库绝对路径作为 `project_key` 调用 `register_agent`。
+   - 编辑前预约文件：调用 `file_reservation_paths(project_key, agent_name, ["src/**"], ttl_seconds=3600, exclusive=true)` 表明意图并避免冲突。
+   - 用线程沟通：使用 `send_message(..., thread_id="FEAT-123")`；用 `fetch_inbox` 检查收件箱，用 `acknowledge_message` 确认收悉。
+   - 快速读取：使用 `resource://inbox/{Agent}?project=<abs-path>&limit=20&agent_token=<registration_token>` 或 `resource://thread/{id}?project=<abs-path>&agent=<Agent>&agent_token=<registration_token>&include_bodies=true`。如果当前 MCP 会话已经以该 Agent 身份认证，则不需要再带 token。
+   - 提示：在环境变量里设置 `AGENT_NAME`，这样提交前防护可以阻止与其他 Agent 的活跃独占文件预约冲突的提交。
 
-2) Across different repos in one project (e.g., Next.js frontend + FastAPI backend)
-   - Option A (single project bus): register both sides under the same `project_key` (shared key/path). Keep reservation patterns specific (e.g., `frontend/**` vs `backend/**`).
-   - Option B (separate projects): each repo has its own `project_key`; use `macro_contact_handshake` or `request_contact`/`respond_contact` to link agents, then message directly. Keep a shared `thread_id` (e.g., ticket key) across repos for clean summaries/audits.
+2) 同一个项目里的不同仓库（例如 Next.js 前端 + FastAPI 后端）
+   - 方案 A（单项目总线）：两边都注册到同一个 `project_key`（共享 key/路径）。预约模式要保持具体，例如 `frontend/**` 和 `backend/**`。
+   - 方案 B（独立项目）：每个仓库使用自己的 `project_key`；通过 `macro_contact_handshake` 或 `request_contact`/`respond_contact` 连接 Agent，然后直接发消息。跨仓库使用共享的 `thread_id`（例如任务编号），便于汇总和审计。
 
-Macros vs granular tools
-- Prefer macros when you want speed or are on a smaller model: `macro_start_session`, `macro_prepare_thread`, `macro_file_reservation_cycle`, `macro_contact_handshake`.
-- Use granular tools when you need control: `register_agent`, `file_reservation_paths`, `send_message`, `fetch_inbox`, `acknowledge_message`.
+宏与细粒度工具
+- 想要更快执行或使用较小模型时，优先使用宏：`macro_start_session`、`macro_prepare_thread`、`macro_file_reservation_cycle`、`macro_contact_handshake`。
+- 需要更强控制时，使用细粒度工具：`register_agent`、`file_reservation_paths`、`send_message`、`fetch_inbox`、`acknowledge_message`。
 
-Common pitfalls
-- "from_agent not registered": always `register_agent` in the correct `project_key` first.
-- "FILE_RESERVATION_CONFLICT": adjust patterns, wait for expiry, or use a non-exclusive reservation when appropriate.
-- Auth errors: if JWT+JWKS is enabled, include a bearer token with a `kid` that matches server JWKS; static bearer is used only when JWT is disabled.
+常见问题
+- “from_agent not registered”：表示发送方 Agent 未注册。一定要先在正确的 `project_key` 下执行 `register_agent`。
+- “FILE_RESERVATION_CONFLICT”：调整路径模式，等待租约过期，或在合适时使用非独占预约。
+- 认证错误：如果启用了 JWT+JWKS，请携带 bearer 令牌，并确保其中的 `kid` 与服务器 JWKS 匹配；只有在 JWT 禁用时才使用静态 bearer。
