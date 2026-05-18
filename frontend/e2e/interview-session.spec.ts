@@ -79,9 +79,41 @@ const completedSession = {
 const completedSessionWithReport = {
   ...completedSession,
   report_data: {
-    summary: '回答完整但需要补充量化结果',
+    summary: '边缘通过，岗位方向相关但证据不足',
+    candidate_verdict: {
+      level: 'borderline',
+      label: '边缘通过',
+      reason: '项目方向相关，但负责边界和量化结果没有证明清楚。',
+    },
+    job_match: {
+      target_title: 'Agent 工程师',
+      target_company: 'Acme',
+      required_capabilities: ['Agent 编排', '工具调用', '线上效果优化'],
+      covered_capabilities: ['Agent 编排'],
+      missing_capabilities: ['量化结果', '负责边界'],
+      interviewer_concerns: ['无法判断候选人是否主导核心链路'],
+      likely_followups: ['你具体负责哪一层？'],
+    },
     strengths: ['结构清晰', '项目相关', '表达自然'],
     weaknesses: ['量化不足'],
+    interviewer_risks: ['负责边界不清，面试官可能继续追问具体贡献。'],
+    answer_rewrites: [
+      {
+        turn_index: 0,
+        original_problem: '回答只说做过 Agent，没有说明你的职责和结果。',
+        recommended_answer: '我负责 Agent 工具编排和确认链路，首轮响应耗时降低 30%。',
+        why_better: '这句话同时补充了职责边界、技术动作和量化结果。',
+      },
+    ],
+    dimensions: [
+      {
+        title: '岗位相关度',
+        score: 4,
+        assessment: '方向匹配',
+        evidence: '提到了简历优化 Agent 和语音面试流程。',
+        advice: '补充工具调用、编排和线上指标。',
+      },
+    ],
     next_training_plan: ['补充数据', '练习追问', '压缩表达'],
     resume_feedback: ['强化项目成果'],
   },
@@ -151,8 +183,8 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
 
   expect(endRequest.method()).toBe('POST')
   await expect(endButton).toBeHidden()
-  await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
-  await expect(page.getByText('报告生成中')).toBeVisible()
+  await expect(page.getByRole('button', { name: '查看报告' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toBeVisible()
 })
 
 test('completed 面试可以点击生成报告并展示摘要', async ({ page }) => {
@@ -167,7 +199,7 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
 
   await page.goto('/zh/resume/123/interview?session=456')
 
-  const generateButton = page.getByRole('button', { name: '生成报告' })
+  const generateButton = page.getByRole('button', { name: '生成报告', exact: true })
   await expect(generateButton).toBeVisible()
   const [reportRequest] = await Promise.all([
     page.waitForRequest('**/api/interviews/456/report'),
@@ -176,9 +208,9 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
 
   expect(reportRequest.method()).toBe('POST')
   await expect(generateButton).toBeHidden()
-  await expect(page.getByRole('heading', { name: '面试评估报告' })).toBeVisible()
-  await expect(page.getByText('回答完整但需要补充量化结果')).toBeVisible()
-  await expect(page.getByRole('link', { name: '查看对话' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
+  await expect(page.getByText('边缘通过，岗位方向相关但证据不足')).toBeVisible()
+  await page.getByRole('button', { name: '查看对话' }).click()
   await expect(page.getByRole('heading', { name: '面试对话记录' })).toBeVisible()
   await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
   await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
@@ -187,6 +219,28 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   await expect(page.getByText('没有说明用户规模')).toBeVisible()
   await expect(page.getByText('提到了简历优化 Agent')).toBeVisible()
   await expect(page.getByText('补充延迟、转化率或用户反馈数据。')).toBeVisible()
+})
+
+test('completed 面试报告展示行动报告结构', async ({ page }) => {
+  await mockInterviewApis(page)
+
+  await page.route(/\/api\/interviews\/456$/, async route => {
+    await route.fulfill({ json: { session: completedSessionWithReport } })
+  })
+
+  await page.goto('/zh/resume/123/interview?session=456')
+
+  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
+  await expect(page.getByText('边缘通过，岗位方向相关但证据不足')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试官结论' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '岗位匹配' })).toBeVisible()
+  await expect(page.getByText('量化结果', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '风险追问' })).toBeVisible()
+  await expect(page.getByText('负责边界不清，面试官可能继续追问具体贡献。')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '逐题重写' })).toBeVisible()
+  await expect(page.getByText('我负责 Agent 工具编排和确认链路，首轮响应耗时降低 30%。')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '下一步行动' })).toBeVisible()
+  await expect(page.getByText('强化项目成果')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {

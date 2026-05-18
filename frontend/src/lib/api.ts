@@ -81,9 +81,33 @@ interface InterviewTurn {
 
 interface InterviewReportDimension {
   title: string
+  score?: number
   assessment: string
   evidence: string
   advice: string
+}
+
+interface InterviewCandidateVerdict {
+  level?: string
+  label?: string
+  reason?: string
+}
+
+interface InterviewJobMatch {
+  target_title?: string
+  target_company?: string
+  required_capabilities?: string[]
+  covered_capabilities?: string[]
+  missing_capabilities?: string[]
+  interviewer_concerns?: string[]
+  likely_followups?: string[]
+}
+
+interface InterviewAnswerRewrite {
+  turn_index?: number | null
+  original_problem?: string
+  recommended_answer?: string
+  why_better?: string
 }
 
 interface InterviewSession {
@@ -106,10 +130,14 @@ interface InterviewSession {
   ended_at?: string
   report_data?: {
     summary?: string
+    candidate_verdict?: InterviewCandidateVerdict
+    job_match?: InterviewJobMatch
     strengths?: string[]
     dimensions?: InterviewReportDimension[]
     recurring_issues?: string[]
     weaknesses?: string[]
+    interviewer_risks?: string[]
+    answer_rewrites?: InterviewAnswerRewrite[]
     next_training_plan?: string[]
     resume_feedback?: string[]
   }

@@ -7,6 +7,7 @@ import { useRouter } from '@/i18n/navigation'
 import { Link } from '@/i18n/navigation'
 import {
   ArrowLeftIcon,
+  ArrowPathIcon,
   MicrophoneIcon,
   PhoneXMarkIcon,
   Cog6ToothIcon,
@@ -797,48 +798,298 @@ function VoicePanel({
   )
 }
 
-// 用于渲染面试报告摘要。
-function ReportPreview({ report }: { report: InterviewSession['report_data'] }) {
-  const t = useTranslations('interview.session')
-  const locale = useLocale()
-  if (!report) {
-    return (
-      <section id="interview-report" className="border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-        <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
-        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告生成中', en: 'Report generation in progress' })}</p>
-      </section>
-    )
-  }
+type ReportData = NonNullable<InterviewSession['report_data']>
 
-  const sections = [
-    { title: sessionText(t, locale, 'reportStrengths', { zh: '优势亮点', en: 'Strengths' }), items: report.strengths || [] },
-    { title: sessionText(t, locale, 'reportWeaknesses', { zh: '改进方向', en: 'Areas to improve' }), items: report.weaknesses || [] },
-    { title: sessionText(t, locale, 'reportTrainingPlan', { zh: '训练计划', en: 'Training plan' }), items: report.next_training_plan || [] },
-    { title: sessionText(t, locale, 'reportResumeFeedback', { zh: '简历反馈', en: 'Resume feedback' }), items: report.resume_feedback || [] },
-  ].filter((section) => section.items.length > 0)
+// 用于渲染报告区域的标题和内容容器。
+function ReportSection({
+  title,
+  eyebrow,
+  children,
+}: {
+  title: string
+  eyebrow?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', padding: '24px 26px' }}>
+      {eyebrow && (
+        <p style={{ color: '#6b7280', fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>
+          {eyebrow}
+        </p>
+      )}
+      <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 750, lineHeight: 1.25, margin: '0 0 18px' }}>
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
+}
+
+// 用于渲染短列表，保持报告信息密度稳定。
+function ReportList({ items, tone = 'neutral' }: { items: string[]; tone?: 'neutral' | 'risk' | 'good' }) {
+  const color = tone === 'risk' ? '#dc2626' : tone === 'good' ? '#047857' : '#2563eb'
+  return (
+    <ul style={{ display: 'grid', gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: color, marginTop: 8, flexShrink: 0 }} />
+          <span style={{ color: '#374151', fontSize: 14, lineHeight: 1.65 }}>{item}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// 用于展示能力标签，区分已证明和待补强能力。
+function CapabilityTags({ items, tone }: { items: string[]; tone: 'covered' | 'missing' | 'required' }) {
+  const palette = {
+    covered: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
+    missing: { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+    required: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  }[tone]
 
   return (
-    <section id="interview-report">
-      <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
-      {report.summary && (
-        <section className="mt-4 border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-          <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportSummary', { zh: '整体总结', en: 'Summary' })}</h3>
-          <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{report.summary}</p>
-        </section>
-      )}
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {sections.map((section) => (
-          <section key={section.title} className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-            <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{section.title}</h3>
-            <ul className="mt-3 space-y-2">
-              {section.items.map((item) => (
-                <li key={item} className="text-sm leading-6" style={{ color: '#5b616e' }}>{item}</li>
-              ))}
-            </ul>
-          </section>
-        ))}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {items.map((item, index) => (
+        <span
+          key={`${item}-${index}`}
+          style={{
+            background: palette.bg,
+            border: `1px solid ${palette.border}`,
+            borderRadius: 999,
+            color: palette.color,
+            fontSize: 13,
+            fontWeight: 650,
+            lineHeight: 1,
+            padding: '8px 10px',
+          }}
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// 用于渲染未生成报告时的主操作面板。
+function ReportGenerationPanel({
+  isGenerating,
+  onGenerate,
+}: {
+  isGenerating: boolean
+  onGenerate: () => void
+}) {
+  const steps = ['整理面试对话', '判断岗位匹配', '提取面试官风险', '重写最弱回答']
+  return (
+    <div style={{ minHeight: 'calc(100vh - 160px)', display: 'grid', placeItems: 'center', padding: '48px 0' }}>
+      <div style={{ width: '100%', maxWidth: 680, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.08)', padding: '36px 38px' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 8, background: '#eff6ff', color: '#0052ff', display: 'grid', placeItems: 'center', marginBottom: 20 }}>
+          <ArrowPathIcon style={{ width: 22, height: 22 }} />
+        </div>
+        <h1 style={{ color: '#111827', fontSize: 28, fontWeight: 800, lineHeight: 1.18, margin: '0 0 12px' }}>
+          生成面试复盘报告
+        </h1>
+        <p style={{ color: '#4b5563', fontSize: 16, lineHeight: 1.7, margin: '0 0 26px', maxWidth: 560 }}>
+          我们会从面试官视角分析岗位匹配、风险追问和可直接复述的改写回答。
+        </p>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={isGenerating}
+          style={{
+            alignItems: 'center',
+            background: isGenerating ? '#93c5fd' : '#0052ff',
+            border: '1px solid transparent',
+            borderRadius: 8,
+            color: '#ffffff',
+            cursor: isGenerating ? 'not-allowed' : 'pointer',
+            display: 'inline-flex',
+            fontSize: 15,
+            fontWeight: 750,
+            gap: 8,
+            height: 44,
+            padding: '0 18px',
+          }}
+        >
+          <ArrowPathIcon style={{ width: 17, height: 17 }} />
+          {isGenerating ? '生成中...' : '开始生成报告'}
+        </button>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4" style={{ marginTop: 30 }}>
+          {steps.map((step, index) => (
+            <div key={step} style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', padding: 14 }}>
+              <span style={{ color: '#0052ff', fontSize: 12, fontWeight: 800 }}>
+                0{index + 1}
+              </span>
+              <p style={{ color: '#374151', fontSize: 13, fontWeight: 650, lineHeight: 1.45, margin: '8px 0 0' }}>
+                {step}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
+  )
+}
+
+// 用于渲染面试行动报告，按下一次面试行动优先级组织。
+function ReportPreview({
+  report,
+}: {
+  report: InterviewSession['report_data']
+}) {
+  if (!report) {
+    return null
+  }
+
+  const data = report as ReportData
+  const verdict = data.candidate_verdict
+  const match = data.job_match
+  const verdictLabel = verdict?.label || data.summary || '待复盘'
+  const verdictReason = verdict?.reason || data.summary || '报告已生成，请优先查看风险和行动建议。'
+  const missingCapabilities = match?.missing_capabilities || data.weaknesses || []
+  const coveredCapabilities = match?.covered_capabilities || data.strengths || []
+  const requiredCapabilities = match?.required_capabilities || []
+  const risks = data.interviewer_risks || match?.interviewer_concerns || data.weaknesses || []
+  const rewrites = data.answer_rewrites || []
+  const actionItems = [...(data.next_training_plan || []), ...(data.resume_feedback || [])]
+  const dimensions = data.dimensions || []
+  const verdictTone = verdict?.level === 'strong' ? '#047857' : verdict?.level === 'risky' ? '#dc2626' : '#c2410c'
+
+  return (
+    <div style={{ display: 'grid', gap: 22 }}>
+      <section style={{ border: '1px solid #dbeafe', borderRadius: 8, background: 'linear-gradient(135deg, #eff6ff 0%, #ffffff 58%)', padding: '30px 32px' }}>
+        <p style={{ color: '#1d4ed8', fontSize: 13, fontWeight: 800, margin: '0 0 10px' }}>
+          下一次面试作战页
+        </p>
+        <div className="grid gap-7 lg:grid-cols-[1.35fr_1fr]" style={{ alignItems: 'start' }}>
+          <div>
+            <h1 style={{ color: '#0f172a', fontSize: 34, fontWeight: 850, lineHeight: 1.12, margin: '0 0 14px' }}>
+              面试作战报告
+            </h1>
+            <p style={{ color: '#334155', fontSize: 16, lineHeight: 1.75, margin: 0 }}>
+              {data.summary || verdictReason}
+            </p>
+          </div>
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', padding: 18 }}>
+            <p style={{ color: '#6b7280', fontSize: 12, fontWeight: 750, margin: '0 0 8px' }}>
+              当前结论
+            </p>
+            <p style={{ color: verdictTone, fontSize: 26, fontWeight: 850, lineHeight: 1.15, margin: '0 0 10px' }}>
+              {verdictLabel}
+            </p>
+            <p style={{ color: '#4b5563', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+              {verdictReason}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <ReportSection title="面试官结论" eyebrow="Verdict">
+        <div className="grid gap-[18px] md:grid-cols-[minmax(160px,220px)_1fr]">
+          <div style={{ borderRadius: 8, background: '#f9fafb', padding: 18 }}>
+            <p style={{ color: verdictTone, fontSize: 24, fontWeight: 850, margin: 0 }}>
+              {verdictLabel}
+            </p>
+            <p style={{ color: '#6b7280', fontSize: 13, lineHeight: 1.5, margin: '10px 0 0' }}>
+              {verdict?.level || 'review'}
+            </p>
+          </div>
+          <p style={{ color: '#374151', fontSize: 15, lineHeight: 1.75, margin: 0 }}>
+            {verdictReason}
+          </p>
+        </div>
+      </ReportSection>
+
+      <ReportSection title="岗位匹配" eyebrow={[match?.target_company, match?.target_title].filter(Boolean).join(' · ') || 'Job match'}>
+        <div style={{ display: 'grid', gap: 18 }}>
+          {requiredCapabilities.length > 0 && (
+            <div>
+              <p style={{ color: '#6b7280', fontSize: 13, fontWeight: 750, margin: '0 0 10px' }}>岗位需要</p>
+              <CapabilityTags items={requiredCapabilities} tone="required" />
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-[18px] md:grid-cols-2">
+            <div>
+              <p style={{ color: '#047857', fontSize: 13, fontWeight: 750, margin: '0 0 10px' }}>已经证明</p>
+              {coveredCapabilities.length > 0 ? <CapabilityTags items={coveredCapabilities} tone="covered" /> : <p style={{ color: '#6b7280', fontSize: 14 }}>暂未证明。</p>}
+            </div>
+            <div>
+              <p style={{ color: '#c2410c', fontSize: 13, fontWeight: 750, margin: '0 0 10px' }}>还要补强</p>
+              {missingCapabilities.length > 0 ? <CapabilityTags items={missingCapabilities} tone="missing" /> : <p style={{ color: '#6b7280', fontSize: 14 }}>暂无明显缺口。</p>}
+            </div>
+          </div>
+        </div>
+      </ReportSection>
+
+      {risks.length > 0 && (
+        <ReportSection title="风险追问" eyebrow="Interviewer risks">
+          <ReportList items={risks} tone="risk" />
+          {(match?.likely_followups || []).length > 0 && (
+            <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 18, paddingTop: 18 }}>
+              <p style={{ color: '#6b7280', fontSize: 13, fontWeight: 750, margin: '0 0 10px' }}>可能追问</p>
+              <ReportList items={match?.likely_followups || []} tone="neutral" />
+            </div>
+          )}
+        </ReportSection>
+      )}
+
+      {rewrites.length > 0 && (
+        <ReportSection title="逐题重写" eyebrow="Answer rewrite">
+          <div style={{ display: 'grid', gap: 16 }}>
+            {rewrites.map((rewrite, index) => (
+              <article key={`${rewrite.recommended_answer}-${index}`} className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1fr_1.2fr]">
+                <div style={{ background: '#f9fafb', borderRadius: 8, padding: 16 }}>
+                  <p style={{ color: '#6b7280', fontSize: 12, fontWeight: 750, margin: '0 0 8px' }}>
+                    原回答问题
+                  </p>
+                  <p style={{ color: '#374151', fontSize: 14, lineHeight: 1.65, margin: 0 }}>
+                    {rewrite.original_problem || '这道题需要补充更具体的证据。'}
+                  </p>
+                </div>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16 }}>
+                  <p style={{ color: '#1d4ed8', fontSize: 12, fontWeight: 750, margin: '0 0 8px' }}>
+                    下次可以这样说
+                  </p>
+                  <p style={{ color: '#0f172a', fontSize: 15, lineHeight: 1.75, margin: 0 }}>
+                    {rewrite.recommended_answer || '用 STAR 结构补充背景、职责、动作和结果。'}
+                  </p>
+                  {rewrite.why_better && (
+                    <p style={{ color: '#475569', fontSize: 13, lineHeight: 1.6, margin: '12px 0 0' }}>
+                      {rewrite.why_better}
+                    </p>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </ReportSection>
+      )}
+
+      {dimensions.length > 0 && (
+        <ReportSection title="能力维度" eyebrow="Scorecard">
+          <div style={{ display: 'grid', gap: 12 }}>
+            {dimensions.map((dimension, index) => (
+              <div key={`${dimension.title}-${index}`} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginBottom: 10 }}>
+                  <p style={{ color: '#111827', fontSize: 15, fontWeight: 750, margin: 0 }}>{dimension.title}</p>
+                  {typeof dimension.score === 'number' && (
+                    <span style={{ color: '#0052ff', fontSize: 13, fontWeight: 800 }}>{dimension.score}/5</span>
+                  )}
+                </div>
+                <p style={{ color: '#374151', fontSize: 14, lineHeight: 1.65, margin: '0 0 8px' }}>{dimension.assessment}</p>
+                <p style={{ color: '#6b7280', fontSize: 13, lineHeight: 1.55, margin: 0 }}>{dimension.advice || dimension.evidence}</p>
+              </div>
+            ))}
+          </div>
+        </ReportSection>
+      )}
+
+      {actionItems.length > 0 && (
+        <ReportSection title="下一步行动" eyebrow="Action plan">
+          <ReportList items={actionItems} tone="good" />
+        </ReportSection>
+      )}
+    </div>
   )
 }
 
@@ -858,47 +1109,70 @@ function isStructuredTurnEvaluation(value: TurnEvaluation): value is {
 function TurnEvaluationCard({ evaluation }: { evaluation: TurnEvaluation }) {
   const t = useTranslations('interview.session')
   const locale = useLocale()
-  const title = sessionText(t, locale, 'turnEvaluationTitle', { zh: '单题点评', en: 'Question feedback' })
+  const title = sessionText(t, locale, 'turnEvaluationTitle', { zh: '单题点评', en: 'Question Feedback' })
 
   if (!isStructuredTurnEvaluation(evaluation)) {
     return (
-      <section className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#f8f9fb' }}>
-        <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{title}</h3>
-        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{evaluation}</p>
-      </section>
+      <div style={{ background: '#1a1d24', borderRadius: 12, padding: '20px 24px' }}>
+        <h3 style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>
+          {title}
+        </h3>
+        <p style={{ color: '#e5e7eb', fontSize: 14, lineHeight: 1.7 }}>{evaluation}</p>
+      </div>
     )
   }
 
-  const detailSections = [
-    { title: sessionText(t, locale, 'turnEvaluationGaps', { zh: '主要缺口', en: 'Gaps' }), items: evaluation.gaps || [] },
-    { title: sessionText(t, locale, 'turnEvaluationEvidence', { zh: '评价依据', en: 'Evidence' }), items: evaluation.evidence || [] },
-  ].filter((section) => section.items.length > 0)
-
   return (
-    <section className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#f8f9fb' }}>
-      <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{title}</h3>
+    <div style={{ background: '#1a1d24', borderRadius: 12, padding: '20px 24px' }}>
+      <h3 style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
+        {title}
+      </h3>
       {evaluation.summary && (
-        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{evaluation.summary}</p>
+        <p style={{ color: '#e5e7eb', fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>
+          {evaluation.summary}
+        </p>
       )}
-      {detailSections.map((section) => (
-        <div key={section.title} className="mt-3">
-          <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>{section.title}</p>
-          <ul className="mt-1 space-y-1">
-            {section.items.map((item) => (
-              <li key={item} className="text-sm leading-6" style={{ color: '#0a0b0d' }}>{item}</li>
+      {(evaluation.gaps || []).length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+            {sessionText(t, locale, 'turnEvaluationGaps', { zh: '主要缺口', en: 'Gaps' })}
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(evaluation.gaps || []).map((item, i) => (
+              <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ flexShrink: 0, width: 4, height: 4, borderRadius: '50%', background: '#f59e0b', marginTop: 7 }} />
+                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.6 }}>{item}</span>
+              </li>
             ))}
           </ul>
         </div>
-      ))}
-      {evaluation.advice && (
-        <div className="mt-3">
-          <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>
-            {sessionText(t, locale, 'turnEvaluationAdvice', { zh: '改进建议', en: 'Advice' })}
+      )}
+      {(evaluation.evidence || []).length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+            {sessionText(t, locale, 'turnEvaluationEvidence', { zh: '评价依据', en: 'Evidence' })}
           </p>
-          <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{evaluation.advice}</p>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(evaluation.evidence || []).map((item, i) => (
+              <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ flexShrink: 0, width: 4, height: 4, borderRadius: '50%', background: '#6b7280', marginTop: 7 }} />
+                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.6 }}>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-    </section>
+      {evaluation.advice && (
+        <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(87,139,250,0.12)', borderRadius: 8, borderLeft: '3px solid #578bfa' }}>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+            {sessionText(t, locale, 'turnEvaluationAdvice', { zh: '改进建议', en: 'Advice' })}
+          </p>
+          <p style={{ color: '#93bbfd', fontSize: 13, lineHeight: 1.65 }}>
+            {evaluation.advice}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -908,57 +1182,75 @@ function InterviewTranscript({ turns }: { turns: InterviewSession['turns'] }) {
   const locale = useLocale()
   const visibleTurns = turns.filter((turn) => turn.question || turn.answer)
 
+  if (visibleTurns.length === 0) {
+    return (
+      <p style={{ color: '#5b616e', fontSize: 15 }}>
+        {sessionText(t, locale, 'transcriptEmpty', { zh: '暂无可展示的面试对话。', en: 'No interview transcript is available yet.' })}
+      </p>
+    )
+  }
+
   return (
-    <section id="interview-transcript" className="border p-5" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
-      <h2 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <h1 style={{ color: '#111827', fontSize: 28, fontWeight: 800, lineHeight: 1.2, margin: 0 }}>
         {sessionText(t, locale, 'transcriptTitle', { zh: '面试对话记录', en: 'Interview transcript' })}
-      </h2>
-      {visibleTurns.length === 0 ? (
-        <p className="mt-3 text-sm leading-6" style={{ color: '#5b616e' }}>
-          {sessionText(t, locale, 'transcriptEmpty', { zh: '暂无可展示的面试对话。', en: 'No interview transcript is available yet.' })}
-        </p>
-      ) : (
-        <div className="mt-4 space-y-4">
-          {visibleTurns.map((turn) => (
-            <article key={turn.id} className="space-y-3">
-              {turn.question && (
-                <div className="rounded-lg px-4 py-3" style={{ backgroundColor: '#eef0f3' }}>
-                  <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>
-                    {sessionText(t, locale, 'interviewerLabel', { zh: '面试官', en: 'Interviewer' })}
-                  </p>
-                  <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{turn.question}</p>
-                </div>
-              )}
-              {turn.answer && (
-                <div className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)' }}>
-                  <p className="text-xs font-semibold" style={{ color: '#0052ff' }}>
-                    {sessionText(t, locale, 'candidateLabel', { zh: '候选人', en: 'Candidate' })}
-                  </p>
-                  <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{turn.answer}</p>
-                </div>
-              )}
-              {turn.evaluation && <TurnEvaluationCard evaluation={turn.evaluation} />}
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
+      </h1>
+      {visibleTurns.map((turn, index) => (
+        <article key={turn.id}>
+          {/* 题目序号分隔线 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: '50%', background: '#0a0b0d', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {index + 1}
+            </span>
+            <div style={{ flex: 1, height: 1, background: '#eef0f3' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {turn.question && (
+              <div style={{ background: '#f8f9fb', borderRadius: 12, padding: '16px 20px' }}>
+                <p style={{ color: '#9ca3af', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  {sessionText(t, locale, 'interviewerLabel', { zh: '面试官', en: 'Interviewer' })}
+                </p>
+                <p style={{ color: '#111827', fontSize: 15, lineHeight: 1.6 }}>{turn.question}</p>
+              </div>
+            )}
+            {turn.answer && (
+              <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '16px 20px', borderLeft: '3px solid #0052ff' }}>
+                <p style={{ color: '#0052ff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  {sessionText(t, locale, 'candidateLabel', { zh: '候选人', en: 'Candidate' })}
+                </p>
+                <p style={{ color: '#111827', fontSize: 15, lineHeight: 1.6 }}>{turn.answer}</p>
+              </div>
+            )}
+            {turn.evaluation && <TurnEvaluationCard evaluation={turn.evaluation} />}
+          </div>
+        </article>
+      ))}
+    </div>
   )
 }
 
-// 用于在完成态同时展示报告和历史对话。
+// 用于在完成态通过 Tab 切换展示报告和历史对话。
 function CompletedInterviewReview({
   report,
   turns,
+  activeTab,
+  isGenerating,
+  onGenerate,
 }: {
   report: InterviewSession['report_data']
   turns: InterviewSession['turns']
+  activeTab: 'report' | 'transcript'
+  isGenerating: boolean
+  onGenerate: () => void
 }) {
   return (
-    <div className="flex-1 overflow-y-auto bg-white px-5 py-6">
-      <div className="mx-auto w-full max-w-4xl space-y-6">
-        <ReportPreview report={report} />
-        <InterviewTranscript turns={turns} />
+    <div className="flex-1 overflow-y-auto" style={{ backgroundColor: '#f8fafc' }}>
+      <div className="mx-auto w-full max-w-5xl px-5 py-10">
+        {activeTab === 'report' && !report && (
+          <ReportGenerationPanel isGenerating={isGenerating} onGenerate={onGenerate} />
+        )}
+        {activeTab === 'report' && report && <ReportPreview report={report} />}
+        {activeTab === 'transcript' && <InterviewTranscript turns={turns} />}
       </div>
     </div>
   )
@@ -981,6 +1273,7 @@ export default function InterviewPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [digitalHuman, setDigitalHuman] = useState<DigitalHumanConversation | null>(null)
+  const [activeTab, setActiveTab] = useState<'report' | 'transcript'>('report')
 
   const {
     session,
@@ -998,6 +1291,11 @@ export default function InterviewPage() {
   const reportData = session?.report_data
   const hasReport = Boolean(
     reportData?.summary
+    || reportData?.candidate_verdict?.label
+    || reportData?.job_match?.missing_capabilities?.length
+    || reportData?.interviewer_risks?.length
+    || reportData?.answer_rewrites?.length
+    || reportData?.dimensions?.length
     || reportData?.strengths?.length
     || reportData?.weaknesses?.length
     || reportData?.next_training_plan?.length
@@ -1093,10 +1391,10 @@ export default function InterviewPage() {
     <div className="flex h-screen flex-col overflow-hidden bg-white">
       {/* Header */}
       <header
-        className="flex-shrink-0 flex items-center justify-between px-5 border-b bg-white"
+        className="flex-shrink-0 flex items-center justify-between gap-3 px-4 sm:px-5 border-b bg-white"
         style={{ borderColor: 'rgba(91,97,110,0.2)', height: 56 }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Link
             href="/interviews"
             className="p-2 rounded-xl transition-colors"
@@ -1106,7 +1404,7 @@ export default function InterviewPage() {
           >
             <ArrowLeftIcon className="h-4 w-4" />
           </Link>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="min-w-0 flex-1">
             <span
               className="text-sm font-semibold leading-tight truncate"
               style={{ color: '#0a0b0d', letterSpacing: '0.01em' }}
@@ -1116,7 +1414,7 @@ export default function InterviewPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2">
           {canGenerateReport && (
             <button
               type="button"
@@ -1138,40 +1436,50 @@ export default function InterviewPage() {
             </button>
           )}
           {isCompletedSession && (
-            <a
-              href={hasReport ? '#interview-report' : '/interviews'}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-black"
-              style={{
-                backgroundColor: hasReport ? '#0052ff' : '#282b31',
-                borderRadius: '56px',
-                border: `1px solid ${hasReport ? '#0052ff' : '#282b31'}`,
-                letterSpacing: '0.01em',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = hasReport ? '#0052ff' : '#282b31'
-                e.currentTarget.style.borderColor = hasReport ? '#0052ff' : '#282b31'
-              }}
-            >
-              {t('viewReport')}
-            </a>
-          )}
-          {isCompletedSession && hasInterviewHistory && (
-            <a
-              href="#interview-transcript"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-black"
-              style={{
-                backgroundColor: '#eef0f3',
-                borderRadius: '56px',
-                border: '1px solid #eef0f3',
-                color: '#0a0b0d',
-                letterSpacing: '0.01em',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#282b31'; e.currentTarget.style.borderColor = '#282b31'; e.currentTarget.style.color = '#ffffff' }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.borderColor = '#eef0f3'; e.currentTarget.style.color = '#0a0b0d' }}
-            >
-              {sessionText(t, locale, 'viewTranscript', { zh: '查看对话', en: 'View transcript' })}
-            </a>
+            <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 56, padding: 3, gap: 2 }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('report')}
+                className="focus:outline-none"
+                style={{
+                  padding: '6px 16px',
+                  borderRadius: 56,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: '0.01em',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  background: activeTab === 'report' ? '#ffffff' : 'transparent',
+                  color: activeTab === 'report' ? '#0a0b0d' : '#6b7280',
+                  boxShadow: activeTab === 'report' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                }}
+              >
+                {t('viewReport')}
+              </button>
+              {hasInterviewHistory && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('transcript')}
+                  className="focus:outline-none"
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 56,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    letterSpacing: '0.01em',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    background: activeTab === 'transcript' ? '#ffffff' : 'transparent',
+                    color: activeTab === 'transcript' ? '#0a0b0d' : '#6b7280',
+                    boxShadow: activeTab === 'transcript' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  {sessionText(t, locale, 'viewTranscript', { zh: '查看对话', en: 'View transcript' })}
+                </button>
+              )}
+            </div>
           )}
           {canEndInterview && (
             <button
@@ -1213,7 +1521,13 @@ export default function InterviewPage() {
       {/* Voice panel fills remaining height */}
       <div className="flex-1 flex flex-col min-h-0">
         {isCompletedSession ? (
-          <CompletedInterviewReview report={reportData} turns={session?.turns || []} />
+          <CompletedInterviewReview
+            report={reportData}
+            turns={session?.turns || []}
+            activeTab={activeTab}
+            isGenerating={isSending}
+            onGenerate={handleGenerateReport}
+          />
         ) : (
           <VoicePanel
             sessionId={digitalHuman?.session_id}
