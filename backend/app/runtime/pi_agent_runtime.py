@@ -61,35 +61,6 @@ logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
 
-# 伪工具调用关键词：模型声称已执行操作但未发出真实工具调用
-_FAKE_TOOL_CLAIM_PATTERNS: frozenset[str] = frozenset([
-    "已调用",
-    "已修改",
-    "已更新",
-    "已新增",
-    "已添加",
-    "已删除",
-    "已合并",
-    "已拆分",
-    "已经修改",
-    "已经更新",
-    "已经添加",
-    "已经删除",
-    "已经合并",
-    "调用了工具",
-    "我来调用",
-    "我将调用",
-    "我要调用",
-])
-
-# 修复提示：要求模型要么发出真实工具调用，要么明确说明不修改
-_REPAIR_PROMPT = (
-    "你的上一条回复声称或预告了工具调用，但没有发出真实的结构化工具调用。"
-    "规则：只有真实工具调用才算修改简历。"
-    "如果确实要修改简历，请立即发出真实工具调用；"
-    "如果这次不需要修改，请明确用中文说明不会修改，并正常回答用户问题。"
-)
-
 
 class _ReActStreamFn:
     """用于把模型单轮响应规整为 ReAct 的一次一个工具调用。"""
@@ -399,7 +370,6 @@ class PiAgentRuntime:
             if agent.max_iterations is not None
             else None
         )
-        fake_tool_guard_used = False
         for turn_index in count():
             if iteration_limit is not None and turn_index >= iteration_limit:
                 self._trace(
@@ -437,18 +407,6 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                combined_text = "".join(text_deltas)
-                if not fake_tool_guard_used and self._is_fake_tool_claim(combined_text):
-                    fake_tool_guard_used = True
-                    self._trace_fake_tool_intent(
-                        agent=agent,
-                        run_id=run_id,
-                        state=state,
-                        text_preview=combined_text,
-                        repair_attempted=True,
-                    )
-                    messages.append(UserMessage(content=[TextContent(text=_REPAIR_PROMPT)]))
-                    continue
                 await self._publish_text_deltas(
                     agent=agent,
                     run_id=run_id,
@@ -540,7 +498,6 @@ class PiAgentRuntime:
         if not isinstance(response, dict) or "events" not in response or "result" not in response:
             raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
 
-        text_deltas: list[str] = []
         async for raw_event in response["events"]:
             early_tool_call = self._early_tool_call_from_event(raw_event)
             if early_tool_call is not None and self._remember_visible_tool_call(
@@ -561,7 +518,21 @@ class PiAgentRuntime:
                         (perf_counter() - state["started_at"]) * 1000,
                         2,
                     )
-                text_deltas.append(delta)
+                state["chunk_index"] += 1
+                state["response_parts"].append(delta)
+                self._trace_chunk(
+                    "agent.trace.intermediate.chunk",
+                    run_id=run_id,
+                    agent_name=agent.prompt_spec.name,
+                    chunk_index=state["chunk_index"],
+                    content_preview=self._preview_text(delta),
+                    content_chars=len(delta),
+                )
+                await self._publish_event(
+                    event_queue=event_queue,
+                    event_callback=event_callback,
+                    event=text_delta_event(content=delta),
+                )
 
         result = response["result"]()
         if inspect.isawaitable(result):
@@ -571,36 +542,12 @@ class PiAgentRuntime:
         assistant_message = _ReActStreamFn._single_tool_message(result)
         state["last_assistant_text"] = self._assistant_text(assistant_message)
         state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-        return assistant_message, text_deltas
+        # text deltas already published above; return empty list to skip re-publish
+        return assistant_message, []
 
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""
         return [block for block in message.content if isinstance(block, ToolCall)]
-
-    @staticmethod
-    def _is_fake_tool_claim(text: str) -> bool:
-        """判断文本是否包含声称已执行工具操作的伪工具调用语义。"""
-        return any(pattern in text for pattern in _FAKE_TOOL_CLAIM_PATTERNS)
-
-    def _trace_fake_tool_intent(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        state: dict[str, Any],
-        text_preview: str,
-        repair_attempted: bool,
-    ) -> None:
-        """记录 tool_calls=[] 但文本声称工具操作的拦截事件。"""
-        self._trace(
-            "agent.trace.reasoning.tool_intent_without_call",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            tool_profile=str(state.get("tool_profile") or ""),
-            available_tool_names=list(state.get("tool_names") or []),
-            text_preview=self._preview_text(text_preview),
-            repair_attempted=repair_attempted,
-        )
 
     @staticmethod
     def _early_tool_call_from_event(raw_event: Any) -> ToolCall | None:
