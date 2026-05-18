@@ -51,7 +51,7 @@
     "viewReport": "查看报告",
     "viewTranscript": "查看对话",
     "reportTitle": "面试评估报告",
-    "reportPending": "报告尚未生成。结束面试后可以生成评估报告。",
+    "reportPending": "报告生成中",
     "reportSummary": "整体总结",
     "reportStrengths": "优势亮点",
     "reportWeaknesses": "改进方向",

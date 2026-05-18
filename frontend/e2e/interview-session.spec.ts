@@ -56,7 +56,12 @@ const completedTurns = [
     question: '请介绍一下你做过的 Agent 项目',
     question_type: 'general',
     answer: '我做过简历优化 Agent，并接入了语音面试流程。',
-    evaluation: '回答覆盖项目背景，但量化结果不足。',
+    evaluation: {
+      summary: '项目背景清楚，但缺少量化结果。',
+      gaps: ['没有说明用户规模'],
+      evidence: ['提到了简历优化 Agent'],
+      advice: '补充延迟、转化率或用户反馈数据。',
+    },
     follow_up_count: 0,
     status: 'answered',
   },
@@ -147,6 +152,7 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   expect(endRequest.method()).toBe('POST')
   await expect(endButton).toBeHidden()
   await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
+  await expect(page.getByText('报告生成中')).toBeVisible()
 })
 
 test('completed 面试可以点击生成报告并展示摘要', async ({ page }) => {
@@ -176,6 +182,11 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   await expect(page.getByRole('heading', { name: '面试对话记录' })).toBeVisible()
   await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
   await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '单题点评' })).toBeVisible()
+  await expect(page.getByText('项目背景清楚，但缺少量化结果。')).toBeVisible()
+  await expect(page.getByText('没有说明用户规模')).toBeVisible()
+  await expect(page.getByText('提到了简历优化 Agent')).toBeVisible()
+  await expect(page.getByText('补充延迟、转化率或用户反馈数据。')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {

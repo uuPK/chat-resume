@@ -805,7 +805,7 @@ function ReportPreview({ report }: { report: InterviewSession['report_data'] }) 
     return (
       <section id="interview-report" className="border p-6" style={{ borderColor: 'rgba(91,97,110,0.2)', borderRadius: 8 }}>
         <h2 className="text-lg font-semibold" style={{ color: '#0a0b0d' }}>{sessionText(t, locale, 'reportTitle', { zh: '面试评估报告', en: 'Interview report' })}</h2>
-        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告尚未生成。结束面试后可以生成评估报告。', en: 'The report has not been generated yet. Generate it after ending the interview.' })}</p>
+        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{sessionText(t, locale, 'reportPending', { zh: '报告生成中', en: 'Report generation in progress' })}</p>
       </section>
     )
   }
@@ -838,6 +838,66 @@ function ReportPreview({ report }: { report: InterviewSession['report_data'] }) 
           </section>
         ))}
       </div>
+    </section>
+  )
+}
+
+type TurnEvaluation = NonNullable<InterviewSession['turns'][number]['evaluation']>
+
+// 用于判断面试轮次点评是否为结构化报告对象。
+function isStructuredTurnEvaluation(value: TurnEvaluation): value is {
+  summary?: string
+  gaps?: string[]
+  evidence?: string[]
+  advice?: string
+} {
+  return typeof value === 'object' && value !== null
+}
+
+// 用于渲染单道面试题的 AI 点评。
+function TurnEvaluationCard({ evaluation }: { evaluation: TurnEvaluation }) {
+  const t = useTranslations('interview.session')
+  const locale = useLocale()
+  const title = sessionText(t, locale, 'turnEvaluationTitle', { zh: '单题点评', en: 'Question feedback' })
+
+  if (!isStructuredTurnEvaluation(evaluation)) {
+    return (
+      <section className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#f8f9fb' }}>
+        <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{title}</h3>
+        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{evaluation}</p>
+      </section>
+    )
+  }
+
+  const detailSections = [
+    { title: sessionText(t, locale, 'turnEvaluationGaps', { zh: '主要缺口', en: 'Gaps' }), items: evaluation.gaps || [] },
+    { title: sessionText(t, locale, 'turnEvaluationEvidence', { zh: '评价依据', en: 'Evidence' }), items: evaluation.evidence || [] },
+  ].filter((section) => section.items.length > 0)
+
+  return (
+    <section className="rounded-lg border px-4 py-3" style={{ borderColor: 'rgba(91,97,110,0.2)', backgroundColor: '#f8f9fb' }}>
+      <h3 className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>{title}</h3>
+      {evaluation.summary && (
+        <p className="mt-2 text-sm leading-6" style={{ color: '#5b616e' }}>{evaluation.summary}</p>
+      )}
+      {detailSections.map((section) => (
+        <div key={section.title} className="mt-3">
+          <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>{section.title}</p>
+          <ul className="mt-1 space-y-1">
+            {section.items.map((item) => (
+              <li key={item} className="text-sm leading-6" style={{ color: '#0a0b0d' }}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {evaluation.advice && (
+        <div className="mt-3">
+          <p className="text-xs font-semibold" style={{ color: '#5b616e' }}>
+            {sessionText(t, locale, 'turnEvaluationAdvice', { zh: '改进建议', en: 'Advice' })}
+          </p>
+          <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{evaluation.advice}</p>
+        </div>
+      )}
     </section>
   )
 }
@@ -877,6 +937,7 @@ function InterviewTranscript({ turns }: { turns: InterviewSession['turns'] }) {
                   <p className="mt-1 text-sm leading-6" style={{ color: '#0a0b0d' }}>{turn.answer}</p>
                 </div>
               )}
+              {turn.evaluation && <TurnEvaluationCard evaluation={turn.evaluation} />}
             </article>
           ))}
         </div>

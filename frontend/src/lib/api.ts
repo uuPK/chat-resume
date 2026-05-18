@@ -58,6 +58,13 @@ interface ResumeUploadJobStatus {
   original_filename: string
 }
 
+interface InterviewTurnEvaluation {
+  summary?: string
+  gaps?: string[]
+  evidence?: string[]
+  advice?: string
+}
+
 interface InterviewTurn {
   id: number
   turn_index: number
@@ -67,7 +74,7 @@ interface InterviewTurn {
   intent?: string
   expected_points?: string[]
   answer?: string
-  evaluation?: string
+  evaluation?: string | InterviewTurnEvaluation
   follow_up_count: number
   status: string
 }

@@ -51,7 +51,7 @@
     "viewReport": "View report",
     "viewTranscript": "View transcript",
     "reportTitle": "Interview report",
-    "reportPending": "The report has not been generated yet. Generate it after ending the interview.",
+    "reportPending": "Report generation in progress",
     "reportSummary": "Summary",
     "reportStrengths": "Strengths",
     "reportWeaknesses": "Areas to improve",
