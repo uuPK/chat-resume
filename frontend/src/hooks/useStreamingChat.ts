@@ -156,14 +156,41 @@ function isAiStreamDebugEnabled(): boolean {
   return window.localStorage.getItem('ai_stream_debug') === 'true'
 }
 
+// 用于把浏览器侧 AI stream 调试日志转发到本地 frontend.log。
+function forwardStreamLogToFrontendFile(message: string, payload?: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  try {
+    const body = JSON.stringify({
+      source: 'useStreamingChat',
+      message,
+      payload: payload ?? null,
+      createdAt: new Date().toISOString(),
+    })
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/client-log', new Blob([body], { type: 'application/json' }))
+      return
+    }
+    void fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+    }).catch(() => undefined)
+  } catch {
+    // 调试日志转发失败不能影响主链路。
+  }
+}
+
 // 用于输出默认关闭的 AI stream 调试日志。
 function debugStreamLog(message: string, payload?: Record<string, unknown>) {
   if (!isAiStreamDebugEnabled()) return
   if (payload === undefined) {
     console.info(message)
+    forwardStreamLogToFrontendFile(message)
     return
   }
   console.info(message, payload)
+  forwardStreamLogToFrontendFile(message, payload)
 }
 
 // 用于生成一次 AI stream 的前端关联 ID。
