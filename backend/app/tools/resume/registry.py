@@ -192,9 +192,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_profile",
             "description": (
-                "更新个人信息 personal_info 中可安全优化的字段。仅支持 "
-                "position、headline、location、github、linkedin、website、links；"
-                "不得修改 name、email、phone。适合调整求职定位、标题和公开链接。"
+                "更新个人信息 personal_info。默认仅支持 position、headline、"
+                "location、github、linkedin、website、links；创建或导入简历时，"
+                "如果 name、email、phone、address 来自用户输入或上传内容，必须"
+                "提供 source 后再写入。"
             ),
             "parameters": {
                 "type": "object",
@@ -209,12 +210,20 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "github": {"type": "string"},
                             "linkedin": {"type": "string"},
                             "website": {"type": "string"},
+                            "address": {"type": "string"},
+                            "name": {"type": "string"},
+                            "email": {"type": "string"},
+                            "phone": {"type": "string"},
                             "links": {
                                 "type": "array",
                                 "items": {"type": "object"},
                             },
                         },
                         "additionalProperties": False,
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "身份或联系方式字段的明确来源，例如用户输入或上传简历原文",
                     },
                     "reason": {
                         "type": "string",

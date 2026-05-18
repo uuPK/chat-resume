@@ -61,6 +61,21 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("reason", properties)
         self.assertEqual(properties["reason"]["type"], "string")
 
+    def test_update_profile_schema_exposes_sourced_identity_fields(self):
+        """用于验证update_profile schema暴露有来源的身份联系字段。"""
+        update_profile = next(
+            tool for tool in RESUME_TOOLS_SCHEMA if tool["function"]["name"] == "update_profile"
+        )
+
+        properties = update_profile["function"]["parameters"]["properties"]
+        field_properties = properties["fields"]["properties"]
+
+        self.assertIn("source", properties)
+        self.assertIn("name", field_properties)
+        self.assertIn("email", field_properties)
+        self.assertIn("phone", field_properties)
+        self.assertIn("address", field_properties)
+
     def test_resume_tools_schema_exposes_bullet_tools(self):
         """用于验证简历toolsschemaexposesbullettools。"""
         tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
@@ -172,6 +187,47 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(resume_content["personal_info"]["position"], "AI 应用工程师")
         self.assertIn("Agent 工具调用", resume_content["personal_info"]["headline"])
         self.assertIn("强化目标岗位定位", result["result"]["diff_summary"])
+
+    def test_update_profile_tool_updates_sourced_identity_fields(self):
+        """用于验证update_profile可写入有明确来源的身份联系字段。"""
+        resume_content = {"personal_info": {"name": "", "email": "", "phone": ""}}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_profile",
+            tool_input={
+                "fields": {
+                    "name": "李四",
+                    "email": "lisi@example.com",
+                    "phone": "13800000000",
+                },
+                "source": "用户上传简历原文",
+                "reason": "从导入简历补全个人信息",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertTrue(result["result"]["success"])
+        self.assertEqual(resume_content["personal_info"]["name"], "李四")
+        self.assertEqual(resume_content["personal_info"]["email"], "lisi@example.com")
+        self.assertEqual(resume_content["personal_info"]["phone"], "13800000000")
+        self.assertEqual(result["result"]["source"], "用户上传简历原文")
+        self.assertIn("从导入简历补全个人信息", result["result"]["diff_summary"])
+
+    def test_update_profile_tool_rejects_unsourced_identity_fields(self):
+        """用于验证update_profile无来源时仍拒绝身份联系字段。"""
+        resume_content = {"personal_info": {"name": "张三", "position": "后端开发"}}
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_profile",
+            tool_input={"fields": {"name": "李四"}, "reason": "用户没有提供来源"},
+            context={"resume_content": resume_content},
+        )
+
+        self.assertFalse(result["result"]["success"])
+        self.assertEqual(resume_content["personal_info"]["name"], "张三")
+        self.assertIn("name", result["result"]["message"])
 
     def test_upsert_job_application_updates_existing_target_fields(self):
         """用于验证upsert_job_application更新已有求职目标并保留未提字段。"""

@@ -16,17 +16,27 @@ ALLOWED_PROFILE_FIELDS = {
     "links",
 }
 
+SOURCED_PROFILE_FIELDS = ALLOWED_PROFILE_FIELDS | {
+    "name",
+    "email",
+    "phone",
+    "address",
+}
+
 
 def update_profile(
     resume_content: dict[str, Any],
     fields: Any,
+    source: Any = None,
     reason: Any = None,
 ) -> dict[str, Any]:
     """用于更新个人信息中可由 Agent 安全优化的字段。"""
     if not isinstance(fields, dict) or not fields:
         return {"success": False, "message": "个人信息更新字段不能为空"}
 
-    invalid_fields = sorted(set(str(key) for key in fields) - ALLOWED_PROFILE_FIELDS)
+    source_text = str(source or "").strip()
+    allowed_fields = SOURCED_PROFILE_FIELDS if source_text else ALLOWED_PROFILE_FIELDS
+    invalid_fields = sorted(set(str(key) for key in fields) - allowed_fields)
     if invalid_fields:
         return {
             "success": False,
@@ -52,6 +62,7 @@ def update_profile(
         "success": True,
         "message": "已更新个人信息",
         "updated_section": "personal_info",
+        **({"source": source_text} if source_text else {}),
         **diff_payload,
     }
 
@@ -63,4 +74,4 @@ def _normalize_profile_value(value: Any) -> Any:
     return str(value or "").strip()
 
 
-__all__ = ["ALLOWED_PROFILE_FIELDS", "update_profile"]
+__all__ = ["ALLOWED_PROFILE_FIELDS", "SOURCED_PROFILE_FIELDS", "update_profile"]
