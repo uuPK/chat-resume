@@ -14,6 +14,7 @@ from pi_agent_core import (
     AgentContext,
     AgentTool,
     AgentToolResult,
+    AgentToolSchema,
     AssistantMessage,
     Model,
     SimpleStreamOptions,
@@ -29,6 +30,7 @@ from app.runtime.pi_agent_openrouter import (
     OpenRouterHTTPError,
     _is_retryable_status,
     _openai_message,
+    _openai_tools,
     _openrouter_body,
     _pump_openrouter_stream,
     _pump_with_retry,
@@ -200,6 +202,45 @@ def test_openai_assistant_tool_call_keeps_non_empty_content():
 
     assert payload is not None
     assert payload["content"] == "我会更新。"
+
+
+def test_openai_tools_normalizes_enum_property_types():
+    """工具 schema 中 enum-only 字段应补 type，避免兼容层拒绝。"""
+    async def execute_tool() -> AgentToolResult:
+        """用于构造测试工具。"""
+        return AgentToolResult(content=[])
+
+    context = AgentContext(
+        system_prompt="system",
+        messages=[],
+        tools=[
+            AgentTool(
+                name="update_profile",
+                description="Update profile",
+                parameters=AgentToolSchema(
+                    properties={
+                        "tone": {"enum": ["formal", "direct"]},
+                        "count": {"enum": [1, 2]},
+                        "confirmed": {"enum": [True, False]},
+                        "meta": {
+                            "properties": {"level": {"enum": [1, 2]}},
+                        },
+                    },
+                    required=["tone"],
+                ),
+                execute=execute_tool,
+            )
+        ],
+    )
+
+    tool = _openai_tools(context)[0]
+    properties = tool["function"]["parameters"]["properties"]
+
+    assert properties["tone"]["type"] == "string"
+    assert properties["count"]["type"] == "number"
+    assert properties["confirmed"]["type"] == "boolean"
+    assert properties["meta"]["type"] == "object"
+    assert properties["meta"]["properties"]["level"]["type"] == "number"
 
 
 @pytest.mark.asyncio

@@ -741,17 +741,58 @@ def _openai_tools(context: AgentContext) -> list[dict[str, Any]]:
     """用于处理OpenAI 兼容工具列表。"""
     tools = []
     for tool in context.tools:
+        parameters = _normalize_tool_schema(tool.parameters.model_dump())
         tools.append(
             {
                 "type": "function",
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.parameters.model_dump(),
+                    "parameters": parameters,
                 },
             }
         )
     return tools
+
+
+def _normalize_tool_schema(schema: Any) -> Any:
+    """用于补齐 OpenAI 兼容 provider 需要的 JSON Schema type 字段。"""
+    if isinstance(schema, list):
+        return [_normalize_tool_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    normalized = {key: _normalize_tool_schema(value) for key, value in schema.items()}
+    if "type" not in normalized and (schema_type := _infer_schema_type(normalized)):
+        normalized["type"] = schema_type
+    return normalized
+
+
+def _infer_schema_type(schema: dict[str, Any]) -> str | None:
+    """用于从 schema 结构或 enum 值推断缺失的 type。"""
+    if isinstance(schema.get("properties"), dict):
+        return "object"
+    if "items" in schema:
+        return "array"
+    enum_values = schema.get("enum")
+    if not isinstance(enum_values, list) or not enum_values:
+        return None
+    return _infer_enum_schema_type(enum_values)
+
+
+def _infer_enum_schema_type(values: list[Any]) -> str | None:
+    """用于从 enum 值类型推断 JSON Schema type。"""
+    if all(isinstance(value, bool) for value in values):
+        return "boolean"
+    if all(isinstance(value, str) for value in values):
+        return "string"
+    if all(_is_json_number(value) for value in values):
+        return "number"
+    return None
+
+
+def _is_json_number(value: Any) -> bool:
+    """用于判断 enum 值是否应按 JSON number 处理。"""
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 async def _raise_for_openrouter_error(response: httpx.Response) -> None:
