@@ -8,7 +8,6 @@ import { Link } from '@/i18n/navigation'
 import { Suspense, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'next/navigation'
-import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
 import { getOAuthErrorKey } from '@/lib/oauthErrors'
 import toast from 'react-hot-toast'
@@ -44,12 +43,16 @@ function stripLocaleFromPath(path: string): string {
   return query ? `${strippedPathname}?${query}` : strippedPathname
 }
 
+// 用于登录成功后跨认证边界做完整页面跳转。
+function navigateAfterLogin(path: string) {
+  window.location.assign(path)
+}
+
 // 登录页，Coinbase 风格：白底深色文字，蓝色 pill 按钮
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const { login, isLoading } = useAuth()
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
-  const router = useRouter()
   const t = useTranslations('auth')
 
   // 用于处理onsubmit。
@@ -59,7 +62,7 @@ export default function LoginPage() {
       const success = await login(data.email, data.password)
       if (success) {
         toast.success(t('login.successToast'), { id: 'login' })
-        router.push(getSafeNextPath())
+        navigateAfterLogin(getSafeNextPath())
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('login.fallbackError')

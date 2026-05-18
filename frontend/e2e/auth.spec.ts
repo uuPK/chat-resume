@@ -111,6 +111,64 @@ test.describe('登录', () => {
     await expect(page).toHaveURL(/\/dashboard/)
   })
 
+  test('登录成功后使用完整页面导航进入 dashboard', async ({ page, context, baseURL }) => {
+    const cookieDomain = new URL(baseURL || 'http://localhost:3000').hostname
+    const dashboardRscRequests: string[] = []
+    const user = {
+      id: 909,
+      email: testEmail,
+      full_name: null,
+      is_active: true,
+      has_password: true,
+      created_at: '2026-05-18T00:00:00Z',
+    }
+
+    await page.route('**/api/auth/me', async route => {
+      await route.fulfill({ json: user })
+    })
+    await page.route('**/api/auth/login', async route => {
+      await context.addCookies([
+        {
+          name: 'access_token',
+          value: 'test-access-token',
+          domain: cookieDomain,
+          path: '/',
+          httpOnly: true,
+          sameSite: 'Lax',
+        },
+        {
+          name: 'refresh_token',
+          value: 'test-refresh-token',
+          domain: cookieDomain,
+          path: '/',
+          httpOnly: true,
+          sameSite: 'Lax',
+        },
+      ])
+      await route.fulfill({
+        json: {
+          token_type: 'bearer',
+          user,
+        },
+      })
+    })
+    page.on('request', request => {
+      const url = request.url()
+      if (url.includes('/dashboard') && url.includes('_rsc=')) {
+        dashboardRscRequests.push(url)
+      }
+    })
+
+    await page.goto('/zh/login')
+    await page.fill('input[type="email"]', testEmail)
+    await page.fill('input[type="password"]', DEFAULT_PASSWORD)
+    await page.click('button[type="submit"]')
+
+    await page.waitForURL(/\/zh\/dashboard/, { timeout: 12_000 })
+    await expect(page).toHaveURL(/\/zh\/dashboard/)
+    expect(dashboardRscRequests).toHaveLength(0)
+  })
+
   test('错误密码停留在登录页', async ({ page }) => {
     await page.goto('/login')
     await page.fill('input[type="email"]', testEmail)
