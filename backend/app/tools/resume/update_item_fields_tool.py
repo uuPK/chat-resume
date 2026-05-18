@@ -26,12 +26,10 @@ ITEM_FIELD_WHITELIST = {
         "is_current",
         "location",
         "employment_type",
-        "technologies",
     },
     "projects": {
         "name",
         "overview",
-        "technologies",
         "role",
         "duration",
         "start_date",
@@ -90,7 +88,7 @@ def update_item_fields(
 
 def _normalize_item_field_value(key: str, value: Any) -> Any:
     """用于按字段类型清理条目字段值。"""
-    if key in {"technologies", "links"}:
+    if key == "links":
         return value if isinstance(value, list) else [str(value).strip()]
     if key == "is_current":
         return bool(value)

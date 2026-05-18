@@ -84,6 +84,21 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("add_resume_item", tool_names)
         self.assertIn("remove_resume_item", tool_names)
 
+    def test_update_item_fields_schema_does_not_expose_hidden_technologies(self):
+        """用于验证条目字段工具不再暴露隐藏技术栈字段。"""
+        schema = next(
+            tool
+            for tool in RESUME_TOOLS_SCHEMA
+            if tool["function"]["name"] == "update_item_fields"
+        )
+        fields_description = schema["function"]["parameters"]["properties"]["fields"][
+            "description"
+        ]
+
+        self.assertNotIn("technologies", fields_description)
+        self.assertIn("overview", fields_description)
+        self.assertIn("employment_type", fields_description)
+
     def test_resume_edit_profile_exposes_job_application_upsert_tool(self):
         """用于验证resume_edit工具profile暴露求职目标upsert工具。"""
         agent = ResumeAgent()
@@ -356,9 +371,8 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                 "fields": {
                     "overview": "基于 ReAct Agent 的简历优化工作台",
                     "role": "全栈负责人",
-                    "technologies": ["FastAPI", "Next.js", "Agent Tools"],
                 },
-                "reason": "补强项目定位和技术栈",
+                "reason": "补强项目定位",
             },
             context={"resume_content": resume_content},
         )
@@ -367,8 +381,58 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertTrue(result["result"]["success"])
         self.assertEqual(project["role"], "全栈负责人")
         self.assertIn("ReAct Agent", project["overview"])
-        self.assertIn("Agent Tools", project["technologies"])
-        self.assertIn("补强项目定位和技术栈", result["result"]["diff_summary"])
+        self.assertNotIn("technologies", project)
+        self.assertIn("补强项目定位", result["result"]["diff_summary"])
+
+    def test_update_item_fields_tool_rejects_hidden_technologies_field(self):
+        """用于验证Agent不能写入当前简历不可见的技术栈字段。"""
+        resume_content = {
+            "projects": [
+                {
+                    "id": "proj_1",
+                    "name": "Chat Resume",
+                    "overview": "简历编辑器",
+                    "role": "开发",
+                    "technologies": ["MCP"],
+                }
+            ],
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "company": "世优",
+                    "position": "Agent 开发",
+                    "technologies": ["Python"],
+                }
+            ],
+        }
+        executor = ResumeToolExecutor()
+
+        project_result = executor.execute(
+            tool_name="update_item_fields",
+            tool_input={
+                "section": "projects",
+                "item_id": "proj_1",
+                "fields": {"technologies": ["SSE"]},
+                "reason": "隐藏字段不应写入",
+            },
+            context={"resume_content": resume_content},
+        )
+        work_result = executor.execute(
+            tool_name="update_item_fields",
+            tool_input={
+                "section": "work_experience",
+                "item_id": "work_1",
+                "fields": {"technologies": ["Redis"]},
+                "reason": "隐藏字段不应写入",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertFalse(project_result["result"]["success"])
+        self.assertFalse(work_result["result"]["success"])
+        self.assertIn("technologies", project_result["result"]["message"])
+        self.assertEqual(resume_content["projects"][0]["technologies"], ["MCP"])
+        self.assertEqual(resume_content["work_experience"][0]["technologies"], ["Python"])
 
     def test_update_skills_tool_replaces_skill_items(self):
         """用于验证update_skills精确更新技能分类和技能列表。"""
@@ -412,6 +476,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
                     "name": "Agent 简历优化",
                     "overview": "用户明确提供的项目经历",
                     "role": "负责人",
+                    "technologies": ["隐藏字段不应写入"],
                 },
                 "source": "用户在本轮消息中明确提供",
                 "reason": "补充目标岗位相关项目",
@@ -423,6 +488,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertEqual(len(resume_content["projects"]), 1)
         self.assertTrue(resume_content["projects"][0]["id"].startswith("proj_"))
         self.assertEqual(resume_content["projects"][0]["role"], "负责人")
+        self.assertNotIn("technologies", resume_content["projects"][0])
         self.assertIn("补充目标岗位相关项目", result["result"]["diff_summary"])
 
     def test_remove_resume_item_tool_removes_existing_skill_category(self):

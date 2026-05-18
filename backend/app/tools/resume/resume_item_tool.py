@@ -18,8 +18,8 @@ ITEM_SECTIONS = {
 
 ITEM_FIELD_WHITELIST = {
     "education": {"school", "major", "degree", "duration", "start_date", "end_date", "location", "gpa", "highlights"},
-    "work_experience": {"company", "position", "duration", "start_date", "end_date", "is_current", "location", "employment_type", "technologies", "highlights"},
-    "projects": {"name", "overview", "technologies", "role", "duration", "start_date", "end_date", "github_url", "demo_url", "links", "highlights"},
+    "work_experience": {"company", "position", "duration", "start_date", "end_date", "is_current", "location", "employment_type", "highlights"},
+    "projects": {"name", "overview", "role", "duration", "start_date", "end_date", "github_url", "demo_url", "links", "highlights"},
     "skills": {"category", "items"},
     "languages": {"name", "level"},
     "custom_sections": {"title", "content"},

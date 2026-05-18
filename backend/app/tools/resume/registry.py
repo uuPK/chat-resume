@@ -173,8 +173,8 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "要更新的字段。education 支持 school/major/degree/duration/"
                             "start_date/end_date/location/gpa；work_experience 支持 "
                             "company/position/duration/start_date/end_date/is_current/"
-                            "location/employment_type/technologies；projects 支持 "
-                            "name/overview/technologies/role/duration/start_date/end_date/"
+                            "location/employment_type；projects 支持 "
+                            "name/overview/role/duration/start_date/end_date/"
                             "github_url/demo_url/links。"
                         ),
                     },

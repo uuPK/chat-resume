@@ -63,6 +63,29 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         self.assertEqual(project["summary"], "")
         self.assertEqual(project["achievements"], [])
 
+    def test_existing_technologies_fields_remain_backward_compatible(self):
+        """用于验证旧数据中的 technologies 字段仍可被 schema 读取。"""
+        content = ResumeContent.model_validate(
+            {
+                "work_experience": [
+                    {
+                        "company": "世优",
+                        "position": "Agent 开发",
+                        "technologies": ["Python"],
+                    }
+                ],
+                "projects": [
+                    {
+                        "name": "Chat Resume",
+                        "technologies": ["SSE", "MCP"],
+                    }
+                ],
+            }
+        ).model_dump(mode="json")
+
+        self.assertEqual(content["work_experience"][0]["technologies"], ["Python"])
+        self.assertEqual(content["projects"][0]["technologies"], ["SSE", "MCP"])
+
     def test_education_description_is_normalized_to_summary_and_highlights(self):
         """用于验证educationdescriptionisnormalizedtosummaryandhighlights。"""
         content = ResumeContent.model_validate(

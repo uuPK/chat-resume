@@ -73,8 +73,7 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
         duration: '',
         github_url: '',
         demo_url: '',
-        highlights: [{ id: `hl_${Date.now()}`, text: '' }],
-        technologies: []
+        highlights: [{ id: `hl_${Date.now()}`, text: '' }]
       }
     ])
   }
