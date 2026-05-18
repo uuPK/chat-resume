@@ -720,7 +720,9 @@ def _openai_assistant_message(message: Any) -> dict[str, Any]:
                 }
             )
     content = _text_content(message)
-    payload: dict[str, Any] = {"role": "assistant", "content": content or None}
+    payload: dict[str, Any] = {"role": "assistant"}
+    if content or not tool_calls:
+        payload["content"] = content
     if tool_calls:
         payload["tool_calls"] = tool_calls
     return payload

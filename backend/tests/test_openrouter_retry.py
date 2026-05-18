@@ -17,6 +17,7 @@ from pi_agent_core import (
     AssistantMessage,
     Model,
     SimpleStreamOptions,
+    TextContent,
     ToolCall,
 )
 
@@ -27,6 +28,7 @@ from app.runtime.pi_agent_openrouter import (
     OpenRouterFirstTokenTimeoutError,
     OpenRouterHTTPError,
     _is_retryable_status,
+    _openai_message,
     _openrouter_body,
     _pump_openrouter_stream,
     _pump_with_retry,
@@ -174,6 +176,30 @@ def test_openrouter_body_disables_reasoning_explicitly():
     body = _openrouter_body(model, context, options)
 
     assert body["reasoning"] == {"effort": "none"}
+
+
+def test_openai_assistant_tool_call_omits_empty_content():
+    """assistant 只有工具调用时不发送空 content，兼容 Kimi 类接口。"""
+    message = AssistantMessage(api="openai-compatible", provider="openrouter", model="m")
+    message.content.append(ToolCall(id="call_1", name="update_bullet", arguments={}))
+
+    payload = _openai_message(message)
+
+    assert payload is not None
+    assert "content" not in payload
+    assert payload["tool_calls"][0]["id"] == "call_1"
+
+
+def test_openai_assistant_tool_call_keeps_non_empty_content():
+    """assistant 工具调用带可见文本时保留 content。"""
+    message = AssistantMessage(api="openai-compatible", provider="openrouter", model="m")
+    message.content.append(TextContent(text="我会更新。"))
+    message.content.append(ToolCall(id="call_1", name="update_bullet", arguments={}))
+
+    payload = _openai_message(message)
+
+    assert payload is not None
+    assert payload["content"] == "我会更新。"
 
 
 @pytest.mark.asyncio
