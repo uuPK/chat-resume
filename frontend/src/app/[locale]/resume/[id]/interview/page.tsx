@@ -1237,7 +1237,6 @@ export default function InterviewPage() {
 
   const interviewTitle = [
     t('title'),
-    resume.content.personal_info?.name,
     resume.content.job_application?.target_company,
     resume.content.job_application?.target_title,
   ].filter(Boolean).join(' · ')

@@ -174,6 +174,8 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
 
   await page.goto('/zh/resume/123/interview?session=456')
 
+  await expect(page.getByText('模拟面试 · Acme · 前端工程师')).toBeVisible()
+  await expect(page.getByText('模拟面试 · 张三')).toHaveCount(0)
   const endButton = page.getByRole('button', { name: '结束面试' })
   await expect(endButton).toBeVisible()
   const [endRequest] = await Promise.all([
