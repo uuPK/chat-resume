@@ -53,7 +53,10 @@ test.describe('Dashboard', () => {
   test('没有简历时显示空状态提示', async ({ page }) => {
     await loginAs(page, uniqueEmail('empty'))
     await page.waitForSelector('.animate-spin', { state: 'detached', timeout: 8_000 }).catch(() => {})
-    await expect(page.locator('body')).toContainText(/还没有简历|上传|新建/i)
+    await expect(page.locator('body')).toContainText('开始优化你的第一份简历')
+    await expect(page.locator('body')).toContainText('填写 JD')
+    await expect(page.locator('body')).toContainText('Agent 分析')
+    await expect(page.locator('body')).toContainText('确认 diff')
   })
 
   test('页面包含上传简历和新建简历按钮', async ({ page }) => {

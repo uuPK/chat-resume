@@ -287,26 +287,80 @@ export default function ResumesPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center py-16"
+            className="mx-auto max-w-4xl py-10"
           >
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-              style={{ backgroundColor: '#eef0f3' }}
+              className="overflow-hidden rounded-[28px] border"
+              style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f7f8fb 100%)',
+                borderColor: 'rgba(91,97,110,0.16)',
+                boxShadow: '0 24px 80px rgba(15,23,42,0.08)',
+              }}
             >
-              <DocumentTextIcon className="w-8 h-8" style={{ color: '#0052ff' }} />
+              <div className="px-6 py-8 sm:px-10 sm:py-10">
+                <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,82,255,0.08)' }}>
+                  <DocumentTextIcon className="h-7 w-7" style={{ color: '#0052ff' }} />
+                </div>
+                <div className="mx-auto max-w-2xl text-center">
+                  <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>{t('emptyTitle')}</h3>
+                  <p className="mt-3 text-base leading-7" style={{ color: '#5b616e' }}>
+                    {t('emptyDescription')}
+                  </p>
+                </div>
+
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadLoading}
+                    className="group rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(0,82,255,0.22)' }}
+                    onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,82,255,0.12)' } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,82,255,0.22)'; e.currentTarget.style.boxShadow = 'none' }}
+                  >
+                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#0052ff', color: '#ffffff' }}>
+                      <CloudArrowUpIcon className="h-5 w-5" />
+                    </span>
+                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyUploadTitle')}</span>
+                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyUploadDescription')}</span>
+                    <span className="mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
+                      {uploadLoading ? t('uploading') : t('emptyUploadAction')}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmCreate}
+                    disabled={creating}
+                    className="rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(91,97,110,0.2)' }}
+                    onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#0a0b0d'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(15,23,42,0.08)' } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
+                  >
+                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
+                      <DocumentTextIcon className="h-5 w-5" />
+                    </span>
+                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyCreateTitle')}</span>
+                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyCreateDescription')}</span>
+                    <span className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d' }}>
+                      {creating ? t('creating') : t('emptyCreateAction')}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="mt-8 rounded-3xl px-5 py-4" style={{ backgroundColor: 'rgba(238,240,243,0.72)' }}>
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#5b616e' }}>{t('emptyWorkflowTitle')}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                    {[t('emptyWorkflowJd'), t('emptyWorkflowAnalyze'), t('emptyWorkflowConfirm'), t('emptyWorkflowExport')].map((step, index) => (
+                      <div key={step} className="flex items-center gap-2">
+                        {index > 0 && <span style={{ color: '#9ca3af' }}>→</span>}
+                        <span className="rounded-full bg-white px-3 py-1.5">{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2" style={{ color: '#0a0b0d' }}>{t('emptyTitle')}</h3>
-            <p className="text-base mb-6" style={{ color: '#5b616e' }}>
-              {t('emptyDescription')}
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="btn-primary inline-flex items-center gap-2 px-7 py-3 text-base"
-            >
-              <CloudArrowUpIcon className="w-4 h-4" />
-              <span>{t('upload')}</span>
-            </button>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
