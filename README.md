@@ -4,8 +4,6 @@
 
 Chat Resume 是一个展示 Agent 工程能力的 AI 求职工作台：从上传简历、解析目标 JD、结构化工具调用、用户确认式 diff 修改，到导出和语音模拟面试，串成一条完整求职闭环。
 
-它不是简单的 ChatGPT wrapper。核心工程点是：
-
 - 自定义 ReAct runtime
 - 结构化 tool calling
 - Human-in-the-loop diff confirmation gate
@@ -13,33 +11,6 @@ Chat Resume 是一个展示 Agent 工程能力的 AI 求职工作台：从上传
 - Session replay / resume
 - Agent eval
 - Agent observability
-
-## For reviewers
-
-如果你只想快速判断这个项目的 Agent 工程含量，请优先看：
-
-| Area | File | Why it matters |
-|---|---|---|
-| Runtime | `backend/app/runtime/pi_agent_runtime.py` | 显式 ReAct loop、流式模型响应、工具执行和确认等待 |
-| Agent definition | `backend/app/agents/resume/agent.py` | Prompt、tool schema、tool profile 和工具执行器组合 |
-| Tool boundary | `backend/app/tools/resume/registry.py` | 结构化工具、字段白名单和防编造约束 |
-| Stream orchestration | `backend/app/services/agent/resume_agent_stream_service.py` | SSE session、事件持久化、cursor replay 和恢复 |
-| Diff UX | `frontend/src/app/[locale]/resume/[id]/edit/page.tsx` | 工具状态、diff confirmation card 和实时简历更新 |
-| Eval | `eval/score.py` | 工具调用正确性、决策规则、关键词提升和 LLM-as-judge 评分 |
-| Observability | `docs/OBSERVABILITY.md` | request/session/tool 级日志关联和排障入口 |
-
-## Demo path
-
-推荐演示链路：
-
-1. 上传或创建一份简历。
-2. 粘贴目标岗位 JD，或上传 JD 截图识别文字。
-3. 询问：“我和这个岗位差距在哪？”
-4. Agent 调用 `generate_job_match_summary` 生成岗位匹配摘要和 Top gaps。
-5. 选中一段经历，点击“快速优化”。
-6. Agent 生成结构化工具调用和 diff。
-7. 用户确认或拒绝修改。
-8. 简历实时更新，并继续导出 PDF 或进入模拟面试。
 
 ## 核心能力
 
