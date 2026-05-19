@@ -30,10 +30,16 @@ async function createResumeFromDashboard(page: Page, email: string): Promise<str
 
 /** 填写岗位目标信息并等待自动保存，确保返回列表时卡片文案已经持久化。 */
 async function fillJobApplicationAndWaitForSave(page: Page, company: string, title: string, jd: string) {
+  const saveResponse = page.waitForResponse((response) => (
+    response.request().method() === 'PUT'
+    && /\/api\/resumes\/\d+$/.test(new URL(response.url()).pathname)
+    && response.ok()
+  ), { timeout: 12_000 })
+
   await page.getByPlaceholder('请输入目标公司名称').fill(company)
   await page.getByPlaceholder('请输入目标岗位名称').fill(title)
   await page.getByPlaceholder('请粘贴 JD 相关文字/图片').fill(jd)
-  await expect(page.getByText('已自动保存')).toBeVisible({ timeout: 10_000 })
+  await saveResponse
 }
 
 // ── Dashboard 基础 ──────────────────────────────────────────────────────────
@@ -94,20 +100,20 @@ test.describe('简历列表', () => {
     await page.waitForURL('**/dashboard', { timeout: 12_000 })
     await waitForResumeListLoaded(page)
 
-    const resumeCard = page.locator(`a[href="/resume/${resumeId}/edit"]`).first()
+    const resumeCard = page.locator(`a[href="/zh/resume/${resumeId}/edit"]`).first()
     await expect(resumeCard).toBeVisible()
     await expect(page.locator('body')).toContainText('OpenAI · 前端工程师')
   })
 
-  test('创建简历后列表卡片包含 Chat 按钮，并可再次进入编辑页', async ({ page }) => {
+  test('创建简历后列表卡片包含优化按钮，并可再次进入编辑页', async ({ page }) => {
     const resumeId = await createResumeFromDashboard(page, uniqueEmail('chatbtn'))
     await page.getByRole('link', { name: '返回仪表板' }).click()
     await page.waitForURL('**/dashboard', { timeout: 12_000 })
     await waitForResumeListLoaded(page)
 
-    const chatEntry = page.locator(`a[href="/resume/${resumeId}/edit"]`).filter({ hasText: 'Chat' })
-    await expect(chatEntry).toBeVisible()
-    await chatEntry.click()
+    const editEntry = page.locator(`a[href="/zh/resume/${resumeId}/edit"]`).filter({ hasText: '优化' })
+    await expect(editEntry).toBeVisible()
+    await editEntry.click()
     await expect(page).toHaveURL(new RegExp(`/resume/${resumeId}/edit$`))
   })
 })

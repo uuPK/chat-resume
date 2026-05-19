@@ -842,7 +842,7 @@ test.describe('编辑页工作流', () => {
       buffer: Buffer.from('测试用户\n前端工程师\nOpenAI'),
     })
 
-    await page.waitForURL('**/resume/999/edit', { timeout: 12_000 })
+    await page.waitForURL(/\/resume\/999\/edit(?:\?.*)?$/, { timeout: 12_000 })
     await expect(page.getByPlaceholder('请输入目标公司名称')).toHaveValue('测试公司')
     await expect(page.getByPlaceholder('请输入目标岗位名称')).toHaveValue('前端工程师')
   })
@@ -945,8 +945,8 @@ test.describe('编辑页工作流', () => {
     })
 
     await page.goto(`/resume/${resumeId}/interview`)
-    await expect(page.getByText('语音面试')).toBeVisible()
-    await expect(page.getByText('对话内容会实时显示在这里')).toBeVisible()
+    await expect(page.getByText('模拟面试 · 测试公司 · 前端工程师')).toBeVisible()
+    await expect(page.getByRole('button', { name: /开始面试|继续面试|重试连接|挂断/ })).toBeVisible()
     await expect(page.getByPlaceholder('输入你的回答...')).toHaveCount(0)
     await expect(page.getByRole('button', { name: '提交回答' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '给我提示' })).toHaveCount(0)
