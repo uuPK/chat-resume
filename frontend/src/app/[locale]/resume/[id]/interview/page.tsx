@@ -1093,164 +1093,21 @@ function ReportPreview({
   )
 }
 
-type TurnEvaluation = NonNullable<InterviewSession['turns'][number]['evaluation']>
-
-// 用于判断面试轮次点评是否为结构化报告对象。
-function isStructuredTurnEvaluation(value: TurnEvaluation): value is {
-  summary?: string
-  gaps?: string[]
-  evidence?: string[]
-  advice?: string
-} {
-  return typeof value === 'object' && value !== null
-}
-
-// 用于渲染单道面试题的 AI 点评。
-function TurnEvaluationCard({ evaluation }: { evaluation: TurnEvaluation }) {
-  const t = useTranslations('interview.session')
-  const locale = useLocale()
-  const title = sessionText(t, locale, 'turnEvaluationTitle', { zh: '单题点评', en: 'Question Feedback' })
-
-  if (!isStructuredTurnEvaluation(evaluation)) {
-    return (
-      <div style={{ background: '#1a1d24', borderRadius: 12, padding: '20px 24px' }}>
-        <h3 style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>
-          {title}
-        </h3>
-        <p style={{ color: '#e5e7eb', fontSize: 14, lineHeight: 1.7 }}>{evaluation}</p>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ background: '#1a1d24', borderRadius: 12, padding: '20px 24px' }}>
-      <h3 style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
-        {title}
-      </h3>
-      {evaluation.summary && (
-        <p style={{ color: '#e5e7eb', fontSize: 14, lineHeight: 1.7, marginBottom: 14 }}>
-          {evaluation.summary}
-        </p>
-      )}
-      {(evaluation.gaps || []).length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-            {sessionText(t, locale, 'turnEvaluationGaps', { zh: '主要缺口', en: 'Gaps' })}
-          </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(evaluation.gaps || []).map((item, i) => (
-              <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ flexShrink: 0, width: 4, height: 4, borderRadius: '50%', background: '#f59e0b', marginTop: 7 }} />
-                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.6 }}>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {(evaluation.evidence || []).length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-            {sessionText(t, locale, 'turnEvaluationEvidence', { zh: '评价依据', en: 'Evidence' })}
-          </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {(evaluation.evidence || []).map((item, i) => (
-              <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ flexShrink: 0, width: 4, height: 4, borderRadius: '50%', background: '#6b7280', marginTop: 7 }} />
-                <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 1.6 }}>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {evaluation.advice && (
-        <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(87,139,250,0.12)', borderRadius: 8, borderLeft: '3px solid #578bfa' }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            {sessionText(t, locale, 'turnEvaluationAdvice', { zh: '改进建议', en: 'Advice' })}
-          </p>
-          <p style={{ color: '#93bbfd', fontSize: 13, lineHeight: 1.65 }}>
-            {evaluation.advice}
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 用于渲染完成面试后的历史对话。
-function InterviewTranscript({ turns }: { turns: InterviewSession['turns'] }) {
-  const t = useTranslations('interview.session')
-  const locale = useLocale()
-  const visibleTurns = turns.filter((turn) => turn.question || turn.answer)
-
-  if (visibleTurns.length === 0) {
-    return (
-      <p style={{ color: '#5b616e', fontSize: 15 }}>
-        {sessionText(t, locale, 'transcriptEmpty', { zh: '暂无可展示的面试对话。', en: 'No interview transcript is available yet.' })}
-      </p>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-      <h1 style={{ color: '#111827', fontSize: 28, fontWeight: 800, lineHeight: 1.2, margin: 0 }}>
-        {sessionText(t, locale, 'transcriptTitle', { zh: '面试对话记录', en: 'Interview transcript' })}
-      </h1>
-      {visibleTurns.map((turn, index) => (
-        <article key={turn.id}>
-          {/* 题目序号分隔线 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: '50%', background: '#0a0b0d', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {index + 1}
-            </span>
-            <div style={{ flex: 1, height: 1, background: '#eef0f3' }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {turn.question && (
-              <div style={{ background: '#f8f9fb', borderRadius: 12, padding: '16px 20px' }}>
-                <p style={{ color: '#9ca3af', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  {sessionText(t, locale, 'interviewerLabel', { zh: '面试官', en: 'Interviewer' })}
-                </p>
-                <p style={{ color: '#111827', fontSize: 15, lineHeight: 1.6 }}>{turn.question}</p>
-              </div>
-            )}
-            {turn.answer && (
-              <div style={{ background: '#f0f4ff', borderRadius: 12, padding: '16px 20px', borderLeft: '3px solid #0052ff' }}>
-                <p style={{ color: '#0052ff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  {sessionText(t, locale, 'candidateLabel', { zh: '候选人', en: 'Candidate' })}
-                </p>
-                <p style={{ color: '#111827', fontSize: 15, lineHeight: 1.6 }}>{turn.answer}</p>
-              </div>
-            )}
-            {turn.evaluation && <TurnEvaluationCard evaluation={turn.evaluation} />}
-          </div>
-        </article>
-      ))}
-    </div>
-  )
-}
-
-// 用于在完成态通过 Tab 切换展示报告和历史对话。
+// 用于在完成态展示报告或报告生成入口。
 function CompletedInterviewReview({
   report,
-  turns,
-  activeTab,
   isGenerating,
   onGenerate,
 }: {
   report: InterviewSession['report_data']
-  turns: InterviewSession['turns']
-  activeTab: 'report' | 'transcript'
   isGenerating: boolean
   onGenerate: () => void
 }) {
   return (
     <div className="flex-1 overflow-y-auto" style={{ backgroundColor: '#f8fafc' }}>
       <div className="mx-auto w-full max-w-5xl px-5 py-10">
-        {activeTab === 'report' && !report && (
-          <ReportGenerationPanel isGenerating={isGenerating} onGenerate={onGenerate} />
-        )}
-        {activeTab === 'report' && report && <ReportPreview report={report} />}
-        {activeTab === 'transcript' && <InterviewTranscript turns={turns} />}
+        {!report && <ReportGenerationPanel isGenerating={isGenerating} onGenerate={onGenerate} />}
+        {report && <ReportPreview report={report} />}
       </div>
     </div>
   )
@@ -1273,7 +1130,6 @@ export default function InterviewPage() {
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
   const [digitalHuman, setDigitalHuman] = useState<DigitalHumanConversation | null>(null)
-  const [activeTab, setActiveTab] = useState<'report' | 'transcript'>('report')
 
   const {
     session,
@@ -1301,7 +1157,6 @@ export default function InterviewPage() {
     || reportData?.next_training_plan?.length
     || reportData?.resume_feedback?.length
   )
-  const hasInterviewHistory = Boolean(session?.turns?.some((turn) => turn.question || turn.answer))
   const canEndInterview = Boolean(session && !isCompletedSession)
   const canGenerateReport = Boolean(isCompletedSession && !hasReport)
 
@@ -1435,52 +1290,6 @@ export default function InterviewPage() {
                 : sessionText(t, locale, 'generateReport', { zh: '生成报告', en: 'Generate report' })}
             </button>
           )}
-          {isCompletedSession && (
-            <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 56, padding: 3, gap: 2 }}>
-              <button
-                type="button"
-                onClick={() => setActiveTab('report')}
-                className="focus:outline-none"
-                style={{
-                  padding: '6px 16px',
-                  borderRadius: 56,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: '0.01em',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  background: activeTab === 'report' ? '#ffffff' : 'transparent',
-                  color: activeTab === 'report' ? '#0a0b0d' : '#6b7280',
-                  boxShadow: activeTab === 'report' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}
-              >
-                {t('viewReport')}
-              </button>
-              {hasInterviewHistory && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('transcript')}
-                  className="focus:outline-none"
-                  style={{
-                    padding: '6px 16px',
-                    borderRadius: 56,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    letterSpacing: '0.01em',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    background: activeTab === 'transcript' ? '#ffffff' : 'transparent',
-                    color: activeTab === 'transcript' ? '#0a0b0d' : '#6b7280',
-                    boxShadow: activeTab === 'transcript' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                  }}
-                >
-                  {sessionText(t, locale, 'viewTranscript', { zh: '查看对话', en: 'View transcript' })}
-                </button>
-              )}
-            </div>
-          )}
           {canEndInterview && (
             <button
               type="button"
@@ -1523,8 +1332,6 @@ export default function InterviewPage() {
         {isCompletedSession ? (
           <CompletedInterviewReview
             report={reportData}
-            turns={session?.turns || []}
-            activeTab={activeTab}
             isGenerating={isSending}
             onGenerate={handleGenerateReport}
           />
