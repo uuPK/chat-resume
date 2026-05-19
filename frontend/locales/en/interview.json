@@ -70,6 +70,10 @@
     "preparing": "Preparing...",
     "resumeMissing": "Resume not found",
     "title": "Mock interview",
-    "timeout": "Connection timed out"
+    "timeout": "Connection timed out",
+    "turnEvaluationTitle": "Question feedback",
+    "turnEvaluationGaps": "Gaps",
+    "turnEvaluationEvidence": "Evidence",
+    "turnEvaluationAdvice": "Advice"
   }
 }

@@ -70,6 +70,10 @@
     "preparing": "准备中…",
     "resumeMissing": "简历不存在",
     "title": "模拟面试",
-    "timeout": "连接超时"
+    "timeout": "连接超时",
+    "turnEvaluationTitle": "单题点评",
+    "turnEvaluationGaps": "主要缺口",
+    "turnEvaluationEvidence": "评价依据",
+    "turnEvaluationAdvice": "改进建议"
   }
 }
