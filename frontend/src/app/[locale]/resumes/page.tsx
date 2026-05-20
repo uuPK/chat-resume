@@ -300,85 +300,70 @@ export default function ResumesPage() {
             <span className="ml-3 text-base" style={{ color: '#5b616e' }}>{t('loading')}</span>
           </div>
         ) : resumes.length === 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="group overflow-hidden flex flex-col"
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mx-auto max-w-4xl py-10"
+          >
+            <div
+              className="overflow-hidden rounded-[28px] border"
               style={{
-                border: '1px solid rgba(91,97,110,0.2)',
-                borderRadius: '16px',
-                backgroundColor: '#ffffff',
+                background: 'linear-gradient(135deg, #ffffff 0%, #f7f8fb 100%)',
+                borderColor: 'rgba(91,97,110,0.16)',
+                boxShadow: '0 24px 80px rgba(15,23,42,0.08)',
               }}
             >
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadLoading}
-                className="block w-full cursor-pointer text-left disabled:cursor-default disabled:opacity-50"
-                aria-label={t('emptyUploadAction')}
-              >
-                <div
-                  className="flex h-[220px] items-center justify-center overflow-hidden transition-colors"
-                  style={{ backgroundColor: '#eef0f3', borderBottom: '1px solid rgba(91,97,110,0.1)' }}
-                  onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#f4f6fa' } }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#eef0f3' }}
-                >
-                  <div className="w-[76%] rounded-t-xl border bg-white px-8 py-7" style={{ borderColor: 'rgba(91,97,110,0.2)', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}>
-                    <div className="mx-auto mb-6 h-3 w-24 rounded-full" style={{ backgroundColor: '#d8dde6' }} />
-                    <div className="space-y-3">
-                      <div className="h-2.5 rounded-full" style={{ backgroundColor: '#e4e7ec' }} />
-                      <div className="h-2.5 w-5/6 rounded-full" style={{ backgroundColor: '#e4e7ec' }} />
-                      <div className="h-2.5 w-3/4 rounded-full" style={{ backgroundColor: '#e4e7ec' }} />
-                    </div>
-                    <div className="mt-7 space-y-3">
-                      <div className="h-2.5 rounded-full" style={{ backgroundColor: '#eef0f3' }} />
-                      <div className="h-2.5 w-4/5 rounded-full" style={{ backgroundColor: '#eef0f3' }} />
-                    </div>
-                  </div>
+              <div className="px-6 py-8 sm:px-10 sm:py-10">
+                <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,82,255,0.08)' }}>
+                  <DocumentTextIcon className="h-7 w-7" style={{ color: '#0052ff' }} />
                 </div>
-              </button>
+                <div className="mx-auto max-w-2xl text-center">
+                  <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>{t('emptyTitle')}</h3>
+                </div>
 
-              <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-[#0a0b0d]">
-                    {t('emptyCardTitle')}
-                  </div>
-                  <div className="mt-0.5 truncate text-xs" style={{ color: '#5b616e' }}>
-                    {t('emptyCardHint')}
-                  </div>
-                </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadLoading}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors disabled:opacity-50"
-                    style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d', backgroundColor: '#ffffff' }}
-                    title={t('emptyUploadAction')}
-                    aria-label={t('emptyUploadAction')}
-                    onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#eef0f3' } }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff' }}
+                    className="group rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(0,82,255,0.22)' }}
+                    onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,82,255,0.12)' } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,82,255,0.22)'; e.currentTarget.style.boxShadow = 'none' }}
                   >
-                    <CloudArrowUpIcon className="h-4 w-4" />
+                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#0052ff', color: '#ffffff' }}>
+                      <CloudArrowUpIcon className="h-5 w-5" />
+                    </span>
+                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyUploadTitle')}</span>
+                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyUploadDescription')}</span>
+                    <span className="mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
+                      {uploadLoading ? t('uploading') : t('emptyUploadAction')}
+                    </span>
                   </button>
+
                   <button
                     type="button"
                     onClick={handleConfirmCreate}
                     disabled={creating}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50"
-                    style={{ borderRadius: '56px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
-                    onMouseEnter={e => { if (!creating) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
+                    className="rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(91,97,110,0.2)' }}
+                    onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#0a0b0d'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(15,23,42,0.08)' } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
                   >
-                    <DocumentTextIcon className="h-3.5 w-3.5" />
-                    <span>{creating ? t('creating') : t('emptyCreateAction')}</span>
+                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
+                      <DocumentTextIcon className="h-5 w-5" />
+                    </span>
+                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyCreateTitle')}</span>
+                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyCreateDescription')}</span>
+                    <span className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d' }}>
+                      {creating ? t('creating') : t('emptyCreateAction')}
+                    </span>
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {resumes.map((resume, index) => (

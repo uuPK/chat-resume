@@ -14,8 +14,6 @@
     "emptyCreateDescription": "Start from a structured template when you do not have a resume yet.",
     "emptyUploadAction": "Upload existing resume",
     "emptyCreateAction": "Create blank resume",
-    "emptyCardTitle": "Blank resume",
-    "emptyCardHint": "Upload or create to start optimizing",
     "emptyWorkflowTitle": "Next",
     "emptyWorkflowJd": "Add JD",
     "emptyWorkflowAnalyze": "Agent analysis",
