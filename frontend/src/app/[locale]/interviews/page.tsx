@@ -17,9 +17,11 @@ import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
+  ArrowRightIcon,
   ChevronDownIcon,
   ClockIcon,
   ChatBubbleLeftRightIcon,
+  DocumentCheckIcon,
   DocumentTextIcon,
   ExclamationCircleIcon,
   MagnifyingGlassIcon,
@@ -108,6 +110,73 @@ function InterviewInfoRow({ label, value }: { label: string; value: string }) {
     <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 text-[13px] leading-5">
       <span className="font-medium" style={{ color: LIST_FAINT }}>{label}</span>
       <span className="min-w-0 truncate font-semibold" style={{ color: LIST_TEXT }}>{value}</span>
+    </div>
+  )
+}
+
+// 无简历时的面试入口说明页。
+function NoResumeInterviewState({
+  hasResumes,
+  onStart,
+  t,
+  pageError,
+}: {
+  hasResumes: boolean
+  onStart: () => void
+  t: ReturnType<typeof useTranslations>
+  pageError: string | null
+}) {
+  const prereqCopy = t('center.needResumePrefix')
+
+  return (
+    <div className="mx-auto w-full max-w-[640px] py-6">
+      <h1 className="text-[22px] font-medium leading-tight" style={{ color: LIST_TEXT }}>{t('center.practiceHeading')}</h1>
+      <p className="mt-1.5 text-[13.5px] leading-6" style={{ color: LIST_MUTED }}>{t('center.practiceSubheading')}</p>
+
+      {pageError && (
+        <div className="mt-6 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fef2f2', borderColor: 'rgba(220,38,38,0.14)', color: '#dc2626' }}>
+          {pageError}
+        </div>
+      )}
+
+      {!hasResumes && (
+        <div className="mt-8 flex items-start gap-2.5 rounded-xl border px-4 py-3.5" style={{ backgroundColor: '#fffbeb', borderColor: 'rgba(180,130,0,0.2)' }}>
+          <ExclamationCircleIcon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#d97706' }} />
+          <p className="text-[13px] leading-6" style={{ color: '#92400e' }}>
+            {prereqCopy}
+            <Link href="/resumes" className="font-medium underline underline-offset-2" style={{ color: '#b45309' }}>{t('center.needResumeLink')}</Link>
+            {t('center.needResumeSuffix')}
+          </p>
+        </div>
+      )}
+
+      <div className={`${hasResumes ? 'mt-8' : 'mt-7'} grid gap-3.5 md:grid-cols-2`}>
+        <button type="button" onClick={onStart} className="flex min-h-[210px] flex-col rounded-2xl border bg-white p-6 text-left transition-all" style={{ borderColor: LIST_BORDER }}>
+          <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: '#f9fafb', color: LIST_BLUE }}>
+            <DocumentCheckIcon className="h-5 w-5" />
+          </span>
+          <span className="text-[15px] font-medium" style={{ color: LIST_TEXT }}>{t('center.targetPracticeTitle')}</span>
+          <span className="mt-1.5 flex-1 text-[13px] leading-6" style={{ color: LIST_MUTED }}>{t('center.targetPracticeDescription')}</span>
+          <span className="mt-4 flex items-center justify-between">
+            <span className="text-xs" style={{ color: LIST_FAINT }}>{t('center.generalPracticeEta')}</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full border" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
+              <ArrowRightIcon className="h-3.5 w-3.5" />
+            </span>
+          </span>
+        </button>
+      </div>
+
+      <div className="mt-8">
+        <div className="mb-3 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('center.practiceAboutTitle')}</div>
+        <div className="grid gap-2.5">
+          {[t('center.practiceTipFeedback'), t('center.practiceTipReview'), t('center.practiceTipQuota')].map((tip) => (
+            <div key={tip} className="flex items-start gap-2.5 text-[13px] leading-6" style={{ color: LIST_MUTED }}>
+              <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: LIST_BORDER }} />
+              <span>{tip}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -732,6 +801,8 @@ export default function InterviewsPage() {
               />
               <span className="ml-3 text-base" style={{ color: LIST_MUTED }}>{t('center.loading')}</span>
             </div>
+          ) : !hasResumes || sessions.length === 0 ? (
+            <NoResumeInterviewState hasResumes={hasResumes} onStart={handlePracticeCardClick} t={t} pageError={pageError} />
           ) : (
             <div>
               <div className="mb-5 flex items-center justify-between gap-4">
@@ -782,17 +853,6 @@ export default function InterviewsPage() {
                   <ChevronDownIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
-
-              {!hasResumes && (
-                <div className="mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' }}>
-                  <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                  <span>
-                    {t('center.needResumePrefix')}
-                    <Link href="/resumes" className="font-semibold underline underline-offset-2">{t('center.needResumeLink')}</Link>
-                    {t('center.needResumeSuffix')}
-                  </span>
-                </div>
-              )}
 
               <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
                 {filteredSessions.map((session, index) => (
