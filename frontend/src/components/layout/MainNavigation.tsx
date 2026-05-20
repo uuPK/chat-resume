@@ -1,8 +1,7 @@
 'use client'
 // 用于提供 components/layout/MainNavigation.tsx 模块。
 
-import { Link } from '@/i18n/navigation'
-import { useRouter, usePathname } from '@/i18n/navigation'
+import { useRouter } from '@/i18n/navigation'
 import { ChevronDownIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { useState, useRef, useEffect } from 'react'
@@ -14,7 +13,6 @@ import { useLocale, useTranslations } from 'next-intl'
 // 顶部主导航栏，Coinbase 风格：白底、蓝色品牌色、pill 形激活态
 export default function MainNavigation() {
   const router = useRouter()
-  const pathname = usePathname()
   const { user, logout } = useAuth()
   const t = useTranslations('common')
   const locale = useLocale()
@@ -44,10 +42,6 @@ export default function MainNavigation() {
       .catch(() => setBillingStatus(null))
   }, [user])
 
-  const isResumesActive =
-    pathname === '/' || pathname === '/dashboard' ||
-    pathname?.startsWith('/resumes') || pathname?.startsWith('/resume/')
-  const isInterviewsActive = pathname?.startsWith('/interviews')
   const planName = billingStatus?.is_active ? 'Plus' : (locale === 'zh' ? '免费版' : 'Free')
 
   return (
@@ -56,29 +50,6 @@ export default function MainNavigation() {
         <div className="flex h-14 items-center justify-between">
           <div className="flex min-w-0 items-center gap-8">
             <Logo size="sm" />
-
-            <nav className="hidden h-14 items-center gap-6 sm:flex">
-              <Link
-                href="/resumes"
-                className="flex h-14 items-center border-b-2 px-1 text-sm font-semibold transition-colors"
-                style={{
-                  borderColor: isResumesActive ? '#0052ff' : 'transparent',
-                  color: isResumesActive ? '#0052ff' : '#5b616e',
-                }}
-              >
-                {t('nav.resumes')}
-              </Link>
-              <Link
-                href="/interviews"
-                className="flex h-14 items-center border-b-2 px-1 text-sm font-semibold transition-colors"
-                style={{
-                  borderColor: isInterviewsActive ? '#0052ff' : 'transparent',
-                  color: isInterviewsActive ? '#0052ff' : '#5b616e',
-                }}
-              >
-                {t('nav.interviews')}
-              </Link>
-            </nav>
           </div>
 
           <div className="flex items-center justify-end gap-3">
