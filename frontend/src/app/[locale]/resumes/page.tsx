@@ -13,13 +13,16 @@ import MainNavigation from '@/components/layout/MainNavigation'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { useTranslations } from 'next-intl'
 import {
-  TrashIcon,
   ArrowRightIcon,
   ArrowUpTrayIcon,
   ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
   DocumentTextIcon,
   ClockIcon,
+  EllipsisVerticalIcon,
+  LockClosedIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
   StarIcon,
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
@@ -38,6 +41,7 @@ interface Resume {
 
 const UPLOAD_JOB_POLL_INTERVAL_MS = 1500
 const UPLOAD_JOB_TIMEOUT_MS = 120000
+const FREE_RESUME_LIMIT = 3
 
 // 用于等待当前数据。
 function sleep(ms: number) {
@@ -68,6 +72,43 @@ function ResumePreviewLoader({ content }: { content?: Partial<ResumeContent> }) 
   )
 }
 
+// 用于生成简历列表卡片的状态标签。
+function getResumeCardStatus(resume: Resume, index: number, t: ReturnType<typeof useTranslations>) {
+  if (resume.target_company || resume.target_title) {
+    return {
+      label: index === 0 ? t('cardStatusActive') : t('cardStatusOptimized'),
+      backgroundColor: index === 0 ? '#ecfdf5' : '#eef4ff',
+      color: index === 0 ? '#059669' : '#0052ff',
+    }
+  }
+
+  return {
+    label: t('cardStatusDraft'),
+    backgroundColor: '#ffffff',
+    color: '#8b93a3',
+  }
+}
+
+// 用于读取简历卡片副标题。
+function getResumeSubtitle(resume: Resume, t: ReturnType<typeof useTranslations>) {
+  const targetParts = [resume.target_company, resume.target_title].filter(Boolean)
+  if (targetParts.length > 0) return targetParts.join(' · ')
+  return resume.target_title || resume.original_filename || t('cardUntargeted')
+}
+
+// 用于判断简历是否匹配搜索词。
+function resumeMatchesQuery(resume: Resume, query: string) {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+
+  return [
+    resume.title,
+    resume.target_title,
+    resume.target_company,
+    resume.original_filename,
+  ].some(value => value?.toLowerCase().includes(normalizedQuery))
+}
+
 // 简历中心主页，展示用户所有简历
 export default function ResumesPage() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -77,9 +118,14 @@ export default function ResumesPage() {
   const [resumes, setResumes] = useState<Resume[]>([])
   const [resumesLoading, setResumesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [resumeSearchQuery, setResumeSearchQuery] = useState('')
+  const [openResumeActionsId, setOpenResumeActionsId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
   const common = useTranslations('common')
+  const filteredResumes = resumes.filter(resume => resumeMatchesQuery(resume, resumeSearchQuery))
+  const visibleResumes = filteredResumes.slice(0, FREE_RESUME_LIMIT)
+  const hiddenResumeCount = Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -368,76 +414,212 @@ export default function ResumesPage() {
             </div>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {resumes.map((resume, index) => (
-              <motion.div
-                key={resume.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.08 }}
-                className="group overflow-hidden flex flex-col"
-                style={{
-                  border: '1px solid rgba(91,97,110,0.2)',
-                  borderRadius: '16px',
-                  backgroundColor: '#ffffff',
-                }}
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#0a0b0d' }}>
+                  {t('listTitle')}
+                </h1>
+                <p className="mt-2 text-sm" style={{ color: '#8b93a3' }}>
+                  {t('listSummary', {
+                    total: resumes.length,
+                    limit: FREE_RESUME_LIMIT,
+                    used: resumes.length,
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleConfirmCreate}
+                disabled={creating}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                style={{ backgroundColor: '#0052ff' }}
               >
-                {/* Preview area */}
-                <div className="relative">
-                  <div
-                    role="link"
-                    tabIndex={0}
-                    aria-label={resume.title}
-                    onClick={() => openResumeEditor(resume.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        openResumeEditor(resume.id)
-                      }
-                    }}
-                    className="block cursor-pointer"
+                <PlusIcon className="h-4 w-4" />
+                <span>{creating ? t('creating') : t('create')}</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <label
+                className="relative block w-full lg:max-w-[320px]"
+                aria-label={t('searchPlaceholder')}
+              >
+                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2" style={{ color: '#b0b6c0' }} />
+                <input
+                  type="search"
+                  value={resumeSearchQuery}
+                  onChange={event => setResumeSearchQuery(event.target.value)}
+                  placeholder={t('searchPlaceholder')}
+                  className="h-10 w-full rounded-lg border bg-white pl-10 pr-3 text-sm outline-none"
+                  style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#0a0b0d' }}
+                />
+              </label>
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-between gap-3 rounded-lg border bg-white px-4 text-sm font-medium"
+                style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#5b616e' }}
+              >
+                <span>{t('filterAllStatus')}</span>
+                <ChevronDownIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-between gap-3 rounded-lg border bg-white px-4 text-sm font-medium"
+                style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#5b616e' }}
+              >
+                <span>{t('sortRecent')}</span>
+                <ChevronDownIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+              {visibleResumes.map((resume, index) => {
+                const status = getResumeCardStatus(resume, index, t)
+                return (
+                  <motion.div
+                    key={resume.id}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.08 }}
+                    className="group relative overflow-hidden rounded-2xl border bg-white"
+                    style={{ borderColor: 'rgba(91,97,110,0.2)' }}
                   >
                     <div
-                      className="overflow-hidden"
-                      style={{ height: '220px', backgroundColor: '#eef0f3', borderBottom: '1px solid rgba(91,97,110,0.1)' }}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={resume.title}
+                      onClick={() => openResumeEditor(resume.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openResumeEditor(resume.id)
+                        }
+                      }}
+                      className="relative block cursor-pointer"
                     >
-                      <ResumePreviewLoader content={resume.preview_content} />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteResume(resume.id, resume.title)}
-                    className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.12)', color: '#9ca3af' }}
-                    title={t('deleteTitle')}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#dc2626')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Footer */}
-                <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ minHeight: '60px' }}>
-                  <div className="flex-1 min-w-0">
-                    {(resume.target_company || resume.target_title) && (
-                      <div className="truncate text-sm font-medium text-[#0a0b0d]">
-                        {[resume.target_company, resume.target_title].filter(Boolean).join(' · ')}
+                      <div className="h-[208px] overflow-hidden" style={{ backgroundColor: '#f4f6fa', borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
+                        {resume.preview_content ? (
+                          <ResumePreviewLoader content={resume.preview_content} />
+                        ) : (
+                          <div className="px-5 py-5">
+                            <div className="mb-4 text-center text-sm font-semibold" style={{ color: '#0a0b0d' }}>
+                              {resume.title}
+                            </div>
+                            <div className="space-y-3">
+                              <div className="h-2.5 rounded-full" style={{ backgroundColor: '#dfe3ea' }} />
+                              <div className="h-2.5 w-4/5 rounded-full" style={{ backgroundColor: '#dfe3ea' }} />
+                              <div className="h-2.5 w-full rounded-full" style={{ backgroundColor: '#e6e9ef' }} />
+                              <div className="h-2.5 w-3/4 rounded-full" style={{ backgroundColor: '#e6e9ef' }} />
+                            </div>
+                            <div className="mt-7 flex gap-1.5">
+                              <span className="h-4 w-10 rounded" style={{ backgroundColor: '#dfe3ea' }} />
+                              <span className="h-4 w-14 rounded" style={{ backgroundColor: '#dfe3ea' }} />
+                              <span className="h-4 w-8 rounded" style={{ backgroundColor: '#dfe3ea' }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <Link
-                    href={`/resume/${resume.id}/edit`}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white transition-colors flex-shrink-0"
-                    style={{ borderRadius: '56px', backgroundColor: '#0052ff', border: '1px solid #0052ff' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#578bfa'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#578bfa' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#0052ff'; (e.currentTarget as HTMLAnchorElement).style.borderColor = '#0052ff' }}
-                  >
-                    <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                    <span>{t('chat')}</span>
+                      <span
+                        className="absolute right-3 top-3 rounded-md px-2 py-1 text-xs font-semibold"
+                        style={{ backgroundColor: status.backgroundColor, color: status.color, border: '1px solid rgba(91,97,110,0.12)' }}
+                      >
+                        {status.label}
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="truncate text-base font-semibold" style={{ color: '#0a0b0d' }}>{resume.title}</h2>
+                          <p className="mt-1 truncate text-sm" style={{ color: '#5b616e' }}>{getResumeSubtitle(resume, t)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOpenResumeActionsId(current => current === resume.id ? null : resume.id)}
+                          className="flex h-7 w-7 items-center justify-center rounded-full transition-colors"
+                          style={{ color: '#9ca3af' }}
+                          title={t('moreActions')}
+                        >
+                          <EllipsisVerticalIcon className="h-4 w-4" />
+                        </button>
+                        {openResumeActionsId === resume.id && (
+                          <div
+                            className="absolute right-4 top-[248px] z-10 rounded-lg border bg-white p-1 shadow-lg"
+                            style={{ borderColor: 'rgba(91,97,110,0.16)' }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenResumeActionsId(null)
+                                handleDeleteResume(resume.id, resume.title)
+                              }}
+                              className="rounded-md px-3 py-2 text-sm font-medium"
+                              style={{ color: '#dc2626' }}
+                            >
+                              {t('deleteTitle')}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs" style={{ color: '#8b93a3' }}>
+                        <span className="inline-flex items-center gap-1">
+                          <ClockIcon className="h-3.5 w-3.5" />
+                          {resume.updated_at ? t('modifiedAt', { value: new Date(resume.updated_at).toLocaleDateString() }) : t('recentlyModified')}
+                        </span>
+                        <span>{index === 0 ? t('submittedCount', { count: 3 }) : t('notSubmitted')}</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-3" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+                        <Link
+                          href={`/resume/${resume.id}/edit`}
+                          className="inline-flex h-9 items-center justify-center rounded-lg border text-sm font-semibold"
+                          style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#5b616e' }}
+                        >
+                          {t('editAction')}
+                        </Link>
+                        <button
+                          type="button"
+                          className="h-9 rounded-lg border text-sm font-semibold"
+                          style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#5b616e' }}
+                        >
+                          {t('exportAction')}
+                        </button>
+                        <Link
+                          href={`/resume/${resume.id}/edit`}
+                          className="inline-flex h-9 items-center justify-center rounded-lg text-sm font-semibold text-white"
+                          style={{ backgroundColor: '#0052ff' }}
+                        >
+                          {t('aiOptimizeAction')}
+                        </Link>
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+
+              {hiddenResumeCount > 0 && (
+                <div className="flex min-h-[368px] flex-col items-center justify-center rounded-2xl border bg-white px-6 text-center opacity-60" style={{ borderColor: 'rgba(91,97,110,0.18)' }}>
+                  <LockClosedIcon className="h-7 w-7" style={{ color: '#8b93a3' }} />
+                  <p className="mt-4 text-base font-semibold" style={{ color: '#8b93a3' }}>{t('freeLimitReached')}</p>
+                  <p className="mt-2 text-sm" style={{ color: '#a0a7b3' }}>{t('upgradeToSaveMore')}</p>
+                  <Link href="/pricing" className="mt-5 inline-flex h-9 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
+                    {t('upgradeProAction')}
                   </Link>
                 </div>
-              </motion.div>
-            ))}
+              )}
+
+              <button
+                type="button"
+                onClick={handleConfirmCreate}
+                disabled={creating}
+                className="flex min-h-[368px] flex-col items-center justify-center rounded-2xl border border-dashed bg-white px-6 text-center disabled:opacity-50"
+                style={{ borderColor: 'rgba(91,97,110,0.28)' }}
+              >
+                <PlusIcon className="h-7 w-7" style={{ color: '#8b93a3' }} />
+                <span className="mt-6 text-base font-semibold" style={{ color: '#5b616e' }}>{creating ? t('creating') : t('create')}</span>
+                <span className="mt-3 text-sm" style={{ color: '#8b93a3' }}>{t('createCardHint')}</span>
+              </button>
+            </div>
           </div>
         )}
       </main>
