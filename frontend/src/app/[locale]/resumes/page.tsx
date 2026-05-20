@@ -210,7 +210,7 @@ export default function ResumesPage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadLoading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
               style={{
                 borderRadius: '56px',
                 backgroundColor: '#ffffff',
@@ -232,7 +232,7 @@ export default function ResumesPage() {
             <button
               onClick={handleConfirmCreate}
               disabled={creating}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
               style={{
                 borderRadius: '56px',
                 backgroundColor: '#0052ff',
