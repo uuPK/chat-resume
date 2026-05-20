@@ -24,7 +24,6 @@ import {
   LockClosedIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  StarIcon,
   ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
@@ -347,14 +346,6 @@ export default function ResumesPage() {
                   <DocumentTextIcon className="h-4 w-4" />
                   <span>{t('sidebarMyResumes')}</span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <ClockIcon className="h-4 w-4" />
-                  <span>{t('sidebarVersions')}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <MagnifyingGlassIcon className="h-4 w-4" />
-                  <span>{t('sidebarJdAnalysis')}</span>
-                </div>
               </div>
             </div>
 
@@ -365,10 +356,6 @@ export default function ResumesPage() {
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   <span>{t('sidebarMockInterview')}</span>
                 </Link>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <StarIcon className="h-4 w-4" />
-                  <span>{t('sidebarInterviewReview')}</span>
-                </div>
               </div>
             </div>
           </div>

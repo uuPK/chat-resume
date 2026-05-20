@@ -19,14 +19,12 @@ import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
   ArrowRightIcon,
   ChevronDownIcon,
-  ClockIcon,
   ChatBubbleLeftRightIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
   ExclamationCircleIcon,
   MagnifyingGlassIcon,
   MicrophoneIcon,
-  StarIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
@@ -576,14 +574,6 @@ export default function InterviewsPage() {
                   <DocumentTextIcon className="h-4 w-4" />
                   <span>{t('center.sidebarMyResumes')}</span>
                 </Link>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <ClockIcon className="h-4 w-4" />
-                  <span>{t('center.sidebarVersions')}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <MagnifyingGlassIcon className="h-4 w-4" />
-                  <span>{t('center.sidebarJdAnalysis')}</span>
-                </div>
               </div>
             </div>
 
@@ -593,10 +583,6 @@ export default function InterviewsPage() {
                 <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ backgroundColor: LIST_BLUE_BG, color: '#1e40af' }}>
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   <span>{t('center.sidebarMockInterview')}</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <StarIcon className="h-4 w-4" />
-                  <span>{t('center.sidebarInterviewReview')}</span>
                 </div>
               </div>
             </div>
