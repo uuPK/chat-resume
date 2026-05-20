@@ -354,6 +354,42 @@ async function readResumeSelectionVisualState(page: Page) {
   })
 }
 
+/**
+ * 判断指定 value 的输入框是否实际落在浏览器可视区域内。
+ */
+// 用于检查输入框是否可见in viewport。
+async function isInputValueInViewport(page: Page, value: string) {
+  return page.evaluate((targetValue) => {
+    const input = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+      .find((element) => element.value === targetValue)
+    if (!input) return false
+    const rect = input.getBoundingClientRect()
+    return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth
+  }, value)
+}
+
+/**
+ * 读取指定 value 输入框的位置，用于把鼠标放到真实编辑区内触发滚动。
+ */
+// 用于读取输入框位置。
+async function inputValueBox(page: Page, value: string) {
+  return page.evaluate((targetValue) => {
+    const input = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+      .find((element) => element.value === targetValue)
+    if (!input) return null
+    const rect = input.getBoundingClientRect()
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  }, value)
+}
+
+/**
+ * 等待指定 value 的输入框实际进入浏览器可视区域。
+ */
+// 用于等待输入框进入viewport。
+async function expectInputValueInViewport(page: Page, value: string) {
+  await expect.poll(() => isInputValueInViewport(page, value)).toBe(true)
+}
+
 test.describe('编辑页工作流', () => {
   test('路由 ID 无效时不会请求 NaN 简历接口', async ({ page }) => {
     const invalidResumeApiCalls: string[] = []
@@ -794,6 +830,51 @@ test.describe('编辑页工作流', () => {
     expect(await educationHighlightInput.evaluate((element) =>
       element.clientHeight >= element.scrollHeight - 1
     )).toBe(true)
+  })
+
+  test('项目编辑区内容超过面板高度时可以向下滚动', async ({ page }) => {
+    await page.setViewportSize({ width: 1124, height: 786 })
+    const resume = buildResumeResponse(123)
+    resume.content.projects = [
+      {
+        name: 'Chat Resume - AI驱动的求职辅导',
+        role: '前端开发工程师',
+        duration: '2023.03 - 2023.08',
+        github_url: 'https://github.com/849261680',
+        demo_url: 'https://chatresu.vercel.app',
+        overview: 'AI驱动的求职辅导平台，提供简历诊断、模拟面试、能力评估功能。技术亮点：能够通过BOSS直聘MCP工具，搜索相关职位信息，并生成简历优化建议；智能简历解析：通过特定提示词，使大模型将简历输出为结构化的json格式，解析准确率优于传统方法；语音交互：集成语音识别和语音合成，打造沉浸式面试体验。',
+        highlights: [
+          {
+            text: '实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%',
+          },
+        ],
+      },
+      {
+        name: 'Deep Research Agent',
+        role: '全栈工程师',
+        duration: '2023.09 - 2023.12',
+        overview: '第二个项目简介',
+        highlights: [
+          {
+            text: '第二个项目成果',
+          },
+        ],
+      },
+    ]
+    await installEditorApiMock(page, resume)
+
+    await page.goto('/zh/resume/123/edit')
+    await page.getByRole('button', { name: '项目' }).click()
+    await expectInputValueInViewport(page, 'Chat Resume - AI驱动的求职辅导')
+    expect(await isInputValueInViewport(page, 'Deep Research Agent')).toBe(false)
+
+    const firstProjectBox = await inputValueBox(page, 'Chat Resume - AI驱动的求职辅导')
+    expect(firstProjectBox, '第一个项目输入框应可见，才能在左侧编辑区内滚动').toBeTruthy()
+    if (!firstProjectBox) return
+    await page.mouse.move(firstProjectBox.x + 16, firstProjectBox.y + 16)
+    await page.mouse.wheel(0, 900)
+
+    await expectInputValueInViewport(page, 'Deep Research Agent')
   })
 
   test('上传真实文件后轮询解析任务，完成后进入编辑页并加载简历', async ({ page }) => {

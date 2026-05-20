@@ -658,7 +658,7 @@ export default function ResumeEditPage() {
               </div>
             ) : (
             <div
-              className="relative p-4 flex-1 overflow-visible flex flex-col"
+              className="relative p-4 flex-1 min-h-0 overflow-hidden flex flex-col"
               style={{
                 backgroundColor: '#ffffff',
                 border: '1px solid rgba(91,97,110,0.2)',
