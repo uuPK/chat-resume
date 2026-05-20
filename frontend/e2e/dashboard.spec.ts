@@ -55,7 +55,8 @@ test.describe('Dashboard', () => {
   test('没有简历时显示空状态提示', async ({ page }) => {
     await loginAs(page, uniqueEmail('empty'))
     await page.waitForSelector('.animate-spin', { state: 'detached', timeout: 8_000 }).catch(() => {})
-    await expect(page.locator('body')).toContainText('开始优化你的第一份简历')
+    await expect(page.locator('body')).toContainText('创建第一份简历')
+    await expect(page.locator('body')).toContainText('使用提示')
     await expect(page.locator('body')).not.toContainText('填写 JD')
     await expect(page.locator('body')).not.toContainText('Agent 分析')
     await expect(page.locator('body')).not.toContainText('确认 diff')
@@ -91,7 +92,7 @@ test.describe('新建简历', () => {
     await page.getByRole('link', { name: '返回仪表板' }).click()
     await page.waitForURL('**/dashboard', { timeout: 12_000 })
     await expect(page.getByRole('link', { name: '简历中心' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '新建简历' })).toBeVisible()
+    await expect(page.locator('body')).toContainText('我的简历')
   })
 })
 

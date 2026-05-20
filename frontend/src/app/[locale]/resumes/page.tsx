@@ -14,9 +14,14 @@ import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { useTranslations } from 'next-intl'
 import {
   TrashIcon,
-  CloudArrowUpIcon,
+  ArrowRightIcon,
+  ArrowUpTrayIcon,
   ChatBubbleLeftRightIcon,
   DocumentTextIcon,
+  ClockIcon,
+  MagnifyingGlassIcon,
+  StarIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
 interface Resume {
@@ -211,38 +216,59 @@ export default function ResumesPage() {
         className="hidden"
       />
       <MainNavigation />
-      <div className="border-b px-6 py-3" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
-        <div className="mx-auto flex max-w-7xl items-center justify-end gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadLoading}
-            className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-            style={{
-              borderRadius: '56px',
-              backgroundColor: '#ffffff',
-              color: '#0a0b0d',
-              border: '1px solid rgba(91,97,110,0.3)',
-            }}
-          >
-            {uploadLoading ? t('uploading') : t('upload')}
-          </button>
-          <button
-            onClick={handleConfirmCreate}
-            disabled={creating}
-            className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-            style={{
-              borderRadius: '56px',
-              backgroundColor: '#0052ff',
-              border: '1px solid #0052ff',
-            }}
-          >
-            {creating ? t('creating') : t('create')}
-          </button>
-        </div>
-      </div>
+      <div className="flex min-h-[calc(100vh-56px)]">
+        <aside
+          className="hidden w-[238px] shrink-0 border-r bg-white px-3 py-6 md:flex md:flex-col"
+          style={{ borderColor: 'rgba(91,97,110,0.14)' }}
+        >
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 px-2 text-xs font-medium" style={{ color: '#8b93a3' }}>{t('sidebarResume')}</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold" style={{ backgroundColor: '#eef4ff', color: '#0052ff' }}>
+                  <DocumentTextIcon className="h-4 w-4" />
+                  <span>{t('sidebarMyResumes')}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <ClockIcon className="h-4 w-4" />
+                  <span>{t('sidebarVersions')}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <MagnifyingGlassIcon className="h-4 w-4" />
+                  <span>{t('sidebarJdAnalysis')}</span>
+                </div>
+              </div>
+            </div>
 
-      {/* Content section — white */}
-      <main className="max-w-7xl mx-auto px-6 pb-10 pt-14">
+            <div>
+              <p className="mb-2 px-2 text-xs font-medium" style={{ color: '#8b93a3' }}>{t('sidebarInterview')}</p>
+              <div className="space-y-1">
+                <Link href="/interviews" className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  <span>{t('sidebarMockInterview')}</span>
+                </Link>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <StarIcon className="h-4 w-4" />
+                  <span>{t('sidebarInterviewReview')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-auto rounded-xl border bg-white p-4" style={{ borderColor: 'rgba(91,97,110,0.18)' }}>
+            <p className="text-base font-semibold" style={{ color: '#0a0b0d' }}>{t('upgradeTitle')}</p>
+            <p className="mt-2 text-sm leading-5" style={{ color: '#5b616e' }}>{t('upgradeDescription')}</p>
+            <Link
+              href="/pricing"
+              className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-md text-sm font-semibold text-white"
+              style={{ backgroundColor: '#0052ff' }}
+            >
+              {t('upgradeAction')}
+            </Link>
+          </div>
+        </aside>
+
+      <main className="flex-1 px-6 pb-10 pt-14" style={{ backgroundColor: '#f7f8fa' }}>
         {resumesLoading ? (
           <div className="flex justify-center items-center py-20">
             <div
@@ -256,64 +282,89 @@ export default function ResumesPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mx-auto max-w-4xl py-10"
+            className="mx-auto max-w-[760px] py-8"
           >
-            <div
-              className="overflow-hidden rounded-[28px] border"
-              style={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #f7f8fb 100%)',
-                borderColor: 'rgba(91,97,110,0.16)',
-                boxShadow: '0 24px 80px rgba(15,23,42,0.08)',
-              }}
-            >
-              <div className="px-6 py-8 sm:px-10 sm:py-10">
-                <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,82,255,0.08)' }}>
-                  <DocumentTextIcon className="h-7 w-7" style={{ color: '#0052ff' }} />
-                </div>
-                <div className="mx-auto max-w-2xl text-center">
-                  <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>{t('emptyTitle')}</h3>
-                </div>
+            <div className="mb-9">
+              <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#0a0b0d' }}>
+                {t('emptyCreateHeading')}
+              </h1>
+              <p className="mt-3 text-base" style={{ color: '#5b616e' }}>
+                {t('emptyCreateSubheading')}
+              </p>
+            </div>
 
-                <div className="mt-8 grid gap-4 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadLoading}
-                    className="group rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
-                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(0,82,255,0.22)' }}
-                    onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,82,255,0.12)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,82,255,0.22)'; e.currentTarget.style.boxShadow = 'none' }}
-                  >
-                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#0052ff', color: '#ffffff' }}>
-                      <CloudArrowUpIcon className="h-5 w-5" />
-                    </span>
-                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyUploadTitle')}</span>
-                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyUploadDescription')}</span>
-                    <span className="mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
-                      {uploadLoading ? t('uploading') : t('emptyUploadAction')}
-                    </span>
-                  </button>
+            <div className="grid gap-4 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadLoading}
+                aria-label={t('upload')}
+                className="group flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left transition-all disabled:opacity-50"
+                style={{ borderColor: 'rgba(91,97,110,0.2)' }}
+                onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#0052ff' }}>
+                  <ArrowUpTrayIcon className="h-5 w-5" />
+                </span>
+                <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyUploadTitle')}</span>
+                <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyUploadDescription')}</span>
+                <span className="mt-auto flex items-end justify-between gap-4 pt-6">
+                  <span className="flex gap-1.5">
+                    {['PDF', 'Word', 'TXT'].map(label => (
+                      <span key={label} className="rounded-md border px-2 py-1 text-xs font-medium" style={{ borderColor: 'rgba(91,97,110,0.22)', color: '#8b93a3' }}>
+                        {label}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(91,97,110,0.2)', color: '#8b93a3' }}>
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </span>
+                </span>
+              </button>
 
-                  <button
-                    type="button"
-                    onClick={handleConfirmCreate}
-                    disabled={creating}
-                    className="rounded-3xl border p-5 text-left transition-all disabled:opacity-50"
-                    style={{ backgroundColor: '#ffffff', borderColor: 'rgba(91,97,110,0.2)' }}
-                    onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#0a0b0d'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(15,23,42,0.08)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
-                  >
-                    <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
-                      <DocumentTextIcon className="h-5 w-5" />
-                    </span>
-                    <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyCreateTitle')}</span>
-                    <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyCreateDescription')}</span>
-                    <span className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d' }}>
-                      {creating ? t('creating') : t('emptyCreateAction')}
-                    </span>
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={handleConfirmCreate}
+                disabled={creating}
+                aria-label={t('create')}
+                className="group flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left transition-all disabled:opacity-50"
+                style={{ borderColor: 'rgba(91,97,110,0.2)' }}
+                onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#5b616e' }}>
+                  <ClipboardDocumentListIcon className="h-5 w-5" />
+                </span>
+                <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('templateCreateTitle')}</span>
+                <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('templateCreateDescription')}</span>
+                <span className="mt-auto flex items-end justify-between gap-4 pt-6">
+                  <span className="text-sm font-medium" style={{ color: '#b0b6c0' }}>
+                    {creating ? t('creating') : t('templateCreateEta')}
+                  </span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(91,97,110,0.2)', color: '#8b93a3' }}>
+                    <ArrowRightIcon className="h-4 w-4" />
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-10">
+              <p className="text-sm font-semibold" style={{ color: '#a0a7b3' }}>{t('usageTipsTitle')}</p>
+              <ul className="mt-4 space-y-3 text-sm leading-6" style={{ color: '#8b93a3' }}>
+                <li className="flex gap-3">
+                  <span aria-hidden="true">•</span>
+                  <span>{t('usageTipUpload')}</span>
+                </li>
+                <li className="flex gap-3">
+                  <span aria-hidden="true">•</span>
+                  <span>{t('usageTipVersions')}</span>
+                </li>
+                <li className="flex gap-3">
+                  <span aria-hidden="true">•</span>
+                  <span>{t('usageTipInterview')}</span>
+                </li>
+              </ul>
             </div>
           </motion.div>
         ) : (
@@ -390,6 +441,7 @@ export default function ResumesPage() {
           </div>
         )}
       </main>
+      </div>
     </div>
   )
 }

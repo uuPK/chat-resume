@@ -8,7 +8,8 @@ import { useAuth } from '@/lib/auth'
 import { useState, useRef, useEffect } from 'react'
 import Logo from '@/components/ui/Logo'
 import { billingApi, type BillingStatus } from '@/lib/api'
-import { useTranslations } from 'next-intl'
+import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
+import { useLocale, useTranslations } from 'next-intl'
 
 // 顶部主导航栏，Coinbase 风格：白底、蓝色品牌色、pill 形激活态
 export default function MainNavigation() {
@@ -16,6 +17,7 @@ export default function MainNavigation() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const t = useTranslations('common')
+  const locale = useLocale()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -46,46 +48,45 @@ export default function MainNavigation() {
     pathname === '/' || pathname === '/dashboard' ||
     pathname?.startsWith('/resumes') || pathname?.startsWith('/resume/')
   const isInterviewsActive = pathname?.startsWith('/interviews')
-  const planName = billingStatus?.is_active ? 'Plus' : 'Free'
+  const planName = billingStatus?.is_active ? 'Plus' : (locale === 'zh' ? '免费版' : 'Free')
 
   return (
     <header className="bg-white border-b" style={{ borderColor: 'rgba(91,97,110,0.15)' }}>
-      <div className="px-6 sm:px-10">
-        <div className="relative flex items-center justify-between h-16">
-          <div className="flex min-w-0 items-center">
+      <div className="px-6">
+        <div className="flex h-14 items-center justify-between">
+          <div className="flex min-w-0 items-center gap-8">
             <Logo size="sm" />
+
+            <nav className="hidden h-14 items-center gap-6 sm:flex">
+              <Link
+                href="/resumes"
+                className="flex h-14 items-center border-b-2 px-1 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: isResumesActive ? '#0052ff' : 'transparent',
+                  color: isResumesActive ? '#0052ff' : '#5b616e',
+                }}
+              >
+                {t('nav.resumes')}
+              </Link>
+              <Link
+                href="/interviews"
+                className="flex h-14 items-center border-b-2 px-1 text-sm font-semibold transition-colors"
+                style={{
+                  borderColor: isInterviewsActive ? '#0052ff' : 'transparent',
+                  color: isInterviewsActive ? '#0052ff' : '#5b616e',
+                }}
+              >
+                {t('nav.interviews')}
+              </Link>
+            </nav>
           </div>
 
-          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 sm:flex">
-            <Link
-              href="/resumes"
-              className="px-4 py-2 text-sm font-semibold transition-colors"
-              style={{
-                borderRadius: '56px',
-                backgroundColor: isResumesActive ? '#eef0f3' : 'transparent',
-                color: isResumesActive ? '#0052ff' : '#0a0b0d',
-              }}
-            >
-              {t('nav.resumes')}
-            </Link>
-            <Link
-              href="/interviews"
-              className="px-4 py-2 text-sm font-semibold transition-colors"
-              style={{
-                borderRadius: '56px',
-                backgroundColor: isInterviewsActive ? '#eef0f3' : 'transparent',
-                color: isInterviewsActive ? '#0052ff' : '#0a0b0d',
-              }}
-            >
-              {t('nav.interviews')}
-            </Link>
-          </nav>
-
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-end gap-3">
+            <LocaleSwitcher compact />
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-2 px-2 py-1.5 transition-colors"
+                className="flex items-center gap-2 px-2 py-1 transition-colors"
                 style={{
                   borderRadius: '56px',
                   border: '1px solid rgba(91,97,110,0.16)',
@@ -100,7 +101,7 @@ export default function MainNavigation() {
                 >
                   {(user?.full_name || 'U')[0].toUpperCase()}
                 </div>
-                <span className="hidden sm:flex flex-col items-start leading-tight">
+                <span className="hidden pr-1 sm:flex flex-col items-start leading-tight">
                   <span className="text-sm font-semibold" style={{ color: '#0a0b0d' }}>
                     {user?.full_name || 'User'}
                   </span>
