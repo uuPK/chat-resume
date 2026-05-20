@@ -2326,12 +2326,26 @@ class TestResumeCRUD:
 
     def test_list_resumes_includes_inline_preview_content(self):
         """用于验证listresumesincludesinlinepreviewcontent。"""
-        self._create_resume("预览简历")
+        created = self._create_resume("预览简历")
+        layout_resp = self.client.put(
+            f"/api/resumes/{created['id']}/layout",
+            json={
+                "density": "compact",
+                "moduleOrder": ["personal", "work", "education", "projects", "skills"],
+                "visibleModules": ["personal", "work", "education", "skills"],
+                "spacingScale": 0.7,
+                "templateStyle": "modern",
+            },
+            headers=self.headers,
+        )
+        assert layout_resp.status_code == 200
         resp = self.client.get("/api/resumes/", headers=self.headers)
         assert resp.status_code == 200
         resume = next(item for item in resp.json() if item["title"] == "预览简历")
         assert resume["preview_content"]["personal_info"]["name"] == "张三"
         assert "job_application" not in resume["preview_content"]
+        assert resume["layout_config"]["templateStyle"] == "modern"
+        assert resume["layout_config"]["spacingScale"] == 0.7
 
     def test_get_resume_by_id(self):
         """用于验证get简历byid。"""

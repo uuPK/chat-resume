@@ -62,6 +62,7 @@ def _build_resume_list_item(resume) -> ResumeListItem:
             "updated_at": resume.updated_at,
             "target_company": str(job_application.get("target_company", "") or ""),
             "target_title": str(job_application.get("target_title", "") or ""),
+            "layout_config": resume.layout_config,
             "preview_content": dump_resume_preview_content_for_list(content),
         }
     )

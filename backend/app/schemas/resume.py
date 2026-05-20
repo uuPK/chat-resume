@@ -553,6 +553,7 @@ class ResumeListItem(BaseModel):
     updated_at: Optional[datetime] = None
     target_company: str = ""
     target_title: str = ""
+    layout_config: Optional[dict[str, Any]] = None
     preview_content: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)

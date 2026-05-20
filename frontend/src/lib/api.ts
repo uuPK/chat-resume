@@ -22,6 +22,7 @@ export interface ResumeListItem {
   updated_at?: string
   target_company?: string
   target_title?: string
+  layout_config?: Record<string, unknown> | null
   preview_content?: Partial<ResumeContent>
 }
 

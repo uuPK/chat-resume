@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { useRouter } from '@/i18n/navigation'
 import { resumeApi, type ResumeContent } from '@/lib/api'
 import { formatApiErrorMessage } from '@/lib/apiErrors'
+import { buildModuleConfig, deserializeLayoutConfig } from '@/lib/resumeLayoutConfig'
 import toast from 'react-hot-toast'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
@@ -36,6 +37,7 @@ interface Resume {
   updated_at?: string
   target_company?: string
   target_title?: string
+  layout_config?: Record<string, unknown> | null
   preview_content?: Partial<ResumeContent>
 }
 
@@ -102,6 +104,9 @@ function ResumeCardPreview({
   status: { label: string; backgroundColor: string; color: string }
   t: ReturnType<typeof useTranslations>
 }) {
+  const layoutConfig = deserializeLayoutConfig(resume.layout_config)
+  const moduleOrder = buildModuleConfig(layoutConfig.moduleOrder, layoutConfig.visibleModules)
+
   return (
     <div className="relative h-[192px] overflow-hidden border-b" style={{ backgroundColor: '#fafbff', borderColor: LIST_SOFT_BORDER }}>
       <span
@@ -112,7 +117,13 @@ function ResumeCardPreview({
       </span>
       {resume.preview_content ? (
         <div className="pointer-events-none h-full select-none">
-          <PaginatedResumePreview content={resume.preview_content as ResumeContent} />
+          <PaginatedResumePreview
+            content={resume.preview_content as ResumeContent}
+            moduleOrder={moduleOrder}
+            spacingScale={layoutConfig.spacingScale}
+            templateStyle={layoutConfig.templateStyle}
+            viewportPadding={0}
+          />
         </div>
       ) : (
         <FallbackResumePreview t={t} />

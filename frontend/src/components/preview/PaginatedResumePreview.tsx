@@ -39,6 +39,7 @@ interface PaginatedResumePreviewProps {
   onSpacingScaleChange?: (scale: number) => void
   onTotalPagesChange?: (n: number) => void
   smartFitTriggerRef?: React.MutableRefObject<(() => Promise<import('./hooks/useSmartFit').SmartFitResult>) | null>
+  viewportPadding?: number
 }
 
 // 用于渲染 PaginatedResumePreview 组件。
@@ -49,7 +50,8 @@ export default function PaginatedResumePreview({
   templateStyle = 'classic',
   onSpacingScaleChange,
   onTotalPagesChange,
-  smartFitTriggerRef
+  smartFitTriggerRef,
+  viewportPadding = 8
 }: PaginatedResumePreviewProps) {
   const t = useTranslations('resume.layout')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -133,7 +135,7 @@ export default function PaginatedResumePreview({
       const container = containerRef.current
       const containerWidth = container.clientWidth
       const A4_WIDTH = 816
-      const padding = 8
+      const padding = viewportPadding
 
       const availableWidth = containerWidth - padding * 2
       const rawScale = availableWidth / A4_WIDTH
@@ -157,7 +159,7 @@ export default function PaginatedResumePreview({
       window.removeEventListener('resize', handleResize)
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [viewportPadding])
 
   // 根据模块类型渲染组件
   const renderSection = (sectionId: string, children: ReactNode): JSX.Element => (
