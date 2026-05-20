@@ -284,7 +284,7 @@ export default function ResumesPage() {
       </div>
 
       {/* Content section — white */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      <main className="max-w-7xl mx-auto px-6 pb-10 pt-14">
         {resumesLoading ? (
           <div className="flex justify-center items-center py-20">
             <div
