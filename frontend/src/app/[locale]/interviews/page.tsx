@@ -18,6 +18,7 @@ import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
   ChevronDownIcon,
   ClockIcon,
+  DocumentTextIcon,
   MicrophoneIcon,
   PlayCircleIcon,
   TrashIcon,
@@ -91,6 +92,7 @@ export default function InterviewsPage() {
   const [targetCompany, setTargetCompany] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
   const [jdText, setJdText] = useState('')
+  const hasResumes = resumes.length > 0
 
   /**
    * 用于在客户端挂载后再读取鉴权状态和本地缓存。
@@ -506,25 +508,64 @@ export default function InterviewsPage() {
             </div>
           ) : sessions.length === 0 ? (
             <div
-              className="text-center py-16 px-6"
+              className="mx-auto max-w-3xl px-6 py-14 text-center sm:px-10"
               style={{
-                border: '1px dashed rgba(91,97,110,0.18)',
-                borderRadius: '24px',
-                backgroundColor: '#fcfcfd',
+                border: '1px solid rgba(91,97,110,0.16)',
+                borderRadius: '32px',
+                background: 'radial-gradient(circle at top, rgba(0,82,255,0.06), transparent 42%), #ffffff',
+                boxShadow: '0 20px 70px rgba(15,23,42,0.07)',
               }}
             >
               <div
-                className="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-5"
-                style={{ backgroundColor: '#eef0f3' }}
+                className="mx-auto mb-6 flex h-16 w-16 items-center justify-center"
+                style={{ borderRadius: '24px', backgroundColor: 'rgba(0,82,255,0.08)' }}
               >
-                <MicrophoneIcon className="w-8 h-8" style={{ color: '#0052ff' }} />
+                {hasResumes ? (
+                  <MicrophoneIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
+                ) : (
+                  <DocumentTextIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
+                )}
               </div>
-              <h3 className="text-xl font-semibold" style={{ color: '#0a0b0d' }}>
-                {t('center.emptyTitle')}
+              <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', lineHeight: '1.18' }}>
+                {hasResumes ? t('center.emptyTitle') : t('center.emptyNoResumeTitle')}
               </h3>
-              <p className="mt-2 text-sm" style={{ color: '#5b616e' }}>
-                {t('center.emptyDescription')}
+              <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: '#5b616e' }}>
+                {hasResumes ? t('center.emptyDescription') : t('center.emptyNoResumeDescription')}
               </p>
+
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                {hasResumes ? (
+                  <button
+                    type="button"
+                    onClick={openCreateInterviewModal}
+                    className="btn-primary btn-sm"
+                  >
+                    {t('center.create')}
+                  </button>
+                ) : (
+                  <Link href="/resumes" className="btn-primary btn-sm">
+                    {t('center.createResume')}
+                  </Link>
+                )}
+                <Link href="/resumes" className="btn-ghost btn-sm">
+                  {t('center.viewResumes')}
+                </Link>
+              </div>
+
+              <div className="mt-8 grid gap-3 text-left md:grid-cols-3">
+                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
+                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintRoleTitle')}</strong>
+                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintRoleDescription')}</span>
+                </div>
+                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
+                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintRecordTitle')}</strong>
+                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintRecordDescription')}</span>
+                </div>
+                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
+                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintImproveTitle')}</strong>
+                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintImproveDescription')}</span>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-5">

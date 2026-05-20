@@ -274,7 +274,7 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   })
 
   await page.goto('/zh/interviews')
-  await page.getByRole('button', { name: '创建面试' }).click()
+  await page.locator('header').getByRole('button', { name: '创建面试' }).click()
 
   const dialog = page.getByRole('dialog', { name: '创建面试' })
   const resumeSelect = dialog.locator('select')
