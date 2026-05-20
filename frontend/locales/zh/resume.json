@@ -14,6 +14,8 @@
     "emptyCreateDescription": "从结构化模板开始填写，适合还没有现成简历的用户。",
     "emptyUploadAction": "上传现有简历",
     "emptyCreateAction": "新建空白简历",
+    "emptyCardTitle": "空白简历",
+    "emptyCardHint": "上传或新建后开始优化",
     "emptyWorkflowTitle": "接下来",
     "emptyWorkflowJd": "填写 JD",
     "emptyWorkflowAnalyze": "Agent 分析",
