@@ -328,3 +328,30 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   expect(startButtonStyle.borderColor).toBe('rgb(0, 82, 255)')
   expect(startButtonStyle.color).toBe('rgb(255, 255, 255)')
 })
+
+test('创建面试订阅不足时不暴露后端错误码', async ({ page }) => {
+  await mockInterviewApis(page)
+  await page.route('**/api/resumes/', async route => {
+    await route.fulfill({ json: [resume] })
+  })
+  await page.route('**/api/interviews/', async route => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 403,
+        json: { detail: 'active_subscription_required' },
+      })
+      return
+    }
+    await route.fulfill({ json: [] })
+  })
+
+  await page.goto('/zh/interviews')
+  await page.locator('header').getByRole('button', { name: '创建面试' }).click()
+
+  const dialog = page.getByRole('dialog', { name: '创建面试' })
+  await dialog.locator('select').selectOption(String(resume.id))
+  await dialog.getByRole('button', { name: '开始面试' }).click()
+
+  await expect(dialog).toContainText('该功能需要 Plus 套餐，升级后即可使用。')
+  await expect(dialog).not.toContainText('active_subscription_required')
+})

@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from '@/i18n/navigation'
 import { resumeApi, type ResumeContent } from '@/lib/api'
+import { formatApiErrorMessage } from '@/lib/apiErrors'
 import toast from 'react-hot-toast'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
@@ -73,6 +74,7 @@ export default function ResumesPage() {
   const [creating, setCreating] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
+  const common = useTranslations('common')
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -138,8 +140,12 @@ export default function ResumesPage() {
       const resumeId = await waitForUploadJob(job.job_id)
       toast.success(t('uploadDone'), { id: 'upload' })
       router.push(`/resume/${resumeId}/edit?firstRun=1`)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || error.message || t('uploadFailed'), { id: 'upload' })
+    } catch (error) {
+      toast.error(formatApiErrorMessage(
+        error,
+        { activeSubscriptionRequired: common('errors.activeSubscriptionRequired') },
+        t('uploadFailed'),
+      ), { id: 'upload' })
     } finally {
       setUploadLoading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

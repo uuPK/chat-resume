@@ -13,6 +13,7 @@ import { motion } from 'framer-motion'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
 import { resumeApi, type InterviewSessionSummary, type Resume, type ResumeListItem } from '@/lib/api'
+import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
@@ -77,6 +78,7 @@ export default function InterviewsPage() {
   const router = useRouter()
   const locale = useLocale() as AppLocale
   const t = useTranslations('interview')
+  const common = useTranslations('common')
   const resumeCacheRef = useRef<Record<number, Resume>>({})
 
   const [mounted, setMounted] = useState(false)
@@ -227,7 +229,11 @@ export default function InterviewsPage() {
       })
       router.push(`/resume/${resumeId}/interview?session=${result.session.id}`)
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : t('center.createError'))
+      setFormError(formatApiErrorMessage(
+        error,
+        { activeSubscriptionRequired: common('errors.activeSubscriptionRequired') },
+        t('center.createError'),
+      ))
     } finally {
       setCreatingSession(false)
     }

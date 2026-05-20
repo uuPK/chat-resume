@@ -44,7 +44,8 @@
   },
   "errors": {
     "network": "请求失败，请检查网络后重试",
-    "expiredAuth": "认证已过期，请重新登录"
+    "expiredAuth": "认证已过期，请重新登录",
+    "activeSubscriptionRequired": "该功能需要 Plus 套餐，升级后即可使用。"
   },
   "landing": {
     "heroPrefix": "让每一份简历",

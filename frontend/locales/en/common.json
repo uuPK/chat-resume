@@ -44,7 +44,8 @@
   },
   "errors": {
     "network": "Request failed. Check your connection and try again.",
-    "expiredAuth": "Your session has expired. Please log in again."
+    "expiredAuth": "Your session has expired. Please log in again.",
+    "activeSubscriptionRequired": "This feature requires Plus. Upgrade to continue."
   },
   "landing": {
     "heroPrefix": "Make every resume",

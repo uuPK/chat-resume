@@ -8,6 +8,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
 import { resumeApi, type Resume } from '@/lib/api'
+import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { Link } from '@/i18n/navigation'
 import {
   ArrowLeftIcon,
@@ -173,6 +174,7 @@ export default function ResumeEditPage() {
   const quickEditInputRef = useRef<HTMLTextAreaElement>(null)
   const previewPanelRef = useRef<HTMLDivElement>(null)
   const t = useTranslations('resume.editor')
+  const common = useTranslations('common')
 
   const routeResumeId = getResumeIdParam(params?.id)
   const hasValidResumeId = isValidResumeIdParam(routeResumeId)
@@ -483,11 +485,15 @@ export default function ResumeEditPage() {
       })
       router.push(`/resume/${resume.id}/interview?session=${result.session.id}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('startInterviewError'))
+      toast.error(formatApiErrorMessage(
+        error,
+        { activeSubscriptionRequired: common('errors.activeSubscriptionRequired') },
+        t('startInterviewError'),
+      ))
     } finally {
       setIsCreatingInterview(false)
     }
-  }, [isCreatingInterview, locale, resume, router, t])
+  }, [common, isCreatingInterview, locale, resume, router, t])
 
   if (!mounted || isLoading || resumeLoading) {
     return (

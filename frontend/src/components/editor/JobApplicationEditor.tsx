@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import type { JobApplication } from '@/types/resume'
 import { useTranslations } from 'next-intl'
+import { formatApiErrorMessage } from '@/lib/apiErrors'
 
 interface JobApplicationEditorProps {
   data: JobApplication
@@ -28,6 +29,7 @@ export default function JobApplicationEditor({
 }: JobApplicationEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const t = useTranslations('resume.forms.job')
+  const common = useTranslations('common')
   const [formData, setFormData] = useState<JobApplication>({
     target_company: data.target_company || '',
     target_title: data.target_title || '',
@@ -96,7 +98,11 @@ export default function JobApplicationEditor({
       applyRecognizedText(recognizedText)
     } catch (error) {
       toast.dismiss(toastId)
-      const message = error instanceof Error ? error.message : t('ocrFailed')
+      const message = formatApiErrorMessage(
+        error,
+        { activeSubscriptionRequired: common('errors.activeSubscriptionRequired') },
+        t('ocrFailed'),
+      )
       toast.error(message)
     } finally {
       setIsOcrProcessing(false)
