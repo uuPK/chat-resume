@@ -254,18 +254,6 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* Header */}
-      <div className="py-10 px-6" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-5xl font-semibold" style={{ lineHeight: '1.00', color: '#0a0b0d' }}>
-            {t('settings.title')}
-          </h1>
-          <p className="mt-2 text-lg" style={{ color: '#5b616e', lineHeight: '1.56' }}>
-            {t('settings.subtitle')}
-          </p>
-        </div>
-      </div>
-
       {/* Content */}
       <main className="mx-auto w-full max-w-3xl px-6 py-10">
         <section
