@@ -103,6 +103,7 @@ def serialize_session_summary(
         "resume_id": session.resume_id,
         "target_title": session.target_title,
         "target_company": session.target_company,
+        "jd_text": session.jd_text,
         "interview_type": session.interview_type,
         "difficulty": session.difficulty,
         "language": session.language,

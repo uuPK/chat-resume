@@ -83,6 +83,7 @@ dist/
 # Temporary files
 *.tmp
 *.temp
+tmp/
 
 # Coverage reports
 htmlcov/
@@ -111,7 +112,9 @@ example/
 
 # Local agent tooling
 .agents/
+.antigravitycli/
 .hermes-sandbox/
+.playwright-cli/
 .vercel
 .gc/
 .dolt/

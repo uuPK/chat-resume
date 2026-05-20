@@ -11,6 +11,8 @@
 
 - 解决问题信息不足时请添加日志，获取足够的错误信息来调试。
 
+- 遇到第三方库、SDK、CLI 的真实行为不确定时，优先用 `opensrc path <package>` 获取源码路径，再用 `rg`、`cat`、`find` 阅读实现；不要只凭记忆或类型定义猜测库行为。例如：`rg "parse" $(opensrc path zod)`、`cat $(opensrc path pypi:requests)/src/requests/sessions.py`。
+
 - 代码嵌套不能超过3层
 
 - 每一个模块和函数都要写一个简短的注释来注明其功能

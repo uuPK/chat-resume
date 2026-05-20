@@ -151,6 +151,7 @@ interface InterviewSessionSummary {
   resume_id: number
   target_title?: string
   target_company?: string
+  jd_text?: string
   interview_type: string
   difficulty: string
   language: string
