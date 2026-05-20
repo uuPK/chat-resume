@@ -274,7 +274,7 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   })
 
   await page.goto('/zh/interviews')
-  await page.locator('header').getByRole('button', { name: '创建面试' }).click()
+  await page.getByRole('button', { name: '创建面试' }).first().click()
 
   const dialog = page.getByRole('dialog', { name: '创建面试' })
   const resumeSelect = dialog.locator('select')
@@ -346,7 +346,7 @@ test('创建面试订阅不足时不暴露后端错误码', async ({ page }) => 
   })
 
   await page.goto('/zh/interviews')
-  await page.locator('header').getByRole('button', { name: '创建面试' }).click()
+  await page.getByRole('button', { name: '创建面试' }).first().click()
 
   const dialog = page.getByRole('dialog', { name: '创建面试' })
   await dialog.locator('select').selectOption(String(resume.id))

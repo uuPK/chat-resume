@@ -210,57 +210,9 @@ export default function ResumesPage() {
         onChange={handleFileUpload}
         className="hidden"
       />
-      <MainNavigation
-        actions={(
-          <>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
-              style={{
-                borderRadius: '56px',
-                backgroundColor: '#ffffff',
-                color: '#0a0b0d',
-                border: '1px solid rgba(91,97,110,0.3)',
-              }}
-              onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#eef0f3' } }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff' }}
-            >
-              {uploadLoading ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'currentColor' }} />
-                  <span>{t('uploading')}</span>
-                </>
-              ) : (
-                <span>{t('upload')}</span>
-              )}
-            </button>
-            <button
-              onClick={handleConfirmCreate}
-              disabled={creating}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-              style={{
-                borderRadius: '56px',
-                backgroundColor: '#0052ff',
-                border: '1px solid #0052ff',
-              }}
-              onMouseEnter={e => { if (!creating) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
-            >
-              {creating ? (
-                <>
-                  <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#fff' }} />
-                  <span>{t('creating')}</span>
-                </>
-              ) : (
-                <span>{t('create')}</span>
-              )}
-            </button>
-          </>
-        )}
-      />
-      <div className="border-b px-6 py-3 md:hidden" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
-        <div className="mx-auto flex max-w-7xl items-center gap-3">
+      <MainNavigation />
+      <div className="border-b px-6 py-3" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+        <div className="mx-auto flex max-w-7xl items-center justify-end gap-3">
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadLoading}

@@ -304,18 +304,8 @@ export default function InterviewsPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
-      <MainNavigation
-        actions={(
-          <button
-            type="button"
-            onClick={openCreateInterviewModal}
-            className="btn-primary btn-sm"
-          >
-            {t('center.create')}
-          </button>
-        )}
-      />
-      <div className="border-b px-6 py-3 md:hidden" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+      <MainNavigation />
+      <div className="border-b px-6 py-3" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
         <div className="mx-auto flex max-w-5xl justify-end">
           <button
             type="button"
