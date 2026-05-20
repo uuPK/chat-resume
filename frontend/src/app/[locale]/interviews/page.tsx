@@ -18,6 +18,7 @@ import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
   ChevronDownIcon,
   ClockIcon,
+  CloudArrowUpIcon,
   DocumentTextIcon,
   MicrophoneIcon,
   PlayCircleIcon,
@@ -506,6 +507,81 @@ export default function InterviewsPage() {
               />
               <span className="ml-3 text-base" style={{ color: '#5b616e' }}>{t('center.loading')}</span>
             </div>
+          ) : sessions.length === 0 && !hasResumes ? (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mx-auto max-w-4xl py-10"
+            >
+              <div
+                className="overflow-hidden rounded-[28px] border"
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f7f8fb 100%)',
+                  borderColor: 'rgba(91,97,110,0.16)',
+                  boxShadow: '0 24px 80px rgba(15,23,42,0.08)',
+                }}
+              >
+                <div className="px-6 py-8 sm:px-10 sm:py-10">
+                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,82,255,0.08)' }}>
+                    <DocumentTextIcon className="h-7 w-7" style={{ color: '#0052ff' }} />
+                  </div>
+                  <div className="mx-auto max-w-2xl text-center">
+                    <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>
+                      {t('center.emptyNoResumeTitle')}
+                    </h3>
+                  </div>
+
+                  <div className="mt-8 grid gap-4 md:grid-cols-2">
+                    <Link
+                      href="/resumes"
+                      className="group rounded-3xl border p-5 text-left transition-all"
+                      style={{ backgroundColor: '#ffffff', borderColor: 'rgba(0,82,255,0.22)' }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#0052ff'
+                        e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,82,255,0.12)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'rgba(0,82,255,0.22)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
+                      <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#0052ff', color: '#ffffff' }}>
+                        <CloudArrowUpIcon className="h-5 w-5" />
+                      </span>
+                      <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.emptyUploadTitle')}</span>
+                      <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.emptyUploadDescription')}</span>
+                      <span className="mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
+                        {t('center.emptyUploadAction')}
+                      </span>
+                    </Link>
+
+                    <Link
+                      href="/resumes"
+                      className="rounded-3xl border p-5 text-left transition-all"
+                      style={{ backgroundColor: '#ffffff', borderColor: 'rgba(91,97,110,0.2)' }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#0a0b0d'
+                        e.currentTarget.style.boxShadow = '0 16px 40px rgba(15,23,42,0.08)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'
+                        e.currentTarget.style.boxShadow = 'none'
+                      }}
+                    >
+                      <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
+                        <DocumentTextIcon className="h-5 w-5" />
+                      </span>
+                      <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.emptyCreateTitle')}</span>
+                      <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.emptyCreateDescription')}</span>
+                      <span className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d' }}>
+                        {t('center.emptyCreateAction')}
+                      </span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           ) : sessions.length === 0 ? (
             <div
               className="mx-auto max-w-3xl px-6 py-14 text-center sm:px-10"
@@ -520,33 +596,23 @@ export default function InterviewsPage() {
                 className="mx-auto mb-6 flex h-16 w-16 items-center justify-center"
                 style={{ borderRadius: '24px', backgroundColor: 'rgba(0,82,255,0.08)' }}
               >
-                {hasResumes ? (
-                  <MicrophoneIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
-                ) : (
-                  <DocumentTextIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
-                )}
+                <MicrophoneIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
               </div>
               <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', lineHeight: '1.18' }}>
-                {hasResumes ? t('center.emptyTitle') : t('center.emptyNoResumeTitle')}
+                {t('center.emptyTitle')}
               </h3>
               <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: '#5b616e' }}>
-                {hasResumes ? t('center.emptyDescription') : t('center.emptyNoResumeDescription')}
+                {t('center.emptyDescription')}
               </p>
 
               <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-                {hasResumes ? (
-                  <button
-                    type="button"
-                    onClick={openCreateInterviewModal}
-                    className="btn-primary btn-sm"
-                  >
-                    {t('center.create')}
-                  </button>
-                ) : (
-                  <Link href="/resumes" className="btn-primary btn-sm">
-                    {t('center.createResume')}
-                  </Link>
-                )}
+                <button
+                  type="button"
+                  onClick={openCreateInterviewModal}
+                  className="btn-primary btn-sm"
+                >
+                  {t('center.create')}
+                </button>
                 <Link href="/resumes" className="btn-ghost btn-sm">
                   {t('center.viewResumes')}
                 </Link>
