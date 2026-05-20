@@ -10,6 +10,7 @@ import { formatApiErrorMessage } from '@/lib/apiErrors'
 import toast from 'react-hot-toast'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
+import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { useTranslations } from 'next-intl'
 import {
   ArrowRightIcon,
@@ -79,16 +80,6 @@ function getResumeSubtitle(resume: Resume, t: ReturnType<typeof useTranslations>
   return resume.target_title || resume.original_filename || t('cardUntargeted')
 }
 
-// 用于读取卡片预览里的姓名。
-function getPreviewName(resume: Resume) {
-  return resume.preview_content?.personal_info?.name || resume.title
-}
-
-// 用于读取卡片预览里的职位。
-function getPreviewRole(resume: Resume, t: ReturnType<typeof useTranslations>) {
-  return resume.target_title || resume.preview_content?.personal_info?.position || t('cardUntargeted')
-}
-
 // 用于格式化列表卡片的修改时间。
 function formatResumeModifiedAt(dateString: string | undefined, t: ReturnType<typeof useTranslations>) {
   if (!dateString) return t('recentlyModified')
@@ -101,8 +92,8 @@ function formatResumeModifiedAt(dateString: string | undefined, t: ReturnType<ty
   return t('modifiedDaysAgo', { count: Math.floor(elapsedHours / 24) })
 }
 
-// 轻量纸面预览，复刻静态 HTML 草图里的简历骨架。
-function MiniResumePreview({
+// 简历卡片预览，优先展示真实简历内容。
+function ResumeCardPreview({
   resume,
   status,
   t,
@@ -111,23 +102,35 @@ function MiniResumePreview({
   status: { label: string; backgroundColor: string; color: string }
   t: ReturnType<typeof useTranslations>
 }) {
-  const skillWidths = ['36px', '48px', '28px', '40px']
   return (
-    <div className="relative border-b px-4 pb-3 pt-4" style={{ backgroundColor: '#fafbff', borderColor: LIST_SOFT_BORDER }}>
+    <div className="relative h-[192px] overflow-hidden border-b" style={{ backgroundColor: '#fafbff', borderColor: LIST_SOFT_BORDER }}>
       <span
-        className="absolute right-2.5 top-2.5 rounded px-1.5 py-0.5 text-[10px] font-medium"
+        className="absolute right-2.5 top-2.5 z-10 rounded px-1.5 py-0.5 text-[10px] font-medium"
         style={{ backgroundColor: status.backgroundColor, color: status.color, border: status.color === LIST_FAINT ? `1px solid ${LIST_BORDER}` : 'none' }}
       >
         {status.label}
       </span>
+      {resume.preview_content ? (
+        <div className="pointer-events-none h-full select-none">
+          <PaginatedResumePreview content={resume.preview_content as ResumeContent} />
+        </div>
+      ) : (
+        <FallbackResumePreview t={t} />
+      )}
+    </div>
+  )
+}
+
+// 无预览内容时展示轻量占位。
+function FallbackResumePreview({ t }: { t: ReturnType<typeof useTranslations> }) {
+  const skillWidths = ['36px', '48px', '28px', '40px']
+  return (
+    <div className="px-4 pb-3 pt-4">
       <div className="mb-0.5 truncate text-center text-[13px] font-medium" style={{ color: LIST_TEXT }}>
-        {getPreviewName(resume)}
+        {t('previewLoading')}
       </div>
-      <div className="mb-2.5 truncate text-center text-[11px]" style={{ color: LIST_MUTED }}>
-        {getPreviewRole(resume, t)}
-      </div>
-      <PreviewSection label={t('previewEducation')} lineWidths={['80%', '60%']} />
-      <PreviewSection label={t('previewExperience')} lineWidths={['100%', '80%', '100%']} />
+      <FallbackSection label={t('previewEducation')} lineWidths={['80%', '60%']} />
+      <FallbackSection label={t('previewExperience')} lineWidths={['100%', '80%', '100%']} />
       <div className="mt-2 text-[9px] font-medium uppercase tracking-wide" style={{ color: LIST_FAINT }}>
         {t('previewSkills')}
       </div>
@@ -140,20 +143,14 @@ function MiniResumePreview({
   )
 }
 
-// 用于渲染卡片预览中的小节线条。
-function PreviewSection({ label, lineWidths }: { label: string; lineWidths: string[] }) {
+// 用于渲染无预览内容时的小节线条。
+function FallbackSection({ label, lineWidths }: { label: string; lineWidths: string[] }) {
   return (
     <div className="mt-2">
-      <div className="mb-1.5 text-[9px] font-medium uppercase tracking-wide" style={{ color: LIST_FAINT }}>
-        {label}
-      </div>
+      <div className="mb-1.5 text-[9px] font-medium uppercase tracking-wide" style={{ color: LIST_FAINT }}>{label}</div>
       <div className="space-y-1">
         {lineWidths.map((width, index) => (
-          <div
-            key={`${label}-${width}-${index}`}
-            className={index === 0 ? 'h-1 rounded-sm' : 'h-[3px] rounded-sm'}
-            style={{ width, backgroundColor: LIST_SOFT_BORDER }}
-          />
+          <div key={`${label}-${width}-${index}`} className={index === 0 ? 'h-1 rounded-sm' : 'h-[3px] rounded-sm'} style={{ width, backgroundColor: LIST_SOFT_BORDER }} />
         ))}
       </div>
     </div>
@@ -572,7 +569,7 @@ export default function ResumesPage() {
                       }}
                       className="relative block cursor-pointer"
                     >
-                      <MiniResumePreview resume={resume} status={status} t={t} />
+                      <ResumeCardPreview resume={resume} status={status} t={t} />
                     </div>
 
                     <div className="flex flex-1 flex-col gap-2.5 px-4 py-3.5">
@@ -658,7 +655,7 @@ export default function ResumesPage() {
                       {t('upgradeProAction')}
                     </Link>
                   </div>
-                  <MiniResumePreview resume={filteredResumes[FREE_RESUME_LIMIT]} status={getResumeCardStatus(filteredResumes[FREE_RESUME_LIMIT], FREE_RESUME_LIMIT, t)} t={t} />
+                  <ResumeCardPreview resume={filteredResumes[FREE_RESUME_LIMIT]} status={getResumeCardStatus(filteredResumes[FREE_RESUME_LIMIT], FREE_RESUME_LIMIT, t)} t={t} />
                   <div className="px-4 py-3.5">
                     <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{filteredResumes[FREE_RESUME_LIMIT]?.title}</h2>
                     <p className="mt-0.5 truncate text-xs" style={{ color: LIST_MUTED }}>{getResumeSubtitle(filteredResumes[FREE_RESUME_LIMIT], t)}</p>
