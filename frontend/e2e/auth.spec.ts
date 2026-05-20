@@ -222,6 +222,47 @@ test.describe('登录', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
   })
 
+  test('刷新令牌失效时会调用登出接口清理 Cookie', async ({ page, baseURL }) => {
+    const cookieDomain = new URL(baseURL || 'http://localhost:3000').hostname
+    const logoutRequests: string[] = []
+    await page.context().addCookies([
+      {
+        name: 'refresh_token',
+        value: 'stale-refresh-token',
+        domain: cookieDomain,
+        path: '/',
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+    ])
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Not authenticated' }),
+      })
+    })
+    await page.route('**/api/auth/refresh', async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Invalid refresh token' }),
+      })
+    })
+    await page.route('**/api/auth/logout', async (route) => {
+      logoutRequests.push(route.request().url())
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Logged out' }),
+      })
+    })
+
+    await page.goto('/dashboard')
+
+    await expect.poll(() => logoutRequests.length).toBe(1)
+  })
+
   test('页面包含跳转到注册页的链接', async ({ page }) => {
     await page.goto('/zh/login')
     const regLink = page.locator('a[href="/zh/register"]')

@@ -201,6 +201,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true
     } catch (error) {
       console.error('Refresh session error:', error)
+      localStorage.removeItem(USER_STORAGE_KEY)
+      setUser(null)
+      AuthAPI.logout().catch((logoutError) => {
+        console.error('Logout after refresh failure error:', logoutError)
+      })
       return false
     }
   }
