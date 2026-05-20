@@ -618,8 +618,8 @@ export default function ResumesPage() {
                       <div className="mt-auto grid grid-cols-3 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
                         <button
                           type="button"
-                          className="h-[30px] rounded-lg border text-xs transition-colors"
-                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                          className="h-[30px] rounded-lg text-xs font-medium text-white transition-colors"
+                          style={{ backgroundColor: LIST_BLUE }}
                         >
                           {t('exportAction')}
                         </button>
