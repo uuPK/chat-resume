@@ -314,9 +314,6 @@ export default function ResumesPage() {
                 </div>
                 <div className="mx-auto max-w-2xl text-center">
                   <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>{t('emptyTitle')}</h3>
-                  <p className="mt-3 text-base leading-7" style={{ color: '#5b616e' }}>
-                    {t('emptyDescription')}
-                  </p>
                 </div>
 
                 <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -357,18 +354,6 @@ export default function ResumesPage() {
                       {creating ? t('creating') : t('emptyCreateAction')}
                     </span>
                   </button>
-                </div>
-
-                <div className="mt-8 rounded-3xl px-5 py-4" style={{ backgroundColor: 'rgba(238,240,243,0.72)' }}>
-                  <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#5b616e' }}>{t('emptyWorkflowTitle')}</div>
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold" style={{ color: '#0a0b0d' }}>
-                    {[t('emptyWorkflowJd'), t('emptyWorkflowAnalyze'), t('emptyWorkflowConfirm'), t('emptyWorkflowExport')].map((step, index) => (
-                      <div key={step} className="flex items-center gap-2">
-                        {index > 0 && <span style={{ color: '#9ca3af' }}>→</span>}
-                        <span className="rounded-full bg-white px-3 py-1.5">{step}</span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
