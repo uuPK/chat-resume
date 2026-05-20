@@ -6,7 +6,7 @@
  * 用于让用户在进入面试前选择简历、补充岗位上下文，并查看历史面试记录。
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useRouter } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
@@ -25,7 +25,6 @@ import {
   MagnifyingGlassIcon,
   MicrophoneIcon,
   StarIcon,
-  TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 
@@ -42,9 +41,9 @@ function readInterviewDefaults(resumeItem?: ResumeListItem, resumeDetail?: Resum
   }
 }
 
-const LIST_BLUE = '#2563eb'
-const LIST_BLUE_HOVER = '#1d4ed8'
-const LIST_BLUE_BG = '#eff6ff'
+const LIST_BLUE = '#5457e8'
+const LIST_BLUE_HOVER = '#4447d6'
+const LIST_BLUE_BG = '#eef2ff'
 const LIST_TEXT = '#111827'
 const LIST_MUTED = '#6b7280'
 const LIST_FAINT = '#9ca3af'
@@ -78,7 +77,7 @@ function getInterviewVisualState(status: string, t: ReturnType<typeof useTransla
   if (status === 'completed') {
     return { label: t('status.completed'), badgeBg: '#ecfdf5', badgeColor: '#065f46', band: LIST_GREEN, kind: 'done' as const }
   }
-  if (status === 'waiting_user_answer') {
+  if (status === 'in_progress' || status === 'waiting_user_answer') {
     return { label: t('status.active'), badgeBg: '#fffbeb', badgeColor: '#92400e', band: LIST_YELLOW, kind: 'ongoing' as const }
   }
   return { label: t('status.notStarted'), badgeBg: '#f9fafb', badgeColor: LIST_FAINT, band: LIST_SOFT_BORDER, kind: 'draft' as const }
@@ -90,12 +89,60 @@ function getInterviewScore(session: InterviewSessionSummary) {
   return Math.min(92, 58 + session.answered_turn_count * 3)
 }
 
-// 用于搜索过滤面试记录。
-function sessionMatchesQuery(session: InterviewSessionSummary, query: string) {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return true
-  return [session.target_title, session.target_company]
-    .some(value => value?.toLowerCase().includes(normalizedQuery))
+type InterviewPracticeGroup = {
+  key: string
+  title: string
+  company: string
+  sessions: InterviewSessionSummary[]
+  completedSessions: InterviewSessionSummary[]
+  activeSession?: InterviewSessionSummary
+  bestScore: number | null
+  averageScore: number | null
+  answeredQuestionCount: number
+}
+
+// 用于生成岗位练习分组的稳定键。
+function getPracticeGroupKey(session: InterviewSessionSummary) {
+  const title = session.target_title?.trim().toLowerCase() || 'general'
+  const company = session.target_company?.trim().toLowerCase() || 'none'
+  return `${title}::${company}::${session.resume_id}`
+}
+
+// 用于对面试记录按最近练习排序。
+function compareSessionsByRecentTime(a: InterviewSessionSummary, b: InterviewSessionSummary) {
+  const left = new Date(a.started_at || a.ended_at || '').getTime() || 0
+  const right = new Date(b.started_at || b.ended_at || '').getTime() || 0
+  return right - left
+}
+
+// 用于按目标岗位聚合面试记录。
+function buildPracticeGroups(sessions: InterviewSessionSummary[], t: ReturnType<typeof useTranslations>) {
+  const grouped = new Map<string, InterviewSessionSummary[]>()
+  for (const session of sessions) {
+    const key = getPracticeGroupKey(session)
+    grouped.set(key, [...(grouped.get(key) || []), session])
+  }
+
+  return Array.from(grouped.entries())
+    .map(([key, groupSessions]) => {
+      const sortedSessions = [...groupSessions].sort(compareSessionsByRecentTime)
+      const completedSessions = sortedSessions.filter(session => session.status === 'completed')
+      const scores = completedSessions.map(getInterviewScore).filter(score => score !== null)
+      const scoreTotal = scores.reduce((sum, score) => sum + score, 0)
+
+      return {
+        key,
+        sessions: sortedSessions,
+        completedSessions,
+        activeSession: sortedSessions.find(session => session.status !== 'completed'),
+        title: sortedSessions[0]?.target_title || t('session.untitledRole'),
+        company: sortedSessions[0]?.target_company || t('center.noTargetCompany'),
+        bestScore: scores.length ? Math.max(...scores) : null,
+        averageScore: scores.length ? Math.round(scoreTotal / scores.length) : null,
+        answeredQuestionCount: sortedSessions.reduce((sum, session) => sum + session.answered_turn_count, 0),
+      }
+    })
+    .sort((a, b) => compareSessionsByRecentTime(a.sessions[0], b.sessions[0]))
 }
 
 // 面试得分环。
@@ -105,8 +152,8 @@ function ScoreRing({ score }: { score: number }) {
   const color = score >= 75 ? LIST_GREEN : LIST_YELLOW
 
   return (
-    <div className="relative h-[52px] w-[52px] shrink-0">
-      <svg width="52" height="52" viewBox="0 0 52 52" className="-rotate-90">
+    <div className="relative h-12 w-12 shrink-0">
+      <svg width="48" height="48" viewBox="0 0 52 52" className="-rotate-90">
         <circle cx="26" cy="26" r="21" fill="none" stroke="#f3f4f6" strokeWidth="5" />
         <circle cx="26" cy="26" r="21" fill="none" stroke={color} strokeWidth="5" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
       </svg>
@@ -120,26 +167,73 @@ function ScoreRing({ score }: { score: number }) {
 // 面试得分明细条。
 function ScoreBar({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs" style={{ color: LIST_MUTED }}>
-      <span>{label}</span>
-      <span className="h-1 w-20 overflow-hidden rounded-sm" style={{ backgroundColor: '#f3f4f6' }}>
+    <div className="flex items-center gap-2 text-[11px]" style={{ color: LIST_FAINT }}>
+      <span className="w-[52px] shrink-0">{label}</span>
+      <span className="h-[3px] min-w-[84px] flex-1 overflow-hidden rounded-sm" style={{ backgroundColor: '#f3f4f6' }}>
         <span className="block h-full rounded-sm" style={{ width: `${value}%`, backgroundColor: value >= 75 ? LIST_GREEN : LIST_YELLOW }} />
       </span>
     </div>
   )
 }
 
-// 面试列表统计卡。
+// 面试详情页顶部统计项。
 function InterviewStat({ value, suffix = '', label, trend }: { value: string; suffix?: string; label: string; trend?: string }) {
   return (
-    <div className="rounded-xl border bg-white px-[18px] py-4" style={{ borderColor: LIST_BORDER }}>
-      <div className="text-[26px] font-medium leading-none" style={{ color: LIST_TEXT }}>
+    <div className="border-r pr-5 last:border-r-0" style={{ borderColor: LIST_SOFT_BORDER }}>
+      <div className="text-xl font-medium leading-none" style={{ color: LIST_TEXT }}>
         {value}
-        {suffix && <span className="ml-1 text-sm font-normal" style={{ color: LIST_MUTED }}>{suffix}</span>}
+        {suffix && <span className="ml-1 text-xs font-normal" style={{ color: LIST_MUTED }}>{suffix}</span>}
       </div>
       <div className="mt-1 text-xs" style={{ color: LIST_FAINT }}>{label}</div>
       {trend && <div className="mt-1 text-[11.5px]" style={{ color: LIST_GREEN }}>{trend}</div>}
     </div>
+  )
+}
+
+// 岗位练习列表项。
+function PracticeGroupRow({
+  group,
+  selected,
+  onSelect,
+  t,
+}: {
+  group: InterviewPracticeGroup
+  selected: boolean
+  onSelect: () => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="w-full rounded-xl border px-3.5 py-3 text-left transition-colors"
+      style={{ borderColor: selected ? LIST_BLUE : LIST_BORDER, backgroundColor: selected ? LIST_BLUE_BG : '#ffffff' }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-medium" style={{ color: LIST_TEXT }}>{group.title}</div>
+          <div className="mt-1 truncate text-[11.5px]" style={{ color: LIST_MUTED }}>{group.company}</div>
+        </div>
+        {group.activeSession && (
+          <span className="mt-0.5 flex shrink-0 items-center gap-1 text-[10.5px]" style={{ color: '#92400e' }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: LIST_YELLOW }} />
+            {t('status.active')}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 flex items-center gap-3 text-[11.5px]" style={{ color: LIST_FAINT }}>
+        <span className="flex items-center gap-1">
+          <ChatBubbleLeftRightIcon className="h-3 w-3" />
+          {t('center.practiceCount', { count: group.sessions.length })}
+        </span>
+        <span>
+          {t('center.bestScorePrefix')}
+          <span className="ml-1 text-sm font-medium" style={{ color: group.bestScore && group.bestScore >= 75 ? LIST_GREEN : LIST_YELLOW }}>
+            {group.bestScore || '-'}
+          </span>
+        </span>
+      </div>
+    </button>
   )
 }
 
@@ -148,17 +242,17 @@ function InterviewCard({
   session,
   locale,
   index,
+  totalCount,
   deletingSessionId,
   onDelete,
-  onPracticeAgain,
   t,
 }: {
   session: InterviewSessionSummary
   locale: string
   index: number
+  totalCount: number
   deletingSessionId: number | null
   onDelete: (sessionId: number) => void
-  onPracticeAgain: () => void
   t: ReturnType<typeof useTranslations>
 }) {
   const visual = getInterviewVisualState(session.status, t)
@@ -166,53 +260,38 @@ function InterviewCard({
   const started = formatCompactDate(session.started_at, locale, t)
   const isCompleted = session.status === 'completed'
   const scoreBase = score || 0
+  const attemptNumber = totalCount - index
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.04 }}
-      className="group flex min-h-[240px] cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white transition-all"
-      style={{ borderColor: LIST_BORDER }}
+      className="group flex min-h-[214px] w-full cursor-pointer flex-col overflow-hidden rounded-xl border bg-white transition-all"
+      style={{ borderColor: visual.kind === 'ongoing' ? LIST_YELLOW : LIST_BORDER, backgroundColor: visual.kind === 'ongoing' ? '#fffbeb' : '#ffffff' }}
       onMouseEnter={event => {
-        event.currentTarget.style.borderColor = LIST_BLUE
-        event.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.07)'
+        event.currentTarget.style.borderColor = visual.kind === 'ongoing' ? LIST_YELLOW : LIST_BLUE
+        event.currentTarget.style.boxShadow = visual.kind === 'ongoing' ? '0 0 0 3px rgba(245,158,11,0.1)' : '0 0 0 3px rgba(84,87,232,0.07)'
       }}
       onMouseLeave={event => {
-        event.currentTarget.style.borderColor = LIST_BORDER
+        event.currentTarget.style.borderColor = visual.kind === 'ongoing' ? LIST_YELLOW : LIST_BORDER
         event.currentTarget.style.boxShadow = 'none'
       }}
     >
-      <div className="h-1" style={{ backgroundColor: visual.band }} />
-      <div className="flex flex-1 flex-col gap-3 px-[18px] py-[18px]">
+      <div className="flex flex-1 flex-col gap-3 px-3.5 py-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-medium" style={{ color: LIST_TEXT }}>{session.target_title || t('session.untitledRole')}</div>
-            <div className="mt-0.5 flex items-center gap-1 truncate text-[12.5px]" style={{ color: LIST_MUTED }}>
-              <DocumentTextIcon className="h-3 w-3 shrink-0" />
-              <span>{session.target_company || t('center.noTargetCompany')}</span>
-            </div>
+          <div className="text-[13.5px] font-medium" style={{ color: LIST_TEXT }}>
+            {t('center.practiceAttempt', { count: attemptNumber })}
           </div>
           <div className="flex items-center gap-1.5">
             <span className="shrink-0 rounded px-2 py-1 text-[10.5px] font-medium" style={{ backgroundColor: visual.badgeBg, color: visual.badgeColor, border: visual.kind === 'draft' ? `1px solid ${LIST_BORDER}` : 'none' }}>
               {visual.label}
             </span>
-            <button
-              type="button"
-              onClick={() => onDelete(session.id)}
-              disabled={deletingSessionId === session.id}
-              className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg transition-colors"
-              style={{ color: deletingSessionId === session.id ? '#dc2626' : LIST_FAINT }}
-              title={t('session.deleteTitle')}
-              aria-label={t('session.deleteTitle')}
-            >
-              <TrashIcon className={`h-3.5 w-3.5 ${deletingSessionId === session.id ? 'animate-pulse' : ''}`} />
-            </button>
           </div>
         </div>
 
         {score ? (
-          <div className="flex items-center gap-3.5">
+          <div className="flex min-h-[58px] items-center gap-3.5">
             <ScoreRing score={score} />
             <div className="flex flex-1 flex-col gap-1">
               <ScoreBar label={t('center.scoreClarity')} value={Math.min(96, scoreBase + 6)} />
@@ -221,9 +300,13 @@ function InterviewCard({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2.5" style={{ backgroundColor: '#f9fafb' }}>
-            <ExclamationCircleIcon className="h-[18px] w-[18px] shrink-0" style={{ color: LIST_YELLOW }} />
-            <div className="text-[12.5px] leading-5" style={{ color: LIST_MUTED }}>{t('center.noScoreYet')}</div>
+          <div className="flex flex-col gap-3">
+            <span className="h-1 overflow-hidden rounded-sm" style={{ backgroundColor: 'rgba(245,158,11,0.18)' }}>
+              <span className="block h-full rounded-sm" style={{ width: `${Math.min(100, (session.answered_turn_count / 8) * 100)}%`, backgroundColor: LIST_YELLOW }} />
+            </span>
+            <div className="text-[12px]" style={{ color: '#92400e' }}>
+              {t('center.answeredQuestions', { count: session.answered_turn_count, total: 8 })}
+            </div>
           </div>
         )}
 
@@ -239,24 +322,19 @@ function InterviewCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 px-[18px] pb-4">
+      <div className="grid grid-cols-2 gap-2 px-3.5 pb-3">
         {isCompleted ? (
-          <>
-            <Link href={`/resume/${session.resume_id}/interview?session=${session.id}`} aria-label={t('session.viewReport')} className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
+          <Link href={`/resume/${session.resume_id}/interview?session=${session.id}`} aria-label={t('session.viewReport')} className="col-span-2 inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
               {t('center.reviewAction')}
-            </Link>
-            <button type="button" onClick={onPracticeAgain} className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white" style={{ backgroundColor: LIST_BLUE }}>
-              {t('center.practiceAgain')}
-            </button>
-          </>
+          </Link>
         ) : (
           <>
-            <button type="button" onClick={() => onDelete(session.id)} className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-              {t('center.abandonAction')}
-            </button>
             <Link href={`/resume/${session.resume_id}/interview?session=${session.id}`} className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white" style={{ backgroundColor: LIST_BLUE }}>
               {t('session.continue')}
             </Link>
+            <button type="button" onClick={() => onDelete(session.id)} disabled={deletingSessionId === session.id} className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors disabled:opacity-60" style={{ borderColor: 'rgba(245,158,11,0.35)', color: '#92400e' }}>
+              {deletingSessionId === session.id ? t('session.deletingTitle') : t('center.abandonAction')}
+            </button>
           </>
         )}
       </div>
@@ -288,19 +366,23 @@ export default function InterviewsPage() {
   const [selectedResumeLoading, setSelectedResumeLoading] = useState(false)
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null)
-  const [sessionSearchQuery, setSessionSearchQuery] = useState('')
+  const [selectedPracticeKey, setSelectedPracticeKey] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [targetCompany, setTargetCompany] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
   const [jdText, setJdText] = useState('')
   const hasResumes = resumes.length > 0
-  const filteredSessions = sessions.filter(session => sessionMatchesQuery(session, sessionSearchQuery))
-  const completedSessions = sessions.filter(session => session.status === 'completed')
-  const averageScore = completedSessions.length
-    ? Math.round(completedSessions.reduce((sum, session) => sum + (getInterviewScore(session) || 0), 0) / completedSessions.length)
-    : 0
-  const companyCount = new Set(sessions.map(session => session.target_company).filter(Boolean)).size
-  const answeredQuestionCount = sessions.reduce((sum, session) => sum + session.answered_turn_count, 0)
+  const practiceGroups = useMemo(() => buildPracticeGroups(sessions, t), [sessions, t])
+  const selectedPracticeGroup = practiceGroups.find(group => group.key === selectedPracticeKey) || practiceGroups[0]
+  const selectedBestScore = selectedPracticeGroup?.bestScore
+  const selectedAverageScore = selectedPracticeGroup?.averageScore
+  const selectedAnsweredCount = selectedPracticeGroup?.answeredQuestionCount || 0
+  const selectedFirstScore = selectedPracticeGroup?.completedSessions
+    .slice()
+    .sort((a, b) => compareSessionsByRecentTime(b, a))
+    .map(getInterviewScore)
+    .find(score => score !== null)
+  const selectedScoreDelta = selectedBestScore && selectedFirstScore ? selectedBestScore - selectedFirstScore : 0
 
   /**
    * 用于在客户端挂载后再读取鉴权状态和本地缓存。
@@ -571,7 +653,7 @@ export default function InterviewsPage() {
           </div>
         </aside>
 
-      <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#f9fafb' }}>
+      <main className="flex-1 overflow-y-auto" style={{ backgroundColor: '#f9fafb' }}>
         {showCreateInterviewPanel && (
           <div
             className="fixed inset-0 z-40 flex items-center justify-center p-4 md:p-6"
@@ -758,109 +840,129 @@ export default function InterviewsPage() {
               <span className="ml-3 text-base" style={{ color: LIST_MUTED }}>{t('center.loading')}</span>
             </div>
           ) : (
-            <div>
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-xl font-medium" style={{ color: LIST_TEXT }}>{t('center.mockTitle')}</h1>
-                  <p className="mt-0.5 text-[13px]" style={{ color: LIST_FAINT }}>
-                    {t('center.listSummary', { total: sessions.length, used: Math.min(sessions.length, 3), limit: 3 })}
-                  </p>
+            <div className="flex min-h-[calc(100vh-112px)] border bg-white" style={{ borderColor: LIST_SOFT_BORDER }}>
+              <section className="w-[300px] shrink-0 border-r bg-white" style={{ borderColor: LIST_SOFT_BORDER }}>
+                <div className="border-b px-4 py-4" style={{ borderColor: LIST_SOFT_BORDER }}>
+                  <h1 className="text-[15px] font-medium" style={{ color: LIST_TEXT }}>{t('center.practiceRoles')}</h1>
+                  <button
+                    type="button"
+                    onClick={handlePracticeCardClick}
+                    aria-label={t('center.create')}
+                    className="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-[13px] font-medium text-white transition-colors"
+                    style={{ backgroundColor: LIST_BLUE }}
+                    onMouseEnter={event => { event.currentTarget.style.backgroundColor = LIST_BLUE_HOVER }}
+                    onMouseLeave={event => { event.currentTarget.style.backgroundColor = LIST_BLUE }}
+                  >
+                    <span className="text-lg leading-none">+</span>
+                    <span>{t('center.addPracticeRole')}</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handlePracticeCardClick}
-                  aria-label={t('center.create')}
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-[13px] font-medium text-white transition-colors"
-                  style={{ backgroundColor: LIST_BLUE }}
-                  onMouseEnter={event => { event.currentTarget.style.backgroundColor = LIST_BLUE_HOVER }}
-                  onMouseLeave={event => { event.currentTarget.style.backgroundColor = LIST_BLUE }}
-                >
-                  <span className="text-lg leading-none">+</span>
-                  <span>{t('center.startNewInterview')}</span>
-                </button>
-              </div>
 
-              {pageError && (
-                <div className="mb-5 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fef2f2', borderColor: 'rgba(220,38,38,0.14)', color: '#dc2626' }}>
-                  {pageError}
+                <div className="flex flex-col gap-1.5 p-3">
+                  {practiceGroups.map(group => (
+                    <PracticeGroupRow
+                      key={group.key}
+                      group={group}
+                      selected={group.key === selectedPracticeGroup?.key}
+                      onSelect={() => setSelectedPracticeKey(group.key)}
+                      t={t}
+                    />
+                  ))}
                 </div>
-              )}
+              </section>
 
-              <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-4">
-                <InterviewStat value={String(sessions.length)} label={t('center.statTotal')} />
-                <InterviewStat value={averageScore ? String(averageScore) : '-'} suffix={averageScore ? t('center.scoreSuffix') : ''} label={t('center.statAverageScore')} trend={averageScore ? t('center.scoreTrend') : undefined} />
-                <InterviewStat value={String(answeredQuestionCount)} suffix={t('center.questionSuffix')} label={t('center.statAnswered')} />
-                <InterviewStat value={String(companyCount || 0)} suffix={t('center.companySuffix')} label={t('center.statCompanies')} />
-              </div>
+              <section className="min-w-0 flex-1 bg-[#f9fafb]">
+                {pageError && (
+                  <div className="m-6 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fef2f2', borderColor: 'rgba(220,38,38,0.14)', color: '#dc2626' }}>
+                    {pageError}
+                  </div>
+                )}
 
-              <div className="mb-5 flex flex-col gap-2 lg:flex-row lg:items-center">
-                <label className="relative block w-full lg:max-w-[280px]" aria-label={t('center.searchPlaceholder')}>
-                  <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: LIST_FAINT }} />
-                  <input
-                    type="search"
-                    value={sessionSearchQuery}
-                    onChange={event => setSessionSearchQuery(event.target.value)}
-                    placeholder={t('center.searchPlaceholder')}
-                    className="h-[34px] w-full rounded-lg border bg-white pl-8 pr-3 text-[13px] outline-none"
-                    style={{ borderColor: LIST_BORDER, color: LIST_TEXT }}
-                  />
-                </label>
-                <button type="button" className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-                  <span>{t('center.filterAllStatus')}</span>
-                  <ChevronDownIcon className="h-3.5 w-3.5" />
-                </button>
-                <button type="button" className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-                  <span>{t('center.sortRecent')}</span>
-                  <ChevronDownIcon className="h-3.5 w-3.5" />
-                </button>
-              </div>
+                {!hasResumes && (
+                  <div className="m-6 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' }}>
+                    <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+                    <span>
+                      {t('center.needResumePrefix')}
+                      <Link href="/resumes" className="font-semibold underline underline-offset-2">{t('center.needResumeLink')}</Link>
+                      {t('center.needResumeSuffix')}
+                    </span>
+                  </div>
+                )}
 
-              {!hasResumes && (
-                <div className="mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' }}>
-                  <ExclamationCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
-                  <span>
-                    {t('center.needResumePrefix')}
-                    <Link href="/resumes" className="font-semibold underline underline-offset-2">{t('center.needResumeLink')}</Link>
-                    {t('center.needResumeSuffix')}
-                  </span>
-                </div>
-              )}
+                {selectedPracticeGroup ? (
+                  <>
+                    <div className="border-b bg-white px-6 py-5" style={{ borderColor: LIST_SOFT_BORDER }}>
+                      <div className="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                          <h2 className="text-lg font-medium" style={{ color: LIST_TEXT }}>
+                            {selectedPracticeGroup.title} · {selectedPracticeGroup.company}
+                          </h2>
+                          <p className="mt-1 text-[13px]" style={{ color: LIST_MUTED }}>
+                            {t('center.selectedPracticeSummary', { total: selectedPracticeGroup.sessions.length })}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handlePracticeCardClick}
+                          aria-label={t('center.create')}
+                          className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-[13px] font-medium text-white transition-colors"
+                          style={{ backgroundColor: LIST_BLUE }}
+                          onMouseEnter={event => { event.currentTarget.style.backgroundColor = LIST_BLUE_HOVER }}
+                          onMouseLeave={event => { event.currentTarget.style.backgroundColor = LIST_BLUE }}
+                        >
+                          <span className="text-lg leading-none">+</span>
+                          <span>{t('center.practiceAgain')}</span>
+                        </button>
+                      </div>
 
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                {filteredSessions.map((session, index) => (
-                  <InterviewCard
-                    key={session.id}
-                    session={session}
-                    locale={locale}
-                    index={index}
-                    deletingSessionId={deletingSessionId}
-                    onDelete={handleDeleteInterview}
-                    onPracticeAgain={handlePracticeCardClick}
-                    t={t}
-                  />
-                ))}
-                <button
-                  type="button"
-                  onClick={handlePracticeCardClick}
-                  aria-label={t('center.create')}
-                  className="flex min-h-[240px] flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed bg-transparent px-5 text-center transition-colors"
-                  style={{ borderColor: LIST_BORDER }}
-                  onMouseEnter={event => {
-                    event.currentTarget.style.borderColor = LIST_BLUE
-                    event.currentTarget.style.backgroundColor = LIST_BLUE_BG
-                  }}
-                  onMouseLeave={event => {
-                    event.currentTarget.style.borderColor = LIST_BORDER
-                    event.currentTarget.style.backgroundColor = 'transparent'
-                  }}
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: '#f9fafb', color: LIST_FAINT }}>
-                    <span className="text-2xl leading-none">+</span>
-                  </span>
-                  <span className="text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>{t('center.startNewInterview')}</span>
-                  <span className="text-xs leading-5" style={{ color: LIST_FAINT }}>{t('center.startNewInterviewHint')}</span>
-                </button>
-              </div>
+                      <div className="flex gap-5">
+                        <InterviewStat value={String(selectedPracticeGroup.sessions.length)} label={t('center.statTotal')} />
+                        <InterviewStat value={selectedBestScore ? String(selectedBestScore) : '-'} suffix={selectedBestScore ? t('center.scoreSuffix') : ''} label={t('center.statBestScore')} />
+                        <InterviewStat
+                          value={selectedAverageScore ? String(selectedAverageScore) : '-'}
+                          suffix={selectedAverageScore ? t('center.scoreSuffix') : ''}
+                          label={t('center.statAverageScore')}
+                          trend={selectedScoreDelta > 0 ? t('center.scoreTrendFromFirst', { delta: selectedScoreDelta }) : undefined}
+                        />
+                        <InterviewStat value={String(selectedAnsweredCount)} suffix={t('center.questionSuffix')} label={t('center.statAnswered')} />
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-5">
+                      <div className="mb-4 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>
+                        {t('center.practiceRecords')}
+                      </div>
+                      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,280px))] gap-3.5">
+                        {selectedPracticeGroup.sessions.map((session, index) => (
+                          <InterviewCard
+                            key={session.id}
+                            session={session}
+                            locale={locale}
+                            index={index}
+                            totalCount={selectedPracticeGroup.sessions.length}
+                            deletingSessionId={deletingSessionId}
+                            onDelete={handleDeleteInterview}
+                            t={t}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
+                    <h2 className="text-lg font-medium" style={{ color: LIST_TEXT }}>{t('center.emptyTitle')}</h2>
+                    <p className="mt-2 max-w-md text-sm leading-6" style={{ color: LIST_MUTED }}>{t('center.emptyDescription')}</p>
+                    <button
+                      type="button"
+                      onClick={handlePracticeCardClick}
+                      className="mt-5 inline-flex h-9 items-center justify-center rounded-lg px-4 text-[13px] font-medium text-white"
+                      style={{ backgroundColor: LIST_BLUE }}
+                    >
+                      {t('center.startNewInterview')}
+                    </button>
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </motion.section>
