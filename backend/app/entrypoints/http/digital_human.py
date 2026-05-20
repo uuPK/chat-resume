@@ -23,11 +23,9 @@ from sqlalchemy.orm import Session
 from app.entrypoints.http.deps import (
     authenticate_token_with_db,
     get_current_user,
-    require_active_subscription,
 )
 from app.infra.config import settings
 from app.infra.database import get_db
-from app.models.billing import BillingSubscription
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
 from app.services.digital_human import (
@@ -99,7 +97,7 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
 @router.post("/conversations", response_model=DigitalHumanConversationResponse)
 async def create_digital_human_conversation(
     request: DigitalHumanCreateRequest,
-    current_user: dict = Depends(require_active_subscription),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """用于为一场面试创建真实 Tavus 数字人视频会话。"""
@@ -296,19 +294,6 @@ async def _close_ws_policy_violation(websocket: WebSocket, reason: str) -> None:
     await websocket.close(code=_WS_POLICY_VIOLATION, reason=reason)
 
 
-def _user_has_active_subscription(db: Session, user_id: int) -> bool:
-    """用于处理用户has有效状态订阅。"""
-    return (
-        db.query(BillingSubscription.id)
-        .filter(
-            BillingSubscription.user_id == user_id,
-            BillingSubscription.status == "ACTIVE",
-        )
-        .first()
-        is not None
-    )
-
-
 async def _authorize_voice_session_ws(
     websocket: WebSocket,
     *,
@@ -328,9 +313,6 @@ async def _authorize_voice_session_ws(
         return None
 
     user_id = int(current_user["id"])
-    if not _user_has_active_subscription(db, user_id):
-        await _close_ws_policy_violation(websocket, "active_subscription_required")
-        return None
 
     try:
         return get_session_for_user(db, session_id, user_id)

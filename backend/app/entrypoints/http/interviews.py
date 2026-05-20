@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.entrypoints.http.deps import get_current_user, require_active_subscription
+from app.entrypoints.http.deps import get_current_user
 from app.infra.database import get_db
 from app.services.errors import (
     ServiceError,
@@ -81,7 +81,7 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
 @router.post("/", response_model=InterviewActionResponse)
 async def create_interview(
     request: InterviewCreateRequest,
-    current_user: dict = Depends(require_active_subscription),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """用于创建一场新的实时语音面试。"""

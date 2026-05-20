@@ -3164,8 +3164,8 @@ class TestInterviewSessions:
 
 
 class TestPlusFeatureAccess:
-    def test_free_user_cannot_create_interview_session(self, client):
-        """用于验证free用户cannotcreate面试会话。"""
+    def test_free_user_can_create_interview_session(self, client):
+        """用于验证free用户cancreate面试会话。"""
         _register(client, "interview_free@example.com")
         token = _login(client, "interview_free@example.com")
         headers = _auth_headers(token)
@@ -3182,8 +3182,9 @@ class TestPlusFeatureAccess:
             headers=headers,
         )
 
-        assert resp.status_code == 403
-        assert resp.json()["detail"] == "active_subscription_required"
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["next_action"] == "voice"
+        assert resp.json()["session"]["resume_id"] == resume_resp.json()["id"]
 
     def test_free_user_cannot_upload_jd_ocr_image(self, client):
         """用于验证free用户cannot上传jdocrimage。"""
@@ -3235,10 +3236,10 @@ class TestDigitalHumanBillingAccess:
         finally:
             db.close()
 
-    def test_free_user_cannot_create_digital_human_conversation(
+    def test_free_user_can_create_digital_human_conversation(
         self, client, monkeypatch
     ):
-        """用于验证free用户cannotcreatedigitalhumanconversation。"""
+        """用于验证free用户cancreatedigitalhumanconversation。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -3259,8 +3260,9 @@ class TestDigitalHumanBillingAccess:
             headers=headers,
         )
 
-        assert resp.status_code == 403
-        assert resp.json()["detail"] == "active_subscription_required"
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["provider"] == "volcengine"
+        assert resp.json()["session_id"] == str(session_id)
 
     def test_active_subscriber_can_create_digital_human_conversation(
         self, client, monkeypatch
@@ -3338,8 +3340,8 @@ class TestDigitalHumanBillingAccess:
 
         assert exc_info.value.code == 1008
 
-    def test_voice_session_websocket_rejects_free_user(self, client, monkeypatch):
-        """用于验证语音会话websocketrejectsfree用户。"""
+    def test_voice_session_websocket_allows_free_user(self, client, monkeypatch):
+        """用于验证语音会话websocketallowsfree用户。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -3352,13 +3354,10 @@ class TestDigitalHumanBillingAccess:
         token = _login(client, email)
         session_id = self._create_interview_session(client, _auth_headers(token), email)
 
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect(
-                f"/api/digital-human/voice-session/{session_id}"
-            ) as websocket:
-                websocket.receive_json()
-
-        assert exc_info.value.code == 1008
+        with client.websocket_connect(
+            f"/api/digital-human/voice-session/{session_id}"
+        ) as websocket:
+            assert websocket.receive_json() == {"type": "ready"}
 
     def test_voice_session_websocket_rejects_other_users_session(
         self, client, monkeypatch
@@ -3374,7 +3373,6 @@ class TestDigitalHumanBillingAccess:
         owner_email = "voice_ws_owner_plus@example.com"
         _register(client, owner_email)
         owner_token = _login(client, owner_email)
-        _grant_active_subscription(owner_email, "I-VOICEOWNER")
         session_id = self._create_interview_session(
             client, _auth_headers(owner_token), owner_email
         )
@@ -3383,7 +3381,6 @@ class TestDigitalHumanBillingAccess:
         attacker_email = "voice_ws_attacker_plus@example.com"
         _register(attacker_client, attacker_email)
         _login(attacker_client, attacker_email)
-        _grant_active_subscription(attacker_email, "I-VOICEATTACKER")
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with attacker_client.websocket_connect(
@@ -3393,10 +3390,10 @@ class TestDigitalHumanBillingAccess:
 
         assert exc_info.value.code == 1008
 
-    def test_active_subscriber_can_open_owned_voice_session_websocket(
+    def test_logged_in_user_can_open_owned_voice_session_websocket(
         self, client, monkeypatch
     ):
-        """用于验证activesubscribercanopenowned语音会话websocket。"""
+        """用于验证loggedinusercanopenowned语音会话websocket。"""
         from app.entrypoints.http import digital_human as digital_human_routes
 
         monkeypatch.setattr(
@@ -3407,7 +3404,6 @@ class TestDigitalHumanBillingAccess:
         email = "voice_ws_plus@example.com"
         _register(client, email)
         token = _login(client, email)
-        _grant_active_subscription(email, "I-VOICEPLUS")
         session_id = self._create_interview_session(client, _auth_headers(token), email)
 
         with client.websocket_connect(
