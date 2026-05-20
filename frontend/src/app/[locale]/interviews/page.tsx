@@ -17,12 +17,17 @@ import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
+  ArrowRightIcon,
   ChevronDownIcon,
   ClockIcon,
   CloudArrowUpIcon,
+  ChatBubbleLeftRightIcon,
   DocumentTextIcon,
+  ExclamationCircleIcon,
+  MagnifyingGlassIcon,
   MicrophoneIcon,
   PlayCircleIcon,
+  StarIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
@@ -267,6 +272,15 @@ export default function InterviewsPage() {
     setShowCreateInterviewPanel(true)
   }
 
+  // 用于处理通用面试练习入口。
+  const handlePracticeCardClick = () => {
+    if (!hasResumes) {
+      router.push('/resumes')
+      return
+    }
+    openCreateInterviewModal()
+  }
+
   /**
    * 用于在弹层打开时锁定页面滚动，并支持按下 Esc 关闭弹层。
    */
@@ -305,19 +319,59 @@ export default function InterviewsPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
       <MainNavigation />
-      <div className="border-b px-6 py-3" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
-        <div className="mx-auto flex max-w-5xl justify-end">
-          <button
-            type="button"
-            onClick={openCreateInterviewModal}
-            className="btn-primary btn-sm"
-          >
-            {t('center.create')}
-          </button>
-        </div>
-      </div>
+      <div className="flex min-h-[calc(100vh-56px)]">
+        <aside
+          className="hidden w-[238px] shrink-0 border-r bg-white px-3 py-6 md:flex md:flex-col"
+          style={{ borderColor: 'rgba(91,97,110,0.14)' }}
+        >
+          <div className="space-y-6">
+            <div>
+              <p className="mb-2 px-2 text-xs font-medium" style={{ color: '#8b93a3' }}>{t('center.sidebarResume')}</p>
+              <div className="space-y-1">
+                <Link href="/resumes" className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <DocumentTextIcon className="h-4 w-4" />
+                  <span>{t('center.sidebarMyResumes')}</span>
+                </Link>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <ClockIcon className="h-4 w-4" />
+                  <span>{t('center.sidebarVersions')}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <MagnifyingGlassIcon className="h-4 w-4" />
+                  <span>{t('center.sidebarJdAnalysis')}</span>
+                </div>
+              </div>
+            </div>
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+            <div>
+              <p className="mb-2 px-2 text-xs font-medium" style={{ color: '#8b93a3' }}>{t('center.sidebarInterview')}</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold" style={{ backgroundColor: '#eef4ff', color: '#0052ff' }}>
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  <span>{t('center.sidebarMockInterview')}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium" style={{ color: '#8b93a3' }}>
+                  <StarIcon className="h-4 w-4" />
+                  <span>{t('center.sidebarInterviewReview')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-auto rounded-xl border bg-white p-4" style={{ borderColor: 'rgba(91,97,110,0.18)' }}>
+            <p className="text-base font-semibold" style={{ color: '#0a0b0d' }}>{t('center.upgradeTitle')}</p>
+            <p className="mt-2 text-sm leading-5" style={{ color: '#5b616e' }}>{t('center.upgradeDescription')}</p>
+            <Link
+              href="/pricing"
+              className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-md text-sm font-semibold text-white"
+              style={{ backgroundColor: '#0052ff' }}
+            >
+              {t('center.upgradeAction')}
+            </Link>
+          </div>
+        </aside>
+
+      <main className="flex-1 px-6 py-10" style={{ backgroundColor: '#f7f8fa' }}>
         {showCreateInterviewPanel && (
           <div
             className="fixed inset-0 z-40 flex items-center justify-center p-4 md:p-6"
@@ -503,132 +557,107 @@ export default function InterviewsPage() {
               />
               <span className="ml-3 text-base" style={{ color: '#5b616e' }}>{t('center.loading')}</span>
             </div>
-          ) : sessions.length === 0 && !hasResumes ? (
+          ) : sessions.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mx-auto max-w-4xl py-10"
+              className="mx-auto max-w-[760px] py-8"
             >
-              <div
-                className="overflow-hidden rounded-[28px] border"
-                style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f7f8fb 100%)',
-                  borderColor: 'rgba(91,97,110,0.16)',
-                  boxShadow: '0 24px 80px rgba(15,23,42,0.08)',
-                }}
-              >
-                <div className="px-6 py-8 sm:px-10 sm:py-10">
-                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ backgroundColor: 'rgba(0,82,255,0.08)' }}>
-                    <DocumentTextIcon className="h-7 w-7" style={{ color: '#0052ff' }} />
-                  </div>
-                  <div className="mx-auto max-w-2xl text-center">
-                    <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', letterSpacing: '-0.03em' }}>
-                      {t('center.emptyNoResumeTitle')}
-                    </h3>
-                  </div>
+              <div className="mb-9">
+                <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#0a0b0d' }}>
+                  {t('center.practiceHeading')}
+                </h1>
+                <p className="mt-3 text-base" style={{ color: '#5b616e' }}>
+                  {t('center.practiceSubheading')}
+                </p>
+              </div>
 
-                  <div className="mt-8 grid gap-4 md:grid-cols-2">
-                    <Link
-                      href="/resumes"
-                      className="group rounded-3xl border p-5 text-left transition-all"
-                      style={{ backgroundColor: '#ffffff', borderColor: 'rgba(0,82,255,0.22)' }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = '#0052ff'
-                        e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,82,255,0.12)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = 'rgba(0,82,255,0.22)'
-                        e.currentTarget.style.boxShadow = 'none'
-                      }}
-                    >
-                      <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#0052ff', color: '#ffffff' }}>
-                        <CloudArrowUpIcon className="h-5 w-5" />
-                      </span>
-                      <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.emptyUploadTitle')}</span>
-                      <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.emptyUploadDescription')}</span>
-                      <span className="mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: '#0052ff' }}>
-                        {t('center.emptyUploadAction')}
-                      </span>
+              {!hasResumes && (
+                <div
+                  className="mb-8 flex items-start gap-3 rounded-xl border px-5 py-4 text-sm"
+                  style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#b45309' }}
+                >
+                  <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                  <span>
+                    {t('center.needResumePrefix')}
+                    <Link href="/resumes" className="font-semibold underline underline-offset-2">
+                      {t('center.needResumeLink')}
                     </Link>
-
-                    <Link
-                      href="/resumes"
-                      className="rounded-3xl border p-5 text-left transition-all"
-                      style={{ backgroundColor: '#ffffff', borderColor: 'rgba(91,97,110,0.2)' }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = '#0a0b0d'
-                        e.currentTarget.style.boxShadow = '0 16px 40px rgba(15,23,42,0.08)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'
-                        e.currentTarget.style.boxShadow = 'none'
-                      }}
-                    >
-                      <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl" style={{ backgroundColor: '#eef0f3', color: '#0a0b0d' }}>
-                        <DocumentTextIcon className="h-5 w-5" />
-                      </span>
-                      <span className="block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.emptyCreateTitle')}</span>
-                      <span className="mt-2 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.emptyCreateDescription')}</span>
-                      <span className="mt-5 inline-flex rounded-full border px-4 py-2 text-sm font-semibold" style={{ borderColor: 'rgba(91,97,110,0.24)', color: '#0a0b0d' }}>
-                        {t('center.emptyCreateAction')}
-                      </span>
-                    </Link>
-                  </div>
+                    {t('center.needResumeSuffix')}
+                  </span>
                 </div>
-              </div>
-            </motion.div>
-          ) : sessions.length === 0 ? (
-            <div
-              className="mx-auto max-w-3xl px-6 py-14 text-center sm:px-10"
-              style={{
-                border: '1px solid rgba(91,97,110,0.16)',
-                borderRadius: '32px',
-                background: 'radial-gradient(circle at top, rgba(0,82,255,0.06), transparent 42%), #ffffff',
-                boxShadow: '0 20px 70px rgba(15,23,42,0.07)',
-              }}
-            >
-              <div
-                className="mx-auto mb-6 flex h-16 w-16 items-center justify-center"
-                style={{ borderRadius: '24px', backgroundColor: 'rgba(0,82,255,0.08)' }}
-              >
-                <MicrophoneIcon className="h-8 w-8" style={{ color: '#0052ff' }} />
-              </div>
-              <h3 className="text-2xl font-semibold sm:text-3xl" style={{ color: '#0a0b0d', lineHeight: '1.18' }}>
-                {t('center.emptyTitle')}
-              </h3>
-              <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: '#5b616e' }}>
-                {t('center.emptyDescription')}
-              </p>
+              )}
 
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <button
                   type="button"
-                  onClick={openCreateInterviewModal}
-                  className="btn-primary btn-sm"
+                  onClick={handlePracticeCardClick}
+                  aria-label={t('center.create')}
+                  className="group flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left transition-all"
+                  style={{ borderColor: 'rgba(91,97,110,0.2)' }}
+                  onMouseEnter={event => {
+                    event.currentTarget.style.borderColor = '#0052ff'
+                    event.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)'
+                  }}
+                  onMouseLeave={event => {
+                    event.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'
+                    event.currentTarget.style.boxShadow = 'none'
+                  }}
                 >
-                  {t('center.create')}
+                  <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#0052ff' }}>
+                    <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                  </span>
+                  <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.generalPracticeTitle')}</span>
+                  <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.generalPracticeDescription')}</span>
+                  <span className="mt-auto flex items-end justify-between gap-4 pt-6">
+                    <span className="text-sm font-medium" style={{ color: '#b0b6c0' }}>{t('center.generalPracticeEta')}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(91,97,110,0.2)', color: '#8b93a3' }}>
+                      <ArrowRightIcon className="h-4 w-4" />
+                    </span>
+                  </span>
                 </button>
-                <Link href="/resumes" className="btn-ghost btn-sm">
-                  {t('center.viewResumes')}
-                </Link>
+
+                <button
+                  type="button"
+                  disabled
+                  className="flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left opacity-50"
+                  style={{ borderColor: 'rgba(91,97,110,0.16)' }}
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#8b93a3' }}>
+                    <DocumentTextIcon className="h-5 w-5" />
+                  </span>
+                  <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('center.targetPracticeTitle')}</span>
+                  <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('center.targetPracticeDescription')}</span>
+                  <span className="mt-auto flex items-end justify-between gap-4 pt-6">
+                    <span className="rounded-md border px-2 py-1 text-xs font-medium" style={{ borderColor: 'rgba(91,97,110,0.18)', color: '#8b93a3' }}>
+                      {t('center.proOnly')}
+                    </span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full border" style={{ borderColor: 'rgba(91,97,110,0.2)', color: '#8b93a3' }}>
+                      <ArrowRightIcon className="h-4 w-4" />
+                    </span>
+                  </span>
+                </button>
               </div>
 
-              <div className="mt-8 grid gap-3 text-left md:grid-cols-3">
-                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
-                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintRoleTitle')}</strong>
-                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintRoleDescription')}</span>
-                </div>
-                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
-                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintRecordTitle')}</strong>
-                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintRecordDescription')}</span>
-                </div>
-                <div className="rounded-2xl p-4" style={{ backgroundColor: '#f7f8fb' }}>
-                  <strong className="block text-sm" style={{ color: '#0a0b0d' }}>{t('center.hintImproveTitle')}</strong>
-                  <span className="mt-1.5 block text-xs leading-5" style={{ color: '#5b616e' }}>{t('center.hintImproveDescription')}</span>
-                </div>
+              <div className="mt-10">
+                <p className="text-sm font-semibold" style={{ color: '#a0a7b3' }}>{t('center.practiceAboutTitle')}</p>
+                <ul className="mt-4 space-y-3 text-sm leading-6" style={{ color: '#8b93a3' }}>
+                  <li className="flex gap-3">
+                    <span aria-hidden="true">•</span>
+                    <span>{t('center.practiceTipFeedback')}</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span aria-hidden="true">•</span>
+                    <span>{t('center.practiceTipReview')}</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span aria-hidden="true">•</span>
+                    <span>{t('center.practiceTipQuota')}</span>
+                  </li>
+                </ul>
               </div>
-            </div>
+            </motion.div>
           ) : (
             <div className="space-y-5">
               {sessions.map((session, index) => {
@@ -729,6 +758,7 @@ export default function InterviewsPage() {
           )}
         </motion.section>
       </main>
+      </div>
     </div>
   )
 }
