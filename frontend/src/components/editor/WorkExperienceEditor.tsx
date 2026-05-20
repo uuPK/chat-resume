@@ -241,8 +241,8 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                             fitTextareaToContent(e.currentTarget)
                           }}
                           placeholder={t('highlightPlaceholder')}
-                          rows={2}
-                          className="min-h-[72px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                          rows={1}
+                          className="min-h-[42px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(work.highlights || []).length > 1 && (
                           <button

@@ -797,7 +797,7 @@ test.describe('编辑页工作流', () => {
         overview: 'AI 驱动的求职辅导平台，提供简历诊断、模拟面试、能力评估功能。通过 BOSS 直聘 MCP 工具实时搜索职位并生成简历优化建议。',
         highlights: [
           {
-            text: '集成BOSS直聘MCP实现职位实时搜索与简历优化建议自动生成，打通求职-优化闭环',
+            text: '的',
           },
         ],
       },
@@ -823,6 +823,7 @@ test.describe('编辑页工作流', () => {
     expect(await projectHighlightInput.evaluate((element) =>
       element.clientHeight >= element.scrollHeight - 1
     )).toBe(true)
+    expect(await projectHighlightInput.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(52)
 
     await page.getByRole('button', { name: '教育' }).click()
     const educationHighlightInput = page.getByPlaceholder('985高校、主要课程、奖项、研究方向等')
