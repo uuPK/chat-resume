@@ -295,29 +295,26 @@ export default function InterviewsPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
-      <MainNavigation />
-
-      <div className="py-10 px-6" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"
+      <MainNavigation
+        actions={(
+          <button
+            type="button"
+            onClick={openCreateInterviewModal}
+            className="btn-primary btn-sm"
           >
-            <div>
-              <h1 className="text-5xl font-semibold" style={{ lineHeight: '1.00', color: '#0a0b0d' }}>
-                {t('center.title')}
-              </h1>
-            </div>
-            <button
-              type="button"
-              onClick={openCreateInterviewModal}
-              className="btn-primary btn-sm"
-            >
-              {t('center.create')}
-            </button>
-          </motion.div>
+            {t('center.create')}
+          </button>
+        )}
+      />
+      <div className="border-b px-6 py-3 md:hidden" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+        <div className="mx-auto flex max-w-5xl justify-end">
+          <button
+            type="button"
+            onClick={openCreateInterviewModal}
+            className="btn-primary btn-sm"
+          >
+            {t('center.create')}
+          </button>
         </div>
       </div>
 

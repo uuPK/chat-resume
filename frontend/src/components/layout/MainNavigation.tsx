@@ -6,13 +6,18 @@ import { useRouter, usePathname } from '@/i18n/navigation'
 import { ChevronDownIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { useState, useRef, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import Logo from '@/components/ui/Logo'
 import { billingApi, type BillingStatus } from '@/lib/api'
 import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import { useTranslations } from 'next-intl'
 
+interface MainNavigationProps {
+  actions?: ReactNode
+}
+
 // 顶部主导航栏，Coinbase 风格：白底、蓝色品牌色、pill 形激活态
-export default function MainNavigation() {
+export default function MainNavigation({ actions }: MainNavigationProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { user, logout } = useAuth()
@@ -84,6 +89,12 @@ export default function MainNavigation() {
           </div>
 
           <div className="flex items-center gap-2">
+            {actions && (
+              <div className="mr-3 hidden items-center gap-3 md:flex">
+                {actions}
+              </div>
+            )}
+
             <LocaleSwitcher compact />
 
             {/* User menu */}

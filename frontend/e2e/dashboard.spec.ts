@@ -47,7 +47,9 @@ async function fillJobApplicationAndWaitForSave(page: Page, company: string, tit
 test.describe('Dashboard', () => {
   test('登录后显示仪表板页面', async ({ page }) => {
     await loginAs(page, uniqueEmail('dash'))
-    await expect(page.locator('h1')).toContainText(/简历中心|仪表板|Dashboard/i)
+    await expect(page.getByRole('link', { name: '简历中心' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '上传简历' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '新建简历' })).toBeVisible()
   })
 
   test('没有简历时显示空状态提示', async ({ page }) => {
@@ -61,8 +63,8 @@ test.describe('Dashboard', () => {
 
   test('页面包含上传简历和新建简历按钮', async ({ page }) => {
     await loginAs(page, uniqueEmail('btn'))
-    await expect(page.getByText(/上传简历/).first()).toBeVisible()
-    await expect(page.getByText(/新建简历/)).toBeVisible()
+    await expect(page.getByRole('button', { name: '上传简历' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '新建简历' })).toBeVisible()
   })
 })
 
@@ -88,7 +90,8 @@ test.describe('新建简历', () => {
     await createResumeFromDashboard(page, uniqueEmail('backdash'))
     await page.getByRole('link', { name: '返回仪表板' }).click()
     await page.waitForURL('**/dashboard', { timeout: 12_000 })
-    await expect(page.locator('h1')).toContainText('简历中心')
+    await expect(page.getByRole('link', { name: '简历中心' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '新建简历' })).toBeVisible()
   })
 })
 

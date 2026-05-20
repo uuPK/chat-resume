@@ -197,78 +197,89 @@ export default function ResumesPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#ffffff' }}>
-      <MainNavigation />
-
-      {/* Header */}
-      <div className="py-10 px-6" style={{ borderBottom: '1px solid rgba(91,97,110,0.12)' }}>
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-col sm:flex-row sm:items-end justify-between gap-6"
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.txt"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+      <MainNavigation
+        actions={(
+          <>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadLoading}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{
+                borderRadius: '56px',
+                backgroundColor: '#ffffff',
+                color: '#0a0b0d',
+                border: '1px solid rgba(91,97,110,0.3)',
+              }}
+              onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#eef0f3' } }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff' }}
+            >
+              {uploadLoading ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'currentColor' }} />
+                  <span>{t('uploading')}</span>
+                </>
+              ) : (
+                <span>{t('upload')}</span>
+              )}
+            </button>
+            <button
+              onClick={handleConfirmCreate}
+              disabled={creating}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+              style={{
+                borderRadius: '56px',
+                backgroundColor: '#0052ff',
+                border: '1px solid #0052ff',
+              }}
+              onMouseEnter={e => { if (!creating) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
+            >
+              {creating ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#fff' }} />
+                  <span>{t('creating')}</span>
+                </>
+              ) : (
+                <span>{t('create')}</span>
+              )}
+            </button>
+          </>
+        )}
+      />
+      <div className="border-b px-6 py-3 md:hidden" style={{ borderColor: 'rgba(91,97,110,0.12)' }}>
+        <div className="mx-auto flex max-w-7xl items-center gap-3">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadLoading}
+            className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+            style={{
+              borderRadius: '56px',
+              backgroundColor: '#ffffff',
+              color: '#0a0b0d',
+              border: '1px solid rgba(91,97,110,0.3)',
+            }}
           >
-            <div>
-              <h1
-                className="text-5xl font-semibold"
-                style={{ lineHeight: '1.00', color: '#0a0b0d' }}
-              >
-                {t('title')}
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadLoading}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-                style={{
-                  borderRadius: '56px',
-                  backgroundColor: '#ffffff',
-                  color: '#0a0b0d',
-                  border: '1px solid rgba(91,97,110,0.3)',
-                }}
-                onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.backgroundColor = '#eef0f3' } }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff' }}
-              >
-                {uploadLoading ? (
-                  <>
-                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'currentColor' }} />
-                    <span>{t('uploading')}</span>
-                  </>
-                ) : (
-                  <span>{t('upload')}</span>
-                )}
-              </button>
-              <button
-                onClick={handleConfirmCreate}
-                disabled={creating}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                style={{
-                  borderRadius: '56px',
-                  backgroundColor: '#0052ff',
-                  border: '1px solid #0052ff',
-                }}
-                onMouseEnter={e => { if (!creating) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
-              >
-                {creating ? (
-                  <>
-                    <div className="w-4 h-4 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: '#fff' }} />
-                    <span>{t('creating')}</span>
-                  </>
-                ) : (
-                  <span>{t('create')}</span>
-                )}
-              </button>
-            </div>
-          </motion.div>
+            {uploadLoading ? t('uploading') : t('upload')}
+          </button>
+          <button
+            onClick={handleConfirmCreate}
+            disabled={creating}
+            className="inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+            style={{
+              borderRadius: '56px',
+              backgroundColor: '#0052ff',
+              border: '1px solid #0052ff',
+            }}
+          >
+            {creating ? t('creating') : t('create')}
+          </button>
         </div>
       </div>
 
