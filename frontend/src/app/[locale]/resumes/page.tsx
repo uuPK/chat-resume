@@ -616,13 +616,6 @@ export default function ResumesPage() {
                         <span>{index === 0 ? t('submittedCount', { count: 3 }) : t('notSubmitted')}</span>
                       </div>
                       <div className="mt-auto grid grid-cols-3 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
-                        <Link
-                          href={`/resume/${resume.id}/interview`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
-                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-                        >
-                          {t('editAction')}
-                        </Link>
                         <button
                           type="button"
                           className="h-[30px] rounded-lg border text-xs transition-colors"
@@ -630,6 +623,13 @@ export default function ResumesPage() {
                         >
                           {t('exportAction')}
                         </button>
+                        <Link
+                          href={`/resume/${resume.id}/interview`}
+                          className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white transition-colors"
+                          style={{ backgroundColor: LIST_BLUE }}
+                        >
+                          {t('editAction')}
+                        </Link>
                         <Link
                           href={`/resume/${resume.id}/edit`}
                           className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white transition-colors"
