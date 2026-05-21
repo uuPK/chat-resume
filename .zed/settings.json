@@ -3,6 +3,22 @@
     "Python": {
       "language_servers": ["basedpyright"],
       "format_on_save": "off"
+    },
+    "TypeScript": {
+      "language_servers": ["typescript-language-server", "!vtsls", "..."],
+      "format_on_save": "off"
+    },
+    "TSX": {
+      "language_servers": ["typescript-language-server", "!vtsls", "..."],
+      "format_on_save": "off"
+    },
+    "JavaScript": {
+      "language_servers": ["typescript-language-server", "!vtsls", "..."],
+      "format_on_save": "off"
+    },
+    "JSX": {
+      "language_servers": ["typescript-language-server", "!vtsls", "..."],
+      "format_on_save": "off"
     }
   },
   "lsp": {
