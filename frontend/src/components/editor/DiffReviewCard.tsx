@@ -124,7 +124,7 @@ function formatDiffValue(value: unknown) {
 // 用于隐藏简历内部字段名，只展示用户关心的改动内容。
 function formatObjectDiffLine(key: string, value: unknown) {
   const text = formatDiffValue(value)
-  return key === 'items' || key === 'category' ? text : `${key}: ${text}`
+  return key === 'items' || key === 'category' || key === 'text' ? text : `${key}: ${text}`
 }
 
 

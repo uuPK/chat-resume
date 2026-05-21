@@ -157,6 +157,14 @@ async function installResumeAgentMock(
     })
     const truncatedSkillBefore = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "Few-…'
     const truncatedSkillAfter = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "MCP"]'
+    const textFieldBefore = JSON.stringify({
+      id: 'bullet_text_json',
+      text: '集成Tavily Search API实现联网搜索',
+    })
+    const textFieldAfter = JSON.stringify({
+      id: 'bullet_text_json',
+      text: '集成 Tavily Search API 实现实时联网搜索，为研究报告提供多源、时效性强的信息支撑，确保输出内容的准确性和时效性',
+    })
     const baseDiffItems = [
       {
         before: '负责前端开发',
@@ -177,6 +185,11 @@ async function installResumeAgentMock(
         before: truncatedSkillBefore,
         after: truncatedSkillAfter,
         reason: '精简：Few-shot Prompting 并入 Context Engineering',
+      },
+      {
+        before: textFieldBefore,
+        after: textFieldAfter,
+        reason: '补充联网搜索对研究报告质量和时效性的价值',
       },
     ]
     const extraDiffItems = Array.from({ length: extraDiffItemCount || 0 }, (_, index) => ({
@@ -1119,6 +1132,8 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('精简技能列表，去掉与 Agent 开发核心不直接相关的条目')).toBeVisible()
     await expect(page.getByText('skill_truncated_json')).toHaveCount(0)
     await expect(page.getByText('精简：Few-shot Prompting 并入 Context Engineering')).toBeVisible()
+    await expect(page.getByText('集成 Tavily Search API 实现实时联网搜索')).toBeVisible()
+    await expect(page.getByText(/text:/)).toHaveCount(0)
     await page.getByRole('button', { name: '确认修改' }).click()
 
     await expect(page.getByText('已应用修改。')).toBeVisible()
