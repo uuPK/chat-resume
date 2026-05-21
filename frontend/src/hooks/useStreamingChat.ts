@@ -43,6 +43,12 @@ export type StreamEvent =
       displayMessage?: string
     }
   | {
+      type: 'tool_failed'
+      callId: string
+      toolName: string
+      displayMessage?: string
+    }
+  | {
       type: 'tool_pending'
       callId: string
       toolName: string
@@ -254,6 +260,7 @@ function summarizeToolEvents(events: StreamEvent[]): string[] {
     .filter((event) =>
       event.type === 'tool_call' ||
       event.type === 'tool_result' ||
+      event.type === 'tool_failed' ||
       event.type === 'tool_pending' ||
       event.type === 'tool_confirmed' ||
       event.type === 'tool_rejected'
@@ -388,16 +395,18 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
 
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
-        // 用于处理complete工具callevent。
+        // 用于把工具调用卡片切换为最终状态。
         const completeToolCallEvent = (
           callId: string,
           toolName: string,
           displayMessage?: string,
+          finalType: 'tool_result' | 'tool_failed' = 'tool_result',
         ) => {
           debugStreamLog('[useStreamingChat] completeToolCallEvent before', {
             callId,
             toolName,
             displayMessage,
+            finalType,
             events: summarizeToolEvents(eventsBuffer),
           })
           let updated = false
@@ -405,7 +414,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             if (event.type === 'tool_call' && event.callId === callId) {
               updated = true
               return {
-                type: 'tool_result' as const,
+                type: finalType,
                 callId,
                 toolName: event.toolName || toolName,
                 displayMessage,
@@ -413,9 +422,9 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
             }
             return event
           })
-          if (!updated && !eventsBuffer.some((event) => event.type === 'tool_result' && event.callId === callId)) {
+          if (!updated && !eventsBuffer.some((event) => event.type === finalType && event.callId === callId)) {
             eventsBuffer = [...eventsBuffer, {
-              type: 'tool_result',
+              type: finalType,
               callId,
               toolName,
               displayMessage,
@@ -591,6 +600,25 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   setStreamEvents([...eventsBuffer])
                 }
 
+                if (data.event_type === 'tool_call_failed' && data.call_id) {
+                  const callId = String(data.call_id)
+                  debugStreamLog('[useStreamingChat] tool_call_failed handling start', {
+                    callId,
+                    eventsBefore: summarizeToolEvents(eventsBuffer),
+                  })
+                  completeToolCallEvent(
+                    callId,
+                    resolveToolName(data, t('toolCall')),
+                    data.display_message ? String(data.display_message) : undefined,
+                    'tool_failed',
+                  )
+                  debugStreamLog('[useStreamingChat] tool_call_failed handling end', {
+                    callId,
+                    eventsAfter: summarizeToolEvents(eventsBuffer),
+                  })
+                  setStreamEvents([...eventsBuffer])
+                }
+
                 // tool_pending: agent 暂停，等待用户确认
                 if (data.tool_pending && data.call_id) {
                   const callId = data.call_id as string
@@ -602,13 +630,18 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     elapsedSinceStreamStartMs: Math.round((receivedAt - streamStartedAt) * 100) / 100,
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
-                  eventsBuffer = [...eventsBuffer, {
-                    type: 'tool_pending',
-                    callId,
-                    toolName: data.tool_display_name || data.tool_name || '',
-                    diffSummary: data.diff_summary || '',
-                    diffItems: normalizeDiffItems(data.diff_items),
-                  }]
+                  eventsBuffer = [
+                    ...eventsBuffer.filter((event) =>
+                      !(event.type === 'tool_call' && event.callId === callId)
+                    ),
+                    {
+                      type: 'tool_pending',
+                      callId,
+                      toolName: data.tool_display_name || data.tool_name || '',
+                      diffSummary: data.diff_summary || '',
+                      diffItems: normalizeDiffItems(data.diff_items),
+                    },
+                  ]
                   const appendedAt = nowMs()
                   pendingToolTimingsRef.current[callId] = {
                     receivedAt,
@@ -669,22 +702,18 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                   const newType: 'tool_confirmed' | 'tool_rejected' = data.tool_confirmed
                     ? 'tool_confirmed'
                     : 'tool_rejected'
-                  completeToolCallEvent(
-                    callId,
-                    resolveToolName(data, t('toolCall')),
-                    data.display_message ? String(data.display_message) : undefined,
-                  )
-                  eventsBuffer = eventsBuffer.map(e => {
+                  eventsBuffer = eventsBuffer.flatMap(e => {
+                    if (e.type === 'tool_call' && e.callId === callId) return []
                     if (e.type === 'tool_pending' && e.callId === callId) {
-                      return {
+                      return [{
                         type: newType,
                         callId: e.callId,
                         toolName: e.toolName,
                         diffSummary: e.diffSummary,
                         diffItems: e.diffItems,
-                      }
+                      }]
                     }
-                    return e
+                    return [e]
                   })
                   debugStreamLog('[useStreamingChat] tool decision handling end', {
                     callId,

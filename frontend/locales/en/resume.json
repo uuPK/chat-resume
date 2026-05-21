@@ -124,6 +124,7 @@
     "toolCall": "Tool call",
     "toolRunning": "Tool running",
     "toolResult": "Tool result",
+    "toolFailed": "Tool failed",
     "agentErrorPrefix": "Sorry, an error occurred: "
   },
   "sections": {

@@ -1,11 +1,12 @@
 import {
   CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 import { useTranslations } from 'next-intl'
 
 import type { StreamEvent } from '@/hooks/useStreamingChat'
 
-type ToolActivityEvent = Extract<StreamEvent, { type: 'tool_call' | 'tool_result' }>
+type ToolActivityEvent = Extract<StreamEvent, { type: 'tool_call' | 'tool_result' | 'tool_failed' }>
 
 export function AgentToolActivity({
   event,
@@ -15,12 +16,15 @@ export function AgentToolActivity({
 }) {
   const t = useTranslations('resume.editor')
   const isResult = event.type === 'tool_result'
-  const title = isResult ? t('toolResult') : t('toolRunning')
+  const isFailed = event.type === 'tool_failed'
+  const title = isFailed ? t('toolFailed') : isResult ? t('toolResult') : t('toolRunning')
 
   return (
     <div className="mb-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm">
       <div className="flex min-w-0 items-center gap-2">
-        {isResult ? (
+        {isFailed ? (
+          <XCircleIcon className="h-[0.9rem] w-[0.9rem] flex-shrink-0 text-red-500" />
+        ) : isResult ? (
           <CheckCircleIcon className="h-[0.9rem] w-[0.9rem] flex-shrink-0 text-emerald-600" />
         ) : (
           <span className="h-3 w-3 flex-shrink-0 rounded-full border border-blue-200 border-t-blue-600 animate-spin" />

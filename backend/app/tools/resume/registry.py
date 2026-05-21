@@ -358,10 +358,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "update_bullet",
             "description": (
-                "精准更新某个条目下单条 bullet 的文本。用于改写已有 bullet，"
-                "section 只能是 education、work_experience、projects；"
-                "item_id 和 bullet_id 必须来自当前简历 JSON。适合在原 bullet "
-                "已能承载岗位关键词或结果表达时使用。"
+                "精准更新某个条目下单条 bullet 的文本。仅当新的 bullet 文本与原 bullet "
+                "存在实质内容差异时使用；如果认为当前 bullet 已合适，必须直接回复用户说明无需修改，"
+                "不要调用该工具。不得为了表达优化理由而传入原文。section 只能是 "
+                "education、work_experience、projects；item_id 和 bullet_id 必须来自当前简历 JSON。"
             ),
             "parameters": {
                 "type": "object",
@@ -380,12 +380,17 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                     "text": {
                         "type": "string",
-                        "description": "新的 bullet 文本",
+                        "description": (
+                            "新的 bullet 文本。必须完整替换原 bullet，并且与原文存在实质差异："
+                            "新增、删除或重写了任务、技术方案、问题、结果、影响中的至少一项。"
+                            "不得传入原文，也不得仅调整空格、标点、语序或 reason。"
+                        ),
                     },
                     "reason": {
                         "type": "string",
                         "description": (
-                            "本次修改的简短理由，供前端展示，如“补充岗位关键词”"
+                            "本次修改的简短理由，供前端展示。reason 不能替代 text 修改；"
+                            "如果 text 与原 bullet 无实质差异，不要调用该工具。"
                         ),
                     },
                 },

@@ -1590,6 +1590,53 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "".join(event.get("content", "") for event in events),
         )
 
+    async def test_pi_agent_runtime_noop_update_skips_confirmation_card(self):
+        """用于验证空修改走失败事件而不是展示待确认卡片。"""
+        agent = ResumeAgent()
+        agent.runtime = PiAgentRuntime(
+            stream_fn=FakePiAgentStream(
+                [
+                    fake_pi_tool_call(
+                        name="update_bullet",
+                        args={
+                            "section": "work_experience",
+                            "item_id": "work_1",
+                            "bullet_id": "hl_1",
+                            "text": "维护多个后台服务",
+                            "reason": "只解释优化理由",
+                        },
+                        call_id="call_pi_noop",
+                    ),
+                    fake_pi_text("这条内容已经合适，无需修改。"),
+                ]
+            )
+        )
+        resume = self._sample_resume()
+        confirmation_queue = asyncio.Queue()
+        confirmation_queue.put_nowait(True)
+
+        events = []
+        async for event in agent.optimize_stream(
+            user_message="优化这条 bullet",
+            resume_content=resume,
+            conversation_history=[],
+            confirmation_queue=confirmation_queue,
+            allowed_sections={"work_experience"},
+        ):
+            events.append(event)
+
+        self.assertTrue(any(event.get("tool_call_failed") for event in events))
+        self.assertFalse(any(event.get("tool_pending") for event in events))
+        self.assertEqual(
+            resume["work_experience"][0]["highlights"][0]["text"],
+            "维护多个后台服务",
+        )
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
+        self.assertIn(
+            "无需修改",
+            "".join(event.get("content", "") for event in events),
+        )
+
     async def test_pi_agent_runtime_sets_provider_cancel_event_when_stream_is_cancelled(self):
         """用于验证消费端取消时通知底层模型流停止。"""
         stream = HangingPiAgentStream()

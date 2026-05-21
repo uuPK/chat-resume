@@ -61,6 +61,50 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         self.assertIn("reason", properties)
         self.assertEqual(properties["reason"]["type"], "string")
 
+        update_bullet_description = update_bullet["function"]["description"]
+        text_description = properties["text"]["description"]
+        reason_description = properties["reason"]["description"]
+        self.assertIn("存在实质内容差异", update_bullet_description)
+        self.assertIn("不得为了表达优化理由而传入原文", update_bullet_description)
+        self.assertIn("不得传入原文", text_description)
+        self.assertIn("不得仅调整空格、标点、语序或 reason", text_description)
+        self.assertIn("reason 不能替代 text 修改", reason_description)
+
+    def test_update_bullet_rejects_unchanged_text(self):
+        """用于验证update_bullet拒绝新旧内容一致的空修改。"""
+        resume_content: dict[str, Any] = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "company": "测试公司",
+                    "position": "后端工程师",
+                    "highlights": [
+                        {"id": "bullet_1", "text": "负责 Agent 工具调用链路建设"}
+                    ],
+                }
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_bullet",
+            tool_input={
+                "section": "work_experience",
+                "item_id": "work_1",
+                "bullet_id": "bullet_1",
+                "text": "  负责 Agent 工具调用链路建设  ",
+                "reason": "只解释优化理由",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        self.assertFalse(result["result"]["success"])
+        self.assertEqual(
+            resume_content["work_experience"][0]["highlights"][0]["text"],
+            "负责 Agent 工具调用链路建设",
+        )
+        self.assertIn("内容一致", result["result"]["message"])
+
     def test_update_profile_schema_exposes_sourced_identity_fields(self):
         """用于验证update_profile schema暴露有来源的身份联系字段。"""
         update_profile = next(

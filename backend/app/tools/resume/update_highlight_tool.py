@@ -40,6 +40,12 @@ def update_highlight(
     next_text = str(text or "").strip()
     for highlight in highlights:
         if str(highlight.get("id")) == str(highlight_id):
+            current_text = str(highlight.get("text") or "").strip()
+            if next_text == current_text:
+                return {
+                    "success": False,
+                    "message": "新旧 bullet 内容一致，未执行修改；如果无需修改，请直接回复用户，不要调用 update_bullet。",
+                }
             before = snapshot(highlight)
             highlight["text"] = next_text
             section_name = SECTION_NAMES.get(section, section)

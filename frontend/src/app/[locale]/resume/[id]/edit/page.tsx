@@ -48,6 +48,7 @@ function summarizeRenderedToolEvents(events: StreamEvent[]): string[] {
     .filter((event) =>
       event.type === 'tool_call' ||
       event.type === 'tool_result' ||
+      event.type === 'tool_failed' ||
       event.type === 'tool_pending' ||
       event.type === 'tool_confirmed' ||
       event.type === 'tool_rejected'
@@ -429,6 +430,7 @@ export default function ResumeEditPage() {
     const toolEvents = streamEvents.filter((event) =>
       event.type === 'tool_call' ||
       event.type === 'tool_result' ||
+      event.type === 'tool_failed' ||
       event.type === 'tool_pending' ||
       event.type === 'tool_confirmed' ||
       event.type === 'tool_rejected'
@@ -1098,7 +1100,7 @@ export default function ResumeEditPage() {
                                     </div>
                                   )
                                 }
-                                if (event.type === 'tool_call' || event.type === 'tool_result') {
+                                if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                                   return <AgentToolActivity key={idx} event={event} />
                                 }
                                 if (event.type === 'job_match_summary') {
@@ -1198,7 +1200,7 @@ export default function ResumeEditPage() {
                               </div>
                             )
                           }
-                          if (event.type === 'tool_call' || event.type === 'tool_result') {
+                          if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_failed') {
                             return <AgentToolActivity key={idx} event={event} live />
                           }
                           if (event.type === 'job_match_summary') {
