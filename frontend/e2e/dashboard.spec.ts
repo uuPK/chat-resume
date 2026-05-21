@@ -82,7 +82,7 @@ test.describe('新建简历', () => {
     await createResumeFromDashboard(page, uniqueEmail('createblank'))
     await expect(page.getByPlaceholder('请输入目标公司名称')).toBeVisible()
     await expect(page.getByPlaceholder('请输入目标岗位名称')).toBeVisible()
-    await expect(page.getByRole('button', { name: '布局设置' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '简历设置' })).toBeVisible()
     await expect(page.getByRole('button', { name: '导出 PDF' })).toBeVisible()
     await expect(page.getByPlaceholder('输入消息...')).toBeVisible()
   })
