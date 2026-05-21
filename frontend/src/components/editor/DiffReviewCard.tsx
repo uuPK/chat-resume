@@ -18,6 +18,7 @@ import {
 
 type DiffLine = { type: 'remove' | 'add' | 'reason' | 'meta'; text: string }
 type DiffGroup = { remove?: string; add?: string; reason?: string }
+type TextSegment = { text: string; changed: boolean }
 
 /**
  * 将 diffSummary 文本解析为可渲染的 diff 行。
@@ -82,7 +83,7 @@ function groupDiffItems(items: DiffItem[]): DiffGroup[] {
     .filter((group) => group.remove || group.add || group.reason)
 }
 
-const NUMBER_SPLIT_RE = /(\d[\d,，]*(?:\.\d+)?(?:%|％|万|亿|千|百|倍|x|X|次|人|个|项|天|月|年|ms|GB|MB|TB|KB)?)/
+const DIFF_PREFIX_RE = /^([+-]\s)([\s\S]*)$/
 // 用于判断对象是否拥有指定字段。
 function hasOwnField(record: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(record, key)
@@ -190,25 +191,77 @@ function compactDiffGroup(group: DiffGroup) {
 
 
 /**
- * 将文本中的数字和量化词高亮，帮助用户快速看出量化优化结果。
+ * 将一对 before/after 文本切成相同前后缀和实际变化片段。
  */
-// 用于渲染 HighlightNumbers 组件。
-function HighlightNumbers({ text, active }: { text: string; active: boolean }) {
-  if (!active) return <>{text}</>
-  const parts = text.split(NUMBER_SPLIT_RE)
+// 用于计算行内真实变化片段。
+function buildInlineDiffSegments(text: string, peerText?: string): TextSegment[] {
+  if (!peerText || text === peerText) return [{ text, changed: Boolean(!peerText && text) }]
+  const source = Array.from(text)
+  const peer = Array.from(peerText)
+  let prefixLength = 0
+  while (
+    prefixLength < source.length &&
+    prefixLength < peer.length &&
+    source[prefixLength] === peer[prefixLength]
+  ) {
+    prefixLength += 1
+  }
+
+  let suffixLength = 0
+  while (
+    suffixLength < source.length - prefixLength &&
+    suffixLength < peer.length - prefixLength &&
+    source[source.length - 1 - suffixLength] === peer[peer.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1
+  }
+
+  const segments: TextSegment[] = []
+  const changedEnd = source.length - suffixLength
+  if (prefixLength > 0) segments.push({ text: source.slice(0, prefixLength).join(''), changed: false })
+  if (changedEnd > prefixLength) segments.push({ text: source.slice(prefixLength, changedEnd).join(''), changed: true })
+  if (suffixLength > 0) segments.push({ text: source.slice(changedEnd).join(''), changed: false })
+  return segments.length > 0 ? segments : [{ text, changed: false }]
+}
+
+// 用于拆出 diff 行前缀，避免把 +/- 也当作正文变化。
+function splitDiffPrefix(line: string) {
+  const match = line.match(DIFF_PREFIX_RE)
+  return match ? { prefix: match[1], body: match[2] } : { prefix: '', body: line }
+}
+
+// 用于按行渲染 before/after，只给实际变化片段上色。
+function renderInlineDiffLine(line: string, peerLine: string | undefined, kind: 'remove' | 'add', active: boolean) {
+  const { prefix, body } = splitDiffPrefix(line)
+  const peer = peerLine ? splitDiffPrefix(peerLine).body : undefined
+  const segments = buildInlineDiffSegments(body, peer)
+  const changedClass = kind === 'remove'
+    ? 'font-semibold text-red-700 bg-red-100 rounded px-0.5'
+    : 'font-semibold text-emerald-700 bg-emerald-100 rounded px-0.5'
   return (
     <>
-      {parts.map((part, index) => (
-        index % 2 === 1 ? (
-          <span key={index} className="font-bold text-emerald-600 bg-emerald-100 rounded px-0.5">
-            {part}
-          </span>
+      <span className={kind === 'remove' ? 'text-red-500' : 'text-emerald-600'}>{prefix}</span>
+      {segments.map((segment, index) => (
+        segment.changed && active ? (
+          <span key={index} className={changedClass}>{segment.text}</span>
         ) : (
-          part
+          <React.Fragment key={index}>{segment.text}</React.Fragment>
         )
       ))}
     </>
   )
+}
+
+// 用于渲染多行 diff 块，并逐行对齐 before/after。
+function renderInlineDiffBlock(text: string, peerText: string | undefined, kind: 'remove' | 'add', active = true) {
+  const lines = text.split('\n')
+  const peerLines = peerText?.split('\n')
+  return lines.map((line, index) => (
+    <React.Fragment key={`${kind}-${index}`}>
+      {index > 0 && '\n'}
+      {renderInlineDiffLine(line, peerLines?.[index], kind, active)}
+    </React.Fragment>
+  ))
 }
 
 /**
@@ -236,17 +289,17 @@ export function DiffGroupCards({
       {groups.map((group, index) => (
         <div key={index} className="px-3 py-2 space-y-0.5 font-mono text-xs">
           {group.remove && (
-            <div className="px-2 py-1 rounded bg-red-50 text-red-600 whitespace-pre-wrap">
-              {group.remove}
+            <div className="px-2 py-1 rounded bg-red-50 text-gray-700 whitespace-pre-wrap">
+              {renderInlineDiffBlock(group.remove, group.add, 'remove')}
             </div>
           )}
           {group.add && (
             <div
               className={`px-2 py-1 rounded whitespace-pre-wrap ${
-                isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-green-700'
+                isConfirmed === false ? 'bg-gray-100 text-gray-400' : 'bg-green-50 text-gray-700'
               }`}
             >
-              <HighlightNumbers text={group.add} active={addActive} />
+              {renderInlineDiffBlock(group.add, group.remove, 'add', addActive)}
             </div>
           )}
           {group.reason && (
