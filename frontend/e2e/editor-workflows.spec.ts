@@ -616,6 +616,11 @@ test.describe('编辑页工作流', () => {
 
     await expect.poll(() => streamPayload?.message || '').toContain('负责前端开发与性能优化')
     expect(streamPayload?.message).toContain('改得更有结果导向')
+    const quotedContext = page.getByTestId('selected-resume-message-context').last()
+    await expect(quotedContext).toBeVisible()
+    await expect(quotedContext).toContainText('引用的简历内容')
+    await expect(quotedContext).toContainText('负责前端开发与性能优化')
+    await expect(page.getByTestId('selected-resume-message-request').last()).toHaveText('改得更有结果导向')
     await expect(quickEditInput).toBeHidden()
   })
 

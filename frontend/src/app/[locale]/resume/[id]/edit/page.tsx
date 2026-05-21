@@ -161,6 +161,76 @@ function clearResumeSelectionVisualsAfterEvents() {
   window.setTimeout(clearResumeSelectionVisuals, 40)
   window.setTimeout(clearResumeSelectionVisuals, 250)
 }
+/** 描述选区快捷优化消息中的引用内容和用户要求。 */
+interface SelectedResumeUserMessage {
+  selectedText: string
+  userRequest: string
+}
+
+/** 拆出选区快捷优化消息，保留发送给 Agent 的原始文本协议。 */
+function parseSelectedResumeUserMessage(content: string): SelectedResumeUserMessage | null {
+  const selectedPrefix = '选中的简历内容：\n'
+  if (!content.startsWith(selectedPrefix)) return null
+
+  const separator = '\n\n用户要求：\n'
+  const body = content.slice(selectedPrefix.length)
+  const separatorIndex = body.indexOf(separator)
+  if (separatorIndex === -1) {
+    return { selectedText: body.trim(), userRequest: '' }
+  }
+
+  return {
+    selectedText: body.slice(0, separatorIndex).trim(),
+    userRequest: body.slice(separatorIndex + separator.length).trim(),
+  }
+}
+
+/** 渲染用户消息，把选中简历内容降级为引用块，把用户要求作为主体。 */
+function UserMessageContent({ content }: { content: string }) {
+  const selectedMessage = parseSelectedResumeUserMessage(content)
+  if (!selectedMessage) {
+    return <span className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">{content}</span>
+  }
+
+  const isContextTruncated = selectedMessage.selectedText.length > 92
+  const previewText = isContextTruncated
+    ? `${selectedMessage.selectedText.slice(0, 92)}…`
+    : selectedMessage.selectedText
+
+  return (
+    <div className="space-y-2 text-left">
+      <details
+        data-testid="selected-resume-message-context"
+        className="group rounded-2xl border border-white/25 bg-white/95 px-3 py-2 text-[#0a0b0d] shadow-sm"
+      >
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <span className="block text-[11px] font-semibold leading-none text-[#0052ff]">
+            引用的简历内容 · {selectedMessage.selectedText.length} 字
+          </span>
+          <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-relaxed text-[#3f4652]">
+            {previewText}
+          </span>
+          {isContextTruncated && (
+            <span className="mt-1 block text-[11px] font-medium text-[#5b616e] group-open:hidden">
+              展开全文
+            </span>
+          )}
+        </summary>
+        <div className="mt-2 border-t border-gray-100 pt-2 text-xs leading-relaxed text-[#3f4652]">
+          <p className="whitespace-pre-wrap break-words">{selectedMessage.selectedText}</p>
+        </div>
+      </details>
+      {selectedMessage.userRequest && (
+        <p
+          data-testid="selected-resume-message-request"
+          className="whitespace-pre-wrap break-words text-[14px] font-medium leading-relaxed"
+        >
+          {selectedMessage.userRequest}
+        </p>
+      )}
+    </div>
+  )
+}
 
 /** 编辑页组件用于组装简历编辑、预览和 Agent 面板。 */
 export default function ResumeEditPage() {
@@ -1040,7 +1110,7 @@ export default function ResumeEditPage() {
                             )}
                           </>
                         ) : (
-                          <span className="text-[14px]">{message.content}</span>
+                          <UserMessageContent content={message.content} />
                         )}
                       </div>
                     </div>
