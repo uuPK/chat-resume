@@ -65,7 +65,7 @@ function groupDiffLines(lines: DiffLine[]): DiffGroup[] {
     }
   }
   if (current) groups.push(current)
-  return groups.map(compactDiffGroup)
+  return groups.map(compactDiffGroup).filter((group) => group.remove || group.add || group.reason)
 }
 
 // 用于分组差异条目。
@@ -74,8 +74,8 @@ function groupDiffItems(items: DiffItem[]): DiffGroup[] {
     .map((item) => {
       const compact = buildCompactObjectDiff(item.before, item.after)
       const group: DiffGroup = compact || {}
-      if (!compact && item.before) group.remove = `- ${item.before}`
-      if (!compact && item.after) group.add = `+ ${item.after}`
+      if (compact === null && item.before) group.remove = `- ${item.before}`
+      if (compact === null && item.after) group.add = `+ ${item.after}`
       if (item.reason) group.reason = item.reason
       return group
     })
@@ -136,7 +136,7 @@ function arrayDelta(source: unknown[], target: unknown[]) {
 }
 
 // 用于把 JSON 对象差异压缩成只包含变化字段的 diff。
-function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGroup | null {
+function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGroup | false | null {
   const before = parseJsonObject(beforeText)
   const after = parseJsonObject(afterText)
   if (!before || !after) return null
@@ -159,7 +159,7 @@ function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGr
     }
   }
 
-  if (removeLines.length === 0 && addLines.length === 0) return null
+  if (removeLines.length === 0 && addLines.length === 0) return false
   return {
     remove: removeLines.length > 0 ? `- ${removeLines.join('\n- ')}` : undefined,
     add: addLines.length > 0 ? `+ ${addLines.join('\n+ ')}` : undefined,
@@ -169,7 +169,8 @@ function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGr
 // 用于压缩已有 diff 分组。
 function compactDiffGroup(group: DiffGroup) {
   const compact = buildCompactObjectDiff(group.remove?.slice(2), group.add?.slice(2))
-  if (!compact) return group
+  if (compact === null) return group
+  if (compact === false) return group.reason ? { reason: group.reason } : {}
   return { ...compact, reason: group.reason }
 }
 

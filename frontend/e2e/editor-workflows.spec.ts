@@ -150,6 +150,11 @@ async function installResumeAgentMock(
       category: '编程语言',
       items: ['Python', 'TypeScript', 'FastAPI', 'Next.js'],
     })
+    const unchangedSkill = JSON.stringify({
+      id: 'skill_same_json',
+      category: '编程语言',
+      items: ['Python', 'TypeScript', 'FastAPI', 'Next.js'],
+    })
 
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
@@ -248,6 +253,11 @@ async function installResumeAgentMock(
                   after: skillAfter,
                   reason: '补充简历中已体现的编程语言和框架',
                 },
+                {
+                  before: unchangedSkill,
+                  after: unchangedSkill,
+                  reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
+                },
               ],
               done: false,
             })
@@ -270,6 +280,11 @@ async function installResumeAgentMock(
                   before: skillBefore,
                   after: skillAfter,
                   reason: '补充简历中已体现的编程语言和框架',
+                },
+                {
+                  before: unchangedSkill,
+                  after: unchangedSkill,
+                  reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
                 },
               ],
               done: false,
@@ -1072,6 +1087,8 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('items: TypeScript、FastAPI、Next.js')).toBeVisible()
     await expect(page.getByText('skill_c10dbc140337')).toHaveCount(0)
     await expect(page.getByText('category: 编程语言')).toHaveCount(0)
+    await expect(page.getByText('skill_same_json')).toHaveCount(0)
+    await expect(page.getByText('精简技能列表，去掉与 Agent 开发核心不直接相关的条目')).toBeVisible()
     await page.getByRole('button', { name: '确认修改' }).click()
 
     await expect(page.getByText('已应用修改。')).toBeVisible()
