@@ -24,14 +24,8 @@ const SECTION_ID_MAP: Record<ResumeModule, string> = {
   skills: 'skills-section',
   projects: 'projects-section'
 }
+const PAGE_CONTENT_WIDTH = A4_WIDTH - PAGE_PADDING * 2
 
-const SECTION_ID_TO_MODULE = Object.entries(SECTION_ID_MAP).reduce(
-  (acc, [moduleType, sectionId]) => {
-    acc[sectionId] = moduleType as ResumeModule
-    return acc
-  },
-  {} as Record<string, ResumeModule>
-)
 
 interface PaginatedResumePreviewProps {
   content: ResumeContent
@@ -207,28 +201,28 @@ export default function PaginatedResumePreview({
     }
   }
 
+  // 用于渲染当前可见模块的完整内容树。
+  const renderVisibleModules = () => visibleModules.map((module) => {
+    const sectionElement = renderModule(module.type)
+    if (!sectionElement) {
+      return null
+    }
+    return React.cloneElement(sectionElement, { key: module.type })
+  })
+
+
   // 渲染所有内容用于正式分页测量
   const paginationMeasurementContent = useMemo(() => (
     <div
       ref={contentRef}
       className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
-        width: `${A4_WIDTH}px`,
-        paddingTop: `${PAGE_PADDING * spacingScale}px`,
-        paddingBottom: `${PAGE_PADDING * spacingScale}px`,
-        paddingLeft: `${PAGE_PADDING}px`,
-        paddingRight: `${PAGE_PADDING}px`,
+        width: `${PAGE_CONTENT_WIDTH}px`,
         boxSizing: 'border-box',
         ['--spacing-scale' as string]: String(spacingScale)
       }}
     >
-      {visibleModules.map((module) => {
-        const sectionElement = renderModule(module.type)
-        if (!sectionElement) {
-          return null
-        }
-        return React.cloneElement(sectionElement, { key: module.type })
-      })}
+      {renderVisibleModules()}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle])
@@ -239,70 +233,35 @@ export default function PaginatedResumePreview({
       ref={smartFitContentRef}
       className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
-        width: `${A4_WIDTH}px`,
-        paddingTop: `${PAGE_PADDING * measureScale}px`,
-        paddingBottom: `${PAGE_PADDING * measureScale}px`,
-        paddingLeft: `${PAGE_PADDING}px`,
-        paddingRight: `${PAGE_PADDING}px`,
+        width: `${PAGE_CONTENT_WIDTH}px`,
         boxSizing: 'border-box',
         ['--spacing-scale' as string]: String(measureScale)
       }}
     >
-      {visibleModules.map((module) => {
-        const sectionElement = renderModule(module.type)
-        if (!sectionElement) {
-          return null
-        }
-        return React.cloneElement(sectionElement, { key: module.type })
-      })}
+      {renderVisibleModules()}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [content, visibleModules, moduleOrderKey, measureScale, templateStyle])
 
-  // 根据分页信息渲染页面内容
-  const renderPageContent = (pageIndex: number) => {
+  // 用于按行断点渲染页面切片。
+  const renderPageSlice = (pageIndex: number) => {
     const page = pages[pageIndex]
     if (!page || page.lines.length === 0) {
       return null
     }
 
-    // 按section分组行
-    const linesBySection = page.lines.reduce((acc, line) => {
-      if (!acc[line.sectionType]) {
-        acc[line.sectionType] = []
-      }
-      acc[line.sectionType].push(line.lineIndex)
-      return acc
-    }, {} as Record<string, number[]>)
-
-    // 渲染每个section
-    const orderedSectionIds = visibleModules
-      .map(module => SECTION_ID_MAP[module.type])
-      .filter(sectionId => sectionId && linesBySection[sectionId])
-
-    const remainingSectionIds = Object.keys(linesBySection).filter(
-      sectionId => !orderedSectionIds.includes(sectionId)
+    return (
+      <div
+        className={`resume-template-${templateStyle} absolute left-0 top-0`}
+        style={{
+          width: `${PAGE_CONTENT_WIDTH}px`,
+          transform: `translateY(-${page.startOffset}px)`,
+          ['--spacing-scale' as string]: String(spacingScale),
+        }}
+      >
+        {renderVisibleModules()}
+      </div>
     )
-
-    const finalSectionOrder = [...orderedSectionIds, ...remainingSectionIds]
-
-    return finalSectionOrder
-      .map(sectionId => {
-        const moduleType = SECTION_ID_TO_MODULE[sectionId]
-        const lineIndices = linesBySection[sectionId]
-
-        if (!moduleType || !lineIndices) {
-          return null
-        }
-
-        const sectionElement = renderModule(moduleType, lineIndices)
-        if (!sectionElement) {
-          return null
-        }
-
-        return React.cloneElement(sectionElement, { key: sectionId })
-      })
-      .filter(Boolean)
   }
 
   // 检查是否有任何内容
@@ -360,7 +319,7 @@ export default function PaginatedResumePreview({
                   className="print:break-after-page"
                   templateStyle={templateStyle}
                 >
-                  {renderPageContent(pageIndex)}
+                  {renderPageSlice(pageIndex)}
                 </ResumePage>
               ))}
             </div>
@@ -381,12 +340,8 @@ export default function PaginatedResumePreview({
               }}
             >
               <ResumePage pageNumber={1} totalPages={1} templateStyle={templateStyle}>
-                <div className="space-y-6">
-                  {visibleModules.map((module) => (
-                    <React.Fragment key={module.type}>
-                      {renderModule(module.type)}
-                    </React.Fragment>
-                  ))}
+                <div>
+                  {renderVisibleModules()}
                 </div>
               </ResumePage>
             </div>

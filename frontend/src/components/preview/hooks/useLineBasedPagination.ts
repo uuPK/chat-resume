@@ -6,11 +6,17 @@ export const A4_HEIGHT = Math.round(A4_WIDTH * 297 / 210) // 1154px，按210:297
 export const PAGE_PADDING = 40
 export const SAFETY_MARGIN = 20 // 容错余量，防止累计误差导致内容被切
 
-// 可渲染的行元素类型
+const LINE_BOX_TOLERANCE = 2
+const MIN_VISIBLE_RECT_SIZE = 0.5
+
+// 可渲染的视觉行元素类型
 export interface RenderableLine {
   id: string
   sectionType: string
   lineIndex: number
+  visualIndex: number
+  top: number
+  bottom: number
   height: number
   element: HTMLElement
 }
@@ -19,69 +25,98 @@ export interface RenderableLine {
 export interface PageContent {
   lines: RenderableLine[]
   height: number
+  startOffset: number
+  endOffset: number
 }
 
-// 用于测量renderable行。
+interface VisualLineBox {
+  top: number
+  bottom: number
+}
+
+// 用于合并同一视觉行上的多个文本矩形。
+function mergeLineBox(boxes: VisualLineBox[], top: number, bottom: number) {
+  const existing = boxes.find(box => Math.abs(box.top - top) <= LINE_BOX_TOLERANCE)
+  if (!existing) {
+    boxes.push({ top, bottom })
+    return
+  }
+
+  existing.top = Math.min(existing.top, top)
+  existing.bottom = Math.max(existing.bottom, bottom)
+}
+
+// 用于读取元素内每一条真实换行后的视觉文本行。
+function measureElementLineBoxes(element: HTMLElement, contentTop: number): VisualLineBox[] {
+  const boxes: VisualLineBox[] = []
+  const range = document.createRange()
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const elementRect = element.getBoundingClientRect()
+  let node = walker.nextNode()
+
+  while (node) {
+    const text = node.textContent?.trim()
+    if (text) {
+      range.selectNodeContents(node)
+      Array.from(range.getClientRects()).forEach((rect) => {
+        if (rect.width > MIN_VISIBLE_RECT_SIZE && rect.height > MIN_VISIBLE_RECT_SIZE) {
+          mergeLineBox(boxes, rect.top - contentTop, rect.bottom - contentTop)
+        }
+      })
+    }
+    node = walker.nextNode()
+  }
+
+  range.detach()
+  if (boxes.length === 0) {
+    return [{ top: elementRect.top - contentTop, bottom: elementRect.bottom - contentTop }]
+  }
+
+  boxes.sort((a, b) => a.top - b.top)
+  boxes[0].top = Math.min(boxes[0].top, elementRect.top - contentTop)
+  boxes[boxes.length - 1].bottom = Math.max(boxes[boxes.length - 1].bottom, elementRect.bottom - contentTop)
+  return boxes
+}
+
+// 用于测量真实视觉行，长项目不会再被当成不可拆分的大块。
 export function measureRenderableLines(contentElement: HTMLElement | null): RenderableLine[] {
   if (!contentElement) return []
 
-  const lines: RenderableLine[] = []
-  const sections = contentElement.children
+  const contentTop = contentElement.getBoundingClientRect().top
+  const measuredLines: RenderableLine[] = []
+  const lineElements = contentElement.querySelectorAll('[data-line-index]')
 
-  for (let i = 0; i < sections.length; i++) {
-    const section = sections[i] as HTMLElement
-    const sectionId = section.getAttribute('data-section-id') || `section-${i}`
-
-    // 计算 section 级别的额外间距（section wrapper + inner div 的 margin-bottom）
-    // 这部分加在该 section 最后一行上，让分页器感知到 section 之间的真实间隔
-    const sectionStyle = window.getComputedStyle(section)
-    const sectionMarginBottom = parseFloat(sectionStyle.marginBottom) || 0
-
-    // inner div 的 marginBottom（section 组件自身的外层 div）
-    const firstChild = section.firstElementChild as HTMLElement | null
-    const innerDivMarginBottom = firstChild
-      ? (parseFloat(window.getComputedStyle(firstChild).marginBottom) || 0)
-      : 0
-
-    // 获取 section 下的所有可分页行元素
-    const lineElements = section.querySelectorAll('[data-line-index]')
-    const sectionLines: RenderableLine[] = []
-
-    for (let j = 0; j < lineElements.length; j++) {
-      const lineElement = lineElements[j] as HTMLElement
-      const lineIndex = parseInt(lineElement.getAttribute('data-line-index') || '0')
-
-      if (lineElement.offsetHeight > 0) {
-        // 将该行自身的 marginBottom 纳入高度，避免低估行间距
-        const elMarginBottom = parseFloat(window.getComputedStyle(lineElement).marginBottom) || 0
-        sectionLines.push({
-          id: `${sectionId}-line-${lineIndex}`,
-          sectionType: sectionId,
-          lineIndex,
-          height: lineElement.offsetHeight + elMarginBottom,
-          element: lineElement
-        })
-      }
+  lineElements.forEach((lineElement, lineElementIndex) => {
+    const element = lineElement as HTMLElement
+    const section = element.closest('[data-section-id]') as HTMLElement | null
+    const sectionType = section?.getAttribute('data-section-id') || `section-${lineElementIndex}`
+    const lineIndex = parseInt(element.getAttribute('data-line-index') || '0', 10)
+    const elementRect = element.getBoundingClientRect()
+    if (elementRect.width <= MIN_VISIBLE_RECT_SIZE || elementRect.height <= MIN_VISIBLE_RECT_SIZE) {
+      return
     }
 
-    // 将 section 级别的额外间距加到该 section 最后一行上
-    // CSS margin collapse: 最后一行的 marginBottom、innerDiv 的 marginBottom、section 的 marginBottom
-    // 三者之间发生折叠，实际间距为三者的最大值，而非相加
-    if (sectionLines.length > 0) {
-      const lastLine = sectionLines[sectionLines.length - 1]
-      const lastLineEl = lastLine.element
-      const lastLineElMarginBottom = parseFloat(window.getComputedStyle(lastLineEl).marginBottom) || 0
-      // 折叠后的实际间距
-      const collapsedGap = Math.max(lastLineElMarginBottom, innerDivMarginBottom, sectionMarginBottom)
-      // 已在循环中计入了 lastLineElMarginBottom，这里只补充差额
-      const additionalOverhead = collapsedGap - lastLineElMarginBottom
-      lastLine.height += additionalOverhead
-    }
 
-    lines.push(...sectionLines)
-  }
+    measureElementLineBoxes(element, contentTop).forEach((box, visualIndex) => {
+      measuredLines.push({
+        id: `${sectionType}-line-${lineIndex}-${visualIndex}`,
+        sectionType,
+        lineIndex,
+        visualIndex,
+        top: box.top,
+        bottom: box.bottom,
+        height: box.bottom - box.top,
+        element,
+      })
+    })
+  })
 
-  return lines
+  measuredLines.sort((a, b) => a.top - b.top)
+  return measuredLines.map((line, index) => {
+    const nextLine = measuredLines[index + 1]
+    const end = nextLine?.top ?? Math.max(line.bottom, contentElement.scrollHeight)
+    return { ...line, height: Math.max(end - line.top, line.bottom - line.top) }
+  })
 }
 
 interface LineBasedPaginationOptions {
@@ -105,45 +140,41 @@ export function useLineBasedPagination({
   const [isCalculating, setIsCalculating] = useState(false)
   const calculationTimeoutRef = useRef<NodeJS.Timeout>()
 
-  // 测量所有可分页的行元素
-  // 注意：offsetHeight 不含 margin，需手动加上 marginBottom 避免分页高度低估导致内容被 overflow-hidden 裁掉
+  // 测量所有可分页的视觉行元素。
   const measureLines = useCallback((): RenderableLine[] => {
     return measureRenderableLines(contentRef.current)
   }, [contentRef])
 
-  // 贪心分页算法：按行填充页面
+  // 按视觉行坐标分页，断点始终落在下一行开始处。
   const calculatePages = useCallback((lines: RenderableLine[]): PageContent[] => {
     if (lines.length === 0) {
-      return [{ lines: [], height: 0 }]
+      return [{ lines: [], height: 0, startOffset: 0, endOffset: 0 }]
     }
 
     const pages: PageContent[] = []
-    let currentPage: PageContent = { lines: [], height: 0 }
+    let startIndex = 0
 
-    for (const line of lines) {
-      const projectedHeight = currentPage.height + line.height
+    while (startIndex < lines.length) {
+      const pageStart = lines[startIndex].top
+      const pageLimit = pageStart + effectivePageHeight
+      let endIndex = startIndex
 
-      // 如果当前页为空，必须放入（避免空页）
-      // 如果可以容纳，则加入当前页
-      if (currentPage.lines.length === 0 || projectedHeight <= effectivePageHeight) {
-        currentPage.lines.push(line)
-        currentPage.height = projectedHeight
-      } else {
-        // 当前页已满，创建新页
-        pages.push(currentPage)
-        currentPage = {
-          lines: [line],
-          height: line.height
-        }
+      while (endIndex + 1 < lines.length && lines[endIndex + 1].bottom <= pageLimit) {
+        endIndex += 1
       }
+
+      const pageLines = lines.slice(startIndex, endIndex + 1)
+      const lastLine = pageLines[pageLines.length - 1]
+      pages.push({
+        lines: pageLines,
+        height: Math.max(lastLine.bottom - pageStart, 0),
+        startOffset: pageStart,
+        endOffset: lastLine.bottom,
+      })
+      startIndex = endIndex + 1
     }
 
-    // 添加最后一页
-    if (currentPage.lines.length > 0) {
-      pages.push(currentPage)
-    }
-
-    return pages.length > 0 ? pages : [{ lines: [], height: 0 }]
+    return pages.length > 0 ? pages : [{ lines: [], height: 0, startOffset: 0, endOffset: 0 }]
   }, [effectivePageHeight])
 
   // 重新计算分页
@@ -172,7 +203,7 @@ export function useLineBasedPagination({
       setContentHeight(totalHeight)
     } catch (error) {
       console.error('Pagination calculation error:', error)
-      setPages([{ lines: [], height: 0 }])
+      setPages([{ lines: [], height: 0, startOffset: 0, endOffset: 0 }])
       setTotalPages(1)
     } finally {
       setIsCalculating(false)

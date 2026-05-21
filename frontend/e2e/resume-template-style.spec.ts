@@ -167,4 +167,67 @@ test.describe('简历模板样式', () => {
     await expect(pageSheet).toContainText('GitHub: https://github.com/849261680')
     await expect(pageSheet).toContainText('个人网站: https://psx1.vercel.app')
   })
+
+  test('分页断点落在文字行上，避免页尾大块空白', async ({ page }) => {
+    const longText = '针对复杂项目经历描述较长时的换行场景，分页器应该继续把下一条可见文字行排到当前页底部，而不是把整个项目块推到下一页造成大块空白。'
+    const payload = encodePrintPayload({
+      template: 'formal',
+      content: {
+        personal_info: {
+          name: '分页测试',
+          email: 'page-break@example.com',
+        },
+        education: [],
+        skills: [],
+        work_experience: [],
+        projects: Array.from({ length: 7 }, (_, index) => ({
+          name: `分页项目 ${index + 1}`,
+          role: '核心开发者',
+          duration: `2025.0${index + 1}-2025.0${index + 2}`,
+          demo_url: 'https://example.com/demo',
+          github_url: 'https://github.com/example/resume-pagination',
+          overview: longText,
+          highlights: [
+            { text: `${longText} 第一条成果覆盖搜索、匹配和建议闭环。` },
+            { text: `${longText} 第二条成果覆盖多轮对话和结构化输出。` },
+            { text: `${longText} 第三条成果覆盖成本控制和稳定性。` },
+            { text: `${longText} 第四条成果覆盖实时反馈和报告生成。` },
+          ],
+        })),
+      },
+    })
+
+    await page.goto(`/resume/print?data=${payload}`)
+    await expect.poll(async () => page.locator('.resume-page').count()).toBeGreaterThan(1)
+
+    const firstPageBottomGap = await page.locator('.resume-page').first().evaluate((pageElement) => {
+      const pageBox = pageElement.getBoundingClientRect()
+      const styles = window.getComputedStyle(pageElement)
+      const scaleY = pageBox.height / (pageElement as HTMLElement).offsetHeight
+      const contentTop = pageBox.top + (parseFloat(styles.paddingTop) || 0) * scaleY
+      const contentBottom = pageBox.bottom - (parseFloat(styles.paddingBottom) || 0) * scaleY
+      const walker = document.createTreeWalker(pageElement, NodeFilter.SHOW_TEXT)
+      const range = document.createRange()
+      let maxBottom = contentTop
+      let node = walker.nextNode()
+
+      while (node) {
+        if (node.textContent?.trim()) {
+          range.selectNodeContents(node)
+          Array.from(range.getClientRects()).forEach((rect) => {
+            const intersectsPage = rect.bottom > contentTop && rect.top < contentBottom
+            if (intersectsPage) {
+              maxBottom = Math.max(maxBottom, Math.min(rect.bottom, contentBottom))
+            }
+          })
+        }
+        node = walker.nextNode()
+      }
+
+      range.detach()
+      return (contentBottom - maxBottom) / scaleY
+    })
+
+    expect(firstPageBottomGap).toBeLessThan(90)
+  })
 })
