@@ -165,6 +165,10 @@ async function installResumeAgentMock(
       id: 'bullet_text_json',
       text: '集成 Tavily Search API 实现实时联网搜索，为研究报告提供多源、时效性强的信息支撑，确保输出内容的准确性和时效性',
     })
+    const newBulletAfter = JSON.stringify({
+      id: 'work_new_json',
+      text: '在提示词中引入 few-shot 策略，针对销售场景中的特定任务优化 Agent 输出质量，提升任务完成准确率',
+    })
     const baseDiffItems = [
       {
         before: '负责前端开发',
@@ -190,6 +194,11 @@ async function installResumeAgentMock(
         before: textFieldBefore,
         after: textFieldAfter,
         reason: '补充联网搜索对研究报告质量和时效性的价值',
+      },
+      {
+        before: '（新增）',
+        after: newBulletAfter,
+        reason: '拆分 few-shot 策略为独立 bullet 并突出任务表现提升',
       },
     ]
     const extraDiffItems = Array.from({ length: extraDiffItemCount || 0 }, (_, index) => ({
@@ -1147,6 +1156,9 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('精简：Few-shot Prompting 并入 Context Engineering')).toBeVisible()
     await expect(page.getByText('集成 Tavily Search API 实现实时联网搜索')).toBeVisible()
     await expect(page.getByText(/text:/)).toHaveCount(0)
+    await expect(page.getByText('在提示词中引入 few-shot 策略')).toBeVisible()
+    await expect(page.getByText('work_new_json')).toHaveCount(0)
+    await expect(page.getByText('（新增）')).toHaveCount(0)
     await page.getByRole('button', { name: '确认修改' }).click()
 
     await expect(page.getByText('已应用修改。')).toBeVisible()

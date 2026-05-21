@@ -73,10 +73,12 @@ function groupDiffLines(lines: DiffLine[]): DiffGroup[] {
 function groupDiffItems(items: DiffItem[]): DiffGroup[] {
   return items
     .map((item) => {
-      const compact = buildCompactObjectDiff(item.before, item.after)
+      const before = normalizeDiffSide(item.before, 'before')
+      const after = normalizeDiffSide(item.after, 'after')
+      const compact = buildCompactObjectDiff(before, after)
       const group: DiffGroup = compact || {}
-      if (compact === null && item.before) group.remove = `- ${item.before}`
-      if (compact === null && item.after) group.add = `+ ${item.after}`
+      if (compact === null && before) group.remove = `- ${formatStandaloneDiffText(before)}`
+      if (compact === null && after) group.add = `+ ${formatStandaloneDiffText(after)}`
       if (item.reason) group.reason = item.reason
       return group
     })
@@ -109,6 +111,16 @@ function parseJsonObject(text?: string) {
   }
 }
 
+// 用于移除新增/删除占位符，避免把元信息渲染成真实改动。
+function normalizeDiffSide(text: string | undefined, side: 'before' | 'after') {
+  const trimmed = text?.trim()
+  if (!trimmed) return undefined
+  if (side === 'before' && trimmed === DIFF_CREATED_MARKER) return undefined
+  if (side === 'after' && trimmed === DIFF_DELETED_MARKER) return undefined
+  return trimmed
+}
+
+
 // 用于生成稳定的值比较键。
 function valueKey(value: unknown) {
   return typeof value === 'string' ? `s:${value}` : JSON.stringify(value)
@@ -125,6 +137,17 @@ function formatDiffValue(value: unknown) {
 function formatObjectDiffLine(key: string, value: unknown) {
   const text = formatDiffValue(value)
   return key === 'items' || key === 'category' || key === 'text' ? text : `${key}: ${text}`
+}
+
+// 用于格式化单侧 JSON diff，只展示用户可读字段。
+function formatStandaloneDiffText(text: string) {
+  const record = parseJsonObject(text)
+  if (!record) return text
+  const visibleLines = Object.keys(record)
+    .filter((key) => key !== 'id' && key !== '_id')
+    .map((key) => formatObjectDiffLine(key, record[key]))
+    .filter(Boolean)
+  return visibleLines.length > 0 ? visibleLines.join('\n') : text
 }
 
 
