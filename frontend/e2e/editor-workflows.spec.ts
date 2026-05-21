@@ -140,6 +140,16 @@ async function installResumeAgentMock(
       '改后：主导前端重构，首屏加载提速 35%',
       '改动理由：补充量化结果',
     ].join('\n')
+    const skillBefore = JSON.stringify({
+      _id: 'skill_c10dbc140337',
+      category: '编程语言',
+      items: ['Python'],
+    })
+    const skillAfter = JSON.stringify({
+      _id: 'skill_c10dbc140337',
+      category: '编程语言',
+      items: ['Python', 'TypeScript', 'FastAPI', 'Next.js'],
+    })
 
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
@@ -233,6 +243,11 @@ async function installResumeAgentMock(
                   after: '主导前端重构，首屏加载提速 35%',
                   reason: '补充量化结果',
                 },
+                {
+                  before: skillBefore,
+                  after: skillAfter,
+                  reason: '补充简历中已体现的编程语言和框架',
+                },
               ],
               done: false,
             })
@@ -250,6 +265,11 @@ async function installResumeAgentMock(
                   before: '负责前端开发',
                   after: '主导前端重构，首屏加载提速 35%',
                   reason: '补充量化结果',
+                },
+                {
+                  before: skillBefore,
+                  after: skillAfter,
+                  reason: '补充简历中已体现的编程语言和框架',
                 },
               ],
               done: false,
@@ -1049,6 +1069,9 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('工具运行中')).toBeVisible()
     await expect(page.locator('span').filter({ hasText: /^优化项目经历$/ }).first()).toBeVisible()
     await expect(page.getByText('主导前端重构，首屏加载提速 35%')).toBeVisible()
+    await expect(page.getByText('items: TypeScript、FastAPI、Next.js')).toBeVisible()
+    await expect(page.getByText('skill_c10dbc140337')).toHaveCount(0)
+    await expect(page.getByText('category: 编程语言')).toHaveCount(0)
     await page.getByRole('button', { name: '确认修改' }).click()
 
     await expect(page.getByText('已应用修改。')).toBeVisible()
