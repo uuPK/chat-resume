@@ -84,3 +84,12 @@ test('切换简历样式时预览不会先放大再缩回', async ({ page }) => 
   const maxWidth = Math.max(...samples)
   expect(maxWidth).toBeLessThan((beforeBox?.width || 0) * 1.05)
 })
+
+test('绿页眉样式卡片展示绿色页眉缩略预览', async ({ page }) => {
+  await mockEditorApis(page)
+  await page.goto('/zh/resume/123/edit')
+
+  await page.getByRole('button', { name: '简历设置' }).click()
+  const emeraldOption = page.getByRole('button', { name: '绿页眉' })
+  await expect(emeraldOption.locator('[data-testid="template-preview-header"]')).toHaveCSS('background-color', 'rgb(5, 150, 105)')
+})
