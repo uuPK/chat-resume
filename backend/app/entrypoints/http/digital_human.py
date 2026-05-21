@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from typing import NoReturn
+from typing import Any, NoReturn
 from fastapi import (
     APIRouter,
     Depends,
@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 _WS_POLICY_VIOLATION = status.WS_1008_POLICY_VIOLATION
 _INTERVIEWER_PROMPT = load_prompt("interviewer_agent")
+_VOLCENGINE_SYSTEM_ROLE_MAX_CHARS = 4000
+_VOLCENGINE_RESUME_CONTEXT_CHARS = 700
+_VOLCENGINE_JD_CONTEXT_CHARS = 700
+_VOLCENGINE_HISTORY_CONTEXT_CHARS = 900
+_VOLCENGINE_PLAN_CONTEXT_CHARS = 600
 
 
 class DigitalHumanCreateRequest(BaseModel):
@@ -105,6 +110,7 @@ def _render_interviewer_prompt(
     jd_text: str,
     resume_text: str = "",
     interview_history: str = "",
+    interview_plan: str = "",
 ) -> str:
     """用于从文件模板渲染模拟面试官系统提示词。"""
     return _INTERVIEWER_PROMPT.render(
@@ -116,6 +122,7 @@ def _render_interviewer_prompt(
         jd_text=jd_text,
         resume_text=resume_text,
         interview_history=interview_history,
+        interview_plan=interview_plan,
     )
 
 
@@ -234,6 +241,7 @@ def _build_volcengine_system_role(
     jd_text: str,
     resume_text: str = "",
     interview_history: str = "",
+    interview_plan: str = "",
 ) -> str:
     """用于构建火山引擎 O 版本的 system_role。"""
     return _render_interviewer_prompt(
@@ -241,10 +249,41 @@ def _build_volcengine_system_role(
         target_company=target_company,
         language=language,
         difficulty=difficulty,
-        jd_text=jd_text[:2000],
-        resume_text=resume_text[:2000],
-        interview_history=interview_history[:3000],
+        jd_text=jd_text[:_VOLCENGINE_JD_CONTEXT_CHARS],
+        interview_plan=interview_plan[:_VOLCENGINE_PLAN_CONTEXT_CHARS],
+        resume_text=resume_text[:_VOLCENGINE_RESUME_CONTEXT_CHARS],
+        interview_history=interview_history[:_VOLCENGINE_HISTORY_CONTEXT_CHARS],
+    ).strip()[:_VOLCENGINE_SYSTEM_ROLE_MAX_CHARS]
+
+
+def _build_interview_plan_context(plan: Any) -> str:
+    """把结构化面试计划压缩成实时模型可读的短上下文。"""
+    if not isinstance(plan, dict):
+        return ""
+    dimensions = (
+        plan.get("dimensions") if isinstance(plan.get("dimensions"), list) else []
     )
+    stages = plan.get("stages") if isinstance(plan.get("stages"), list) else []
+    claims = (
+        plan.get("resume_claims") if isinstance(plan.get("resume_claims"), list) else []
+    )
+    lines: list[str] = []
+    if dimensions:
+        lines.append("评分维度：" + "、".join(str(item) for item in dimensions[:6]))
+    if stages:
+        names = [
+            str(stage.get("name"))
+            for stage in stages[:5]
+            if isinstance(stage, dict) and stage.get("name")
+        ]
+        if names:
+            lines.append("阶段：" + " -> ".join(names))
+    if claims:
+        lines.append("重点核验简历主张：" + "；".join(str(item) for item in claims[:3]))
+    jd_focus = str(plan.get("jd_focus") or "")
+    if jd_focus:
+        lines.append("JD 重点：" + jd_focus[:160])
+    return "\n".join(lines)
 
 
 def _build_interview_history(turns: list[InterviewTurn]) -> str:
@@ -315,6 +354,7 @@ async def voice_session_ws(
             jd_text=interview_session.jd_text or "",
             resume_text=resume_text,
             interview_history=_build_interview_history(existing_turns),
+            interview_plan=_build_interview_plan_context(interview_session.plan_json),
         )
         if not existing_turns:
             greeting = _build_greeting(

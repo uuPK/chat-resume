@@ -13,4 +13,5 @@ agent:
     jd_text: ""
     resume_text: ""
     interview_history: ""
+    interview_plan: ""
   model_defaults: {}

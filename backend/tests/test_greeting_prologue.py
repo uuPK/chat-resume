@@ -113,10 +113,59 @@ def test_build_volcengine_system_role_uses_interviewer_prompt():
 
     assert "中文模拟面试官" in text
     assert "后端工程师" in text
-    assert "候选人简历信息：\n候选人姓名：张三" in text
-    assert "岗位 JD 信息：\n负责高并发服务" in text
+    assert "候选人简历摘要：\n候选人姓名：张三" in text
+    assert "岗位 JD 摘要：\n负责高并发服务" in text
     assert "不要重复开场白" in text
 
+
+def test_build_volcengine_system_role_contains_interview_operating_rules():
+    """豆包 system_role 应约束面试官追问、控节奏和避免教学。"""
+    text = _build_volcengine_system_role(
+        target_title="后端工程师",
+        target_company="字节跳动",
+        language="zh-CN",
+        difficulty="hard",
+        jd_text="要求熟悉缓存、消息队列和高并发服务",
+        resume_text="项目经历：订单系统重构，负责性能优化",
+        interview_history="面试官：请介绍订单系统\n候选人：我做了很多优化",
+    )
+
+    assert "每次只问一个问题" in text
+    assert "同一主题最多连续追问 3 轮" in text
+    assert "缺少量化结果" in text
+    assert "不要替候选人回答" in text
+    assert "避免重复已经问过的问题" in text
+
+
+def test_build_volcengine_system_role_keeps_context_within_provider_limit():
+    """豆包 system_role 应先压缩上下文，避免供应商截断关键规则。"""
+    text = _build_volcengine_system_role(
+        target_title="后端工程师",
+        target_company="字节跳动",
+        language="zh-CN",
+        difficulty="hard",
+        jd_text="JD" * 3000,
+        resume_text="简历" * 3000,
+        interview_history="历史" * 3000,
+    )
+
+    assert len(text) <= 4000
+    assert "每次只问一个问题" in text
+
+def test_build_volcengine_system_role_includes_interview_plan():
+    """豆包 system_role 应包含后端生成的面试计划。"""
+    text = _build_volcengine_system_role(
+        target_title="后端工程师",
+        target_company="字节跳动",
+        language="zh-CN",
+        difficulty="medium",
+        jd_text="",
+        interview_plan="阶段：简历项目深挖；重点：技术取舍、量化结果",
+    )
+
+    assert "面试计划" in text
+    assert "简历项目深挖" in text
+    assert "技术取舍" in text
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 import struct as _struct

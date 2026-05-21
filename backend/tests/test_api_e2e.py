@@ -2516,6 +2516,7 @@ class TestInterviewSessions:
                 "resume_id": self.resume_id,
                 "interview_type": "general",
                 "difficulty": "medium",
+                "jd_text": "要求熟悉高并发服务、缓存和消息队列",
             },
             headers=self.headers,
         )
@@ -2527,6 +2528,11 @@ class TestInterviewSessions:
         assert created["session"]["target_company"] == "测试公司"
         assert created["session"]["target_title"] == "后端工程师"
         assert created["session"]["turns"] == []
+        plan = created["session"]["plan"]
+        assert plan["target_role"] == "后端工程师"
+        assert "项目真实性" in plan["dimensions"]
+        assert plan["stages"][1]["name"] == "简历项目深挖"
+        assert "高并发" in plan["jd_focus"]
         assert created["session"]["current_turn"] is None
 
         end_resp = self.client.post(

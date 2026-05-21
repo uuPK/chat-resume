@@ -19,6 +19,87 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_INTERVIEW_PLAN_DIMENSIONS = [
+    "岗位匹配度",
+    "项目真实性",
+    "技术深度",
+    "表达结构",
+    "风险点",
+]
+
+_INTERVIEW_PLAN_STAGES = [
+    {
+        "name": "开场和目标确认",
+        "goal": "确认候选人目标岗位和最相关经历",
+        "max_turns": 1,
+    },
+    {
+        "name": "简历项目深挖",
+        "goal": "验证简历主张、个人贡献、技术取舍和量化结果",
+        "max_turns": 4,
+    },
+    {
+        "name": "JD 能力匹配",
+        "goal": "围绕岗位要求检查必备能力和迁移经验",
+        "max_turns": 3,
+    },
+    {
+        "name": "行为面试",
+        "goal": "检查协作、冲突处理、抗压和复盘能力",
+        "max_turns": 2,
+    },
+]
+
+
+def _coerce_text(value: Any) -> str:
+    """把简历字段转成可放入面试计划的短文本。"""
+    if isinstance(value, list):
+        return "；".join(str(item) for item in value if item)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _collect_resume_claims(resume_content: dict[str, Any]) -> list[str]:
+    """从简历中抽取需要面试官验证的项目和经历主张。"""
+    claims: list[str] = []
+    for item in (resume_content.get("work_experience") or [])[:3]:
+        title = _coerce_text(item.get("title") or item.get("position"))
+        desc = _coerce_text(item.get("description") or item.get("responsibilities"))
+        claim = " | ".join(part for part in [title, desc[:120]] if part)
+        if claim:
+            claims.append(claim)
+    for item in (resume_content.get("projects") or [])[:3]:
+        name = _coerce_text(item.get("name"))
+        desc = _coerce_text(item.get("description"))[:120]
+        claim = " | ".join(part for part in [name, desc] if part)
+        if claim:
+            claims.append(claim)
+    return claims[:5]
+
+
+def _build_interview_plan(
+    *,
+    target_title: str,
+    target_company: str,
+    jd_text: str,
+    interview_type: str,
+    difficulty: str,
+    resume_content: dict[str, Any],
+) -> dict[str, Any]:
+    """生成实时面试使用的结构化计划。"""
+    return {
+        "target_role": target_title or "目标岗位",
+        "target_company": target_company or "目标公司",
+        "interview_type": interview_type,
+        "difficulty": difficulty,
+        "dimensions": list(_INTERVIEW_PLAN_DIMENSIONS),
+        "stages": [dict(stage) for stage in _INTERVIEW_PLAN_STAGES],
+        "resume_claims": _collect_resume_claims(resume_content),
+        "jd_focus": jd_text[:400],
+    }
+
+
 def get_resume_for_user(db: Session, resume_id: int, user_id: int):
     """校验用户对目标简历的访问权限。"""
     resume = ResumeService(db).get_by_id(resume_id)
@@ -63,13 +144,18 @@ def create_interview_session(
         else {}
     )
 
+    resolved_title = target_title or str(job_application.get("target_title", "") or "")
+    resolved_company = target_company or str(
+        job_application.get("target_company", "") or ""
+    )
+    resolved_jd = jd_text or str(job_application.get("jd_text", "") or "")
+
     session = InterviewSession(
         user_id=user_id,
         resume_id=resume_id,
-        target_title=target_title or str(job_application.get("target_title", "") or ""),
-        target_company=target_company
-        or str(job_application.get("target_company", "") or ""),
-        jd_text=jd_text or str(job_application.get("jd_text", "") or ""),
+        target_title=resolved_title,
+        target_company=resolved_company,
+        jd_text=resolved_jd,
         interview_type=interview_type,
         difficulty=difficulty,
         language=language,
@@ -77,7 +163,14 @@ def create_interview_session(
         status="interview_ready",
         current_round_index=0,
         current_turn_index=0,
-        plan_json=None,
+        plan_json=_build_interview_plan(
+            target_title=resolved_title,
+            target_company=resolved_company,
+            jd_text=resolved_jd,
+            interview_type=interview_type,
+            difficulty=difficulty,
+            resume_content=resume_content,
+        ),
     )
     db.add(session)
     db.commit()
