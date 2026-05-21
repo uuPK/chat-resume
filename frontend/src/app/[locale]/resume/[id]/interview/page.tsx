@@ -36,6 +36,17 @@ type ConversationMessage = {
   content: string
   isFinal?: boolean
 }
+type LiveMessagesByRole = Partial<Record<ConversationMessage['role'], ConversationMessage>>
+
+// 用于从当前实时消息集合中移除指定角色的临时气泡。
+function withoutLiveMessage(
+  current: LiveMessagesByRole,
+  role: ConversationMessage['role'],
+): LiveMessagesByRole {
+  const { [role]: _removed, ...remaining } = current
+  return remaining
+}
+
 // 用于声明报告生成 SSE 阶段的展示顺序。
 const REPORT_GENERATION_PHASES = [
   { phase: 'validate_session', label: '校验面试状态' },
@@ -92,7 +103,7 @@ function VoicePanel({
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedDeviceId, setSelectedDeviceId] = useState('')
   const [messages, setMessages] = useState<ConversationMessage[]>([])
-  const [liveMessage, setLiveMessage] = useState<ConversationMessage | null>(null)
+  const [liveMessages, setLiveMessages] = useState<LiveMessagesByRole>({})
   const [showDeviceMenu, setShowDeviceMenu] = useState(false)
   const [turnStatus, setTurnStatus] = useState<TurnStatus>('idle')
 
@@ -183,13 +194,16 @@ function VoicePanel({
       : text
 
     liveTextRef.current[role] = nextText
-    setLiveMessage({ id: `${role}-live`, role, content: nextText })
+    setLiveMessages((current) => ({
+      ...current,
+      [role]: { id: `${role}-live`, role, content: nextText },
+    }))
     setTurnStatus(role === 'candidate' ? 'user' : 'interviewer')
 
     if (isFinal) {
       appendMessage(role, liveTextRef.current[role])
       liveTextRef.current[role] = ''
-      setLiveMessage(null)
+      setLiveMessages((current) => withoutLiveMessage(current, role))
     }
   }, [appendMessage, isNoiseTranscript, normalizeTranscriptText])
 
@@ -199,7 +213,7 @@ function VoicePanel({
     }
     appendMessage(role, liveTextRef.current[role])
     liveTextRef.current[role] = ''
-    setLiveMessage((current) => current?.role === role ? null : current)
+    setLiveMessages((current) => withoutLiveMessage(current, role))
   }, [appendMessage, clearCandidateFinalizeTimer])
 
   const handleCandidateText = useCallback((content: string, isFinal = false) => {
@@ -219,7 +233,10 @@ function VoicePanel({
       : `${previousText}${text}`
 
     liveTextRef.current.candidate = nextText
-    setLiveMessage({ id: 'candidate-live', role: 'candidate', content: nextText })
+    setLiveMessages((current) => ({
+      ...current,
+      candidate: { id: 'candidate-live', role: 'candidate', content: nextText },
+    }))
     setTurnStatus('user')
 
     clearCandidateFinalizeTimer()
@@ -307,6 +324,7 @@ function VoicePanel({
     })
 
     setMessages(restoredMessages)
+    setLiveMessages({})
   }, [interviewSession?.turns])
 
   const playPcmChunk = useCallback((pcmBytes: ArrayBuffer) => {
@@ -387,7 +405,7 @@ function VoicePanel({
     userStoppedRef.current = false
     updateStatus('connecting')
     setMessages((current) => (current.length ? current : []))
-    setLiveMessage(null)
+    setLiveMessages({})
     setTurnStatus('idle')
     liveTextRef.current = { candidate: '', interviewer: '' }
 
@@ -538,13 +556,15 @@ function VoicePanel({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, liveMessage])
+  }, [messages, liveMessages])
 
   const micBars = Array.from({ length: 12 }, (_, i) => {
     const threshold = (i + 1) / 12
     return inputLevel * 5 > threshold
   })
-  const hasVisibleInterviewMessages = messages.length > 0 || Boolean(liveMessage)
+  const visibleLiveMessages = [liveMessages.interviewer, liveMessages.candidate]
+    .filter((message): message is ConversationMessage => Boolean(message))
+  const hasVisibleInterviewMessages = messages.length > 0 || visibleLiveMessages.length > 0
   const hasPersistedInterviewHistory = (interviewSession?.turns?.length || 0) > 0
   const hasStartedInterviewSession = Boolean(interviewSession?.started_at)
     || interviewSession?.status === 'in_progress'
@@ -618,13 +638,13 @@ function VoicePanel({
                 {t('connecting')}
               </div>
             </div>
-          ) : messages.length === 0 && !liveMessage ? (
+          ) : messages.length === 0 && visibleLiveMessages.length === 0 ? (
             <div className="h-full" />
           ) : (
             <>
-              {[...messages, ...(liveMessage ? [liveMessage] : [])].map((msg, idx) => {
+              {[...messages, ...visibleLiveMessages].map((msg, idx) => {
                 const isInterviewer = msg.role === 'interviewer'
-                const isLive = msg === liveMessage
+                const isLive = visibleLiveMessages.includes(msg)
                 return (
                   <div
                     key={msg.id}

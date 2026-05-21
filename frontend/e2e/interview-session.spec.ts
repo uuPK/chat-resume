@@ -352,6 +352,89 @@ test('生成报告进度使用后端 SSE 阶段', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
 })
 
+
+test('语音面试候选人回答时不隐藏面试官实时消息', async ({ page }) => {
+  await mockInterviewApis(page)
+  await page.addInitScript(() => {
+    class MockAudioContext {
+      state = 'running'
+      sampleRate = 48000
+
+      async resume() {}
+      async close() { this.state = 'closed' }
+      createBuffer() {
+        return { copyToChannel() {} }
+      }
+      createBufferSource() {
+        return { connect() {}, start() {}, onended: null }
+      }
+      createMediaStreamSource() {
+        return { connect() {}, disconnect() {} }
+      }
+      createScriptProcessor() {
+        return { connect() {}, disconnect() {}, onaudioprocess: null }
+      }
+      createGain() {
+        return { connect() {}, disconnect() {}, gain: { value: 0 } }
+      }
+    }
+
+    const NativeWebSocket = window.WebSocket
+    class MockVoiceWebSocket extends EventTarget {
+      static OPEN = 1
+      readyState = MockVoiceWebSocket.OPEN
+      binaryType = 'arraybuffer'
+      onopen: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onclose: ((event: CloseEvent) => void) | null = null
+
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super()
+        const targetUrl = String(url)
+        if (!targetUrl.includes('/api/digital-human/voice-session/')) {
+          return new NativeWebSocket(url, protocols)
+        }
+        window.setTimeout(() => {
+          this.onopen?.(new Event('open'))
+          this.emit({ type: 'ready' })
+          this.emit({ type: 'event', event: 550, text: '第一段追问', is_final: false, data: {} })
+          this.emit({ type: 'event', event: 451, text: '我的回答', is_final: false, data: { results: [{ text: '我的回答' }] } })
+        }, 0)
+      }
+
+      send() {}
+      close() {
+        this.readyState = 3
+        this.onclose?.(new CloseEvent('close'))
+      }
+      emit(payload: object) {
+        this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(payload) }))
+      }
+    }
+
+    Object.defineProperty(window.navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        enumerateDevices: async () => [],
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop() {} }],
+        }),
+      },
+    })
+    window.AudioContext = MockAudioContext as unknown as typeof AudioContext
+    window.WebSocket = MockVoiceWebSocket as unknown as typeof WebSocket
+  })
+  await page.route(/\/api\/interviews\/456$/, async route => {
+    await route.fulfill({ json: { session: activeSession } })
+  })
+
+  await page.goto('/zh/resume/123/interview?session=456')
+
+  await expect(page.getByText('第一段追问')).toBeVisible()
+  await expect(page.getByText('我的回答')).toBeVisible()
+})
+
 test('completed 面试报告展示行动报告结构', async ({ page }) => {
   await mockInterviewApis(page)
 
