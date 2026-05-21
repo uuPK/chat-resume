@@ -161,3 +161,4 @@
 {"id":"int-7f180758","kind":"field_change","created_at":"2026-05-21T09:12:23.345126Z","actor":"宇宙熊Yzx","issue_id":"cr-os8","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已改为按视觉文本行分页并补充回归测试"}}
 {"id":"int-04dff624","kind":"field_change","created_at":"2026-05-21T09:21:06.50123Z","actor":"宇宙熊Yzx","issue_id":"cr-4yl","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"移除模板切换导致的预览 remount，并补充样式切换尺寸稳定性 E2E"}}
 {"id":"int-4886af6d","kind":"field_change","created_at":"2026-05-21T11:46:15.209122Z","actor":"宇宙熊Yzx","issue_id":"cr-cl1","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已通过样式卡片公开 UI 回归测试修复绿页眉缩略预览"}}
+{"id":"int-d51823c2","kind":"field_change","created_at":"2026-05-21T12:58:09.492096Z","actor":"宇宙熊Yzx","issue_id":"cr-q5m","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Completed"}}
