@@ -1332,8 +1332,9 @@ export default function InterviewPage() {
 
   const handleEndInterview = useCallback(async () => {
     window.__chatResumeVoiceCleanup?.()
-    await endInterview()
-  }, [endInterview])
+    const ended = await endInterview()
+    if (ended) router.push('/interviews')
+  }, [endInterview, router])
 
   const handleGenerateReport = useCallback(async () => {
     await generateReport()

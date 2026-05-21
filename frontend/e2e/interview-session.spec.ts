@@ -206,7 +206,7 @@ async function mockInterviewApis(page: Page) {
   })
 }
 
-test('结束面试会把 session 标记为 completed 并显示报告入口', async ({ page }) => {
+test('结束面试会把 session 标记为 completed 并返回面试列表', async ({ page }) => {
   await mockInterviewApis(page)
 
   await page.route(/\/api\/interviews\/456$/, async route => {
@@ -214,6 +214,19 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   })
   await page.route(/\/api\/interviews\/456\/end$/, async route => {
     await route.fulfill({ json: { session: completedSession, next_action: 'completed' } })
+  })
+  await page.route('**/api/resumes/', async route => {
+    await route.fulfill({ json: [resume] })
+  })
+  await page.route('**/api/interviews/', async route => {
+    await route.fulfill({
+      json: [
+        {
+          ...completedSession,
+          answered_turn_count: 1,
+        },
+      ],
+    })
   })
 
   await page.goto('/zh/resume/123/interview?session=456')
@@ -229,9 +242,8 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   ])
 
   expect(endRequest.method()).toBe('POST')
-  await expect(endButton).toBeHidden()
-  await expect(page.getByRole('button', { name: '查看对话' })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toBeVisible()
+  await expect(page).toHaveURL(/\/zh\/interviews$/)
+  await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
 })
 
 test('completed 面试可以点击生成报告并展示摘要', async ({ page }) => {

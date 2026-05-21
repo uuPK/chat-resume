@@ -160,18 +160,20 @@ export function useInterviewSession({
   }, [enabled, ensureSessionReady, isSending, resume, session])
 
   /**
-   * 主动结束当前面试并返回最终报告。
+   * 主动结束当前面试并返回是否成功。
    */
   const endInterview = useCallback(async () => {
-    if (!session || isSending || session.status === 'completed') return
+    if (!session || isSending || session.status === 'completed') return false
 
     setIsSending(true)
     setError(null)
     try {
       const result = await resumeApi.endInterviewSession(session.id)
       setSession(result.session)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : t('endFailed'))
+      return false
     } finally {
       setIsSending(false)
     }
