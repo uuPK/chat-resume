@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 from typing import Any, Dict, List, NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,7 +19,11 @@ from app.services.errors import (
     ServicePermissionError,
     ServiceValidationError,
 )
-from app.services.interview.report_service import generate_interview_report
+from app.services.interview.report_service import (
+    InterviewReportProgressEvent,
+    generate_interview_report,
+    stream_interview_report,
+)
 from app.services.interview.serializer import serialize_session
 from app.services.interview.session_service import (
     create_interview_session,
@@ -76,6 +83,30 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
     ) from exc
+
+
+def _report_stream_payload(event: InterviewReportProgressEvent) -> dict[str, Any]:
+    """把报告生成阶段事件转换为前端 SSE 载荷。"""
+    payload: dict[str, Any] = {
+        "event_type": event.event_type,
+        "phase": event.phase,
+        "label": event.label,
+        "status": event.status,
+        "progress": event.progress,
+    }
+    if event.result is not None:
+        payload["done"] = True
+        payload["generated"] = event.result.generated
+        payload["next_action"] = (
+            "report" if event.result.generated else "report_skipped"
+        )
+        payload["session"] = serialize_session(event.result.session)
+    return payload
+
+
+def _format_sse_event(payload: dict[str, Any]) -> str:
+    """把报告进度载荷格式化为 SSE 文本块。"""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 @router.post("/", response_model=InterviewActionResponse)
@@ -200,4 +231,39 @@ async def create_interview_report(
     return InterviewActionResponse(
         session=serialize_session(result.session),
         next_action="report" if result.generated else "report_skipped",
+    )
+
+@router.post("/{session_id}/report/stream")
+async def create_interview_report_stream(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于以 SSE 方式生成面试报告并推送真实阶段。"""
+
+    async def generate_stream():
+        """生成报告阶段 SSE 响应。"""
+        try:
+            async for event in stream_interview_report(
+                db=db, user_id=current_user["id"], session_id=session_id
+            ):
+                yield _format_sse_event(_report_stream_payload(event))
+        except Exception as exc:
+            yield _format_sse_event(
+                {
+                    "event_type": "error",
+                    "done": True,
+                    "message": str(exc),
+                }
+            )
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
     )

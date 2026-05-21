@@ -169,6 +169,19 @@ interface InterviewActionResponse {
   next_action?: string
 }
 
+interface InterviewReportProgressEvent {
+  event_type: string
+  phase?: string
+  label?: string
+  status?: string
+  progress?: number
+  done?: boolean
+  generated?: boolean
+  next_action?: string
+  message?: string
+  session?: InterviewSession
+}
+
 interface DigitalHumanConversation {
   provider: 'volcengine'
   session_id: string
@@ -195,6 +208,63 @@ interface PayPalPlan {
   price: string
   currency_code: string
 }
+
+// 用于解析报告生成 SSE 事件并返回最终动作响应。
+async function readInterviewReportStream(
+  response: Response,
+  onEvent: (event: InterviewReportProgressEvent) => void,
+): Promise<InterviewActionResponse> {
+  if (!response.body) {
+    throw new Error('报告生成响应为空')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let dataLines: string[] = []
+  const finalEventRef: { current?: InterviewReportProgressEvent } = {}
+
+  const flushEvent = () => {
+    if (dataLines.length === 0) return
+    const event = JSON.parse(dataLines.join('\n')) as InterviewReportProgressEvent
+    dataLines = []
+    onEvent(event)
+    if (event.done) finalEventRef.current = event
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split(/\r?\n/)
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      if (!line) {
+        flushEvent()
+        continue
+      }
+      if (line.startsWith('data: ')) dataLines.push(line.slice(6))
+    }
+  }
+
+  buffer += decoder.decode()
+  if (buffer.startsWith('data: ')) dataLines.push(buffer.slice(6))
+  flushEvent()
+
+  const finalEvent = finalEventRef.current
+  if (finalEvent?.event_type === 'error') {
+    throw new Error(finalEvent.message || '生成报告失败')
+  }
+  if (finalEvent?.session) {
+    return {
+      session: finalEvent.session,
+      message: finalEvent.message,
+      next_action: finalEvent.next_action,
+    }
+  }
+  throw new Error('报告生成流未返回最终结果')
+}
+
 
 // 简历API类
 class ResumeAPI {
@@ -407,6 +477,21 @@ class ResumeAPI {
     })
     return handleApiResponse<InterviewActionResponse>(response)
   }
+
+  // 用于流式生成面试评估报告并接收真实后端阶段。
+  static async generateInterviewReportStream(
+    sessionId: number,
+    onEvent: (event: InterviewReportProgressEvent) => void,
+  ): Promise<InterviewActionResponse> {
+    const response = await apiFetch(`/api/interviews/${sessionId}/report/stream`, {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+      },
+    })
+    if (!response.ok) return handleApiResponse<InterviewActionResponse>(response)
+    return readInterviewReportStream(response, onEvent)
+  }
 }
 
 class DigitalHumanAPI {
@@ -524,4 +609,5 @@ export type {
   ResumeContent,
   InterviewSession,
   InterviewSessionSummary,
+  InterviewReportProgressEvent,
 }

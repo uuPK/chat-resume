@@ -133,6 +133,37 @@ const completedSessionWithReport = {
 }
 
 /**
+ * 把报告生成事件序列编码为 SSE 响应体。
+ */
+function reportStreamBody(events: object[]) {
+  return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+}
+
+/**
+ * 创建报告生成阶段事件。
+ */
+function reportPhase(phase: string, label: string, status: string, progress: number) {
+  return { event_type: 'phase', phase, label, status, progress }
+}
+
+/**
+ * 创建报告生成结束事件。
+ */
+function reportDone(session: object, nextAction = 'report') {
+  return {
+    event_type: 'done',
+    phase: 'done',
+    label: '报告已生成',
+    status: nextAction === 'report' ? 'completed' : 'skipped',
+    progress: 100,
+    done: true,
+    generated: nextAction === 'report',
+    next_action: nextAction,
+    session,
+  }
+}
+
+/**
  * 为面试页测试准备认证和后端 API mock。
  */
 async function mockInterviewApis(page: Page) {
@@ -209,8 +240,11 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   await page.route(/\/api\/interviews\/456$/, async route => {
     await route.fulfill({ json: { session: completedSession } })
   })
-  await page.route(/\/api\/interviews\/456\/report$/, async route => {
-    await route.fulfill({ json: { session: completedSessionWithReport, next_action: 'report' } })
+  await page.route(/\/api\/interviews\/456\/report\/stream$/, async route => {
+    await route.fulfill({
+      contentType: 'text/event-stream',
+      body: reportStreamBody([reportDone(completedSessionWithReport)]),
+    })
   })
 
   await page.goto('/zh/resume/123/interview?session=456')
@@ -218,7 +252,7 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   const generateButton = page.getByRole('button', { name: '生成报告', exact: true })
   await expect(generateButton).toBeVisible()
   const [reportRequest] = await Promise.all([
-    page.waitForRequest('**/api/interviews/456/report'),
+    page.waitForRequest('**/api/interviews/456/report/stream'),
     generateButton.click(),
   ])
 
@@ -235,14 +269,17 @@ test('completed 空面试点击报告入口会提示无法生成', async ({ page
   await page.route(/\/api\/interviews\/456$/, async route => {
     await route.fulfill({ json: { session: completedEmptySession } })
   })
-  await page.route(/\/api\/interviews\/456\/report$/, async route => {
-    await route.fulfill({ json: { session: completedEmptySession, next_action: 'report_skipped' } })
+  await page.route(/\/api\/interviews\/456\/report\/stream$/, async route => {
+    await route.fulfill({
+      contentType: 'text/event-stream',
+      body: reportStreamBody([reportDone(completedEmptySession, 'report_skipped')]),
+    })
   })
 
   await page.goto('/zh/resume/123/interview?session=456')
 
   const [reportRequest] = await Promise.all([
-    page.waitForRequest('**/api/interviews/456/report'),
+    page.waitForRequest('**/api/interviews/456/report/stream'),
     page.getByRole('button', { name: '开始生成报告' }).click(),
   ])
 
@@ -251,38 +288,55 @@ test('completed 空面试点击报告入口会提示无法生成', async ({ page
   await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toBeVisible()
 })
 
-test('生成报告途中会动态轮播进度状态', async ({ page }) => {
+test('生成报告进度使用后端 SSE 阶段', async ({ page }) => {
   await mockInterviewApis(page)
-  let finishReport!: () => void
-  const reportCanFinish = new Promise<void>(resolve => {
-    finishReport = resolve
-  })
+  await page.addInitScript(({ session }) => {
+    const originalFetch = window.fetch.bind(window)
+    window.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+      if (!url.includes('/api/interviews/456/report/stream')) return originalFetch(input, init)
+
+      const encoder = new TextEncoder()
+      const events = [
+        { event_type: 'phase', phase: 'validate_session', label: '校验面试状态', status: 'running', progress: 5 },
+        { event_type: 'phase', phase: 'validate_session', label: '校验面试状态', status: 'completed', progress: 12 },
+        { event_type: 'phase', phase: 'load_turns', label: '读取面试回答', status: 'running', progress: 18 },
+        { event_type: 'phase', phase: 'load_turns', label: '读取面试回答', status: 'completed', progress: 28 },
+        { event_type: 'phase', phase: 'request_llm', label: '调用 AI 生成报告', status: 'running', progress: 36 },
+        { event_type: 'phase', phase: 'request_llm', label: '调用 AI 生成报告', status: 'completed', progress: 68 },
+        { event_type: 'phase', phase: 'parse_report', label: '解析报告结构', status: 'running', progress: 74 },
+        { event_type: 'done', phase: 'done', label: '报告已生成', status: 'completed', progress: 100, done: true, generated: true, next_action: 'report', session },
+      ]
+      const body = new ReadableStream({
+        start(controller) {
+          events.forEach((event, index) => {
+            window.setTimeout(() => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+              if (index === events.length - 1) controller.close()
+            }, 200 + index * 700)
+          })
+        },
+      })
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+  }, { session: completedSessionWithReport })
 
   await page.route(/\/api\/interviews\/456$/, async route => {
     await route.fulfill({ json: { session: completedSession } })
-  })
-  await page.route(/\/api\/interviews\/456\/report$/, async route => {
-    await reportCanFinish
-    await route.fulfill({ json: { session: completedSessionWithReport, next_action: 'report' } })
   })
 
   await page.goto('/zh/resume/123/interview?session=456')
 
   const status = page.getByRole('status')
-  const [reportRequest] = await Promise.all([
-    page.waitForRequest('**/api/interviews/456/report'),
-    page.getByRole('button', { name: '生成报告', exact: true }).click(),
-  ])
-  expect(reportRequest.method()).toBe('POST')
-  await expect(status).toContainText('当前正在处理')
-  const firstStatus = await status.textContent()
-  await expect.poll(async () => status.textContent(), { timeout: 4_500 }).not.toBe(firstStatus)
-  await expect(page.getByRole('progressbar', { name: '报告生成进度' })).toBeVisible()
-  await expect(status).toContainText('重写最弱回答', { timeout: 7_000 })
-  await page.waitForTimeout(2_200)
-  await expect(status).toContainText('重写最弱回答')
+  await page.getByRole('button', { name: '生成报告', exact: true }).click()
 
-  finishReport()
+  await expect(status).toContainText('校验面试状态')
+  await expect(status).toContainText('调用 AI 生成报告', { timeout: 5_000 })
+  await expect(page.getByRole('progressbar', { name: '报告生成进度' })).toBeVisible()
+  await expect(status).toContainText('解析报告结构', { timeout: 2_000 })
   await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
 })
 

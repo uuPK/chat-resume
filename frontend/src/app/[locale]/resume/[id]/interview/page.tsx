@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
 import { digitalHumanApi, resumeApi } from '@/lib/api'
-import type { DigitalHumanConversation, InterviewSession, Resume } from '@/lib/api'
+import type { DigitalHumanConversation, InterviewReportProgressEvent, InterviewSession, Resume } from '@/lib/api'
 import { useInterviewSession } from '@/hooks/useInterviewSession'
 import { useLocale, useTranslations } from 'next-intl'
 
@@ -36,10 +36,14 @@ type ConversationMessage = {
   content: string
   isFinal?: boolean
 }
-// 用于驱动报告生成卡片的动态进度步骤。
-const REPORT_GENERATION_STEPS = ['整理面试对话', '判断岗位匹配', '提取面试官风险', '重写最弱回答'] as const
-// 用于让生成进度只前进不回退，避免真实报告未返回前显示 100%。
-const REPORT_GENERATION_PROGRESS = [18, 42, 68, 88] as const
+// 用于声明报告生成 SSE 阶段的展示顺序。
+const REPORT_GENERATION_PHASES = [
+  { phase: 'validate_session', label: '校验面试状态' },
+  { phase: 'load_turns', label: '读取面试回答' },
+  { phase: 'request_llm', label: '调用 AI 生成报告' },
+  { phase: 'parse_report', label: '解析报告结构' },
+  { phase: 'save_report', label: '保存报告结果' },
+] as const
 
 
 interface VoicePanelProps {
@@ -907,27 +911,31 @@ function CapabilityTags({ items, tone }: { items: string[]; tone: 'covered' | 'm
 // 用于渲染未生成报告时的主操作面板。
 function ReportGenerationPanel({
   isGenerating,
+  progressEvents,
   onGenerate,
 }: {
   isGenerating: boolean
+  progressEvents: InterviewReportProgressEvent[]
   onGenerate: () => void
 }) {
-  const [activeStep, setActiveStep] = useState(0)
-  const activeStepLabel = REPORT_GENERATION_STEPS[activeStep]
-  const progressPercent = isGenerating ? REPORT_GENERATION_PROGRESS[activeStep] : 0
-
-  useEffect(() => {
-    if (!isGenerating) {
-      setActiveStep(0)
-      return
+  const progressByPhase = new Map(
+    progressEvents
+      .filter(event => event.event_type === 'phase' && event.phase)
+      .map(event => [event.phase, event]),
+  )
+  const phaseCards = REPORT_GENERATION_PHASES.map((step) => {
+    const event = progressByPhase.get(step.phase)
+    return {
+      phase: step.phase,
+      label: event?.label || step.label,
+      status: event?.status || 'pending',
     }
-
-    const timer = window.setInterval(() => {
-      setActiveStep(current => Math.min(current + 1, REPORT_GENERATION_STEPS.length - 1))
-    }, 1800)
-
-    return () => window.clearInterval(timer)
-  }, [isGenerating])
+  })
+  const latestProgress = progressEvents[progressEvents.length - 1]?.progress || 0
+  const runningPhase = phaseCards.find(step => step.status === 'running')
+  const completedPhase = phaseCards.filter(step => step.status === 'completed').pop()
+  const activeStepLabel = runningPhase?.label || completedPhase?.label || '等待后端响应'
+  const progressPercent = isGenerating ? latestProgress : 0
 
   return (
     <div style={{ minHeight: 'calc(100vh - 160px)', display: 'grid', placeItems: 'center', padding: '32px 0' }}>
@@ -974,7 +982,7 @@ function ReportGenerationPanel({
               </div>
             </div>
             <span style={{ background: '#ffffff', border: '1px solid #dbeafe', borderRadius: 999, color: '#1d4ed8', flex: '0 0 auto', fontSize: 13, fontWeight: 800, padding: '9px 13px' }}>
-              {isGenerating ? `${progressPercent}%` : '4 步分析'}
+              {isGenerating ? `${progressPercent}%` : `${REPORT_GENERATION_PHASES.length} 步分析`}
             </span>
           </div>
 
@@ -1052,13 +1060,13 @@ function ReportGenerationPanel({
             </button>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {REPORT_GENERATION_STEPS.map((step, index) => {
-              const isActive = isGenerating && index === activeStep
-              const isDone = isGenerating && index < activeStep
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {phaseCards.map((step, index) => {
+              const isActive = isGenerating && step.status === 'running'
+              const isDone = step.status === 'completed'
               return (
                 <div
-                  key={step}
+                  key={step.phase}
                   style={{
                     background: isActive ? '#ffffff' : 'rgba(255,255,255,0.62)',
                     border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
@@ -1070,14 +1078,14 @@ function ReportGenerationPanel({
                     transition: 'background 220ms ease, border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease',
                   }}
                 >
-                  <span style={{ alignItems: 'center', color: isActive ? '#0052ff' : '#64748b', display: 'inline-flex', fontSize: 12, fontWeight: 850, gap: 7 }}>
-                    <span style={{ background: isActive ? '#0052ff' : isDone ? '#93c5fd' : '#e2e8f0', borderRadius: 999, height: 8, width: 8 }} />
+                  <span style={{ alignItems: 'center', color: isActive ? '#0052ff' : isDone ? '#059669' : '#64748b', display: 'inline-flex', fontSize: 12, fontWeight: 850, gap: 7 }}>
+                    <span style={{ background: isActive ? '#0052ff' : isDone ? '#10b981' : '#e2e8f0', borderRadius: 999, height: 8, width: 8 }} />
                     0{index + 1}
                   </span>
                   <p style={{ color: isActive ? '#0f172a' : '#334155', fontSize: 15, fontWeight: 800, lineHeight: 1.45, margin: '22px 0 8px' }}>
-                    {step}
+                    {step.label}
                   </p>
-                  <p style={{ color: isActive ? '#1d4ed8' : '#94a3b8', fontSize: 12, fontWeight: 750, margin: 0 }}>
+                  <p style={{ color: isActive ? '#1d4ed8' : isDone ? '#059669' : '#94a3b8', fontSize: 12, fontWeight: 750, margin: 0 }}>
                     {isActive ? '正在处理' : isDone ? '已完成' : '待处理'}
                   </p>
                 </div>
@@ -1257,15 +1265,17 @@ function CompletedInterviewReview({
   report,
   isGenerating,
   onGenerate,
+  progressEvents,
 }: {
   report: InterviewSession['report_data']
   isGenerating: boolean
+  progressEvents: InterviewReportProgressEvent[]
   onGenerate: () => void
 }) {
   return (
     <div className="flex-1 overflow-y-auto" style={{ backgroundColor: '#f8fafc' }}>
       <div className="mx-auto w-full max-w-5xl px-5 py-10">
-        {!report && <ReportGenerationPanel isGenerating={isGenerating} onGenerate={onGenerate} />}
+        {!report && <ReportGenerationPanel isGenerating={isGenerating} progressEvents={progressEvents} onGenerate={onGenerate} />}
         {report && <ReportPreview report={report} />}
       </div>
     </div>
@@ -1294,6 +1304,7 @@ export default function InterviewPage() {
     session,
     isSending,
     error: sessionError,
+    reportProgress,
     endInterview,
     generateReport,
   } = useInterviewSession({
@@ -1462,6 +1473,7 @@ export default function InterviewPage() {
             report={reportData}
             isGenerating={isSending}
             onGenerate={handleGenerateReport}
+            progressEvents={reportProgress}
           />
         ) : (
           <VoicePanel

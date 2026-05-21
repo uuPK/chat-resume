@@ -115,6 +115,23 @@ def _auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _sse_events(response) -> list[dict]:
+    """把测试响应中的 SSE data 行解析为事件列表。"""
+    events: list[dict] = []
+    data_lines: list[str] = []
+    for line in response.text.splitlines():
+        if not line:
+            if data_lines:
+                events.append(json.loads("\n".join(data_lines)))
+                data_lines = []
+            continue
+        if line.startswith("data: "):
+            data_lines.append(line[6:])
+    if data_lines:
+        events.append(json.loads("\n".join(data_lines)))
+    return events
+
+
 def _anonymous_client() -> TestClient:
     """返回一个不带登录 Cookie 的独立测试客户端。"""
     return TestClient(app)
@@ -2637,6 +2654,89 @@ class TestInterviewSessions:
         assert "interview_report.llm.completed" in report_logs
         assert "interview_report.parsed" in report_logs
         assert "interview_report.saved" in report_logs
+
+
+    def test_report_generation_streams_real_backend_phases(self, monkeypatch):
+        """用于验证报告生成 SSE 按后端真实阶段推送进度。"""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化假 LLM 服务。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于返回可解析的报告 JSON。"""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"可推进",'
+                                    '"strengths":["相关","清晰","完整"],'
+                                    '"weaknesses":["缺少证据"],'
+                                    '"next_training_plan":["补证据"],'
+                                    '"resume_feedback":["补项目边界"],'
+                                    '"dimensions":[],'
+                                    '"turn_evaluations":[]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id, "target_title": "Agent工程师"},
+            headers=self.headers,
+        )
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个Agent项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过工具调用。"},
+            headers=self.headers,
+        )
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        stream_resp = self.client.post(
+            f"/api/interviews/{session_id}/report/stream",
+            headers=self.headers,
+        )
+
+        assert stream_resp.status_code == 200, stream_resp.text
+        events = _sse_events(stream_resp)
+        completed_phases = [
+            event["phase"]
+            for event in events
+            if event.get("event_type") == "phase"
+            and event.get("status") == "completed"
+        ]
+        assert completed_phases == [
+            "validate_session",
+            "load_turns",
+            "request_llm",
+            "parse_report",
+            "save_report",
+        ]
+        done_event = events[-1]
+        assert done_event["event_type"] == "done"
+        assert done_event["next_action"] == "report"
+        assert done_event["session"]["report_data"]["summary"] == "可推进"
 
     def test_report_generation_keeps_action_report_strategy_fields(
         self, monkeypatch

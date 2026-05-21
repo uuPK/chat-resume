@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 
-import { resumeApi, type InterviewSession } from '@/lib/api'
+import { resumeApi, type InterviewReportProgressEvent, type InterviewSession } from '@/lib/api'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 
 type InterviewResumeSource = {
@@ -57,6 +57,17 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
   }
 }
 
+// 用于按后端阶段键合并报告生成进度事件。
+function mergeReportProgressEvent(
+  events: InterviewReportProgressEvent[],
+  event: InterviewReportProgressEvent,
+) {
+  if (event.event_type !== 'phase' || !event.phase) return events
+  const index = events.findIndex(item => item.phase === event.phase)
+  if (index < 0) return [...events, event]
+  return events.map((item, itemIndex) => itemIndex === index ? event : item)
+}
+
 /**
  * 统一加载已有 session 或创建新 session。实时语音面试由 digital-human
  * WebSocket 驱动，不再提前生成结构化题目。
@@ -101,6 +112,7 @@ export function useInterviewSession({
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reportProgress, setReportProgress] = useState<InterviewReportProgressEvent[]>([])
   const locale = useLocale() as AppLocale
   const t = useTranslations('interview.errors')
 
@@ -111,6 +123,7 @@ export function useInterviewSession({
     setSession(null)
     setError(null)
     setIsSending(false)
+    setReportProgress([])
   }, [defaultMode, resume?.id, requestedSessionId])
 
   /**
@@ -172,8 +185,12 @@ export function useInterviewSession({
 
     setIsSending(true)
     setError(null)
+    setReportProgress([])
     try {
-      const result = await resumeApi.generateInterviewReport(session.id)
+      const result = await resumeApi.generateInterviewReportStream(
+        session.id,
+        event => setReportProgress(current => mergeReportProgressEvent(current, event)),
+      )
       setSession(result.session)
       if (result.next_action === 'report_skipped') {
         setError(translateOrFallback(
@@ -197,6 +214,7 @@ export function useInterviewSession({
     session,
     isSending,
     error,
+    reportProgress,
     endInterview,
     generateReport,
   }

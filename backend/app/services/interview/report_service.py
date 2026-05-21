@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 import json
 import logging
 from dataclasses import dataclass
@@ -26,16 +27,43 @@ class InterviewReportResult:
     generated: bool
 
 
+@dataclass(frozen=True)
+class InterviewReportProgressEvent:
+    """用于承载报告生成 SSE 阶段状态。"""
+
+    event_type: str
+    phase: str
+    label: str
+    status: str
+    progress: int
+    result: InterviewReportResult | None = None
+
 async def generate_interview_report(
     *, db: Session, user_id: int, session_id: int
 ) -> InterviewReportResult:
     """为已完成面试生成结构化评估报告。"""
+    result: InterviewReportResult | None = None
+    async for event in stream_interview_report(
+        db=db, user_id=user_id, session_id=session_id
+    ):
+        if event.result is not None:
+            result = event.result
+    if result is None:
+        raise ServiceError("Interview report generation ended without result")
+    return result
+
+
+async def stream_interview_report(
+    *, db: Session, user_id: int, session_id: int
+) -> AsyncIterator[InterviewReportProgressEvent]:
+    """按真实后端步骤生成面试报告并产出进度事件。"""
     started_at = perf_counter()
     logger.info(
         "interview_report.requested",
         extra={"session_id": session_id, "user_id": user_id},
     )
     try:
+        yield _report_phase("validate_session", "校验面试状态", "running", 5)
         session = get_session_for_user(db, session_id, user_id)
         if session.status != "completed":
             logger.warning(
@@ -49,7 +77,9 @@ async def generate_interview_report(
             raise ServiceValidationError(
                 "Interview must be completed before generating report"
             )
+        yield _report_phase("validate_session", "校验面试状态", "completed", 12)
 
+        yield _report_phase("load_turns", "读取面试回答", "running", 18)
         turns = _answered_turns(db, session_id)
         logger.info(
             "interview_report.turns_loaded",
@@ -59,6 +89,7 @@ async def generate_interview_report(
                 "turn_count": len(turns),
             },
         )
+        yield _report_phase("load_turns", "读取面试回答", "completed", 28)
         if not turns:
             logger.info(
                 "interview_report.skipped",
@@ -69,9 +100,21 @@ async def generate_interview_report(
                     "elapsed_ms": _elapsed_ms(started_at),
                 },
             )
-            return InterviewReportResult(session=session, generated=False)
+            yield _report_phase(
+                "done",
+                "没有可复盘回答",
+                "skipped",
+                100,
+                result=InterviewReportResult(session=session, generated=False),
+            )
+            return
 
-        report = await _request_report_from_llm(session, turns)
+        yield _report_phase("request_llm", "调用 AI 生成报告", "running", 36)
+        response = await _request_report_response(session, turns)
+        yield _report_phase("request_llm", "调用 AI 生成报告", "completed", 68)
+
+        yield _report_phase("parse_report", "解析报告结构", "running", 74)
+        report = _parse_report_response(response, turns)
         public_report = _public_report(report)
         turn_evaluation_count = _apply_turn_evaluations(turns, report)
         logger.info(
@@ -84,6 +127,9 @@ async def generate_interview_report(
                 "turn_evaluation_count": turn_evaluation_count,
             },
         )
+        yield _report_phase("parse_report", "解析报告结构", "completed", 84)
+
+        yield _report_phase("save_report", "保存报告结果", "running", 90)
         session.report_data = public_report
         db.commit()
         db.refresh(session)
@@ -96,7 +142,14 @@ async def generate_interview_report(
                 "elapsed_ms": _elapsed_ms(started_at),
             },
         )
-        return InterviewReportResult(session=session, generated=True)
+        yield _report_phase("save_report", "保存报告结果", "completed", 100)
+        yield _report_phase(
+            "done",
+            "报告已生成",
+            "completed",
+            100,
+            result=InterviewReportResult(session=session, generated=True),
+        )
     except ServiceValidationError:
         raise
     except Exception:
@@ -111,6 +164,25 @@ async def generate_interview_report(
         raise
 
 
+def _report_phase(
+    phase: str,
+    label: str,
+    status: str,
+    progress: int,
+    *,
+    result: InterviewReportResult | None = None,
+) -> InterviewReportProgressEvent:
+    """构造报告生成阶段事件。"""
+    return InterviewReportProgressEvent(
+        event_type="done" if result is not None else "phase",
+        phase=phase,
+        label=label,
+        status=status,
+        progress=progress,
+        result=result,
+    )
+
+
 def _answered_turns(db: Session, session_id: int) -> list[InterviewTurn]:
     """读取当前 session 中有回答内容的面试轮次。"""
     return (
@@ -122,10 +194,10 @@ def _answered_turns(db: Session, session_id: int) -> list[InterviewTurn]:
     )
 
 
-async def _request_report_from_llm(
+async def _request_report_response(
     session: InterviewSession, turns: list[InterviewTurn]
 ) -> dict[str, Any]:
-    """调用 LLM 生成面试报告 JSON。"""
+    """调用 LLM 生成面试报告原始响应。"""
     payload = _report_prompt_payload(session, turns)
     prompt_chars = len(json.dumps(payload, ensure_ascii=False))
     llm_started_at = perf_counter()
@@ -164,7 +236,7 @@ async def _request_report_from_llm(
             "response_chars": response_chars,
         },
     )
-    return _parse_report_response(response, turns)
+    return response
 
 
 def _report_prompt_payload(
