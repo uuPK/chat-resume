@@ -70,6 +70,7 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 frontend/tsconfig.typecheck.tsbuildinfo
 frontend/test-results/
+output/
 
 # Uploads
 backend/uploads/**
