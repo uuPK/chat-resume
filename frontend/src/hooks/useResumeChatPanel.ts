@@ -165,7 +165,7 @@ export function useResumeChatPanel({
     }
     const behavior: ScrollBehavior = isStreaming ? 'auto' : (hasNewMessage ? 'smooth' : 'auto')
     scrollToBottom(behavior)
-  }, [currentStreamingMessage, isStreaming, messages.length, scrollToBottom])
+  }, [currentStreamingMessage, isStreaming, messages.length, scrollToBottom, streamEvents])
 
   /**
    * 仅用于同步上一轮消息数量，辅助判断是否出现新消息。

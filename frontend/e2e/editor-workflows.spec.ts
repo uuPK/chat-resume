@@ -131,9 +131,9 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
 // 用于处理install简历agentmock。
 async function installResumeAgentMock(
   page: Page,
-  options: { pauseAfterToolCall?: boolean } = {}
+  options: { pauseAfterToolCall?: boolean; extraDiffItemCount?: number } = {}
 ) {
-  await page.addInitScript(({ pauseAfterToolCall }) => {
+  await page.addInitScript(({ pauseAfterToolCall, extraDiffItemCount }) => {
     const originalFetch = window.fetch.bind(window)
     const diffSummary = [
       '改前：负责前端开发',
@@ -157,6 +157,34 @@ async function installResumeAgentMock(
     })
     const truncatedSkillBefore = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "Few-…'
     const truncatedSkillAfter = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "MCP"]'
+    const baseDiffItems = [
+      {
+        before: '负责前端开发',
+        after: '主导前端重构，首屏加载提速 35%',
+        reason: '补充量化结果',
+      },
+      {
+        before: skillBefore,
+        after: skillAfter,
+        reason: '补充简历中已体现的编程语言和框架',
+      },
+      {
+        before: unchangedSkill,
+        after: unchangedSkill,
+        reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
+      },
+      {
+        before: truncatedSkillBefore,
+        after: truncatedSkillAfter,
+        reason: '精简：Few-shot Prompting 并入 Context Engineering',
+      },
+    ]
+    const extraDiffItems = Array.from({ length: extraDiffItemCount || 0 }, (_, index) => ({
+      before: `自动滚动验证项 ${index} 改前`,
+      after: `自动滚动验证项 ${index} 改后`,
+      reason: `自动滚动验证项 ${index} 原因`,
+    }))
+    const diffItems = [...baseDiffItems, ...extraDiffItems]
 
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
@@ -244,28 +272,7 @@ async function installResumeAgentMock(
               tool_name: '优化项目经历',
               tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
-              diff_items: [
-                {
-                  before: '负责前端开发',
-                  after: '主导前端重构，首屏加载提速 35%',
-                  reason: '补充量化结果',
-                },
-                {
-                  before: skillBefore,
-                  after: skillAfter,
-                  reason: '补充简历中已体现的编程语言和框架',
-                },
-                {
-                  before: unchangedSkill,
-                  after: unchangedSkill,
-                  reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
-                },
-                {
-                  before: truncatedSkillBefore,
-                  after: truncatedSkillAfter,
-                  reason: '精简：Few-shot Prompting 并入 Context Engineering',
-                },
-              ],
+              diff_items: diffItems,
               done: false,
             })
 
@@ -277,28 +284,7 @@ async function installResumeAgentMock(
               tool_name: '优化项目经历',
               tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
-              diff_items: [
-                {
-                  before: '负责前端开发',
-                  after: '主导前端重构，首屏加载提速 35%',
-                  reason: '补充量化结果',
-                },
-                {
-                  before: skillBefore,
-                  after: skillAfter,
-                  reason: '补充简历中已体现的编程语言和框架',
-                },
-                {
-                  before: unchangedSkill,
-                  after: unchangedSkill,
-                  reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
-                },
-                {
-                  before: truncatedSkillBefore,
-                  after: truncatedSkillAfter,
-                  reason: '精简：Few-shot Prompting 并入 Context Engineering',
-                },
-              ],
+              diff_items: diffItems,
               done: false,
             })
             await sleep(50)
@@ -334,6 +320,35 @@ async function readResumeAgentConfirmCalls(page: Page) {
     }
     return runtimeWindow.__resumeAgentConfirmCalls || []
   })
+}
+
+/**
+ * 读取包含指定文本的最近滚动容器指标，用于验证真实页面滚动行为。
+ */
+// 用于读取文本所在滚动容器指标。
+async function readNearestScrollMetrics(page: Page, text: string) {
+  return page.evaluate((targetText) => {
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>('body *'))
+      .filter((element) => element.textContent?.includes(targetText))
+    const target = candidates.find((element) =>
+      !Array.from(element.children).some((child) => child.textContent?.includes(targetText))
+    ) || candidates[0]
+    let element = target || null
+    while (element) {
+      const style = window.getComputedStyle(element)
+      const canScroll = style.overflowY === 'auto' || style.overflowY === 'scroll'
+      if (canScroll && element.scrollHeight > element.clientHeight) {
+        return {
+          scrollTop: element.scrollTop,
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          distanceFromBottom: element.scrollHeight - element.scrollTop - element.clientHeight,
+        }
+      }
+      element = element.parentElement
+    }
+    return null
+  }, text)
 }
 
 /**
@@ -1114,6 +1129,26 @@ test.describe('编辑页工作流', () => {
       call_id: 'call_e2e',
       confirmed: true,
     })
+  })
+
+  test('Resume Agent 流式 diff 变长时保持消息区贴底', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+    const marker = '自动滚动验证项 39 改后'
+
+    await installEditorApiMock(page, resume)
+    await installResumeAgentMock(page, { extraDiffItemCount: 40 })
+    await page.goto('/resume/123/edit')
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByText(marker)).toBeAttached()
+    await expect.poll(async () => {
+      const metrics = await readNearestScrollMetrics(page, marker)
+      return metrics?.distanceFromBottom ?? Number.POSITIVE_INFINITY
+    }).toBeLessThanOrEqual(4)
   })
 
   test('Resume Agent 在工具事件阶段不额外显示思考中', async ({ page }) => {
