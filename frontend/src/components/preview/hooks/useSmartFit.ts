@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react'
 import { A4_HEIGHT, PAGE_PADDING, SAFETY_MARGIN, RenderableLine } from './useLineBasedPagination'
 
 const MIN_SPACING_SCALE = 0.5
-const MAX_SPACING_SCALE = 1.5
+const MAX_SPACING_SCALE = 4
 const SPACING_SCALE_STEP = 0.05
 
 export type SmartFitResult =
@@ -21,13 +21,13 @@ interface UseSmartFitOptions {
   setMeasureScale: (scale: number) => void
   // 等待 React 将测量容器渲染到指定 scale 后 resolve
   waitForMeasureScale: (targetScale: number) => Promise<void>
-  // 与分页算法完全相同的测量逻辑
+  // 与真实页面盒模型一致的行测量逻辑
   measureLines: () => RenderableLine[]
 }
 
-// 对于给定的 scale，计算有效页高（可填充内容高度）
-function effectivePageHeight(scale: number) {
-  return A4_HEIGHT - PAGE_PADDING * 2 * scale - SAFETY_MARGIN
+// 对于给定的 scale，计算页面内最后一行允许到达的视觉底线。
+function effectivePageBottom(scale: number) {
+  return A4_HEIGHT - PAGE_PADDING * scale - SAFETY_MARGIN
 }
 
 // 将试算结果落到可控步长，避免布局滑块出现过细的小数。
@@ -54,22 +54,22 @@ export function useSmartFit({
     let finalMeasureScale = currentScale
 
     // 通过 React state 切换测量容器到指定 scale，等待渲染完成后测量
-    const measureTotalHeight = async (scale: number): Promise<number> => {
+    const measureContentBottom = async (scale: number): Promise<number> => {
       finalMeasureScale = scale
       setMeasureScale(scale)
       await waitForMeasureScale(scale)
       const lines = measureLines()
-      return lines.reduce((sum, l) => sum + l.height, 0)
+      return lines.reduce((bottom, line) => Math.max(bottom, line.bottom), 0)
     }
 
     try {
-      // 当前 scale 下的内容总高度
-      const currentContentHeight = await measureTotalHeight(currentScale)
-      const currentPageHeight = effectivePageHeight(currentScale)
+      // 当前 scale 下内容在真实页面中的视觉底线
+      const currentContentBottom = await measureContentBottom(currentScale)
+      const currentPageBottom = effectivePageBottom(currentScale)
 
       if (abortRef.current) return { status: 'failed' }
 
-      const currentFits = currentContentHeight <= currentPageHeight
+      const currentFits = currentContentBottom <= currentPageBottom
       let lo = currentFits ? currentScale : MIN_SPACING_SCALE
       let hi = currentFits ? MAX_SPACING_SCALE : currentScale
       let bestScale = currentFits ? currentScale : MIN_SPACING_SCALE
@@ -78,9 +78,9 @@ export function useSmartFit({
         if (currentScale >= MAX_SPACING_SCALE) {
           return { status: 'already_fits' }
         }
-        const maxContentHeight = await measureTotalHeight(MAX_SPACING_SCALE)
+        const maxContentBottom = await measureContentBottom(MAX_SPACING_SCALE)
         if (abortRef.current) return { status: 'failed' }
-        if (maxContentHeight <= effectivePageHeight(MAX_SPACING_SCALE)) {
+        if (maxContentBottom <= effectivePageBottom(MAX_SPACING_SCALE)) {
           bestScale = MAX_SPACING_SCALE
           onComplete(bestScale)
           finalMeasureScale = bestScale
@@ -88,13 +88,13 @@ export function useSmartFit({
         }
       } else {
         // 检查最小 scale 能否放下；仍放不下时不再尝试布局密度调整。
-        const minContentHeight = await measureTotalHeight(MIN_SPACING_SCALE)
-        const minPageHeight = effectivePageHeight(MIN_SPACING_SCALE)
+        const minContentBottom = await measureContentBottom(MIN_SPACING_SCALE)
+        const minPageBottom = effectivePageBottom(MIN_SPACING_SCALE)
 
         if (abortRef.current) return { status: 'failed' }
 
-        if (minContentHeight > minPageHeight) {
-          const approxPages = Math.ceil(minContentHeight / minPageHeight)
+        if (minContentBottom > minPageBottom) {
+          const approxPages = Math.ceil(minContentBottom / minPageBottom)
           return { status: 'too_much_content', pages: approxPages }
         }
       }
@@ -102,8 +102,8 @@ export function useSmartFit({
       for (let i = 0; i < 8; i++) {
         if (abortRef.current) return { status: 'failed' }
         const mid = (lo + hi) / 2
-        const h = await measureTotalHeight(mid)
-        if (h <= effectivePageHeight(mid)) {
+        const h = await measureContentBottom(mid)
+        if (h <= effectivePageBottom(mid)) {
           bestScale = mid
           lo = mid
         } else {
@@ -116,10 +116,10 @@ export function useSmartFit({
       bestScale = Math.max(MIN_SPACING_SCALE, Math.min(MAX_SPACING_SCALE, bestScale))
 
       // 验证取整后仍能放下
-      let verifyH = await measureTotalHeight(bestScale)
-      while (verifyH > effectivePageHeight(bestScale) && bestScale > MIN_SPACING_SCALE) {
+      let verifyBottom = await measureContentBottom(bestScale)
+      while (verifyBottom > effectivePageBottom(bestScale) && bestScale > MIN_SPACING_SCALE) {
         bestScale = Math.max(MIN_SPACING_SCALE, bestScale - SPACING_SCALE_STEP)
-        verifyH = await measureTotalHeight(bestScale)
+        verifyBottom = await measureContentBottom(bestScale)
       }
 
       if (currentFits && bestScale < currentScale) {

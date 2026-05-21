@@ -52,7 +52,7 @@ export default function PaginatedResumePreview({
   const t = useTranslations('resume.layout')
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const smartFitContentRef = useRef<HTMLDivElement>(null)
+  const smartFitPageRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = React.useState(1)
 
   // 独立的测量容器 scale state，仅供 SmartFit 二分搜索时切换，不影响实际渲染
@@ -104,7 +104,7 @@ export default function PaginatedResumePreview({
   }, [onSpacingScaleChange])
 
   const measureSmartFitLines = useCallback(() => {
-    return measureRenderableLines(smartFitContentRef.current)
+    return measureRenderableLines(smartFitPageRef.current)
   }, [])
 
   const { runSmartFit } = useSmartFit({
@@ -232,18 +232,30 @@ export default function PaginatedResumePreview({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle, pageContentWidth])
 
-  // 智能一页试算专用测量容器；二分搜索时会频繁切换 scale，不参与正式分页。
+  // 智能一页试算专用页面；保留真实页面盒模型，但不裁剪溢出内容，避免误判为一页。
   const smartFitMeasurementContent = useMemo(() => (
     <div
-      ref={smartFitContentRef}
-      className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
+      ref={smartFitPageRef}
+      className={`resume-page resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none bg-white border border-gray-200`}
       style={{
-        width: `${pageContentWidth}px`,
+        width: `${A4_WIDTH}px`,
+        aspectRatio: `${210 / 297}`,
+        paddingTop: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
+        paddingBottom: `calc(var(--spacing-scale, 1) * ${PAGE_PADDING}px)`,
+        paddingLeft: `${PAGE_PADDING}px`,
+        paddingRight: `${PAGE_PADDING}px`,
         boxSizing: 'border-box',
-        ['--spacing-scale' as string]: String(measureScale)
+        ['--spacing-scale' as string]: String(measureScale),
       }}
     >
-      {renderVisibleModules()}
+      <div className="relative z-10 h-full">
+        <div
+          className={`resume-template-${templateStyle} absolute left-0 top-0`}
+          style={{ width: `${pageContentWidth}px` }}
+        >
+          {renderVisibleModules()}
+        </div>
+      </div>
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [content, visibleModules, moduleOrderKey, measureScale, templateStyle, pageContentWidth])
@@ -293,9 +305,8 @@ export default function PaginatedResumePreview({
 
   return (
     <div id="resume-preview-content" ref={containerRef} className="w-full h-full flex flex-col items-center">
-      {/* 用于测量的隐藏内容 */}
+      {/* 用于分页测量的隐藏内容 */}
       {paginationMeasurementContent}
-      {smartFitMeasurementContent}
 
       {/* 加载状态 */}
       {isCalculating && (
@@ -355,6 +366,9 @@ export default function PaginatedResumePreview({
           </div>
         </div>
       )}
+
+      {/* 用于智能一页试算的隐藏页面，放在可见预览后面，避免影响通用 .resume-page 查询。 */}
+      {smartFitMeasurementContent}
     </div>
   )
 }

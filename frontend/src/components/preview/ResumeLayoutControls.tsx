@@ -270,7 +270,7 @@ export default function ResumeLayoutControls({
                     <input
                       type="range"
                       min="0.5"
-                      max="1.5"
+                      max="4"
                       step="0.05"
                       value={config.spacingScale ?? 1}
                       onChange={(e) => handleSpacingScaleChange(parseFloat(e.target.value))}
