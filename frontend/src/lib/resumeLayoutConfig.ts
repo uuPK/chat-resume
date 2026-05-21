@@ -32,6 +32,7 @@ export const DENSITY_SPACING_SCALE: Record<Exclude<LayoutDensity, 'custom'>, num
  */
 const DEFAULT_MODULE_ORDER: ResumeModule[] = [
   'personal',
+  'summary',
   'education',
   'work',
   'projects',
@@ -43,10 +44,31 @@ const DEFAULT_MODULE_ORDER: ResumeModule[] = [
  */
 export const MODULE_LABELS: Record<ResumeModule, string> = {
   personal: 'Personal info',
+  summary: 'Summary',
   education: 'Education',
   work: 'Work experience',
   skills: 'Skills',
   projects: 'Projects'
+}
+
+// 用于补齐旧布局配置缺失的新模块，同时过滤无效模块。
+function normalizeModuleOrder(rawOrder: unknown): ResumeModule[] {
+  const rawModules = Array.isArray(rawOrder) ? rawOrder : DEFAULT_MODULE_ORDER
+  const modules = rawModules.filter((module): module is ResumeModule => (
+    DEFAULT_MODULE_ORDER.includes(module as ResumeModule)
+  ))
+  const missing = DEFAULT_MODULE_ORDER.filter((module) => !modules.includes(module))
+  return [...modules, ...missing]
+}
+
+// 用于补齐旧布局配置的可见模块集合。
+function normalizeVisibleModules(rawVisible: unknown): Set<ResumeModule> {
+  if (!Array.isArray(rawVisible)) return new Set(DEFAULT_MODULE_ORDER)
+  const visible = rawVisible.filter((module): module is ResumeModule => (
+    DEFAULT_MODULE_ORDER.includes(module as ResumeModule)
+  ))
+  if (!rawVisible.includes('summary')) visible.push('summary')
+  return new Set(visible)
 }
 
 /**
@@ -110,9 +132,9 @@ export function deserializeLayoutConfig(raw: Record<string, unknown> | null | un
         : 'classic'
     return {
       density: (raw.density as LayoutDensity) || 'normal',
-      moduleOrder: (raw.moduleOrder as ResumeModule[]) || DEFAULT_MODULE_ORDER,
+      moduleOrder: normalizeModuleOrder(raw.moduleOrder),
       spacingScale: typeof raw.spacingScale === 'number' ? raw.spacingScale : 1.0,
-      visibleModules: new Set((raw.visibleModules as ResumeModule[]) || DEFAULT_MODULE_ORDER),
+      visibleModules: normalizeVisibleModules(raw.visibleModules),
       templateStyle,
     }
   } catch {

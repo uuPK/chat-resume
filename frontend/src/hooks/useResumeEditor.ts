@@ -29,6 +29,7 @@ import { AutoSaveStatus, useResumeAutoSave } from './useResumeAutoSave'
 
 const EDITOR_SECTION_TO_MODULE: Partial<Record<string, ResumeModule>> = {
   personal: 'personal',
+  summary: 'summary',
   education: 'education',
   work: 'work',
   projects: 'projects',
@@ -237,6 +238,7 @@ export function useResumeEditor({ resumeId, isAuthenticated }: UseResumeEditorOp
     const allSections = [
       { key: 'job_application', label: t('sections.job') },
       { key: 'personal', label: t('sections.personal') },
+      { key: 'summary', label: t('sections.summary') },
       { key: 'education', label: t('sections.education') },
       { key: 'work', label: t('sections.work') },
       { key: 'projects', label: t('sections.projects') },

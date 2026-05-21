@@ -132,7 +132,8 @@
     "education": "教育",
     "work": "工作",
     "projects": "项目",
-    "skills": "技能"
+    "skills": "技能",
+    "summary": "简介"
   },
   "forms": {
     "personal": {
@@ -175,7 +176,14 @@
       "duration": "就读时间",
       "gpa": "GPA (可选)",
       "selectDegree": "请选择学历",
-      "degrees": ["博士", "硕士", "本科", "专科", "高中", "中专"],
+      "degrees": [
+        "博士",
+        "硕士",
+        "本科",
+        "专科",
+        "高中",
+        "中专"
+      ],
       "schoolPlaceholder": "北京大学",
       "majorPlaceholder": "计算机科学与技术",
       "highlights": "教育要点",
@@ -193,7 +201,13 @@
       "duration": "工作时间",
       "location": "工作地点",
       "employmentType": "雇佣类型",
-      "employmentTypes": ["全职", "兼职", "实习", "自由职业", "合同工"],
+      "employmentTypes": [
+        "全职",
+        "兼职",
+        "实习",
+        "自由职业",
+        "合同工"
+      ],
       "companyPlaceholder": "腾讯科技",
       "positionPlaceholder": "软件工程师",
       "locationPlaceholder": "北京",
@@ -204,7 +218,16 @@
       "add": "添加工作经验"
     },
     "skills": {
-      "categories": ["编程语言", "前端技术", "后端技术", "数据库", "开发工具", "云平台", "AI 技术栈", "其他技能"],
+      "categories": [
+        "编程语言",
+        "前端技术",
+        "后端技术",
+        "数据库",
+        "开发工具",
+        "云平台",
+        "AI 技术栈",
+        "其他技能"
+      ],
       "defaultCategory": "编程语言",
       "fallbackCategory": "其他技能",
       "newCategory": "新分类",
@@ -236,6 +259,11 @@
       "highlightPlaceholder": "实现了用户友好的拖拽式简历编辑界面，提升编辑效率50%",
       "addBullet": "添加成果",
       "add": "添加项目"
+    },
+    "summary": {
+      "text": "个人简介",
+      "placeholder": "用 2-4 句话概括你的核心优势、经验年限、关键技术栈和目标岗位匹配点",
+      "hint": "建议保持精简，突出与目标岗位相关的能力和成果。"
     }
   },
   "layout": {
@@ -266,7 +294,8 @@
       "education": "教育经历",
       "work": "工作经验",
       "skills": "技能",
-      "projects": "项目经验"
+      "projects": "项目经验",
+      "summary": "个人简介"
     },
     "emptyTitle": "开始编辑简历",
     "emptyDescription": "在左侧编辑区域填写信息，实时预览将在这里显示",

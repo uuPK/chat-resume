@@ -25,6 +25,7 @@ import JobApplicationEditor from '@/components/editor/JobApplicationEditor'
 import { AgentToolActivity } from '@/components/editor/AgentToolActivity'
 import { DiffGroupCards } from '@/components/editor/DiffReviewCard'
 import PersonalInfoEditor from '@/components/editor/PersonalInfoEditor'
+import SummaryEditor from '@/components/editor/SummaryEditor'
 import EducationEditor from '@/components/editor/EducationEditor'
 import WorkExperienceEditor from '@/components/editor/WorkExperienceEditor'
 import SkillsEditor from '@/components/editor/SkillsEditor'
@@ -715,6 +716,13 @@ export default function ResumeEditPage() {
                     <PersonalInfoEditor
                       data={resume.content.personal_info || {}}
                       onChange={(data) => updateResumeContent('personal_info', data)}
+                    />
+                  )}
+
+                  {activeSection === 'summary' && (
+                    <SummaryEditor
+                      data={resume.content.summary || {}}
+                      onChange={(data) => updateResumeContent('summary', data)}
                     />
                   )}
 

@@ -6,6 +6,7 @@ import { useLineBasedPagination, measureRenderableLines, A4_WIDTH, PAGE_PADDING 
 import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
+import SummaryPreview from './sections/SummaryPreview'
 import EducationPreview from './sections/EducationPreview'
 import WorkExperiencePreview from './sections/WorkExperiencePreview'
 import SkillsPreview from './sections/SkillsPreview'
@@ -17,6 +18,7 @@ import { useTranslations } from 'next-intl'
 
 const SECTION_ID_MAP: Record<ResumeModule, string> = {
   personal: 'personal-info-section',
+  summary: 'summary-section',
   education: 'education-section',
   work: 'work-experience-section',
   skills: 'skills-section',
@@ -180,6 +182,10 @@ export default function PaginatedResumePreview({
         return content.personal_info
           ? renderSection(sectionId, <PersonalInfoPreview data={content.personal_info} renderLines={renderLines} templateStyle={templateStyle} />)
           : null
+      case 'summary':
+        return content.summary?.text
+          ? renderSection(sectionId, <SummaryPreview data={content.summary} renderLines={renderLines} templateStyle={templateStyle} />)
+          : null
       case 'education':
         return content.education && content.education.length > 0
           ? renderSection(sectionId, <EducationPreview data={content.education} renderLines={renderLines} templateStyle={templateStyle} />)
@@ -301,6 +307,7 @@ export default function PaginatedResumePreview({
 
   // 检查是否有任何内容
   const hasContent = content.personal_info ||
+    content.summary?.text ||
     (content.education && content.education.length > 0) ||
     (content.work_experience && content.work_experience.length > 0) ||
     (content.skills && content.skills.length > 0) ||

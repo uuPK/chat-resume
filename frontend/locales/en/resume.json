@@ -132,7 +132,8 @@
     "education": "Education",
     "work": "Work",
     "projects": "Projects",
-    "skills": "Skills"
+    "skills": "Skills",
+    "summary": "Summary"
   },
   "forms": {
     "personal": {
@@ -175,7 +176,14 @@
       "duration": "Dates",
       "gpa": "GPA (optional)",
       "selectDegree": "Select degree",
-      "degrees": ["PhD", "Master", "Bachelor", "Associate", "High school", "Vocational"],
+      "degrees": [
+        "PhD",
+        "Master",
+        "Bachelor",
+        "Associate",
+        "High school",
+        "Vocational"
+      ],
       "schoolPlaceholder": "Stanford University",
       "majorPlaceholder": "Computer Science",
       "highlights": "Education highlights",
@@ -193,7 +201,13 @@
       "duration": "Dates",
       "location": "Location",
       "employmentType": "Employment type",
-      "employmentTypes": ["Full-time", "Part-time", "Internship", "Freelance", "Contract"],
+      "employmentTypes": [
+        "Full-time",
+        "Part-time",
+        "Internship",
+        "Freelance",
+        "Contract"
+      ],
       "companyPlaceholder": "Stripe",
       "positionPlaceholder": "Software Engineer",
       "locationPlaceholder": "New York",
@@ -204,7 +218,16 @@
       "add": "Add work experience"
     },
     "skills": {
-      "categories": ["Programming languages", "Frontend", "Backend", "Databases", "Developer tools", "Cloud", "AI stack", "Other skills"],
+      "categories": [
+        "Programming languages",
+        "Frontend",
+        "Backend",
+        "Databases",
+        "Developer tools",
+        "Cloud",
+        "AI stack",
+        "Other skills"
+      ],
       "defaultCategory": "Programming languages",
       "fallbackCategory": "Other skills",
       "newCategory": "New category",
@@ -236,6 +259,11 @@
       "highlightPlaceholder": "Built a drag-and-drop resume editor and improved editing efficiency by 50%",
       "addBullet": "Add outcome",
       "add": "Add project"
+    },
+    "summary": {
+      "text": "Summary",
+      "placeholder": "Summarize your core strengths, years of experience, key stack, and target-role fit in 2-4 sentences",
+      "hint": "Keep it concise and focus on capabilities and outcomes relevant to the target role."
     }
   },
   "layout": {
@@ -266,7 +294,8 @@
       "education": "Education",
       "work": "Work experience",
       "skills": "Skills",
-      "projects": "Projects"
+      "projects": "Projects",
+      "summary": "Summary"
     },
     "emptyTitle": "Start editing",
     "emptyDescription": "Fill in the editor on the left and the live preview will appear here",

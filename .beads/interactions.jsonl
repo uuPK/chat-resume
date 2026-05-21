@@ -153,3 +153,4 @@
 {"id":"int-0815c5db","kind":"field_change","created_at":"2026-05-21T04:40:28.14347Z","actor":"宇宙熊Yzx","issue_id":"cr-yfd","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"已修复简历 Agent 无工具完成声明与工具调用前置文本问题，并添加回归测试。"}}
 {"id":"int-d2ff6c0f","kind":"field_change","created_at":"2026-05-21T04:46:12.457361Z","actor":"宇宙熊Yzx","issue_id":"cr-ee7","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"已加入用户复现的逐条优化叙述回归测试，并扩大无工具完成声明判定。"}}
 {"id":"int-61f692ca","kind":"field_change","created_at":"2026-05-21T04:54:13.891186Z","actor":"宇宙熊Yzx","issue_id":"cr-jmb","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Diff 卡片已改为行内比较，只给 before/after 中真实变化的片段上色。"}}
+{"id":"int-b1d2aa88","kind":"field_change","created_at":"2026-05-21T05:10:09.086056Z","actor":"宇宙熊Yzx","issue_id":"cr-d6m","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"显示设置已加入个人简介模块，支持编辑和预览显示/隐藏。"}}
