@@ -30,6 +30,8 @@ def build_diff_payload(
     """用于生成前端确认和展示所需的统一 diff 结构。"""
     before_text = summarize_value(before)
     after_text = summarize_value(after)
+    before_diff = serialize_diff_item_value(before)
+    after_diff = serialize_diff_item_value(after)
     lines = [
         title,
         f"  改前：{before_text}",
@@ -41,8 +43,8 @@ def build_diff_payload(
         "diff_summary": "\n".join(lines),
         "diff_items": [
             {
-                "before": before_text,
-                "after": after_text,
+                "before": before_diff,
+                "after": after_diff,
                 "reason": reason,
             }
         ],
@@ -73,6 +75,19 @@ def summarize_value(value: Any, max_length: int = 160) -> str:
         return truncate(summarize_dict(value), max_length)
 
     return truncate(str(value), max_length)
+
+def serialize_diff_item_value(value: Any) -> str:
+    """用于保留结构化 diff 条目的完整值，供前端精简字段差异。"""
+    if value in (None, "", [], {}):
+        return "空"
+    if isinstance(value, str):
+        return value.replace("\n", " ")
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except TypeError:
+            return str(value)
+    return str(value)
 
 
 def summarize_dict(data: dict[str, Any]) -> str:

@@ -155,6 +155,8 @@ async function installResumeAgentMock(
       category: '编程语言',
       items: ['Python', 'TypeScript', 'FastAPI', 'Next.js'],
     })
+    const truncatedSkillBefore = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "Few-…'
+    const truncatedSkillAfter = '{"id": "skill_truncated_json", "category": "Agent 技术栈", "items": ["LangChain", "MCP"]'
 
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
@@ -258,6 +260,11 @@ async function installResumeAgentMock(
                   after: unchangedSkill,
                   reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
                 },
+                {
+                  before: truncatedSkillBefore,
+                  after: truncatedSkillAfter,
+                  reason: '精简：Few-shot Prompting 并入 Context Engineering',
+                },
               ],
               done: false,
             })
@@ -285,6 +292,11 @@ async function installResumeAgentMock(
                   before: unchangedSkill,
                   after: unchangedSkill,
                   reason: '精简技能列表，去掉与 Agent 开发核心不直接相关的条目',
+                },
+                {
+                  before: truncatedSkillBefore,
+                  after: truncatedSkillAfter,
+                  reason: '精简：Few-shot Prompting 并入 Context Engineering',
                 },
               ],
               done: false,
@@ -1089,6 +1101,8 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('category: 编程语言')).toHaveCount(0)
     await expect(page.getByText('skill_same_json')).toHaveCount(0)
     await expect(page.getByText('精简技能列表，去掉与 Agent 开发核心不直接相关的条目')).toBeVisible()
+    await expect(page.getByText('skill_truncated_json')).toHaveCount(0)
+    await expect(page.getByText('精简：Few-shot Prompting 并入 Context Engineering')).toBeVisible()
     await page.getByRole('button', { name: '确认修改' }).click()
 
     await expect(page.getByText('已应用修改。')).toBeVisible()

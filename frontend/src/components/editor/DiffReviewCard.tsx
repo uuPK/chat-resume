@@ -88,6 +88,11 @@ function hasOwnField(record: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(record, key)
 }
 
+// 用于判断文本是否像 JSON 对象。
+function looksLikeJsonObject(text?: string) {
+  return Boolean(text?.trim().startsWith('{'))
+}
+
 // 用于解析 JSON 对象差异。
 function parseJsonObject(text?: string) {
   if (!text) return null
@@ -139,7 +144,9 @@ function arrayDelta(source: unknown[], target: unknown[]) {
 function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGroup | false | null {
   const before = parseJsonObject(beforeText)
   const after = parseJsonObject(afterText)
-  if (!before || !after) return null
+  if (!before || !after) {
+    return looksLikeJsonObject(beforeText) && looksLikeJsonObject(afterText) ? false : null
+  }
 
   const removeLines: string[] = []
   const addLines: string[] = []

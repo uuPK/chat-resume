@@ -519,6 +519,43 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
         )
         self.assertIn("补充 JD 关键词", result["result"]["diff_summary"])
 
+    def test_update_skills_diff_items_keep_full_json_for_frontend(self):
+        """用于验证技能diff条目保留完整JSON而不是摘要截断文本。"""
+        long_items = [
+            "LangChain",
+            "Multi-Agent",
+            "Agent Memory",
+            "RAG",
+            "Context Engineering",
+            "MCP",
+            "ReAct",
+            "Few-shot Prompting",
+            "ASR/TTS",
+        ]
+        resume_content = {
+            "skills": [
+                {"id": "skill_long", "category": "Agent 技术栈", "items": long_items[:-1]},
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = executor.execute(
+            tool_name="update_skills",
+            tool_input={
+                "category_id": "skill_long",
+                "items": long_items,
+                "mode": "replace",
+                "reason": "补充 ASR/TTS",
+            },
+            context={"resume_content": resume_content},
+        )
+
+        diff_item = result["result"]["diff_items"][0]
+        self.assertTrue(result["result"]["success"])
+        self.assertIn("…", result["result"]["diff_summary"])
+        self.assertEqual(json.loads(diff_item["after"])["items"], long_items)
+        self.assertNotIn("…", diff_item["after"])
+
     def test_add_resume_item_tool_requires_source_and_adds_project(self):
         """用于验证add_resume_item带事实来源新增项目条目。"""
         resume_content = {"projects": []}
