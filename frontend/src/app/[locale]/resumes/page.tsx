@@ -282,8 +282,8 @@ export default function ResumesPage() {
       await resumeApi.deleteResume(resumeId)
       setResumes(prev => prev.filter(r => r.id !== resumeId))
       toast.success(t('deleteDone'), { id: 'delete' })
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || t('deleteFailed'), { id: 'delete' })
+    } catch (error) {
+      toast.error(formatApiErrorMessage(error, {}, t('deleteFailed')), { id: 'delete' })
     }
   }
 
@@ -300,16 +300,11 @@ export default function ResumesPage() {
       const newResume = await resumeApi.createResume({ title: t('untitled'), content: emptyResumeContent })
       toast.success(t('createDone'), { id: 'create' })
       router.push(`/resume/${newResume.id}/edit`)
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || t('createFailed'), { id: 'create' })
+    } catch (error) {
+      toast.error(formatApiErrorMessage(error, {}, t('createFailed')), { id: 'create' })
     } finally {
       setCreating(false)
     }
-  }
-
-  // 用于打开简历editor。
-  const openResumeEditor = (resumeId: number) => {
-    router.push(`/resume/${resumeId}/edit`)
   }
 
   if (!mounted || isLoading || !isAuthenticated) {
@@ -325,6 +320,9 @@ export default function ResumesPage() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f9fafb' }}>
+      {openResumeActionsId !== null && (
+        <div className="fixed inset-0 z-[9]" onClick={() => setOpenResumeActionsId(null)} />
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -558,11 +556,11 @@ export default function ResumesPage() {
                       role="link"
                       tabIndex={0}
                       aria-label={resume.title}
-                      onClick={() => openResumeEditor(resume.id)}
+                      onClick={() => router.push(`/resume/${resume.id}/edit`)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
-                          openResumeEditor(resume.id)
+                          router.push(`/resume/${resume.id}/edit`)
                         }
                       }}
                       className="relative block cursor-pointer"
