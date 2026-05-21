@@ -625,8 +625,8 @@ export default function ResumesPage() {
                         </button>
                         <Link
                           href={`/resume/${resume.id}/interview`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white transition-colors"
-                          style={{ backgroundColor: LIST_BLUE }}
+                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
+                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
                         >
                           {t('editAction')}
                         </Link>
