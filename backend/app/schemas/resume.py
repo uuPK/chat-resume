@@ -442,6 +442,7 @@ _FRONTEND_RESUME_CONTENT_INCLUDE = {
     "parsing_method": True,
     "job_application": True,
     "personal_info": True,
+    "summary": True,
     "education": True,
     "work_experience": True,
     "skills": True,

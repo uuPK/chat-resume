@@ -142,8 +142,8 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
         )
         self.assertEqual(work["description"], "")
 
-    def test_dump_resume_content_for_frontend_drops_non_frontend_sections(self):
-        """用于验证dump简历contentforfrontenddropsnonfrontendsections。"""
+    def test_dump_resume_content_for_frontend_keeps_editable_summary(self):
+        """用于验证前端可编辑的个人简介会保留在保存响应中。"""
         content = dump_resume_content_for_frontend(
             {
                 "meta": {"language": "zh-CN"},
@@ -151,7 +151,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
                 "parsing_method": "ai",
                 "job_application": {"target_title": "AI Agent 开发工程师"},
                 "personal_info": {"name": "彭世雄", "email": "test@example.com"},
-                "summary": {"text": "这段内容不应再暴露给前端或 Agent"},
+                "summary": {"text": "AI Agent 开发工程师，擅长多 Agent 系统与 RAG 应用。"},
                 "skills": [],
                 "languages": [{"name": "英语", "level": "CET-6"}],
                 "custom_sections": [{"title": "其他", "content": "隐藏字段"}],
@@ -173,6 +173,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
                 "parsing_method": "ai",
                 "job_application": {"target_title": "AI Agent 开发工程师"},
                 "personal_info": {"name": "彭世雄", "email": "test@example.com"},
+                "summary": {"text": "AI Agent 开发工程师，擅长多 Agent 系统与 RAG 应用。"},
                 "projects": [
                     {
                         "id": content["projects"][0]["id"],
