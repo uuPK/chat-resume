@@ -28,7 +28,11 @@ from app.services.digital_human.volcengine_service import (
     _build_say_hello_frame,
     _build_start_session,
 )
-from app.entrypoints.http.digital_human import _build_greeting
+from app.entrypoints.http.digital_human import (
+    _build_greeting,
+    _build_interview_context,
+    _build_volcengine_system_role,
+)
 
 
 # ── 工具：解码 session 类事件帧 ──────────────────────────────────────────────
@@ -94,6 +98,40 @@ def test_build_greeting_chinese_no_context():
     assert len(text) > 5
 
 
+
+
+def test_build_volcengine_system_role_uses_interviewer_prompt():
+    """豆包端到端语音 system_role 应从 interviewer_agent 提示词渲染。"""
+    text = _build_volcengine_system_role(
+        target_title="后端工程师",
+        target_company="字节跳动",
+        language="zh-CN",
+        difficulty="hard",
+        jd_text="负责高并发服务",
+        resume_text="候选人姓名：张三",
+        interview_history="面试官：请介绍项目",
+    )
+
+    assert "中文模拟面试官" in text
+    assert "后端工程师" in text
+    assert "候选人简历信息：\n候选人姓名：张三" in text
+    assert "岗位 JD 信息：\n负责高并发服务" in text
+    assert "不要重复开场白" in text
+
+
+def test_build_interview_context_uses_same_prompt_file():
+    """Tavus 会话上下文应复用 interviewer_agent 提示词。"""
+    text = _build_interview_context(
+        target_title="Backend Engineer",
+        target_company="ByteDance",
+        language="en-US",
+        difficulty="medium",
+        jd_text="Own backend systems",
+    )
+
+    assert "professional mock interviewer" in text
+    assert "Backend Engineer" in text
+    assert "Job description context:\nOwn backend systems" in text
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 import struct as _struct

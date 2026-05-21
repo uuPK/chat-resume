@@ -25,6 +25,7 @@ from app.entrypoints.http.deps import (
     get_current_user,
 )
 from app.infra.config import settings
+from app.prompts import load_prompt
 from app.infra.database import get_db
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
@@ -49,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 _WS_POLICY_VIOLATION = status.WS_1008_POLICY_VIOLATION
+_INTERVIEWER_PROMPT = load_prompt("interviewer_agent")
 
 
 class DigitalHumanCreateRequest(BaseModel):
@@ -227,6 +229,29 @@ async def end_digital_human_conversation(
     return {"message": "Digital human conversation ended"}
 
 
+def _render_interviewer_prompt(
+    *,
+    target_title: str,
+    target_company: str,
+    language: str,
+    difficulty: str,
+    jd_text: str,
+    resume_text: str = "",
+    interview_history: str = "",
+) -> str:
+    """用于从文件模板渲染模拟面试官系统提示词。"""
+    return _INTERVIEWER_PROMPT.render(
+        prefers_chinese=_prefers_chinese(language),
+        target_title=target_title,
+        target_company=target_company,
+        language=language,
+        difficulty=difficulty,
+        jd_text=jd_text,
+        resume_text=resume_text,
+        interview_history=interview_history,
+    )
+
+
 def _build_interview_context(
     *,
     target_title: str,
@@ -236,29 +261,13 @@ def _build_interview_context(
     jd_text: str,
 ) -> str:
     """用于把结构化面试信息整理成 Tavus persona 的会话上下文。"""
-    if _prefers_chinese(language):
-        context = (
-            "你是一位专业、自然、支持性的中文模拟面试官。"
-            "除非候选人明确要求英文，否则你必须全程使用中文普通话。"
-            "你的目标是模拟真实招聘面试：先提出简洁问题，等待候选人回答，"
-            "再根据回答进行追问或简短反馈。"
-            f"候选人正在准备 {target_company} 的 {target_title} 岗位。"
-            f"面试难度：{difficulty}。"
-        )
-        if jd_text:
-            context += f"\n岗位 JD 信息：\n{jd_text[:4000]}"
-        return context
-
-    context = (
-        "You are a professional mock interviewer in a hiring interview room. "
-        "Keep the tone natural, focused, and supportive. "
-        f"The candidate is practicing for {target_title} at {target_company}. "
-        f"Interview language: {language}. Difficulty: {difficulty}. "
-        "Ask concise questions and wait for the candidate to answer."
+    return _render_interviewer_prompt(
+        target_title=target_title,
+        target_company=target_company,
+        language=language,
+        difficulty=difficulty,
+        jd_text=jd_text[:4000],
     )
-    if jd_text:
-        context += f"\nJob description context:\n{jd_text[:4000]}"
-    return context
 
 
 def _build_greeting(
@@ -378,45 +387,15 @@ def _build_volcengine_system_role(
     interview_history: str = "",
 ) -> str:
     """用于构建火山引擎 O 版本的 system_role。"""
-    if _prefers_chinese(language):
-        role = (
-            "你是一位专业、自然、支持性的中文模拟面试官。"
-            "除非候选人明确要求英文，否则你必须全程使用中文普通话。"
-            "你的目标是模拟真实招聘面试：先提出简洁问题，等待候选人回答，"
-            "再根据回答进行追问或简短反馈。"
-            f"候选人正在准备 {target_company} 的 {target_title} 岗位。"
-            f"面试难度：{difficulty}。"
-        )
-        if resume_text:
-            role += f"\n\n候选人简历信息：\n{resume_text[:2000]}"
-        if jd_text:
-            role += f"\n\n岗位 JD 信息：\n{jd_text[:2000]}"
-        if interview_history:
-            role += (
-                "\n\n本场面试已经进行过以下对话，请基于这些上下文继续，"
-                "不要重复开场白或重复已经问过的问题：\n"
-                f"{interview_history[:3000]}"
-            )
-        return role
-
-    role = (
-        "You are a professional mock interviewer in a hiring interview room. "
-        "Keep the tone natural, focused, and supportive. "
-        f"The candidate is practicing for {target_title} at {target_company}. "
-        f"Interview language: {language}. Difficulty: {difficulty}. "
-        "Ask concise questions and wait for the candidate to answer."
+    return _render_interviewer_prompt(
+        target_title=target_title,
+        target_company=target_company,
+        language=language,
+        difficulty=difficulty,
+        jd_text=jd_text[:2000],
+        resume_text=resume_text[:2000],
+        interview_history=interview_history[:3000],
     )
-    if resume_text:
-        role += f"\n\nCandidate resume:\n{resume_text[:2000]}"
-    if jd_text:
-        role += f"\n\nJob description context:\n{jd_text[:2000]}"
-    if interview_history:
-        role += (
-            "\n\nThe interview already has this transcript. Continue from it; "
-            "do not repeat the greeting or previously asked questions:\n"
-            f"{interview_history[:3000]}"
-        )
-    return role
 
 
 def _build_interview_history(turns: list[InterviewTurn]) -> str:
