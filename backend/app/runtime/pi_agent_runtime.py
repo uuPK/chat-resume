@@ -62,6 +62,43 @@ logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
 _TOOL_ARGUMENTS_PARSE_ERROR_KEY = "__tool_arguments_parse_error"
+_UNEXECUTED_MUTATION_RETRY_PROMPT = (
+    "上一轮回复声称已经修改简历，但没有发出结构化工具调用。"
+    "如果要新增、修改、删除、拆分、精简或优化简历内容，"
+    "必须立即调用一个可用的简历工具；不能只用自然语言声称完成。"
+)
+_UNEXECUTED_MUTATION_FALLBACK = (
+    "我还没有通过简历工具完成修改，因此不能声称已完成改动。请明确要修改的具体条目。"
+)
+_MUTATION_CLAIM_MARKERS = (
+    "已新增",
+    "已更新",
+    "已修改",
+    "已删除",
+    "已拆分",
+    "已精简",
+    "已优化",
+    "已经新增",
+    "已经更新",
+    "已经修改",
+    "已经删除",
+    "已经拆分",
+    "已经精简",
+    "已经优化",
+)
+_MUTATION_ACTION_WORDS = (
+    "新增",
+    "更新",
+    "修改",
+    "删除",
+    "拆分",
+    "精简",
+    "优化",
+    "改写",
+    "重写",
+    "bullet",
+    "要点",
+)
 
 
 class _ReActStreamFn:
@@ -415,24 +452,18 @@ class PiAgentRuntime:
 
             tool_calls = self._assistant_tool_calls(assistant_message)
             if not tool_calls:
-                await self._publish_text_deltas(
+                if await self._retry_or_publish_unexecuted_mutation_claim(
                     agent=agent,
                     run_id=run_id,
+                    messages=messages,
                     event_queue=event_queue,
                     event_callback=event_callback,
                     state=state,
                     text_deltas=text_deltas,
-                )
+                    executed_tools=executed_tools,
+                ):
+                    continue
                 return
-            if text_deltas:
-                await self._publish_text_deltas(
-                    agent=agent,
-                    run_id=run_id,
-                    event_queue=event_queue,
-                    event_callback=event_callback,
-                    state=state,
-                    text_deltas=text_deltas,
-                )
             tool_call = tool_calls[0]
             if len(tool_calls) > 1:
                 self._trace(
@@ -486,7 +517,7 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         state: dict[str, Any],
     ) -> tuple[AssistantMessage, list[str]]:
-        """流式拉取单轮 assistant 响应，text delta 实时发布不缓冲。"""
+        """流式拉取单轮 assistant 响应，确认无工具调用后再发布文本。"""
         cancel_event = asyncio.Event()
         response = self.stream_fn(
             config.model,
@@ -503,6 +534,7 @@ class PiAgentRuntime:
                 cancel_event=cancel_event,
             ),
         )
+        text_deltas: list[str] = []
         try:
             if inspect.isawaitable(response):
                 response = await response
@@ -529,21 +561,7 @@ class PiAgentRuntime:
                             (perf_counter() - state["started_at"]) * 1000,
                             2,
                         )
-                    state["chunk_index"] += 1
-                    state["response_parts"].append(delta)
-                    self._trace_chunk(
-                        "agent.trace.intermediate.chunk",
-                        run_id=run_id,
-                        agent_name=agent.prompt_spec.name,
-                        chunk_index=state["chunk_index"],
-                        content_preview=self._preview_text(delta),
-                        content_chars=len(delta),
-                    )
-                    await self._publish_event(
-                        event_queue=event_queue,
-                        event_callback=event_callback,
-                        event=text_delta_event(content=delta),
-                    )
+                    text_deltas.append(delta)
 
             result = response["result"]()
             if inspect.isawaitable(result):
@@ -553,14 +571,76 @@ class PiAgentRuntime:
             assistant_message = _ReActStreamFn._single_tool_message(result)
             state["last_assistant_text"] = self._assistant_text(assistant_message)
             state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-            # text deltas already published above; return empty list to skip re-publish
-            return assistant_message, []
+            return assistant_message, text_deltas
         finally:
             cancel_event.set()
 
     def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
         """从 assistant 消息中提取本轮工具调用。"""
         return [block for block in message.content if isinstance(block, ToolCall)]
+
+    async def _retry_or_publish_unexecuted_mutation_claim(
+        self,
+        *,
+        agent: AgentDefinition,
+        run_id: str,
+        messages: list[Message],
+        event_queue: asyncio.Queue[Any] | None,
+        event_callback: RuntimeEventCallback | None,
+        state: dict[str, Any],
+        text_deltas: list[str],
+        executed_tools: list[dict[str, Any]],
+    ) -> bool:
+        """拦截没有真实工具调用的简历修改完成声明，必要时重试一轮。"""
+        assistant_text = "".join(text_deltas) or str(state.get("last_assistant_text") or "")
+        if not self._is_unexecuted_mutation_claim(assistant_text, executed_tools):
+            await self._publish_text_deltas(
+                agent=agent,
+                run_id=run_id,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+                text_deltas=text_deltas,
+            )
+            return False
+
+        retry_count = int(state.get("mutation_claim_retry_count") or 0)
+        if retry_count >= 1:
+            await self._publish_text_deltas(
+                agent=agent,
+                run_id=run_id,
+                event_queue=event_queue,
+                event_callback=event_callback,
+                state=state,
+                text_deltas=[_UNEXECUTED_MUTATION_FALLBACK],
+            )
+            return False
+
+        state["mutation_claim_retry_count"] = retry_count + 1
+        self._trace(
+            "agent.trace.reasoning.unexecuted_mutation_claim_retry",
+            run_id=run_id,
+            agent_name=agent.prompt_spec.name,
+            reason="no_tool_call_before_mutation_claim",
+        )
+        messages.append(UserMessage(content=[TextContent(text=_UNEXECUTED_MUTATION_RETRY_PROMPT)]))
+        return True
+
+    @staticmethod
+    def _is_unexecuted_mutation_claim(
+        assistant_text: str,
+        executed_tools: list[dict[str, Any]],
+    ) -> bool:
+        """判断回复是否在没有工具结果时声称已修改简历。"""
+        if executed_tools:
+            return False
+        text = assistant_text.strip()
+        if not text:
+            return False
+        if any(marker in text for marker in _MUTATION_CLAIM_MARKERS):
+            return True
+        has_completion = "已完成" in text or "已经完成" in text
+        return has_completion and any(word in text for word in _MUTATION_ACTION_WORDS)
 
     @staticmethod
     def _early_tool_call_from_event(raw_event: Any) -> ToolCall | None:
@@ -1375,6 +1455,7 @@ class PiAgentRuntime:
             "first_token_latency_ms": None,
             "usage": {},
             "confirmation_wait_ms": 0.0,
+            "mutation_claim_retry_count": 0,
         }
 
     def _llm_request_event(

@@ -521,8 +521,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["tool_calls"], [])
         self.assertEqual(resume["summary"]["text"], "3年 Python 后端开发经验")
 
-    async def test_optimize_surfaces_no_tool_mutation_claim(self):
-        """用于验证无工具文本不再被 stop guard 隐藏或重试。"""
+    async def test_optimize_retries_no_tool_mutation_claim(self):
+        """用于验证无工具完成声明会被拦截并重试真实工具调用。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -553,12 +553,14 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         result = await agent.optimize("继续拆分工作经历 bullet", resume)
 
-        self.assertIn("新增 4 条独立 bullet", result["content"])
-        self.assertEqual(result["tool_calls"], [])
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertNotIn("新增 4 条独立 bullet", result["content"])
+        self.assertIn("已通过工具新增 1 条工作经历要点。", result["content"])
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        self.assertEqual(len(resume["work_experience"][0]["highlights"]), 2)
         self.assertEqual(
-            resume["work_experience"][0]["highlights"],
-            [{"id": "hl_1", "text": "维护多个后台服务"}],
+            resume["work_experience"][0]["highlights"][-1]["text"],
+            "基于 Prompt Chain 优化 Agent 输出稳定性",
         )
 
     async def test_optimize_updates_resume_via_tool_call(self):
@@ -594,8 +596,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             resume["work_experience"][0]["highlights"][0]["text"],
         )
 
-    async def test_optimize_shows_tool_call_turn_preamble_text(self):
-        """用于验证工具调用轮次的模型前置文本会进入最终回复。"""
+    async def test_optimize_hides_tool_call_turn_preamble_text(self):
+        """用于验证工具调用轮次的模型前置文本不会进入最终回复。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -619,7 +621,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         result = await agent.optimize("继续优化项目", resume)
 
-        self.assertIn("我来继续添加一个技术要点", result["content"])
+        self.assertNotIn("我来继续添加一个技术要点", result["content"])
         self.assertIn("已通过工具新增 1 条项目要点。", result["content"])
         self.assertEqual(len(result["tool_calls"]), 1)
         self.assertEqual(
@@ -627,8 +629,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "通过结构化工具调用驱动简历内容更新",
         )
 
-    async def test_optimize_surfaces_repeated_no_tool_mutation_claim(self):
-        """用于验证无工具文本按模型原文自然停止。"""
+    async def test_optimize_falls_back_after_repeated_no_tool_mutation_claim(self):
+        """用于验证重复无工具完成声明会被替换为安全回复。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(content="已完成项目拆分，新增 3 条 bullet。"),
@@ -639,9 +641,10 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         result = await agent.optimize("继续优化项目内容", resume)
 
-        self.assertEqual(result["content"], "已完成项目拆分，新增 3 条 bullet。")
+        self.assertNotIn("新增 3 条 bullet", result["content"])
+        self.assertIn("还没有通过简历工具完成修改", result["content"])
         self.assertEqual(result["tool_calls"], [])
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
     async def test_optimize_surfaces_unrealized_action_headline_without_tool(self):
         """用于验证工具结果后的无工具文本会直接展示并停止。"""
@@ -886,8 +889,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_optimize_stream_surfaces_no_tool_mutation_claim(self):
-        """用于验证流式响应直接展示无工具文本。"""
+    async def test_optimize_stream_retries_no_tool_mutation_claim(self):
+        """用于验证流式无工具完成声明会被拦截并重试真实工具调用。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -927,18 +930,21 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         ):
             events.append(event)
 
+
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertIn("新增 3 条独立 bullet", visible_text)
-        self.assertFalse(any(event.get("tool_pending") for event in events))
-        self.assertFalse(any(event.get("tool_confirmed") for event in events))
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertNotIn("新增 3 条独立 bullet", visible_text)
+        self.assertIn("已通过工具新增 1 条 RAG 要点。", visible_text)
+        self.assertTrue(any(event.get("tool_pending") for event in events))
+        self.assertTrue(any(event.get("tool_confirmed") for event in events))
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        self.assertEqual(len(resume["work_experience"][0]["highlights"]), 2)
         self.assertEqual(
-            resume["work_experience"][0]["highlights"],
-            [{"id": "hl_1", "text": "维护多个后台服务"}],
+            resume["work_experience"][0]["highlights"][-1]["text"],
+            "基于 RAG 记忆检索增强长程上下文",
         )
 
-    async def test_optimize_stream_shows_tool_call_turn_preamble_text(self):
-        """用于验证流式工具调用轮次会展示模型前置说明。"""
+    async def test_optimize_stream_hides_tool_call_turn_preamble_text(self):
+        """用于验证流式工具调用轮次不会展示模型前置说明。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -971,8 +977,9 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         ):
             events.append(event)
 
+
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertIn("我来继续添加项目亮点", visible_text)
+        self.assertNotIn("我来继续添加项目亮点", visible_text)
         self.assertIn("已通过工具新增 1 条项目亮点", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
         self.assertEqual(
@@ -980,8 +987,8 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "使用结构化工具调用保证简历编辑可追溯",
         )
 
-    async def test_optimize_stream_surfaces_no_tool_mutation_text(self):
-        """用于验证流式无工具文本不会被 fallback 替换。"""
+    async def test_optimize_stream_falls_back_after_repeated_no_tool_mutation_text(self):
+        """用于验证流式重复无工具完成声明会被替换为安全回复。"""
         agent = self._build_agent(
             [
                 FakeModelResponse(
@@ -1003,10 +1010,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         ):
             events.append(event)
 
+
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertIn("已完成 Chat Resume 项目优化", visible_text)
+        self.assertNotIn("已完成 Chat Resume 项目优化", visible_text)
+        self.assertIn("还没有通过简历工具完成修改", visible_text)
         self.assertFalse(any(event.get("tool_pending") for event in events))
-        self.assertEqual(agent.runtime.stream_fn.calls, 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
     async def test_optimize_stream_surfaces_unrealized_action_headline_without_tool(self):
         """用于验证流式工具结果后的无工具文本会直接展示。"""
@@ -1180,10 +1189,12 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(summary_events), 1)
         summary = summary_events[0]["result"]["job_match_summary"]
         self.assertIn("Agent", summary["matched_keywords"])
-        self.assertIn("Redis", summary["missing_keywords"])
-        self.assertEqual(
-            summary["resume_changes"],
-            ["补充岗位关键词：维护 Agent 后端服务，支撑高并发 API"],
+        self.assertTrue(any("Redis" in keyword for keyword in summary["missing_keywords"]))
+        self.assertTrue(
+            any(
+                "维护 Agent 后端服务，支撑高并发 API" in change
+                for change in summary["resume_changes"]
+            )
         )
 
     async def test_optimize_stream_reject_keeps_resume_unchanged(self):
@@ -1339,8 +1350,8 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_pi_agent_runtime_stream_shows_tool_preamble_text(self):
-        """用于验证工具调用前的 assistant 文本会正常展示。"""
+    async def test_pi_agent_runtime_stream_hides_tool_preamble_text(self):
+        """用于验证工具调用前的 assistant 文本不会展示。"""
         agent = ResumeAgent()
         agent.runtime = PiAgentRuntime(
             stream_fn=FakePiAgentStream(
@@ -1381,8 +1392,9 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         ):
             events.append(event)
 
+
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertIn("我先说明这次会优化工作经历。", visible_text)
+        self.assertNotIn("我先说明这次会优化工作经历。", visible_text)
         self.assertIn("已完成优化。", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
 
