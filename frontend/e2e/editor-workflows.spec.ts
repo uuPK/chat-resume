@@ -619,7 +619,7 @@ test.describe('编辑页工作流', () => {
     expect(streamPayload?.message).toContain('改得更有结果导向')
     const quotedContext = page.getByTestId('selected-resume-message-context').last()
     await expect(quotedContext).toBeVisible()
-    await expect(quotedContext).toContainText('引用的简历内容')
+    await expect(quotedContext).toContainText('引用')
     await expect(quotedContext).toContainText('负责前端开发与性能优化')
     await quotedContext.getByText('展开全文').click()
     await expect(quotedContext.getByText('收起')).toBeVisible()

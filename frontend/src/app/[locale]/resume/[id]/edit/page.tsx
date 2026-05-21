@@ -213,7 +213,7 @@ function UserMessageContent({ content }: { content: string }) {
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           <span className="flex items-center justify-between gap-3">
             <span className="text-[11px] font-semibold leading-none text-[#0052ff]">
-              引用的简历内容 · {selectedMessage.selectedText.length} 字
+              引用
             </span>
             {isContextTruncated && (
               <span className="shrink-0 text-[11px] font-medium text-[#5b616e]">
