@@ -67,6 +67,17 @@ function authMessage(key: 'login' | 'register' | 'getCurrentUser' | 'refresh' | 
   return errors[key]
 }
 
+// 用于判断认证失败是否属于用户可恢复状态，不作为异常噪声输出。
+function isExpectedAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return message === 'Not authenticated'
+    || message === 'Invalid refresh token'
+    || message === 'Incorrect email or password'
+    || message === authMessage('getCurrentUser')
+    || message === authMessage('refresh')
+}
+
+
 // 用于读取本地用户用户。
 function readStoredUser(): User | null {
   try {
@@ -161,8 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       return true
     } catch (error) {
-      console.error('Login error:', error)
-      // 抛出错误以便上层处理
+      if (!isExpectedAuthError(error)) {
+        console.error('Login error:', error)
+      }
       throw error
     }
   }
@@ -200,11 +212,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeStoredUser(response.user)
       return true
     } catch (error) {
-      console.error('Refresh session error:', error)
+      if (!isExpectedAuthError(error)) {
+        console.error('Refresh session error:', error)
+      }
       localStorage.removeItem(USER_STORAGE_KEY)
       setUser(null)
       AuthAPI.logout().catch((logoutError) => {
-        console.error('Logout after refresh failure error:', logoutError)
+        if (!isExpectedAuthError(logoutError)) {
+          console.error('Logout after refresh failure error:', logoutError)
+        }
       })
       return false
     }
@@ -232,7 +248,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(freshUser)
       writeStoredUser(freshUser)
     } catch (error) {
-      console.error('Refresh user error:', error)
+      if (!isExpectedAuthError(error)) {
+        console.error('Refresh user error:', error)
+      }
       localStorage.removeItem(USER_STORAGE_KEY)
       setUser(null)
     }
@@ -256,7 +274,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(user)
       writeStoredUser(user)
     } catch (error) {
-      console.error('Auth check error:', error)
+      if (!isExpectedAuthError(error)) {
+        console.error('Auth check error:', error)
+      }
       localStorage.removeItem(USER_STORAGE_KEY)
       setUser(null)
     } finally {

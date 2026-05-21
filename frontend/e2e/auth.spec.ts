@@ -170,12 +170,20 @@ test.describe('登录', () => {
   })
 
   test('错误密码停留在登录页', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text())
+      }
+    })
+
     await page.goto('/login')
     await page.fill('input[type="email"]', testEmail)
     await page.fill('input[type="password"]', 'WrongPassword999')
     await page.click('button[type="submit"]')
     await page.waitForTimeout(2000)
     expect(page.url()).not.toMatch(/\/dashboard/)
+    expect(consoleErrors.some(message => message.includes('Login error'))).toBe(false)
   })
 
   test('未填写邮箱不允许提交', async ({ page }) => {
@@ -225,6 +233,12 @@ test.describe('登录', () => {
   test('刷新令牌失效时会调用登出接口清理 Cookie', async ({ page, baseURL }) => {
     const cookieDomain = new URL(baseURL || 'http://localhost:3000').hostname
     const logoutRequests: string[] = []
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text())
+      }
+    })
     await page.context().addCookies([
       {
         name: 'refresh_token',
@@ -261,6 +275,7 @@ test.describe('登录', () => {
     await page.goto('/dashboard')
 
     await expect.poll(() => logoutRequests.length).toBe(1)
+    expect(consoleErrors.some(message => message.includes('Refresh session error') || message.includes('Auth check error'))).toBe(false)
   })
 
   test('页面包含跳转到注册页的链接', async ({ page }) => {
