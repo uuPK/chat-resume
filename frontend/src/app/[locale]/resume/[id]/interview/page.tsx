@@ -36,6 +36,11 @@ type ConversationMessage = {
   content: string
   isFinal?: boolean
 }
+// 用于驱动报告生成卡片的动态进度步骤。
+const REPORT_GENERATION_STEPS = ['整理面试对话', '判断岗位匹配', '提取面试官风险', '重写最弱回答'] as const
+// 用于让生成进度只前进不回退，避免真实报告未返回前显示 100%。
+const REPORT_GENERATION_PROGRESS = [18, 42, 68, 88] as const
+
 
 interface VoicePanelProps {
   sessionId: string | undefined
@@ -43,6 +48,9 @@ interface VoicePanelProps {
   onPersistMessage?: (role: ConversationMessage['role'], content: string) => void
   autoStart?: boolean
   onStatusChange?: (status: VoiceStatus) => void
+  canEndInterview?: boolean
+  isEndingInterview?: boolean
+  onEndInterview?: () => void
 }
 
 // 用于在消息热更新滞后时提供稳定的会话文案。
@@ -70,6 +78,9 @@ function VoicePanel({
   onPersistMessage,
   autoStart = false,
   onStatusChange,
+  canEndInterview = false,
+  isEndingInterview = false,
+  onEndInterview,
 }: VoicePanelProps) {
   const t = useTranslations('interview.session')
   const [status, setStatus] = useState<VoiceStatus>('idle')
@@ -587,7 +598,7 @@ function VoicePanel({
         >
           <div className="mx-auto w-full max-w-4xl px-5 pt-6 pb-[25px] space-y-5 min-h-full">
           {status === 'connecting' ? (
-            <div className="flex h-full items-center justify-center pointer-events-none select-none">
+            <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none select-none">
               <div
                 className="flex items-center gap-2 px-5 py-3 text-sm font-medium"
                 style={{
@@ -734,23 +745,45 @@ function VoicePanel({
             {/* Primary controls */}
             <div className="flex items-center gap-3">
               {status === 'idle' && (
-                <button
-                  type="button"
-                  onClick={startVoice}
-                  disabled={!sessionId}
-                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black"
-                  style={{
-                    backgroundColor: '#0052ff',
-                    borderRadius: '56px',
-                    border: '1px solid #0052ff',
-                    letterSpacing: '0.01em',
-                  }}
-                  onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
-                >
-                  <MicrophoneIcon className="w-3.5 h-3.5" />
-                  {sessionId ? (shouldContinueInterview ? t('continue') : t('start')) : t('preparing')}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={startVoice}
+                    disabled={!sessionId}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black"
+                    style={{
+                      backgroundColor: '#0052ff',
+                      borderRadius: '56px',
+                      border: '1px solid #0052ff',
+                      letterSpacing: '0.01em',
+                    }}
+                    onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
+                  >
+                    <MicrophoneIcon className="w-3.5 h-3.5" />
+                    {sessionId ? (shouldContinueInterview ? t('continue') : t('start')) : t('preparing')}
+                  </button>
+                  {shouldContinueInterview && canEndInterview && onEndInterview && (
+                    <button
+                      type="button"
+                      onClick={onEndInterview}
+                      disabled={isEndingInterview}
+                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black"
+                      style={{
+                        backgroundColor: '#eef0f3',
+                        borderRadius: '56px',
+                        border: '1px solid #eef0f3',
+                        color: '#0a0b0d',
+                        letterSpacing: '0.01em',
+                      }}
+                      onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#282b31'; e.currentTarget.style.borderColor = '#282b31'; e.currentTarget.style.color = '#ffffff' } }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.borderColor = '#eef0f3'; e.currentTarget.style.color = '#0a0b0d' }}
+                    >
+                      <PhoneXMarkIcon className="w-3.5 h-3.5" />
+                      {isEndingInterview ? t('endingInterview') : t('endInterview')}
+                    </button>
+                  )}
+                </>
               )}
 
               {status === 'error' && (
@@ -879,52 +912,178 @@ function ReportGenerationPanel({
   isGenerating: boolean
   onGenerate: () => void
 }) {
-  const steps = ['整理面试对话', '判断岗位匹配', '提取面试官风险', '重写最弱回答']
+  const [activeStep, setActiveStep] = useState(0)
+  const activeStepLabel = REPORT_GENERATION_STEPS[activeStep]
+  const progressPercent = isGenerating ? REPORT_GENERATION_PROGRESS[activeStep] : 0
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setActiveStep(0)
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setActiveStep(current => Math.min(current + 1, REPORT_GENERATION_STEPS.length - 1))
+    }, 1800)
+
+    return () => window.clearInterval(timer)
+  }, [isGenerating])
+
   return (
-    <div style={{ minHeight: 'calc(100vh - 160px)', display: 'grid', placeItems: 'center', padding: '48px 0' }}>
-      <div style={{ width: '100%', maxWidth: 680, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', boxShadow: '0 18px 60px rgba(15, 23, 42, 0.08)', padding: '36px 38px' }}>
-        <div style={{ width: 44, height: 44, borderRadius: 8, background: '#eff6ff', color: '#0052ff', display: 'grid', placeItems: 'center', marginBottom: 20 }}>
-          <ArrowPathIcon style={{ width: 22, height: 22 }} />
-        </div>
-        <h1 style={{ color: '#111827', fontSize: 28, fontWeight: 800, lineHeight: 1.18, margin: '0 0 12px' }}>
-          生成面试复盘报告
-        </h1>
-        <p style={{ color: '#4b5563', fontSize: 16, lineHeight: 1.7, margin: '0 0 26px', maxWidth: 560 }}>
-          我们会从面试官视角分析岗位匹配、风险追问和可直接复述的改写回答。
-        </p>
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={isGenerating}
-          style={{
-            alignItems: 'center',
-            background: isGenerating ? '#93c5fd' : '#0052ff',
-            border: '1px solid transparent',
-            borderRadius: 8,
-            color: '#ffffff',
-            cursor: isGenerating ? 'not-allowed' : 'pointer',
-            display: 'inline-flex',
-            fontSize: 15,
-            fontWeight: 750,
-            gap: 8,
-            height: 44,
-            padding: '0 18px',
-          }}
-        >
-          <ArrowPathIcon style={{ width: 17, height: 17 }} />
-          {isGenerating ? '生成中...' : '开始生成报告'}
-        </button>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4" style={{ marginTop: 30 }}>
-          {steps.map((step, index) => (
-            <div key={step} style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', padding: 14 }}>
-              <span style={{ color: '#0052ff', fontSize: 12, fontWeight: 800 }}>
-                0{index + 1}
-              </span>
-              <p style={{ color: '#374151', fontSize: 13, fontWeight: 650, lineHeight: 1.45, margin: '8px 0 0' }}>
-                {step}
-              </p>
+    <div style={{ minHeight: 'calc(100vh - 160px)', display: 'grid', placeItems: 'center', padding: '32px 0' }}>
+      <div
+        style={{
+          background: 'linear-gradient(145deg, #ffffff 0%, #f8fbff 58%, #eef5ff 100%)',
+          border: '1px solid rgba(148, 163, 184, 0.28)',
+          borderRadius: 28,
+          boxShadow: '0 24px 70px rgba(15, 23, 42, 0.10)',
+          overflow: 'hidden',
+          padding: 0,
+          position: 'relative',
+          width: '100%',
+          maxWidth: 760,
+        }}
+      >
+        <div aria-hidden="true" style={{ background: 'radial-gradient(circle, rgba(0,82,255,0.15), transparent 62%)', height: 260, position: 'absolute', right: -80, top: -110, width: 260 }} />
+        <div aria-hidden="true" style={{ background: 'linear-gradient(90deg, rgba(0,82,255,0.16), rgba(96,165,250,0))', height: 1, left: 0, position: 'absolute', right: 0, top: 0 }} />
+        <div style={{ display: 'grid', gap: 26, padding: '34px 36px 32px', position: 'relative' }}>
+          <div style={{ alignItems: 'flex-start', display: 'flex', gap: 18, justifyContent: 'space-between' }}>
+            <div style={{ alignItems: 'center', display: 'flex', gap: 16, minWidth: 0 }}>
+              <div
+                style={{
+                  background: isGenerating ? '#0052ff' : '#eff6ff',
+                  borderRadius: 18,
+                  boxShadow: isGenerating ? '0 14px 28px rgba(0, 82, 255, 0.24)' : 'none',
+                  color: isGenerating ? '#ffffff' : '#0052ff',
+                  display: 'grid',
+                  flex: '0 0 auto',
+                  height: 54,
+                  placeItems: 'center',
+                  width: 54,
+                }}
+              >
+                <ArrowPathIcon className={isGenerating ? 'animate-spin' : ''} style={{ width: 25, height: 25 }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ color: '#0052ff', fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', margin: '0 0 8px', textTransform: 'uppercase' }}>
+                  Interview Debrief
+                </p>
+                <h1 style={{ color: '#0f172a', fontSize: 32, fontWeight: 850, letterSpacing: '-0.04em', lineHeight: 1.1, margin: 0 }}>
+                  生成面试复盘报告
+                </h1>
+              </div>
             </div>
-          ))}
+            <span style={{ background: '#ffffff', border: '1px solid #dbeafe', borderRadius: 999, color: '#1d4ed8', flex: '0 0 auto', fontSize: 13, fontWeight: 800, padding: '9px 13px' }}>
+              {isGenerating ? `${progressPercent}%` : '4 步分析'}
+            </span>
+          </div>
+
+          <p style={{ color: '#475569', fontSize: 16, lineHeight: 1.75, margin: 0, maxWidth: 620 }}>
+            我们会从面试官视角分析岗位匹配、风险追问和可直接复述的改写回答。
+          </p>
+
+          {isGenerating ? (
+            <div
+              aria-live="polite"
+              role="status"
+              style={{
+                background: 'rgba(255,255,255,0.78)',
+                border: '1px solid #bfdbfe',
+                borderRadius: 20,
+                boxShadow: '0 16px 45px rgba(37, 99, 235, 0.10)',
+                padding: 18,
+              }}
+            >
+              <div style={{ alignItems: 'center', display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+                <div>
+                  <p style={{ color: '#64748b', fontSize: 12, fontWeight: 800, margin: '0 0 6px' }}>
+                    当前正在处理
+                  </p>
+                  <p style={{ color: '#1d4ed8', fontSize: 18, fontWeight: 850, letterSpacing: '-0.02em', margin: 0 }}>
+                    {activeStepLabel}
+                  </p>
+                </div>
+                <span className="animate-pulse" style={{ background: '#dbeafe', borderRadius: 999, color: '#0052ff', fontSize: 12, fontWeight: 800, padding: '8px 11px' }}>
+                  分析中
+                </span>
+              </div>
+              <div
+                aria-label="报告生成进度"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={progressPercent}
+                role="progressbar"
+                style={{ background: '#e2e8f0', borderRadius: 999, height: 8, marginTop: 18, overflow: 'hidden' }}
+              >
+                <div
+                  style={{
+                    background: 'linear-gradient(90deg, #0052ff, #60a5fa)',
+                    borderRadius: 999,
+                    height: '100%',
+                    transition: 'width 420ms ease',
+                    width: `${progressPercent}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onGenerate}
+              style={{
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                background: '#0052ff',
+                border: '1px solid #0052ff',
+                borderRadius: 999,
+                boxShadow: '0 16px 30px rgba(0, 82, 255, 0.22)',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                fontSize: 15,
+                fontWeight: 800,
+                gap: 8,
+                height: 46,
+                padding: '0 20px',
+              }}
+            >
+              <ArrowPathIcon style={{ width: 17, height: 17 }} />
+              开始生成报告
+            </button>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {REPORT_GENERATION_STEPS.map((step, index) => {
+              const isActive = isGenerating && index === activeStep
+              const isDone = isGenerating && index < activeStep
+              return (
+                <div
+                  key={step}
+                  style={{
+                    background: isActive ? '#ffffff' : 'rgba(255,255,255,0.62)',
+                    border: `1px solid ${isActive ? '#93c5fd' : '#e2e8f0'}`,
+                    borderRadius: 18,
+                    boxShadow: isActive ? '0 16px 35px rgba(37, 99, 235, 0.14)' : 'none',
+                    minHeight: 124,
+                    padding: 16,
+                    transform: isActive ? 'translateY(-3px)' : 'translateY(0)',
+                    transition: 'background 220ms ease, border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease',
+                  }}
+                >
+                  <span style={{ alignItems: 'center', color: isActive ? '#0052ff' : '#64748b', display: 'inline-flex', fontSize: 12, fontWeight: 850, gap: 7 }}>
+                    <span style={{ background: isActive ? '#0052ff' : isDone ? '#93c5fd' : '#e2e8f0', borderRadius: 999, height: 8, width: 8 }} />
+                    0{index + 1}
+                  </span>
+                  <p style={{ color: isActive ? '#0f172a' : '#334155', fontSize: 15, fontWeight: 800, lineHeight: 1.45, margin: '22px 0 8px' }}>
+                    {step}
+                  </p>
+                  <p style={{ color: isActive ? '#1d4ed8' : '#94a3b8', fontSize: 12, fontWeight: 750, margin: 0 }}>
+                    {isActive ? '正在处理' : isDone ? '已完成' : '待处理'}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -1279,26 +1438,6 @@ export default function InterviewPage() {
                 : sessionText(t, locale, 'generateReport', { zh: '生成报告', en: 'Generate report' })}
             </button>
           )}
-          {canEndInterview && (
-            <button
-              type="button"
-              onClick={handleEndInterview}
-              disabled={isSending}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-black"
-              style={{
-                backgroundColor: '#eef0f3',
-                borderRadius: '56px',
-                border: '1px solid #eef0f3',
-                color: '#0a0b0d',
-                letterSpacing: '0.01em',
-              }}
-              onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#282b31'; e.currentTarget.style.borderColor = '#282b31'; e.currentTarget.style.color = '#ffffff' } }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3'; e.currentTarget.style.borderColor = '#eef0f3'; e.currentTarget.style.color = '#0a0b0d' }}
-            >
-              <PhoneXMarkIcon className="h-4 w-4" />
-              {isSending ? t('endingInterview') : t('endInterview')}
-            </button>
-          )}
         </div>
       </header>
 
@@ -1330,6 +1469,9 @@ export default function InterviewPage() {
             interviewSession={session}
             onPersistMessage={handlePersistMessage}
             autoStart={shouldAutoStartVoice}
+            canEndInterview={canEndInterview}
+            isEndingInterview={isSending}
+            onEndInterview={handleEndInterview}
           />
         )}
       </div>

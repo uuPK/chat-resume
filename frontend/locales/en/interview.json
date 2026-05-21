@@ -79,7 +79,8 @@
     "sessionMismatch": "Interview record does not match this resume",
     "startFailed": "Failed to start interview",
     "endFailed": "Failed to end interview",
-    "reportFailed": "Failed to generate report"
+    "reportFailed": "Failed to generate report",
+    "reportSkipped": "This interview has no answers to review yet. Complete one Q&A before generating a report."
   },
   "status": {
     "completed": "Completed",

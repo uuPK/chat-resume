@@ -79,7 +79,8 @@
     "sessionMismatch": "面试记录与当前简历不匹配",
     "startFailed": "启动面试失败",
     "endFailed": "结束面试失败",
-    "reportFailed": "生成报告失败"
+    "reportFailed": "生成报告失败",
+    "reportSkipped": "这场面试还没有可复盘的回答，先完成一次问答后再生成报告。"
   },
   "status": {
     "completed": "已完成",

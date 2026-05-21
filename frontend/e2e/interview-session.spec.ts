@@ -67,6 +67,19 @@ const completedTurns = [
   },
 ]
 
+const pausedActiveSession = {
+  ...activeSession,
+  turns: completedTurns,
+  current_turn: completedTurns[0],
+}
+const completedEmptySession = {
+  ...activeSession,
+  status: 'completed',
+  ended_at: '2026-05-16T00:05:00Z',
+  report_data: null,
+}
+
+
 const completedSession = {
   ...activeSession,
   status: 'completed',
@@ -152,7 +165,7 @@ async function mockInterviewApis(page: Page) {
     await route.fulfill({
       json: {
         provider: 'volcengine',
-        conversation_id: 'conv-456',
+        session_id: 'conv-456',
         status: 'created',
       },
     })
@@ -166,7 +179,7 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   await mockInterviewApis(page)
 
   await page.route(/\/api\/interviews\/456$/, async route => {
-    await route.fulfill({ json: { session: activeSession } })
+    await route.fulfill({ json: { session: pausedActiveSession } })
   })
   await page.route(/\/api\/interviews\/456\/end$/, async route => {
     await route.fulfill({ json: { session: completedSession, next_action: 'completed' } })
@@ -178,6 +191,7 @@ test('结束面试会把 session 标记为 completed 并显示报告入口', asy
   await expect(page.getByText('模拟面试 · 张三')).toHaveCount(0)
   const endButton = page.getByRole('button', { name: '结束面试' })
   await expect(endButton).toBeVisible()
+  await expect(page.getByRole('button', { name: '继续面试' })).toBeVisible()
   const [endRequest] = await Promise.all([
     page.waitForRequest('**/api/interviews/456/end'),
     endButton.click(),
@@ -213,6 +227,63 @@ test('completed 面试可以点击生成报告并展示摘要', async ({ page })
   await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
   await expect(page.getByText('边缘通过，岗位方向相关但证据不足')).toBeVisible()
   await expect(page.getByRole('button', { name: '查看对话' })).toHaveCount(0)
+})
+
+test('completed 空面试点击报告入口会提示无法生成', async ({ page }) => {
+  await mockInterviewApis(page)
+
+  await page.route(/\/api\/interviews\/456$/, async route => {
+    await route.fulfill({ json: { session: completedEmptySession } })
+  })
+  await page.route(/\/api\/interviews\/456\/report$/, async route => {
+    await route.fulfill({ json: { session: completedEmptySession, next_action: 'report_skipped' } })
+  })
+
+  await page.goto('/zh/resume/123/interview?session=456')
+
+  const [reportRequest] = await Promise.all([
+    page.waitForRequest('**/api/interviews/456/report'),
+    page.getByRole('button', { name: '开始生成报告' }).click(),
+  ])
+
+  expect(reportRequest.method()).toBe('POST')
+  await expect(page.getByText('这场面试还没有可复盘的回答，先完成一次问答后再生成报告。')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toBeVisible()
+})
+
+test('生成报告途中会动态轮播进度状态', async ({ page }) => {
+  await mockInterviewApis(page)
+  let finishReport!: () => void
+  const reportCanFinish = new Promise<void>(resolve => {
+    finishReport = resolve
+  })
+
+  await page.route(/\/api\/interviews\/456$/, async route => {
+    await route.fulfill({ json: { session: completedSession } })
+  })
+  await page.route(/\/api\/interviews\/456\/report$/, async route => {
+    await reportCanFinish
+    await route.fulfill({ json: { session: completedSessionWithReport, next_action: 'report' } })
+  })
+
+  await page.goto('/zh/resume/123/interview?session=456')
+
+  const status = page.getByRole('status')
+  const [reportRequest] = await Promise.all([
+    page.waitForRequest('**/api/interviews/456/report'),
+    page.getByRole('button', { name: '生成报告', exact: true }).click(),
+  ])
+  expect(reportRequest.method()).toBe('POST')
+  await expect(status).toContainText('当前正在处理')
+  const firstStatus = await status.textContent()
+  await expect.poll(async () => status.textContent(), { timeout: 4_500 }).not.toBe(firstStatus)
+  await expect(page.getByRole('progressbar', { name: '报告生成进度' })).toBeVisible()
+  await expect(status).toContainText('重写最弱回答', { timeout: 7_000 })
+  await page.waitForTimeout(2_200)
+  await expect(status).toContainText('重写最弱回答')
+
+  finishReport()
+  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
 })
 
 test('completed 面试报告展示行动报告结构', async ({ page }) => {
@@ -274,7 +345,7 @@ test('创建面试表单的简历选择控件和文本输入视觉一致', async
   })
 
   await page.goto('/zh/interviews')
-  await page.getByRole('button', { name: '创建面试' }).first().click()
+  await page.getByRole('button', { name: '岗位定向练习' }).click()
 
   const dialog = page.getByRole('dialog', { name: '创建面试' })
   const resumeSelect = dialog.locator('select')
@@ -346,7 +417,7 @@ test('创建面试订阅不足时不暴露后端错误码', async ({ page }) => 
   })
 
   await page.goto('/zh/interviews')
-  await page.getByRole('button', { name: '创建面试' }).first().click()
+  await page.getByRole('button', { name: '岗位定向练习' }).click()
 
   const dialog = page.getByRole('dialog', { name: '创建面试' })
   await dialog.locator('select').selectOption(String(resume.id))

@@ -175,6 +175,13 @@ export function useInterviewSession({
     try {
       const result = await resumeApi.generateInterviewReport(session.id)
       setSession(result.session)
+      if (result.next_action === 'report_skipped') {
+        setError(translateOrFallback(
+          t,
+          'reportSkipped',
+          '这场面试还没有可复盘的回答，先完成一次问答后再生成报告。',
+        ))
+      }
     } catch (err) {
       setError(
         err instanceof Error
