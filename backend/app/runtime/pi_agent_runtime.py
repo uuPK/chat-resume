@@ -86,6 +86,16 @@ _MUTATION_CLAIM_MARKERS = (
     "已经精简",
     "已经优化",
 )
+_MUTATION_COMPLETION_WORDS = (
+    "已完成",
+    "已经完成",
+    "完成。",
+    "完成，",
+    "完成：",
+    "优化总结",
+    "修改总结",
+    "改动总结",
+)
 _MUTATION_ACTION_WORDS = (
     "新增",
     "更新",
@@ -639,7 +649,7 @@ class PiAgentRuntime:
             return False
         if any(marker in text for marker in _MUTATION_CLAIM_MARKERS):
             return True
-        has_completion = "已完成" in text or "已经完成" in text
+        has_completion = any(word in text for word in _MUTATION_COMPLETION_WORDS)
         return has_completion and any(word in text for word in _MUTATION_ACTION_WORDS)
 
     @staticmethod

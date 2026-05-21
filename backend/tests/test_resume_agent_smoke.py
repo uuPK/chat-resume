@@ -563,6 +563,47 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "基于 Prompt Chain 优化 Agent 输出稳定性",
         )
 
+
+    async def test_optimize_retries_no_tool_bullet_optimization_narrative(self):
+        """用于验证逐条优化叙述没有工具调用时会被拦截。"""
+        agent = self._build_agent(
+            [
+                FakeModelResponse(
+                    content=(
+                        "好的，让我仔细审视工作经历的 4 条 bullet，逐条优化。"
+                        "开始逐条优化：Bullet 1 — 精简，突出架构设计与业务闭环："
+                        "完成。工作经历 bullet 优化总结：#1 精简表述，#2 保留技术亮点。"
+                    )
+                ),
+                FakeModelResponse(
+                    content="",
+                    tool_calls=[
+                        fake_tool_call(
+                            name="update_bullet",
+                            call_id="call_narrative_retry",
+                            args={
+                                "section": "work_experience",
+                                "item_id": "work_1",
+                                "bullet_id": "hl_1",
+                                "text": "设计并落地 Multi-Agent 销售系统，覆盖线索获取、客户分析与 CRM 跟进闭环",
+                                "reason": "纠正无工具完成叙述",
+                            },
+                        )
+                    ],
+                ),
+                FakeModelResponse(content="已通过工具优化 1 条工作经历要点。"),
+            ]
+        )
+        resume = self._sample_resume()
+
+        result = await agent.optimize("2", resume)
+
+        self.assertNotIn("工作经历 bullet 优化总结", result["content"])
+        self.assertIn("已通过工具优化 1 条工作经历要点。", result["content"])
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(agent.runtime.stream_fn.calls, 3)
+        self.assertIn("Multi-Agent 销售系统", resume["work_experience"][0]["highlights"][0]["text"])
+
     async def test_optimize_updates_resume_via_tool_call(self):
         """用于验证optimizeupdates简历viatoolcall。"""
         agent = self._build_agent(
