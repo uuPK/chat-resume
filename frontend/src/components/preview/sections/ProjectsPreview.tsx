@@ -53,10 +53,12 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
   if (isEmerald) {
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
-        <div className="text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          {project.name}
-          {project.role && <span> - {project.role}</span>}
-          {project.duration && <span className="resume-emerald-subtle font-normal">　{project.duration}</span>}
+        <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
+            <span>{project.name}</span>
+            {project.role && <span> - {project.role}</span>}
+          </div>
+          {project.duration && <span className="resume-emerald-subtle shrink-0 font-normal">{project.duration}</span>}
         </div>
 
         {(project.github_url || project.demo_url) && (
@@ -94,8 +96,9 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
   if (isFormal) {
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
-        <div className="text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          {[project.name, project.role, project.duration].filter(Boolean).join(' | ')}
+        <div className="flex items-baseline justify-between gap-4 text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          <span className="min-w-0">{[project.name, project.role].filter(Boolean).join(' | ')}</span>
+          {project.duration && <span className="shrink-0 font-normal">{project.duration}</span>}
         </div>
 
         {(project.demo_url || project.github_url) && (

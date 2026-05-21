@@ -22,15 +22,14 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
   if (isEmerald) {
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
-        <div className="text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          {work.position && <span>{work.position}</span>}
-          {work.company && <span className="resume-emerald-strong">　{work.company}</span>}
-        </div>
-        {work.duration && (
-          <div className="resume-emerald-subtle text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 10px)' }}>
-            {work.duration}
+        <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            {work.company && <span className="resume-emerald-strong">{work.company}</span>}
+            {work.company && work.position && <span className="resume-emerald-subtle">·</span>}
+            {work.position && <span>{work.position}</span>}
           </div>
-        )}
+          {work.duration && <span className="resume-emerald-subtle shrink-0 font-normal">{work.duration}</span>}
+        </div>
 
         {highlights.length > 0 && (
           <ul className="resume-emerald-list text-sm">
@@ -46,8 +45,9 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
   if (isFormal) {
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
-        <div className="text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          {[work.company, work.position, work.duration].filter(Boolean).join(' | ')}
+        <div className="flex items-baseline justify-between gap-4 text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
+          <span className="min-w-0">{[work.company, work.position].filter(Boolean).join(' | ')}</span>
+          {work.duration && <span className="shrink-0 font-normal">{work.duration}</span>}
         </div>
 
         {highlights.length > 0 && (

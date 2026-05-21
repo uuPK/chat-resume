@@ -72,7 +72,15 @@ test.describe('简历模板样式', () => {
             highlights: [{ text: '参与设计并实现了 MoYi AI 的核心架构' }],
           },
         ],
-        projects: [],
+        projects: [
+          {
+            name: 'Chat Resume',
+            role: '核心开发者',
+            duration: '2025/06 - 2025/07',
+            overview: 'AI 驱动的求职辅导平台',
+            highlights: [{ text: '实现简历优化链路' }],
+          },
+        ],
       },
     })
 
@@ -90,6 +98,34 @@ test.describe('简历模板样式', () => {
     const educationHeading = pageSheet.getByRole('heading', { name: '教育经历' })
     await expect(educationHeading).toHaveCSS('text-align', 'center')
     await expect(educationHeading).toHaveCSS('border-bottom-width', '0px')
+
+    const workItem = pageSheet.locator('.resume-emerald-item').filter({ hasText: '世优科技' }).first()
+    const projectItem = pageSheet.locator('.resume-emerald-item').filter({ hasText: 'Chat Resume' }).first()
+    const companyText = workItem.getByText('世优科技', { exact: true })
+    const workDateText = workItem.getByText('2025/08 - 2025/11', { exact: true })
+    const projectNameText = projectItem.getByText('Chat Resume', { exact: true })
+    const projectDateText = projectItem.getByText('2025/06 - 2025/07', { exact: true })
+    await expect(companyText).toBeVisible()
+    await expect(workDateText).toBeVisible()
+    await expect(projectNameText).toBeVisible()
+    await expect(projectDateText).toBeVisible()
+    await expect.poll(async () => {
+      const companyBox = await companyText.evaluate((element) => element.getBoundingClientRect().toJSON())
+      const workDateBox = await workDateText.evaluate((element) => element.getBoundingClientRect().toJSON())
+      const projectNameBox = await projectNameText.evaluate((element) => element.getBoundingClientRect().toJSON())
+      const projectDateBox = await projectDateText.evaluate((element) => element.getBoundingClientRect().toJSON())
+      return {
+        workDateRightAligned: workDateBox.x > companyBox.x,
+        projectDateRightAligned: projectDateBox.x > projectNameBox.x,
+        workDateSameLine: Math.abs(workDateBox.y - companyBox.y) < 6,
+        projectDateSameLine: Math.abs(projectDateBox.y - projectNameBox.y) < 6,
+      }
+    }).toEqual({
+      workDateRightAligned: true,
+      projectDateRightAligned: true,
+      workDateSameLine: true,
+      projectDateSameLine: true,
+    })
   })
 
   test('正式黑白模板按截图风格渲染联系信息和页面样式', async ({ page }) => {
