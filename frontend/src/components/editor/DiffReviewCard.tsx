@@ -12,6 +12,7 @@ import {
   DIFF_BEFORE_LABEL,
   DIFF_CREATED_MARKER,
   DIFF_DELETED_MARKER,
+  DIFF_EMPTY_MARKER,
   DIFF_REASON_LABEL,
   DIFF_SUMMARY_SECTION_SUFFIXES,
 } from '@/lib/resumeDiffProtocol'
@@ -32,11 +33,11 @@ function parseDiffSummary(raw: string): DiffLine[] {
     if (DIFF_SUMMARY_SECTION_SUFFIXES.some((suffix) => line.endsWith(suffix))) continue
     if (line.startsWith(DIFF_BEFORE_LABEL) || line.startsWith(`  ${DIFF_BEFORE_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_BEFORE_LABEL}`), '').trim()
-      if (text === DIFF_CREATED_MARKER) continue
+      if (text === DIFF_CREATED_MARKER || isEmptyDiffMarker(text)) continue
       result.push({ type: 'remove', text: `- ${text}` })
     } else if (line.startsWith(DIFF_AFTER_LABEL) || line.startsWith(`  ${DIFF_AFTER_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_AFTER_LABEL}`), '').trim()
-      if (text === DIFF_DELETED_MARKER) continue
+      if (text === DIFF_DELETED_MARKER || isEmptyDiffMarker(text)) continue
       result.push({ type: 'add', text: `+ ${text}` })
     } else if (line.startsWith(DIFF_REASON_LABEL) || line.startsWith(`  ${DIFF_REASON_LABEL}`)) {
       const text = line.replace(new RegExp(`^\\s*${DIFF_REASON_LABEL}`), '').trim()
@@ -82,10 +83,16 @@ function groupDiffItems(items: DiffItem[]): DiffGroup[] {
       if (item.reason) group.reason = item.reason
       return group
     })
-    .filter((group) => group.remove || group.add || group.reason)
+    .filter((group) => group.remove || group.add)
 }
 
 const DIFF_PREFIX_RE = /^([+-]\s)([\s\S]*)$/
+
+const INTERNAL_DIFF_KEYS = new Set(['id', '_id', 'is_current'])
+// 用于判断对象字段是否应展示给用户。
+function isVisibleObjectDiffKey(key: string) {
+  return !INTERNAL_DIFF_KEYS.has(key)
+}
 // 用于判断对象是否拥有指定字段。
 function hasOwnField(record: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(record, key)
@@ -111,10 +118,16 @@ function parseJsonObject(text?: string) {
   }
 }
 
+// 用于识别后端摘要里的空值占位符，避免渲染成真实删减内容。
+function isEmptyDiffMarker(text: string) {
+  return text === DIFF_EMPTY_MARKER
+}
+
 // 用于移除新增/删除占位符，避免把元信息渲染成真实改动。
 function normalizeDiffSide(text: string | undefined, side: 'before' | 'after') {
   const trimmed = text?.trim()
   if (!trimmed) return undefined
+  if (isEmptyDiffMarker(trimmed)) return undefined
   if (side === 'before' && trimmed === DIFF_CREATED_MARKER) return undefined
   if (side === 'after' && trimmed === DIFF_DELETED_MARKER) return undefined
   return trimmed
@@ -144,7 +157,7 @@ function formatStandaloneDiffText(text: string) {
   const record = parseJsonObject(text)
   if (!record) return text
   const visibleLines = Object.keys(record)
-    .filter((key) => key !== 'id' && key !== '_id')
+    .filter(isVisibleObjectDiffKey)
     .map((key) => formatObjectDiffLine(key, record[key]))
     .filter(Boolean)
   return visibleLines.length > 0 ? visibleLines.join('\n') : text
@@ -183,6 +196,7 @@ function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGr
   const addLines: string[] = []
   const keys = Object.keys(before).concat(Object.keys(after).filter((key) => !hasOwnField(before, key)))
   for (const key of keys) {
+    if (!isVisibleObjectDiffKey(key)) continue
     const hasBefore = hasOwnField(before, key)
     const hasAfter = hasOwnField(after, key)
     if (hasBefore && hasAfter && valueKey(before[key]) === valueKey(after[key])) continue
@@ -208,7 +222,7 @@ function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGr
 function compactDiffGroup(group: DiffGroup) {
   const compact = buildCompactObjectDiff(group.remove?.slice(2), group.add?.slice(2))
   if (compact === null) return group
-  if (compact === false) return group.reason ? { reason: group.reason } : {}
+  if (compact === false) return {}
   return { ...compact, reason: group.reason }
 }
 

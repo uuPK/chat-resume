@@ -95,6 +95,16 @@ test.describe('简历模板样式', () => {
     await expect(header).toContainText('psx849261680@gmail.com')
     await expect(header).toContainText('个人网站')
 
+    await expect.poll(async () => {
+      const pageBox = await pageSheet.evaluate((element) => element.getBoundingClientRect().toJSON())
+      const headerBox = await header.evaluate((element) => element.getBoundingClientRect().toJSON())
+      return Math.round(pageBox.width - headerBox.width)
+    }).toBeLessThanOrEqual(4)
+
+    const nameBox = await header.getByRole('heading', { name: '彭世雄' }).evaluate((element) => element.getBoundingClientRect().toJSON())
+    const pageBox = await pageSheet.evaluate((element) => element.getBoundingClientRect().toJSON())
+    expect(Math.round(nameBox.y - pageBox.y)).toBeGreaterThanOrEqual(20)
+
     const educationHeading = pageSheet.getByRole('heading', { name: '教育经历' })
     await expect(educationHeading).toHaveCSS('text-align', 'center')
     await expect(educationHeading).toHaveCSS('border-bottom-width', '0px')

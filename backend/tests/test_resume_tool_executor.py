@@ -48,6 +48,35 @@ class ResumeToolExecutorTests(unittest.TestCase):
         self.assertEqual(result["tool_name"], "优化简介")
         self.assertEqual(resume["projects"][0]["overview"], "新简介")
 
+
+    def test_execute_rejects_internal_is_current_field(self):
+        """用于验证条目字段工具不允许模型直接修改内部派生字段。"""
+        resume = {
+            "work_experience": [
+                {
+                    "id": "work_1",
+                    "company": "示例公司",
+                    "duration": "2025.08-至今",
+                    "is_current": False,
+                }
+            ]
+        }
+        executor = ResumeToolExecutor()
+
+        result = cast(dict[str, Any], executor.execute(
+            tool_name="update_item_fields",
+            tool_input={
+                "section": "work_experience",
+                "item_id": "work_1",
+                "fields": {"is_current": True},
+            },
+            context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        ))
+
+        self.assertFalse(result["result"]["success"])
+        self.assertIn("is_current", result["result"]["message"])
+        self.assertFalse(resume["work_experience"][0]["is_current"])
+
     def test_execute_wraps_async_job_match_summary_result(self):
         """用于验证异步只读工具仍返回统一工具结果结构。"""
         resume = {

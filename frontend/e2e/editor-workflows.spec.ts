@@ -131,15 +131,24 @@ async function installEditorApiMock(page: Page, resume = buildResumeResponse(123
 // 用于处理install简历agentmock。
 async function installResumeAgentMock(
   page: Page,
-  options: { pauseAfterToolCall?: boolean; extraDiffItemCount?: number } = {}
+  options: {
+    pauseAfterToolCall?: boolean
+    extraDiffItemCount?: number
+    includeEmptyBeforeDiff?: boolean
+    omitDiffItems?: boolean
+  } = {}
 ) {
-  await page.addInitScript(({ pauseAfterToolCall, extraDiffItemCount }) => {
+  await page.addInitScript(({ pauseAfterToolCall, extraDiffItemCount, includeEmptyBeforeDiff, omitDiffItems }) => {
     const originalFetch = window.fetch.bind(window)
-    const diffSummary = [
+    const diffSummaryLines = [
       '改前：负责前端开发',
       '改后：主导前端重构，首屏加载提速 35%',
       '改动理由：补充量化结果',
-    ].join('\n')
+    ]
+    if (includeEmptyBeforeDiff) {
+      diffSummaryLines.push('改前：空', '改后：腾讯', '改动理由：用户明确要求投递腾讯公司 Agent 开发岗')
+    }
+    const diffSummary = diffSummaryLines.join('\n')
     const skillBefore = JSON.stringify({
       _id: 'skill_c10dbc140337',
       category: '编程语言',
@@ -201,12 +210,20 @@ async function installResumeAgentMock(
         reason: '拆分 few-shot 策略为独立 bullet 并突出任务表现提升',
       },
     ]
+    if (includeEmptyBeforeDiff) {
+      baseDiffItems.push({
+        before: '空',
+        after: '腾讯',
+        reason: '用户明确要求投递腾讯公司 Agent 开发岗',
+      })
+    }
     const extraDiffItems = Array.from({ length: extraDiffItemCount || 0 }, (_, index) => ({
       before: `自动滚动验证项 ${index} 改前`,
       after: `自动滚动验证项 ${index} 改后`,
       reason: `自动滚动验证项 ${index} 原因`,
     }))
     const diffItems = [...baseDiffItems, ...extraDiffItems]
+    const serializedDiffItems = omitDiffItems ? undefined : diffItems
 
     ;(window as Window & {
       __resumeAgentConfirmCalls?: Array<{ session_id: string; call_id: string; confirmed: boolean }>
@@ -294,7 +311,7 @@ async function installResumeAgentMock(
               tool_name: '优化项目经历',
               tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
-              diff_items: diffItems,
+              diff_items: serializedDiffItems,
               done: false,
             })
 
@@ -306,7 +323,7 @@ async function installResumeAgentMock(
               tool_name: '优化项目经历',
               tool_display_name: '优化项目经历',
               diff_summary: diffSummary,
-              diff_items: diffItems,
+              diff_items: serializedDiffItems,
               done: false,
             })
             await sleep(50)
@@ -1169,6 +1186,40 @@ test.describe('编辑页工作流', () => {
       call_id: 'call_e2e',
       confirmed: true,
     })
+  })
+
+  test('Resume Agent diff 不展示空值删除行', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+
+    await installEditorApiMock(page, resume)
+    await installResumeAgentMock(page, { includeEmptyBeforeDiff: true })
+    await page.goto('/resume/123/edit')
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我更新求职目标')
+    await input.press('Enter')
+
+    await expect(page.locator('div.bg-green-50').filter({ hasText: /^\+\s*腾讯$/ })).toBeVisible()
+    await expect(page.getByText('用户明确要求投递腾讯公司 Agent 开发岗')).toBeVisible()
+    await expect(page.locator('div.bg-red-50').filter({ hasText: /^-\s*空$/ })).toHaveCount(0)
+  })
+
+  test('Resume Agent summary diff 不展示空值删除行', async ({ page }) => {
+    const resume = buildResumeResponse(123)
+
+    await installEditorApiMock(page, resume)
+    await installResumeAgentMock(page, { includeEmptyBeforeDiff: true, omitDiffItems: true })
+    await page.goto('/resume/123/edit')
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我更新求职目标')
+    await input.press('Enter')
+
+    await expect(page.locator('div.bg-green-50').filter({ hasText: /^\+\s*腾讯$/ })).toBeVisible()
+    await expect(page.getByText('用户明确要求投递腾讯公司 Agent 开发岗')).toBeVisible()
+    await expect(page.locator('div.bg-red-50').filter({ hasText: /^-\s*空$/ })).toHaveCount(0)
   })
 
   test('Resume Agent 流式 diff 变长时保持消息区贴底', async ({ page }) => {

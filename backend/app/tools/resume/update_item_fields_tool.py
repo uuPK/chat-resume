@@ -23,7 +23,6 @@ ITEM_FIELD_WHITELIST = {
         "duration",
         "start_date",
         "end_date",
-        "is_current",
         "location",
         "employment_type",
     },

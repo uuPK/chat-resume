@@ -2,7 +2,7 @@
 // 用于提供 components/preview/PaginatedResumePreview.tsx 模块。
 
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLineBasedPagination, measureRenderableLines, A4_WIDTH, PAGE_PADDING } from './hooks/useLineBasedPagination'
+import { useLineBasedPagination, measureRenderableLines, A4_HEIGHT, A4_WIDTH, PAGE_PADDING, SAFETY_MARGIN } from './hooks/useLineBasedPagination'
 import { useSmartFit } from './hooks/useSmartFit'
 import ResumePage from './ResumePage'
 import PersonalInfoPreview from './sections/PersonalInfoPreview'
@@ -87,11 +87,16 @@ export default function PaginatedResumePreview({
       .filter(m => m.visible)
       .sort((a, b) => a.order - b.order)
   }, [moduleOrderKey])
+  const isFullBleedTemplate = templateStyle === 'emerald'
+  const pageContentWidth = isFullBleedTemplate ? A4_WIDTH : PAGE_CONTENT_WIDTH
+  const pageContentHeight = isFullBleedTemplate ? A4_HEIGHT - SAFETY_MARGIN : undefined
+
 
   const { pages, totalPages, isCalculating } = useLineBasedPagination({
     containerRef,
     contentRef,
-    spacingScale
+    spacingScale,
+    pageHeight: pageContentHeight
   })
 
   const handleSmartFitComplete = useCallback((newScale: number) => {
@@ -217,7 +222,7 @@ export default function PaginatedResumePreview({
       ref={contentRef}
       className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
-        width: `${PAGE_CONTENT_WIDTH}px`,
+        width: `${pageContentWidth}px`,
         boxSizing: 'border-box',
         ['--spacing-scale' as string]: String(spacingScale)
       }}
@@ -225,7 +230,7 @@ export default function PaginatedResumePreview({
       {renderVisibleModules()}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle])
+  ), [content, visibleModules, moduleOrderKey, spacingScale, templateStyle, pageContentWidth])
 
   // 智能一页试算专用测量容器；二分搜索时会频繁切换 scale，不参与正式分页。
   const smartFitMeasurementContent = useMemo(() => (
@@ -233,7 +238,7 @@ export default function PaginatedResumePreview({
       ref={smartFitContentRef}
       className={`resume-template-${templateStyle} invisible absolute -top-[9999px] left-0 pointer-events-none`}
       style={{
-        width: `${PAGE_CONTENT_WIDTH}px`,
+        width: `${pageContentWidth}px`,
         boxSizing: 'border-box',
         ['--spacing-scale' as string]: String(measureScale)
       }}
@@ -241,7 +246,7 @@ export default function PaginatedResumePreview({
       {renderVisibleModules()}
     </div>
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [content, visibleModules, moduleOrderKey, measureScale, templateStyle])
+  ), [content, visibleModules, moduleOrderKey, measureScale, templateStyle, pageContentWidth])
 
   // 用于按行断点渲染页面切片。
   const renderPageSlice = (pageIndex: number) => {
@@ -250,12 +255,14 @@ export default function PaginatedResumePreview({
       return null
     }
 
+    const offset = pageIndex === 0 ? 0 : page.startOffset
+
     return (
       <div
         className={`resume-template-${templateStyle} absolute left-0 top-0`}
         style={{
-          width: `${PAGE_CONTENT_WIDTH}px`,
-          transform: `translateY(-${page.startOffset}px)`,
+          width: `${pageContentWidth}px`,
+          transform: `translateY(-${offset}px)`,
           ['--spacing-scale' as string]: String(spacingScale),
         }}
       >

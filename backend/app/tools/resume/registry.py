@@ -158,7 +158,8 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "description": (
                 "更新工作、项目或教育条目的非 bullet 字段。section 只能是 "
                 "education、work_experience、projects；item_id 必须来自当前简历 JSON。"
-                "只修改 fields 中给出的白名单字段，不新增事实。"
+                "只修改 fields 中给出的白名单字段，不新增事实。is_current 是内部派生字段，"
+                "不允许直接修改。"
             ),
             "parameters": {
                 "type": "object",
@@ -173,10 +174,10 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "description": (
                             "要更新的字段。education 支持 school/major/degree/duration/"
                             "start_date/end_date/location/gpa；work_experience 支持 "
-                            "company/position/duration/start_date/end_date/is_current/"
+                            "company/position/duration/start_date/end_date/"
                             "location/employment_type；projects 支持 "
                             "name/overview/role/duration/start_date/end_date/"
-                            "github_url/demo_url/links。"
+                            "github_url/demo_url/links。is_current 是内部派生字段，不允许直接修改。"
                         ),
                     },
                     "reason": {
