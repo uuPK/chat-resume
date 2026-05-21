@@ -342,6 +342,29 @@ def _event_has_connect_id(event_id: int) -> bool:
     }
 
 
+def _realtime_event_role(event_id: Any) -> str:
+    """把实时文本事件映射为面试对话角色。"""
+    if event_id in (EVENT_ASR_RESPONSE, EVENT_ASR_INFO, EVENT_ASR_ENDED):
+        return "candidate"
+    if event_id in (EVENT_CHAT_RESPONSE, EVENT_CHAT_ENDED):
+        return "interviewer"
+    return ""
+
+
+def _realtime_text_with_pending(
+    *, role: str, text: str, is_final: bool, pending_by_role: dict[str, str]
+) -> str:
+    """用最近一次非空增量补齐空的最终实时文本事件。"""
+    if not role:
+        return text
+    if text:
+        pending_by_role[role] = text
+        return text
+    if is_final:
+        return pending_by_role.get(role, "")
+    return ""
+
+
 def _extract_realtime_text(data: Dict[str, Any]) -> str:
     """用于提取实时文本。"""
     for key in ("content", "text"):
@@ -862,6 +885,7 @@ class VolcengineVoiceService:
                 first_asr_final_ms: float | None = None
                 first_chat_text_ms: float | None = None
                 first_chat_final_ms: float | None = None
+                pending_text_by_role: dict[str, str] = {}
                 try:
                     async for msg in volc_ws:
                         if closing.is_set():
@@ -930,10 +954,17 @@ class VolcengineVoiceService:
                                 EVENT_CHAT_ENDED,
                             ):
                                 event_data = parsed.get("data", {})
-                                text = _extract_realtime_text(event_data)
+                                raw_text = _extract_realtime_text(event_data)
                                 is_final = _extract_is_final(event_data) or event in (
                                     EVENT_ASR_ENDED,
                                     EVENT_CHAT_ENDED,
+                                )
+                                role = _realtime_event_role(event)
+                                text = _realtime_text_with_pending(
+                                    role=role,
+                                    text=raw_text,
+                                    is_final=is_final,
+                                    pending_by_role=pending_text_by_role,
                                 )
                                 if event in (
                                     EVENT_ASR_RESPONSE,
@@ -989,17 +1020,10 @@ class VolcengineVoiceService:
                                             first_chat_final_ms,
                                             len(text or ""),
                                         )
-                                if on_text_message and text and is_final:
-                                    role = (
-                                        "candidate"
-                                        if event in (
-                                            EVENT_ASR_RESPONSE,
-                                            EVENT_ASR_INFO,
-                                            EVENT_ASR_ENDED,
-                                        )
-                                        else "interviewer"
-                                    )
+                                if on_text_message and role and text and is_final:
                                     on_text_message(role, text)
+                                if role and is_final:
+                                    pending_text_by_role.pop(role, None)
                                 await client_ws.send_json(
                                     {
                                         "type": "event",

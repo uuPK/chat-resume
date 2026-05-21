@@ -9,6 +9,7 @@
 """
 
 from __future__ import annotations
+import asyncio
 
 import json
 import struct
@@ -23,8 +24,12 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.services.digital_human.volcengine_service import (
+    EVENT_ASR_ENDED,
+    EVENT_ASR_RESPONSE,
     EVENT_SAY_HELLO,
+    EVENT_SESSION_FINISHED,
     EVENT_START_SESSION,
+    VolcengineVoiceService,
     _build_say_hello_frame,
     _build_start_session,
 )
@@ -266,3 +271,67 @@ async def test_proxy_session_no_say_hello_when_empty_greeting(monkeypatch):
         if len(f) >= 8 and struct.unpack(">I", f[4:8])[0] == EVENT_SAY_HELLO
     ]
     assert len(say_hello_frames) == 0
+
+@pytest.mark.asyncio
+async def test_proxy_session_persists_last_partial_asr_when_final_text_empty(monkeypatch):
+    """最终 ASR 事件无文本时，应使用上一条非空转写保存候选人回答。"""
+    from app.infra.config import settings
+
+    monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_APP_ID", "test-app")
+    monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_ACCESS_KEY", "test-key")
+    monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_RESOURCE_ID", "test-res")
+    monkeypatch.setattr(settings, "VOLCENGINE_DIALOGUE_SPEAKER_ID", "")
+
+    persisted_messages: list[tuple[str, str]] = []
+    downstream_frames = [
+        _make_server_frame(
+            EVENT_ASR_RESPONSE,
+            json.dumps({"content": "我的回答", "is_final": False}).encode("utf-8"),
+        ),
+        _make_server_frame(EVENT_ASR_ENDED, b"{}"),
+        _make_server_frame(EVENT_SESSION_FINISHED, b"{}"),
+    ]
+
+    class AsyncFrameStream:
+        """用于按 async iterator 协议返回火山引擎下行帧。"""
+
+        def __init__(self, frames: list[bytes]):
+            self.frames = frames
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.frames:
+                raise StopAsyncIteration
+            await asyncio.sleep(0)
+            return self.frames.pop(0)
+
+    mock_volc_ws = AsyncMock()
+    mock_volc_ws.recv = AsyncMock(side_effect=[
+        _make_server_frame(50, b"{}"),
+        _make_server_frame(150, b"{}"),
+    ])
+    mock_volc_ws.__aiter__ = MagicMock(return_value=AsyncFrameStream(downstream_frames))
+    mock_volc_ws.send = AsyncMock()
+    mock_ctx = AsyncMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_volc_ws)
+    mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    async def delayed_disconnect():
+        """用于让下行帧先于客户端断开被处理。"""
+        await asyncio.sleep(0.05)
+        return {"type": "websocket.disconnect"}
+
+    mock_client_ws = AsyncMock()
+    mock_client_ws.receive = AsyncMock(side_effect=delayed_disconnect)
+    mock_client_ws.send_json = AsyncMock()
+
+    with patch("websockets.connect", return_value=mock_ctx):
+        service = VolcengineVoiceService()
+        await service.proxy_session(
+            client_ws=mock_client_ws,
+            on_text_message=lambda role, text: persisted_messages.append((role, text)),
+        )
+
+    assert ("candidate", "我的回答") in persisted_messages
