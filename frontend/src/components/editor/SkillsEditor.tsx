@@ -111,14 +111,14 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   if (skillGroups.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-          <CodeBracketIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-500 mb-4">{t('empty')}</p>
+        <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <CodeBracketIcon className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-500 mb-3">{t('empty')}</p>
           <button
             onClick={addGroup}
-            className="btn-primary flex items-center space-x-2 mx-auto"
+            className="btn-primary flex items-center space-x-1.5 mx-auto px-4 py-2 text-sm"
           >
-            <PlusIcon className="w-4 h-4" />
+            <PlusIcon className="w-3.5 h-3.5" />
             <span>{t('addFirst')}</span>
           </button>
         </div>
