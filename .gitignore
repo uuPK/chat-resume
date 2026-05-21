@@ -113,6 +113,7 @@ example/
 # Local agent tooling
 .agents/
 .antigravitycli/
+.codex/
 .hermes-sandbox/
 .playwright-cli/
 .vercel
