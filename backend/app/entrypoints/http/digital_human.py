@@ -315,7 +315,16 @@ async def voice_session_ws(
         return
 
     await websocket.accept()
-    logger.info("Voice WebSocket accepted for interview_session_id=%s", session_id)
+    logger.info(
+        (
+            "voice.ws.accepted interview_session_id=%s user_id=%s "
+            "resume_id=%s status=%s"
+        ),
+        session_id,
+        interview_session.user_id,
+        interview_session.resume_id,
+        interview_session.status,
+    )
     service = VolcengineVoiceService()
     if not service.is_configured():
         logger.warning("Voice WebSocket closed because Volcengine is not configured")
@@ -346,6 +355,7 @@ async def voice_session_ws(
                     resume.content if isinstance(resume.content, dict) else {}
                 )
 
+        plan_context = _build_interview_plan_context(interview_session.plan_json)
         system_role = _build_volcengine_system_role(
             target_title=interview_session.target_title or "目标岗位",
             target_company=interview_session.target_company or "目标公司",
@@ -354,7 +364,7 @@ async def voice_session_ws(
             jd_text=interview_session.jd_text or "",
             resume_text=resume_text,
             interview_history=_build_interview_history(existing_turns),
-            interview_plan=_build_interview_plan_context(interview_session.plan_json),
+            interview_plan=plan_context,
         )
         if not existing_turns:
             greeting = _build_greeting(
@@ -362,6 +372,20 @@ async def voice_session_ws(
                 target_company=interview_session.target_company or "",
                 language=interview_session.language,
             )
+        logger.info(
+            (
+                "voice.ws.context_ready interview_session_id=%s turns=%d "
+                "resume_chars=%d jd_chars=%d plan_chars=%d "
+                "system_role_chars=%d greeting_chars=%d"
+            ),
+            session_id,
+            len(existing_turns),
+            len(resume_text),
+            len(interview_session.jd_text or ""),
+            len(plan_context),
+            len(system_role),
+            len(greeting),
+        )
 
     try:
         def persist_message(role: str, text: str) -> None:
@@ -372,12 +396,19 @@ async def voice_session_ws(
                 role=role,
                 text=text,
             )
+            logger.info(
+                "voice.ws.message_persisted interview_session_id=%s role=%s chars=%d",
+                session_id,
+                role,
+                len(text),
+            )
 
         await service.proxy_session(
             client_ws=websocket,
             system_role=system_role,
             greeting=greeting,
             on_text_message=persist_message,
+            interview_session_id=session_id,
         )
     except WebSocketDisconnect:
         pass

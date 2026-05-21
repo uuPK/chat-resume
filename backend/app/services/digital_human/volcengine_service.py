@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import struct
+import time
 import uuid
 from typing import Any, Callable, Dict, Optional
 
@@ -73,6 +74,7 @@ EVENT_CHAT_ENDED = 559
 SEND_SAMPLE_RATE = 16000
 SEND_CHUNK_FRAMES = 1600  # 100ms @ 16kHz
 RECV_SAMPLE_RATE = 24000
+VOICE_PEAK_THRESHOLD = 800
 
 
 class VolcengineConfigurationError(RuntimeError):
@@ -211,6 +213,11 @@ def _build_say_hello_frame(session_id: str, content: str) -> bytes:
     """Event 300：让豆包用自己的声音说出 content 作为开场白。"""
     return _build_session_json_frame(EVENT_SAY_HELLO, session_id, {"content": content})
 
+
+
+def _elapsed_ms(started_at: float) -> float:
+    """返回从 started_at 到当前的毫秒数。"""
+    return round((time.monotonic() - started_at) * 1000, 2)
 
 def _describe_pcm16(pcm_bytes: bytes) -> Dict[str, float | int]:
     """用于描述pcm16。"""
@@ -592,6 +599,7 @@ class VolcengineVoiceService:
         system_role: str = "",
         greeting: str = "",
         bot_name: str = "面试官",
+        interview_session_id: int | str | None = None,
         on_text_message: Callable[[str, str], None] | None = None,
     ) -> None:
         """在前端 WebSocket 和火山引擎之间双向代理音视数据。
@@ -604,6 +612,20 @@ class VolcengineVoiceService:
         connect_id = str(uuid.uuid4())
 
         headers = self.build_headers(connect_id)
+        started_at = time.monotonic()
+        session_label = str(interview_session_id or "-")
+        logger.info(
+            (
+                "voice.proxy.start interview_session_id=%s volc_session_id=%s "
+                "connect_id=%s system_role_chars=%d greeting_chars=%d"
+            ),
+            session_label,
+            session_id,
+            connect_id,
+            len(system_role),
+            len(greeting),
+        )
+        connect_started_at = time.monotonic()
 
         try:
             ws_ctx = websockets.connect(
@@ -643,8 +665,12 @@ class VolcengineVoiceService:
             resp = await volc_ws.recv()
             parsed = _parse_server_message(_coerce_ws_bytes(resp))
             logger.info(
-                "volcengine.connection.started",
-                extra={"provider_event": parsed.get("event") if parsed else None},
+                (
+                    "volcengine.connection.started provider_event=%s "
+                    "elapsed_ms=%.2f"
+                ),
+                parsed.get("event") if parsed else None,
+                _elapsed_ms(connect_started_at),
             )
             if not parsed or parsed.get("event") != EVENT_CONNECTION_STARTED:
                 logger.error(
@@ -657,6 +683,7 @@ class VolcengineVoiceService:
                 return
 
             # 2) Start session
+            session_started_at = time.monotonic()
             await volc_ws.send(
                 _build_start_session(
                     session_id,
@@ -668,8 +695,9 @@ class VolcengineVoiceService:
             resp = await volc_ws.recv()
             parsed = _parse_server_message(_coerce_ws_bytes(resp))
             logger.info(
-                "volcengine.session.started",
-                extra={"provider_event": parsed.get("event") if parsed else None},
+                "volcengine.session.started provider_event=%s elapsed_ms=%.2f",
+                parsed.get("event") if parsed else None,
+                _elapsed_ms(session_started_at),
             )
             if not parsed or parsed.get("event") != EVENT_SESSION_STARTED:
                 logger.error(
@@ -683,6 +711,11 @@ class VolcengineVoiceService:
                 return
 
             await client_ws.send_json({"type": "ready", "session_id": session_id})
+            logger.info(
+                "voice.proxy.ready interview_session_id=%s elapsed_ms=%.2f",
+                session_label,
+                _elapsed_ms(started_at),
+            )
 
             # Event 300 SayHello：直接让豆包用自己的声音说开场白，无需外部 TTS
             if greeting:
@@ -697,8 +730,9 @@ class VolcengineVoiceService:
                     }
                 )
                 logger.info(
-                    "volcengine.greeting.sent",
-                    extra={"greeting_chars": len(greeting)},
+                    "volcengine.greeting.sent greeting_chars=%d elapsed_ms=%.2f",
+                    len(greeting),
+                    _elapsed_ms(started_at),
                 )
 
             closing = asyncio.Event()
@@ -707,6 +741,10 @@ class VolcengineVoiceService:
                 """用于转发to火山引擎。"""
                 chunk_count = 0
                 voiced_chunk_count = 0
+                first_audio_ms: float | None = None
+                first_voiced_ms: float | None = None
+                max_peak = 0
+                max_rms = 0.0
                 try:
                     while not closing.is_set():
                         msg = await client_ws.receive()
@@ -715,8 +753,41 @@ class VolcengineVoiceService:
                         if msg["type"] == "websocket.receive":
                             if "bytes" in msg and msg["bytes"]:
                                 pcm_stats = _describe_pcm16(msg["bytes"])
-                                if pcm_stats["peak"] >= 800:
+                                peak = int(pcm_stats["peak"])
+                                rms = float(pcm_stats["rms"])
+                                max_peak = max(max_peak, peak)
+                                max_rms = max(max_rms, rms)
+                                if first_audio_ms is None:
+                                    first_audio_ms = _elapsed_ms(started_at)
+                                    logger.info(
+                                        (
+                                            "voice.upstream.first_audio "
+                                            "interview_session_id=%s chunk=%d "
+                                            "elapsed_ms=%.2f bytes=%d peak=%d rms=%.2f"
+                                        ),
+                                        session_label,
+                                        chunk_count + 1,
+                                        first_audio_ms,
+                                        len(msg["bytes"]),
+                                        peak,
+                                        rms,
+                                    )
+                                if peak >= VOICE_PEAK_THRESHOLD:
                                     voiced_chunk_count += 1
+                                    if first_voiced_ms is None:
+                                        first_voiced_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.upstream.first_voiced_audio "
+                                                "interview_session_id=%s chunk=%d "
+                                                "elapsed_ms=%.2f peak=%d rms=%.2f"
+                                            ),
+                                            session_label,
+                                            chunk_count + 1,
+                                            first_voiced_ms,
+                                            peak,
+                                            rms,
+                                        )
                                 await volc_ws.send(
                                     _build_audio_frame(session_id, msg["bytes"])
                                 )
@@ -744,10 +815,32 @@ class VolcengineVoiceService:
                 except Exception as exc:
                     logger.warning("forward_to_volcengine error: %s", exc)
                 finally:
+                    if chunk_count and not voiced_chunk_count:
+                        logger.warning(
+                            (
+                                "voice.upstream.no_voiced_audio "
+                                "interview_session_id=%s chunks=%d "
+                                "max_peak=%d max_rms=%.2f threshold=%d"
+                            ),
+                            session_label,
+                            chunk_count,
+                            max_peak,
+                            max_rms,
+                            VOICE_PEAK_THRESHOLD,
+                        )
                     logger.info(
-                        "Upstream done, sent %d audio chunks total, voiced_chunks=%d",
+                        (
+                            "voice.upstream.done interview_session_id=%s "
+                            "chunks=%d voiced_chunks=%d first_audio_ms=%s "
+                            "first_voiced_ms=%s max_peak=%d max_rms=%.2f"
+                        ),
+                        session_label,
                         chunk_count,
                         voiced_chunk_count,
+                        first_audio_ms,
+                        first_voiced_ms,
+                        max_peak,
+                        max_rms,
                     )
                     closing.set()
                     try:
@@ -760,6 +853,15 @@ class VolcengineVoiceService:
             async def forward_to_client():
                 """用于转发to客户端。"""
                 msg_count = 0
+                event_counts: dict[int, int] = {}
+                tts_audio_chunks = 0
+                tts_audio_bytes = 0
+                first_provider_msg_ms: float | None = None
+                first_tts_audio_ms: float | None = None
+                first_asr_text_ms: float | None = None
+                first_asr_final_ms: float | None = None
+                first_chat_text_ms: float | None = None
+                first_chat_final_ms: float | None = None
                 try:
                     async for msg in volc_ws:
                         if closing.is_set():
@@ -771,6 +873,20 @@ class VolcengineVoiceService:
                                 continue
 
                             event = parsed.get("event")
+                            if isinstance(event, int):
+                                event_counts[event] = event_counts.get(event, 0) + 1
+                            if first_provider_msg_ms is None:
+                                first_provider_msg_ms = _elapsed_ms(started_at)
+                                logger.info(
+                                    (
+                                        "voice.downstream.first_provider_msg "
+                                        "interview_session_id=%s event=%s "
+                                        "elapsed_ms=%.2f"
+                                    ),
+                                    session_label,
+                                    event,
+                                    first_provider_msg_ms,
+                                )
 
                             if (
                                 logger.isEnabledFor(logging.DEBUG)
@@ -791,6 +907,20 @@ class VolcengineVoiceService:
                             if event == EVENT_TTS_RESPONSE:
                                 audio = parsed.get("audio", b"")
                                 if audio:
+                                    tts_audio_chunks += 1
+                                    tts_audio_bytes += len(audio)
+                                    if first_tts_audio_ms is None:
+                                        first_tts_audio_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.downstream.first_tts_audio "
+                                                "interview_session_id=%s "
+                                                "elapsed_ms=%.2f bytes=%d"
+                                            ),
+                                            session_label,
+                                            first_tts_audio_ms,
+                                            len(audio),
+                                        )
                                     await client_ws.send_bytes(audio)
                             elif event in (
                                 EVENT_ASR_RESPONSE,
@@ -805,6 +935,60 @@ class VolcengineVoiceService:
                                     EVENT_ASR_ENDED,
                                     EVENT_CHAT_ENDED,
                                 )
+                                if event in (
+                                    EVENT_ASR_RESPONSE,
+                                    EVENT_ASR_INFO,
+                                    EVENT_ASR_ENDED,
+                                ):
+                                    if text and first_asr_text_ms is None:
+                                        first_asr_text_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.downstream.first_asr_text "
+                                                "interview_session_id=%s "
+                                                "elapsed_ms=%.2f final=%s"
+                                            ),
+                                            session_label,
+                                            first_asr_text_ms,
+                                            is_final,
+                                        )
+                                    if is_final and first_asr_final_ms is None:
+                                        first_asr_final_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.downstream.first_asr_final "
+                                                "interview_session_id=%s "
+                                                "elapsed_ms=%.2f text_chars=%d"
+                                            ),
+                                            session_label,
+                                            first_asr_final_ms,
+                                            len(text or ""),
+                                        )
+                                if event in (EVENT_CHAT_RESPONSE, EVENT_CHAT_ENDED):
+                                    if text and first_chat_text_ms is None:
+                                        first_chat_text_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.downstream.first_chat_text "
+                                                "interview_session_id=%s "
+                                                "elapsed_ms=%.2f final=%s"
+                                            ),
+                                            session_label,
+                                            first_chat_text_ms,
+                                            is_final,
+                                        )
+                                    if is_final and first_chat_final_ms is None:
+                                        first_chat_final_ms = _elapsed_ms(started_at)
+                                        logger.info(
+                                            (
+                                                "voice.downstream.first_chat_final "
+                                                "interview_session_id=%s "
+                                                "elapsed_ms=%.2f text_chars=%d"
+                                            ),
+                                            session_label,
+                                            first_chat_final_ms,
+                                            len(text or ""),
+                                        )
                                 if on_text_message and text and is_final:
                                     role = (
                                         "candidate"
@@ -844,8 +1028,26 @@ class VolcengineVoiceService:
                     logger.warning("forward_to_client error: %s", exc)
                 finally:
                     logger.info(
-                        "Downstream done, received %d messages total",
+                        (
+                            "voice.downstream.done interview_session_id=%s "
+                            "messages=%d event_counts=%s tts_chunks=%d "
+                            "tts_bytes=%d first_provider_msg_ms=%s "
+                            "first_tts_audio_ms=%s first_asr_text_ms=%s "
+                            "first_asr_final_ms=%s first_chat_text_ms=%s "
+                            "first_chat_final_ms=%s elapsed_ms=%.2f"
+                        ),
+                        session_label,
                         msg_count,
+                        json.dumps(event_counts, ensure_ascii=False, sort_keys=True),
+                        tts_audio_chunks,
+                        tts_audio_bytes,
+                        first_provider_msg_ms,
+                        first_tts_audio_ms,
+                        first_asr_text_ms,
+                        first_asr_final_ms,
+                        first_chat_text_ms,
+                        first_chat_final_ms,
+                        _elapsed_ms(started_at),
                     )
                     closing.set()
 
