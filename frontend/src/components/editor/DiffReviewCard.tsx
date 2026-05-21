@@ -120,6 +120,13 @@ function formatDiffValue(value: unknown) {
   return items.length > 0 ? items.join('、') : '[]'
 }
 
+// 用于隐藏简历内部字段名，只展示用户关心的改动内容。
+function formatObjectDiffLine(key: string, value: unknown) {
+  const text = formatDiffValue(value)
+  return key === 'items' || key === 'category' ? text : `${key}: ${text}`
+}
+
+
 // 用于计算数组中的新增或删除项。
 function arrayDelta(source: unknown[], target: unknown[]) {
   const targetCounts = new Map<string | undefined, number>()
@@ -158,11 +165,11 @@ function buildCompactObjectDiff(beforeText?: string, afterText?: string): DiffGr
     if (hasBefore && hasAfter && Array.isArray(before[key]) && Array.isArray(after[key])) {
       const removed = arrayDelta(before[key], after[key])
       const added = arrayDelta(after[key], before[key])
-      if (removed.length > 0) removeLines.push(`${key}: ${formatDiffValue(removed)}`)
-      if (added.length > 0) addLines.push(`${key}: ${formatDiffValue(added)}`)
+      if (removed.length > 0) removeLines.push(formatObjectDiffLine(key, removed))
+      if (added.length > 0) addLines.push(formatObjectDiffLine(key, added))
     } else {
-      if (hasBefore) removeLines.push(`${key}: ${formatDiffValue(before[key])}`)
-      if (hasAfter) addLines.push(`${key}: ${formatDiffValue(after[key])}`)
+      if (hasBefore) removeLines.push(formatObjectDiffLine(key, before[key]))
+      if (hasAfter) addLines.push(formatObjectDiffLine(key, after[key]))
     }
   }
 
