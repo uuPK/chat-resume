@@ -185,11 +185,18 @@ function parseSelectedResumeUserMessage(content: string): SelectedResumeUserMess
   }
 }
 
-/** 渲染用户消息，把选中简历内容降级为引用块，把用户要求作为主体。 */
+/** 渲染用户消息，把选中简历内容降级为外置引用块，把用户要求作为主体。 */
 function UserMessageContent({ content }: { content: string }) {
   const selectedMessage = parseSelectedResumeUserMessage(content)
   if (!selectedMessage) {
-    return <span className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">{content}</span>
+    return (
+      <div
+        className="rounded-[20px] px-4 py-3 text-[14px] leading-relaxed text-white"
+        style={{ borderRadius: '20px 20px 6px 20px', backgroundColor: '#0052ff' }}
+      >
+        <span className="whitespace-pre-wrap break-words">{content}</span>
+      </div>
+    )
   }
 
   const isContextTruncated = selectedMessage.selectedText.length > 92
@@ -198,23 +205,26 @@ function UserMessageContent({ content }: { content: string }) {
     : selectedMessage.selectedText
 
   return (
-    <div className="space-y-2 text-left">
+    <div className="flex flex-col items-end gap-2 text-left">
       <details
         data-testid="selected-resume-message-context"
-        className="group rounded-2xl border border-white/25 bg-white/95 px-3 py-2 text-[#0a0b0d] shadow-sm"
+        className="group w-full rounded-2xl border border-[#e4e7f2] bg-[#f8f7ff] px-3 py-2 text-[#0a0b0d] shadow-sm"
       >
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-          <span className="block text-[11px] font-semibold leading-none text-[#0052ff]">
-            引用的简历内容 · {selectedMessage.selectedText.length} 字
+          <span className="flex items-center justify-between gap-3">
+            <span className="text-[11px] font-semibold leading-none text-[#0052ff]">
+              引用的简历内容 · {selectedMessage.selectedText.length} 字
+            </span>
+            {isContextTruncated && (
+              <span className="shrink-0 text-[11px] font-medium text-[#5b616e]">
+                <span className="group-open:hidden">展开全文</span>
+                <span className="hidden group-open:inline">收起</span>
+              </span>
+            )}
           </span>
-          <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-relaxed text-[#3f4652]">
+          <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-relaxed text-[#3f4652] group-open:hidden">
             {previewText}
           </span>
-          {isContextTruncated && (
-            <span className="mt-1 block text-[11px] font-medium text-[#5b616e] group-open:hidden">
-              展开全文
-            </span>
-          )}
         </summary>
         <div className="mt-2 border-t border-gray-100 pt-2 text-xs leading-relaxed text-[#3f4652]">
           <p className="whitespace-pre-wrap break-words">{selectedMessage.selectedText}</p>
@@ -223,7 +233,8 @@ function UserMessageContent({ content }: { content: string }) {
       {selectedMessage.userRequest && (
         <p
           data-testid="selected-resume-message-request"
-          className="whitespace-pre-wrap break-words text-[14px] font-medium leading-relaxed"
+          className="max-w-full whitespace-pre-wrap break-words px-4 py-3 text-[14px] font-medium leading-relaxed text-white"
+          style={{ borderRadius: '20px 20px 6px 20px', backgroundColor: '#0052ff' }}
         >
           {selectedMessage.userRequest}
         </p>
@@ -1058,13 +1069,8 @@ export default function ResumeEditPage() {
                       className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`${message.type === 'user' ? 'max-w-[85%]' : 'max-w-[93%]'} px-4 py-3`}
-                        style={message.type === 'user' ? {
-                          borderRadius: '20px 20px 6px 20px',
-                          backgroundColor: '#0052ff',
-                          color: '#ffffff',
-                          border: 'none',
-                        } : { color: '#0a0b0d' }}
+                        className={message.type === 'user' ? 'max-w-[85%]' : 'max-w-[93%] px-4 py-3'}
+                        style={message.type === 'user' ? undefined : { color: '#0a0b0d' }}
                       >
                         {message.type === 'ai' ? (
                           <>

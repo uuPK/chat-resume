@@ -570,13 +570,14 @@ test.describe('编辑页工作流', () => {
   })
 
   test('快速优化会通过对话框 Agent 发送选区和要求', async ({ page }) => {
+    const selectedHighlight = '负责前端开发与性能优化，搭建性能监控指标并定位首屏加载瓶颈，推动组件拆分、资源压缩和缓存策略落地，让核心页面交互更稳定。同时沉淀可复用的优化 checklist，帮助团队在后续迭代中持续发现并修复性能回退问题。'
     const resume = buildResumeResponse(123)
     resume.content.work_experience = [
       {
         company: '测试公司',
         position: '前端工程师',
         duration: '2024',
-        highlights: [{ text: '负责前端开发与性能优化' }],
+        highlights: [{ text: selectedHighlight }],
       },
     ]
     let streamPayload: { message?: string } | null = null
@@ -592,13 +593,13 @@ test.describe('编辑页工作流', () => {
     })
 
     await page.goto('/zh/resume/123/edit')
-    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await selectResumePreviewText(page, selectedHighlight)
     await page.getByRole('button', { name: '快速优化' }).click()
     await expect(page.getByTestId('resume-selection-highlight').first()).toBeVisible()
     await expect.poll(() => readResumeSelectionVisualState(page)).toEqual({
       selectedText: '',
       hasCustomHighlight: false,
-      drawnHighlightCount: 1,
+      drawnHighlightCount: 2,
     })
     const quickEditInput = page.getByPlaceholder('输入优化要求')
     await expect(quickEditInput).toBeVisible()
@@ -609,17 +610,24 @@ test.describe('编辑页工作流', () => {
       drawnHighlightCount: 0,
     })
 
-    await selectResumePreviewText(page, '负责前端开发与性能优化')
+    await selectResumePreviewText(page, selectedHighlight)
     await page.getByRole('button', { name: '快速优化' }).click()
     await quickEditInput.fill('改得更有结果导向')
     await page.getByRole('button', { name: '发送快速优化' }).click()
 
-    await expect.poll(() => streamPayload?.message || '').toContain('负责前端开发与性能优化')
+    await expect.poll(() => streamPayload?.message || '').toContain(selectedHighlight)
     expect(streamPayload?.message).toContain('改得更有结果导向')
     const quotedContext = page.getByTestId('selected-resume-message-context').last()
     await expect(quotedContext).toBeVisible()
     await expect(quotedContext).toContainText('引用的简历内容')
     await expect(quotedContext).toContainText('负责前端开发与性能优化')
+    await quotedContext.getByText('展开全文').click()
+    await expect(quotedContext.getByText('收起')).toBeVisible()
+    expect(await quotedContext.evaluate((element) => (
+      (element.innerText.match(/负责前端开发与性能优化/g) || []).length
+    ))).toBe(1)
+    await quotedContext.getByText('收起').click()
+    await expect(quotedContext.getByText('展开全文')).toBeVisible()
     await expect(page.getByTestId('selected-resume-message-request').last()).toHaveText('改得更有结果导向')
     await expect(quickEditInput).toBeHidden()
   })
