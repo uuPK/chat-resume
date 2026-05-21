@@ -1,0 +1,8 @@
+servers:
+  typescript-language-server:
+    command: typescript-language-server
+    args:
+      - --stdio
+    rootMarkers:
+      - frontend/package.json
+      - frontend/tsconfig.json
