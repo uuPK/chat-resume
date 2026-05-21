@@ -1,14 +1,12 @@
 """数字人 API 入口。
 
-负责把面试上下文转换成 Tavus 会话请求，并隐藏供应商密钥。
+负责为豆包端到端语音面试准备会话上下文。
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, NoReturn, Optional
-
-import httpx
+from typing import NoReturn
 from fastapi import (
     APIRouter,
     Depends,
@@ -29,13 +27,7 @@ from app.prompts import load_prompt
 from app.infra.database import get_db
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
-from app.services.digital_human import (
-    LiveAvatarConfigurationError,
-    LiveAvatarService,
-    TavusConfigurationError,
-    TavusService,
-    VolcengineVoiceService,
-)
+from app.services.digital_human import VolcengineVoiceService
 from app.services.errors import (
     ServiceError,
     ServiceNotFoundError,
@@ -59,23 +51,12 @@ class DigitalHumanCreateRequest(BaseModel):
     interview_session_id: int
 
 
-class DigitalHumanEndRequest(BaseModel):
-    """用于承载结束数字人会话的请求参数。"""
-
-    conversation_id: str
-
-
 class DigitalHumanConversationResponse(BaseModel):
-    """用于返回前端可安全使用的数字人会话信息。"""
+    """用于返回前端可安全使用的豆包语音会话信息。"""
 
     provider: str
-    conversation_id: str = ""
-    conversation_url: str = ""
-    join_url: str = ""
     session_id: str = ""
-    session_token: str = ""
     status: str
-    meeting_token: Optional[str] = None
 
 
 def _raise_service_http_error(exc: ServiceError) -> NoReturn:
@@ -102,131 +83,17 @@ async def create_digital_human_conversation(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """用于为一场面试创建真实 Tavus 数字人视频会话。"""
+    """用于为一场豆包端到端语音面试准备会话。"""
     try:
-        session = get_session_for_user(
-            db, request.interview_session_id, current_user["id"]
-        )
+        get_session_for_user(db, request.interview_session_id, current_user["id"])
     except ServiceError as exc:
         _raise_service_http_error(exc)
-    target_title = session.target_title or "目标岗位"
-    target_company = session.target_company or "目标公司"
-    conversation_name = f"Interview #{session.id}: {target_title}"
-    context = _build_interview_context(
-        target_title=target_title,
-        target_company=target_company,
-        language=session.language,
-        difficulty=session.difficulty,
-        jd_text=session.jd_text or "",
+
+    return DigitalHumanConversationResponse(
+        provider="volcengine",
+        session_id=str(request.interview_session_id),
+        status="ready",
     )
-    greeting = _build_greeting(
-        target_title=target_title,
-        target_company=target_company,
-        language=session.language,
-    )
-
-    provider = settings.DIGITAL_HUMAN_PROVIDER.strip().lower()
-    if provider == "volcengine":
-        return DigitalHumanConversationResponse(
-            provider="volcengine",
-            session_id=str(request.interview_session_id),
-            status="ready",
-        )
-
-    if provider in {"heygen", "liveavatar", "heygen-liveavatar"}:
-        service = LiveAvatarService()
-        try:
-            return await service.create_session(
-                language=session.language,
-                dynamic_variables={
-                    "target_title": target_title,
-                    "target_company": target_company,
-                    "language": session.language,
-                    "difficulty": session.difficulty,
-                },
-            )
-        except LiveAvatarConfigurationError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(exc),
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            detail = _extract_tavus_error(exc.response)
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"LiveAvatar session creation failed: {detail}",
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"LiveAvatar request failed: {str(exc)}",
-            ) from exc
-
-    service = TavusService()
-    try:
-        return await service.create_conversation(
-            conversation_name=conversation_name,
-            conversational_context=context,
-            custom_greeting=greeting,
-        )
-    except TavusConfigurationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        detail = _extract_tavus_error(exc.response)
-        if exc.response.status_code == status.HTTP_402_PAYMENT_REQUIRED:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail=f"Tavus conversational credits are exhausted: {detail}",
-            ) from exc
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Tavus conversation creation failed: {detail}",
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Tavus request failed: {str(exc)}",
-        ) from exc
-
-
-@router.post("/conversations/end", response_model=Dict[str, str])
-async def end_digital_human_conversation(
-    request: DigitalHumanEndRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    """用于主动关闭 Tavus 数字人会话，释放供应商侧资源。"""
-    provider = settings.DIGITAL_HUMAN_PROVIDER.strip().lower()
-    if provider == "volcengine":
-        return {
-            "message": "Volcengine voice sessions are closed by the WebSocket proxy"
-        }
-
-    if provider in {"heygen", "liveavatar", "heygen-liveavatar"}:
-        return {"message": "LiveAvatar sessions are closed by the browser SDK"}
-
-    service = TavusService()
-    try:
-        await service.end_conversation(request.conversation_id)
-    except TavusConfigurationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except httpx.HTTPStatusError as exc:
-        detail = _extract_tavus_error(exc.response)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Tavus conversation end failed: {detail}",
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Tavus request failed: {str(exc)}",
-        ) from exc
-    return {"message": "Digital human conversation ended"}
 
 
 def _render_interviewer_prompt(
@@ -249,24 +116,6 @@ def _render_interviewer_prompt(
         jd_text=jd_text,
         resume_text=resume_text,
         interview_history=interview_history,
-    )
-
-
-def _build_interview_context(
-    *,
-    target_title: str,
-    target_company: str,
-    language: str,
-    difficulty: str,
-    jd_text: str,
-) -> str:
-    """用于把结构化面试信息整理成 Tavus persona 的会话上下文。"""
-    return _render_interviewer_prompt(
-        target_title=target_title,
-        target_company=target_company,
-        language=language,
-        difficulty=difficulty,
-        jd_text=jd_text[:4000],
     )
 
 
@@ -293,7 +142,7 @@ def _build_greeting(
 
 
 def _prefers_chinese(language: str) -> bool:
-    """用于根据 session 语言判断 Tavus 是否应使用中文。"""
+    """用于根据 session 语言判断豆包面试官是否应使用中文。"""
     normalized = language.strip().lower()
     return normalized.startswith("zh") or "chinese" in normalized or "中文" in language
 
@@ -504,10 +353,3 @@ async def voice_session_ws(
         except Exception:
             pass
 
-
-def _extract_tavus_error(response: httpx.Response) -> Any:
-    """用于从 Tavus 错误响应中提取可读信息。"""
-    try:
-        return response.json()
-    except ValueError:
-        return response.text

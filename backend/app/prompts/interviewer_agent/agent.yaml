@@ -2,7 +2,7 @@ version: "1.0"
 agent:
   name: interviewer_agent
   description: >
-    实时模拟面试官提示词，用于 Tavus 和豆包端到端语音面试会话。
+    实时模拟面试官提示词，用于豆包端到端语音面试会话。
   system_prompt_path: ./system.md
   system_prompt_args:
     prefers_chinese: true

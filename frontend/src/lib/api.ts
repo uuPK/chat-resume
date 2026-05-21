@@ -170,14 +170,9 @@ interface InterviewActionResponse {
 }
 
 interface DigitalHumanConversation {
-  provider: 'tavus' | 'liveavatar' | 'volcengine'
-  conversation_id?: string
-  conversation_url?: string
-  join_url?: string
-  session_id?: string
-  session_token?: string
+  provider: 'volcengine'
+  session_id: string
   status: string
-  meeting_token?: string | null
 }
 
 interface PayPalSubscriptionCheckout {
@@ -428,21 +423,6 @@ class DigitalHumanAPI {
       body: JSON.stringify({ interview_session_id: interviewSessionId }),
     })
     return handleApiResponse<DigitalHumanConversation>(response)
-  }
-
-  /**
-   * 结束供应商侧数字人会话，避免持续占用分钟数。
-   */
-  // 用于处理endconversation。
-  static async endConversation(conversationId: string): Promise<void> {
-    const response = await apiFetch('/api/digital-human/conversations/end', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ conversation_id: conversationId }),
-    })
-    await handleApiResponse<{ message: string }>(response)
   }
 }
 

@@ -30,7 +30,6 @@ from app.services.digital_human.volcengine_service import (
 )
 from app.entrypoints.http.digital_human import (
     _build_greeting,
-    _build_interview_context,
     _build_volcengine_system_role,
 )
 
@@ -118,20 +117,6 @@ def test_build_volcengine_system_role_uses_interviewer_prompt():
     assert "岗位 JD 信息：\n负责高并发服务" in text
     assert "不要重复开场白" in text
 
-
-def test_build_interview_context_uses_same_prompt_file():
-    """Tavus 会话上下文应复用 interviewer_agent 提示词。"""
-    text = _build_interview_context(
-        target_title="Backend Engineer",
-        target_company="ByteDance",
-        language="en-US",
-        difficulty="medium",
-        jd_text="Own backend systems",
-    )
-
-    assert "professional mock interviewer" in text
-    assert "Backend Engineer" in text
-    assert "Job description context:\nOwn backend systems" in text
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 import struct as _struct

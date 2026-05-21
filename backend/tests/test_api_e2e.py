@@ -3250,17 +3250,8 @@ class TestDigitalHumanBillingAccess:
         finally:
             db.close()
 
-    def test_free_user_can_create_digital_human_conversation(
-        self, client, monkeypatch
-    ):
+    def test_free_user_can_create_digital_human_conversation(self, client):
         """用于验证free用户cancreatedigitalhumanconversation。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes.settings,
-            "DIGITAL_HUMAN_PROVIDER",
-            "volcengine",
-        )
         _register(client, "digital_human_free@example.com")
         token = _login(client, "digital_human_free@example.com")
         headers = _auth_headers(token)
@@ -3278,17 +3269,8 @@ class TestDigitalHumanBillingAccess:
         assert resp.json()["provider"] == "volcengine"
         assert resp.json()["session_id"] == str(session_id)
 
-    def test_active_subscriber_can_create_digital_human_conversation(
-        self, client, monkeypatch
-    ):
+    def test_active_subscriber_can_create_digital_human_conversation(self, client):
         """用于验证activesubscribercancreatedigitalhumanconversation。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes.settings,
-            "DIGITAL_HUMAN_PROVIDER",
-            "volcengine",
-        )
         email = "digital_human_plus@example.com"
         _register(client, email)
         token = _login(client, email)
@@ -3320,13 +3302,8 @@ class TestDigitalHumanBillingAccess:
         assert resp.status_code == 200, resp.text
         assert resp.json() == {
             "provider": "volcengine",
-            "conversation_id": "",
-            "conversation_url": "",
-            "join_url": "",
             "session_id": str(session_id),
-            "session_token": "",
             "status": "ready",
-            "meeting_token": None,
         }
 
     def test_voice_session_websocket_rejects_anonymous_client(

@@ -1162,11 +1162,8 @@ export default function InterviewPage() {
 
   const handleEndInterview = useCallback(async () => {
     window.__chatResumeVoiceCleanup?.()
-    if (digitalHuman?.conversation_id) {
-      await digitalHumanApi.endConversation(digitalHuman.conversation_id).catch(() => {})
-    }
     await endInterview()
-  }, [digitalHuman?.conversation_id, endInterview])
+  }, [endInterview])
 
   const handleGenerateReport = useCallback(async () => {
     await generateReport()
@@ -1203,13 +1200,6 @@ export default function InterviewPage() {
       .catch(() => {})
   }, [digitalHuman?.session_id, session?.id, session?.status])
 
-  useEffect(() => {
-    return () => {
-      if (digitalHuman?.conversation_id) {
-        digitalHumanApi.endConversation(digitalHuman.conversation_id).catch(() => {})
-      }
-    }
-  }, [digitalHuman?.conversation_id])
 
   if (!mounted || authLoading || resumeLoading) {
     return (
