@@ -833,24 +833,26 @@ function VoicePanel({
 
 type ReportData = NonNullable<InterviewSession['report_data']>
 
-// 报告色彩系统（暖白设计语言）
+// 报告色彩系统用于模拟面试报告的纸面视觉。
 const RD = {
-  bg: '#F7F5F0',
+  bg: '#F5F5F5',
   surface: '#FFFFFF',
-  surface2: '#F0EDE7',
-  border: '#E2DDD6',
-  text: '#1A1814',
-  textMuted: '#7A756D',
-  textFaint: '#B0A99F',
-  blue: '#2B5CE6',
-  blueLight: '#EEF2FD',
-  green: '#1D7A4E',
-  greenLight: '#E8F5EE',
-  amber: '#B85C00',
-  amberLight: '#FDF3E7',
-  red: '#C0392B',
-  redLight: '#FDECEA',
-  dark: '#1A1814',
+  surface2: '#F6F6F6',
+  border: '#EFEFEF',
+  text: '#2D2F33',
+  textMuted: '#666D75',
+  textFaint: '#9AA0A6',
+  blue: '#59636F',
+  blueLight: '#F1F3F5',
+  green: '#0BA77A',
+  greenLight: '#EAFBF3',
+  amber: '#D68124',
+  amberLight: '#FFF9E6',
+  red: '#F05252',
+  redLight: '#FFF1F1',
+  yellow: '#FFD84D',
+  yellowLight: '#FFF7D8',
+  dark: '#26282C',
 } as const
 
 // 用于从维度平均分或结论等级推导综合评分。
@@ -863,805 +865,258 @@ function computeOverallScore(dimensions: ReportData['dimensions'] = [], level?: 
   return level === 'strong' ? 85 : level === 'risky' ? 55 : 70
 }
 
-// 用于把分数百分比分类为 good/mid/low。
-function scoreTier(pct: number): 'good' | 'mid' | 'low' {
-  if (pct >= 70) return 'good'
-  if (pct >= 50) return 'mid'
-  return 'low'
+// 用于把日期格式化为报告头部展示文本。
+function formatReportDate(value?: string): string {
+  if (!value) return ''
+  const date = new Date(value.includes('Z') ? value : `${value}Z`)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
-// 用于从分数等级取对应颜色。
-function tierColor(tier: 'good' | 'mid' | 'low'): string {
-  if (tier === 'good') return RD.green
-  if (tier === 'mid') return RD.amber
-  return RD.red
+// 用于计算报告头部展示的面试时长。
+function reportDuration(session?: InterviewSession): string {
+  if (!session?.started_at) return '60分钟'
+  const start = new Date(session.started_at.includes('Z') ? session.started_at : `${session.started_at}Z`).getTime()
+  const endValue = session.ended_at || session.started_at
+  const end = new Date(endValue.includes('Z') ? endValue : `${endValue}Z`).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end)) return '60分钟'
+  const minutes = Math.max(1, Math.round((end - start) / 60000))
+  return `${minutes}分钟`
 }
 
-// 用于从多个文本列表中取第一个可展示的诊断句。
-function firstReportText(...groups: Array<Array<string | undefined> | undefined>): string {
-  for (const group of groups) {
-    const found = group?.find(item => item?.trim())
-    if (found) return found
-  }
-  return ''
+// 用于把报告中的首个岗位名称作为标题。
+function reportTitle(data: ReportData, session?: InterviewSession): string {
+  return data.job_match?.target_title || session?.target_title || '综合面试'
 }
 
-// 用于提取报告中最需要先处理的面试风险。
-function getPrimaryRisk(data: ReportData): string {
-  return firstReportText(
-    data.interviewer_risks,
-    data.job_match?.interviewer_concerns,
-    data.recurring_issues,
-    data.weaknesses,
-    [data.candidate_verdict?.reason],
-  )
+// 用于给单题估算 10 分制分数。
+function turnScore(turn: InterviewSession['turns'][number], rewrite?: NonNullable<ReportData['answer_rewrites']>[number]): number {
+  if (!turn.answer?.trim()) return 0
+  if ((turn.evaluation?.gaps || []).length > 0 || rewrite?.original_problem) return 2
+  if (turn.evaluation?.summary) return 6
+  return 5
 }
 
-// 用于提取报告中最适合作为下一步动作的建议。
-function getPrimaryAction(data: ReportData): string {
-  return firstReportText(
-    data.next_training_plan,
-    data.resume_feedback,
-    data.interviewer_evaluation?.core_recommendations,
-    data.answer_rewrites?.map(rewrite => rewrite.original_problem || rewrite.recommended_answer),
-  )
-}
-
-// 用于按分数和结论等级选择报告主色。
-function verdictColor(score: number, level?: string): string {
-  if (level === 'strong' || score >= 75) return RD.green
-  if (level === 'risky' || score < 55) return RD.red
-  return RD.amber
-}
-
-// 用于渲染带延伸线的区块标签。
-function RdSectionLabel({ label }: { label: string }) {
+// 用于渲染报告头部的元信息行。
+function ScreenshotInfoItem({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-      <h2 style={{
-        fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
-        fontSize: 10,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase' as const,
-        color: RD.textMuted,
-        whiteSpace: 'nowrap' as const,
-        flexShrink: 0,
-        margin: 0,
-      }}>
-        {label}
-      </h2>
-      <div style={{ flex: 1, height: 1, background: RD.border }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 240 }}>
+      <span style={{ width: 18, color: RD.textMuted, fontSize: 16 }}>{icon}</span>
+      <span style={{ color: RD.textMuted, fontSize: 14 }}>{label}</span>
+      <strong style={{ color: RD.text, fontSize: 14 }}>{value}</strong>
     </div>
   )
 }
 
-// 用于渲染带证据和建议的维度诊断卡片。
-function RdDimCard({ dimension }: { dimension: NonNullable<ReportData['dimensions']>[number] }) {
-  const pct = typeof dimension.score === 'number' ? dimension.score * 20 : 0
-  const tier = scoreTier(pct)
-  const color = tierColor(tier)
-  const scoreText = typeof dimension.score === 'number' ? `${dimension.score}/5` : '未评分'
+// 用于渲染截图风格的报告插画。
+function ScreenshotHeroIllustration() {
   return (
-    <div style={{
-      background: RD.surface,
-      border: `1px solid ${RD.border}`,
-      borderTop: `4px solid ${color}`,
-      borderRadius: 16,
-      padding: '20px 22px',
-      overflow: 'hidden',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+    <div aria-hidden="true" style={{ position: 'relative', height: 250 }}>
+      <div style={{ position: 'absolute', right: 40, top: 30, width: 78, height: 58, border: '2px solid #8C8C8C', background: '#fff' }} />
+      <div style={{ position: 'absolute', right: 58, top: 54, width: 38, height: 22, borderBottom: '2px solid #D6D6D6', transform: 'skew(-28deg)' }} />
+      <div style={{ position: 'absolute', right: 198, top: 88, width: 76, height: 46, border: '2px solid #8C8C8C', background: '#fff' }} />
+      <div style={{ position: 'absolute', right: 270, top: 136, width: 110, height: 92, borderRadius: '999px', background: RD.yellow }} />
+      <div style={{ position: 'absolute', right: 214, top: 120, width: 58, height: 116, borderRadius: '30px 30px 0 0', background: RD.yellow }} />
+      <div style={{ position: 'absolute', right: 246, top: 78, width: 48, height: 78, borderRadius: 24, border: '2px solid #343434', background: '#fff' }} />
+      <div style={{ position: 'absolute', right: 258, top: 156, width: 28, height: 76, background: '#111', clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }} />
+      <div style={{ position: 'absolute', right: 320, top: 132, width: 84, height: 84, borderRadius: '50%', border: '4px solid #777', background: '#fff' }} />
+      <div style={{ position: 'absolute', right: 392, top: 204, width: 70, height: 12, borderRadius: 10, background: RD.yellow, transform: 'rotate(135deg)' }} />
+      <div style={{ position: 'absolute', right: 346, top: 169, display: 'flex', gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
+      </div>
+      <div style={{ position: 'absolute', right: 160, bottom: 28, width: 220, height: 26, border: '2px solid #E5E5E5', color: '#DDD', fontSize: 22, fontWeight: 800, textAlign: 'center' }}>
+        PROFILE
+      </div>
+    </div>
+  )
+}
+
+// 用于渲染截图顶部的报告横幅。
+function ScreenshotReportHero({ data, session, turns }: { data: ReportData; session?: InterviewSession; turns: InterviewSession['turns'] }) {
+  const title = reportTitle(data, session)
+  const score = computeOverallScore(data.dimensions, data.candidate_verdict?.level)
+  return (
+    <section style={{ position: 'relative', minHeight: 350, padding: '54px 56px 0', overflow: 'hidden', background: 'linear-gradient(180deg, #fff 0%, #FAFAFA 100%)' }}>
+      <div style={{ position: 'absolute', left: 70, bottom: 36, width: 88, height: 88, borderRadius: '45% 55% 52% 48%', background: RD.yellowLight, transform: 'rotate(12deg)' }} />
+      <div style={{ position: 'absolute', right: 72, top: -42, width: 180, height: 180, borderRadius: '50%', background: RD.yellowLight }} />
+      <div style={{ position: 'absolute', left: '50%', top: 22, width: 130, height: 130, borderRadius: '50%', background: RD.yellowLight }} />
+      <div className="report-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 580px', gap: 36, position: 'relative' }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: RD.text }}>{dimension.title}</div>
-          {dimension.assessment && (
-            <div style={{ fontSize: 12, color: RD.textMuted, marginTop: 4 }}>{dimension.assessment}</div>
-          )}
+          <h1 style={{ margin: '0 0 34px', fontSize: 34, lineHeight: 1.2, fontWeight: 800, color: RD.text }}>{title}</h1>
+          <div className="report-meta-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 18, columnGap: 28 }}>
+            <ScreenshotInfoItem icon="▱" label="面试类型" value="综合面试" />
+            <ScreenshotInfoItem icon="▣" label="岗位名称" value={title} />
+            <ScreenshotInfoItem icon="◷" label="面试时长" value={reportDuration(session)} />
+            <ScreenshotInfoItem icon="▤" label="题目数量" value={`${turns.length}题`} />
+            <ScreenshotInfoItem icon="□" label="面试时间" value={formatReportDate(session?.ended_at || session?.started_at) || '-'} />
+          </div>
         </div>
-        <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
-          <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 34, lineHeight: 1, letterSpacing: '-0.04em', color }}>
-            {Math.round(pct)}
+        <div style={{ position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 74, top: 16, width: 160, height: 160, borderRadius: '50%', border: `5px solid ${RD.yellow}`, background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 28px rgba(255, 216, 77, 0.28)', zIndex: 2 }}>
+            <div style={{ fontSize: 58, lineHeight: 1, fontWeight: 800, color: RD.text }}>{score}</div>
+            <div style={{ marginTop: 12, fontSize: 14, color: RD.textMuted }}>综合得分</div>
           </div>
-          <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, color: RD.textFaint, marginTop: 2 }}>
-            {scoreText}
-          </div>
+          <ScreenshotHeroIllustration />
         </div>
       </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 56, background: '#fff', clipPath: 'ellipse(65% 80% at 50% 100%)' }} />
+    </section>
+  )
+}
 
-      <div style={{ height: 4, background: RD.surface2, borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
-        <div style={{ height: '100%', background: color, borderRadius: 2, width: `${pct}%`, transition: 'width 1s cubic-bezier(.16,1,.3,1)' }} />
+// 用于渲染截图风格的区块标题。
+function ScreenshotSectionTitle({ icon, title }: { icon: string; title: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+      <span style={{ fontSize: 26, color: RD.text }}>{icon}</span>
+      <h2 style={{ margin: 0, fontSize: 26, lineHeight: 1.2, fontWeight: 800, color: RD.text }}>{title}</h2>
+    </div>
+  )
+}
+
+// 用于渲染带标题的彩色列表卡片。
+function ScreenshotListCard({ title, icon, items, tone }: { title: string; icon: string; items: string[]; tone: 'amber' | 'green' }) {
+  const color = tone === 'green' ? RD.green : RD.amber
+  const bg = tone === 'green' ? RD.greenLight : RD.amberLight
+  const border = tone === 'green' ? '#A8EFD2' : '#F7DEA0'
+  return (
+    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: '22px 24px', minHeight: 212 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, color }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <strong style={{ fontSize: 16 }}>{title}</strong>
       </div>
-
-      {dimension.evidence && (
-        <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.65, marginBottom: 10 }}>
-          <span style={{ fontWeight: 700, color: RD.text }}>面试证据：</span>{dimension.evidence}
-        </div>
-      )}
-      {dimension.advice && (
-        <div style={{ background: RD.surface2, borderRadius: 10, padding: '10px 12px', fontSize: 13, color: RD.text, lineHeight: 1.65 }}>
-          <span style={{ fontWeight: 700, color }}>补救建议：</span>{dimension.advice}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 用于渲染可展开的单题解析卡片（含面试官点评、参考思路、参考回答）。
-function RdQACard({
-  turn,
-  index,
-  rewrite,
-}: {
-  turn: InterviewSession['turns'][number]
-  index: number
-  rewrite?: NonNullable<NonNullable<InterviewSession['report_data']>['answer_rewrites']>[number]
-}) {
-  const [open, setOpen] = useState(true)
-  const evaluation = turn.evaluation
-  const evalSummary = evaluation?.summary || ''
-  const evalAdvice = evaluation?.advice || ''
-  const expectedPoints: string[] = turn.expected_points || []
-  const hasEvaluation = Boolean(evalSummary)
-  const hasRefThinking = Boolean(evalAdvice) || expectedPoints.length > 0
-  const hasRefAnswer = Boolean(rewrite?.recommended_answer)
-  const hasOriginalProblem = Boolean(rewrite?.original_problem)
-  const hasWhyBetter = Boolean(rewrite?.why_better)
-
-  return (
-    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 12, overflow: 'hidden' }}>
-      {/* 题目标题行（可折叠） */}
-      <div
-        role="button"
-        tabIndex={0}
-        style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px', cursor: 'pointer' }}
-        onClick={() => setOpen(v => !v)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(v => !v) }}
-      >
-        <span style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, paddingTop: 2, flexShrink: 0, minWidth: 20 }}>
-          {String(index + 1).padStart(2, '0')}
-        </span>
-        <p style={{ flex: 1, fontSize: 14, fontWeight: 500, lineHeight: 1.5, margin: 0, color: RD.text }}>
-          {turn.question}
-        </p>
-        <span style={{ fontSize: 16, color: RD.textFaint, flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none', display: 'inline-block' }}>▾</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {(items.length > 0 ? items : ['无']).map((item, index) => (
+          <div key={index} style={{ display: 'flex', gap: 10, color: RD.textMuted, fontSize: 14, lineHeight: 1.65 }}>
+            <span style={{ color, flexShrink: 0 }}>•</span>
+            <span>{item}</span>
+          </div>
+        ))}
       </div>
-
-      {open && (
-        <div style={{ borderTop: `1px solid ${RD.border}` }}>
-          {/* 你的回答 */}
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
-            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: RD.textFaint, marginBottom: 8 }}>
-              你的回答
-            </div>
-            <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7, paddingLeft: 12, borderLeft: `2px solid ${RD.border}` }}>
-              {turn.answer || '（候选人跳过此问题）'}
-            </div>
-          </div>
-
-          {hasOriginalProblem && (
-            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
-              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: RD.red, marginBottom: 8 }}>
-                问题点
-              </div>
-              <div style={{ background: RD.redLight, border: `1px solid #f2b8b0`, borderLeft: `3px solid ${RD.red}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#7a1f14', lineHeight: 1.7 }}>
-                {rewrite!.original_problem}
-              </div>
-            </div>
-          )}
-
-          {/* 面试官点评 */}
-          {hasEvaluation && (
-            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
-                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-                  <rect x="9" y="3" width="6" height="4" rx="1"/>
-                  <line x1="9" y1="12" x2="15" y2="12"/>
-                  <line x1="9" y1="16" x2="13" y2="16"/>
-                </svg>
-                <span style={{ fontSize: 12, fontWeight: 600, color: RD.amber }}>面试官点评</span>
-              </div>
-              <div style={{ background: RD.amberLight, border: `1px solid #e8c97a`, borderLeft: `3px solid ${RD.amber}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#5c3d0f', lineHeight: 1.7 }}>
-                {evalSummary}
-              </div>
-            </div>
-          )}
-
-          {/* 参考思路 */}
-          {hasRefThinking && (
-            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.blue} strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <circle cx="12" cy="16" r="0.5" fill={RD.blue}/>
-                </svg>
-                <span style={{ fontSize: 12, fontWeight: 600, color: RD.blue }}>参考思路</span>
-              </div>
-              <div style={{ background: RD.blueLight, border: `1px solid #c5d6f9`, borderRadius: 8, padding: '12px 14px' }}>
-                {evalAdvice && (
-                  <div style={{ fontSize: 13, color: '#1a2a6e', lineHeight: 1.7, marginBottom: expectedPoints.length > 0 ? 10 : 0 }}>
-                    <span style={{ fontWeight: 600 }}>解题思路：</span>{evalAdvice}
-                  </div>
-                )}
-                {expectedPoints.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1a2a6e', marginBottom: 6 }}>关键要点：</div>
-                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
-                      {expectedPoints.map((pt, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 7, fontSize: 13, color: '#1a2a6e', lineHeight: 1.55 }}>
-                          <span style={{ color: RD.blue, flexShrink: 0 }}>•</span>
-                          <span>{pt}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 训练版本 */}
-          {hasRefAnswer && (
-            <div style={{ padding: '16px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                <span style={{ fontSize: 12, fontWeight: 600, color: RD.green }}>可直接练习的回答</span>
-              </div>
-              <div style={{ background: RD.greenLight, border: `1px solid #a8d8bc`, borderLeft: `3px solid ${RD.green}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#0d4a2c', lineHeight: 1.75 }}>
-                {rewrite!.recommended_answer}
-              </div>
-              {hasWhyBetter && (
-                <div style={{ marginTop: 10, fontSize: 12, color: RD.textMuted, lineHeight: 1.65 }}>
-                  <span style={{ fontWeight: 700, color: RD.text }}>为什么更好：</span>{rewrite!.why_better}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
-// 用于渲染关键词胶囊（命中/缺失两态）。
-function RdKeyword({ label, hit }: { label: string; hit: boolean }) {
+// 用于渲染截图风格的灰底说明块。
+function ScreenshotTextBlock({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
-    <span style={{
-      fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
-      fontSize: 11,
-      padding: '3px 10px',
-      borderRadius: 99,
-      border: `1px solid ${hit ? '#b2ddc5' : RD.border}`,
-      background: hit ? RD.greenLight : RD.surface2,
-      color: hit ? RD.green : RD.textFaint,
-    }}>
-      {label}
-    </span>
-  )
-}
-
-// 用于渲染报告首页的三步行动路径。
-function RdActionPlan({
-  suggestions,
-  resumeFeedback,
-  rewrite,
-}: {
-  suggestions: string[]
-  resumeFeedback: string[]
-  rewrite?: NonNullable<ReportData['answer_rewrites']>[number]
-}) {
-  const steps = [
-    { label: '今天先改', text: suggestions[0] || rewrite?.original_problem || '补齐本次面试暴露出的关键证据。', color: RD.red },
-    { label: '下次重点练', text: suggestions[1] || rewrite?.recommended_answer || '把核心项目回答练到能在 90 秒内讲清楚。', color: RD.amber },
-    { label: '简历同步补', text: resumeFeedback[0] || suggestions[2] || '把面试中缺失的量化结果同步写回简历。', color: RD.blue },
-  ]
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-      {steps.map((step, index) => (
-        <div key={step.label} style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 16, padding: '18px 18px 20px', minHeight: 150 }}>
-          <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, marginBottom: 20 }}>
-            STEP {String(index + 1).padStart(2, '0')}
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: step.color, marginBottom: 8 }}>{step.label}</div>
-          <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7 }}>{step.text}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// 用于渲染岗位能力覆盖和差距诊断。
-function RdJobMatchGap({ match }: { match?: ReportData['job_match'] }) {
-  if (!match) return null
-
-  const required = match.required_capabilities || []
-  const covered = match.covered_capabilities || []
-  const missing = match.missing_capabilities || []
-  const concerns = match.interviewer_concerns || []
-  const followups = match.likely_followups || []
-  const hasContent = required.length > 0 || covered.length > 0 || missing.length > 0 || concerns.length > 0 || followups.length > 0
-  if (!hasContent) return null
-
-  return (
-    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 18, padding: 22 }}>
-      {(required.length > 0 || covered.length > 0 || missing.length > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: concerns.length > 0 || followups.length > 0 ? 18 : 0 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: RD.green, marginBottom: 10 }}>已覆盖能力</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
-              {covered.map((item, index) => <RdKeyword key={`covered-${index}`} label={item} hit={true} />)}
-              {covered.length === 0 && <span style={{ fontSize: 13, color: RD.textFaint }}>暂无明确命中</span>}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: RD.red, marginBottom: 10 }}>缺口能力</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
-              {missing.map((item, index) => <RdKeyword key={`missing-${index}`} label={item} hit={false} />)}
-              {missing.length === 0 && <span style={{ fontSize: 13, color: RD.textFaint }}>暂无明显缺口</span>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {required.length > 0 && (
-        <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7, marginBottom: concerns.length > 0 || followups.length > 0 ? 14 : 0 }}>
-          <span style={{ fontWeight: 800, color: RD.text }}>岗位要求：</span>{required.join(' / ')}
-        </div>
-      )}
-      {concerns.length > 0 && (
-        <div style={{ background: RD.redLight, border: '1px solid #f2b8b0', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#7a1f14', lineHeight: 1.7, marginBottom: followups.length > 0 ? 10 : 0 }}>
-          <span style={{ fontWeight: 800 }}>面试官疑虑：</span>{concerns[0]}
-        </div>
-      )}
-      {followups.length > 0 && (
-        <div style={{ background: RD.amberLight, border: '1px solid #e8c97a', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#5c3d0f', lineHeight: 1.7 }}>
-          <span style={{ fontWeight: 800 }}>高概率追问：</span>{followups[0]}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 用于渲染侧边栏卡片容器。
-function RdSideCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
-  return (
-    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: RD.textMuted, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
-        {icon}
-        {title}
+    <section style={{ background: RD.surface2, borderRadius: 8, borderLeft: `4px solid ${RD.yellow}`, padding: '20px 22px', marginBottom: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, color: RD.text }}>
+        <span style={{ color: RD.yellow, fontSize: 18 }}>{icon}</span>
+        <strong style={{ fontSize: 16 }}>{title}</strong>
       </div>
-      {children}
-    </div>
+      <div style={{ color: RD.textMuted, fontSize: 14, lineHeight: 1.85 }}>{children}</div>
+    </section>
   )
 }
 
-// 优先级标签颜色映射。
-const PRIORITY_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  高: { bg: '#FFF0F0', color: '#C0392B', border: '#f5b8b8' },
-  中: { bg: '#FFFBF0', color: '#B85C00', border: '#F0D9A0' },
-  低: { bg: RD.surface2, color: RD.textMuted, border: RD.border },
-}
-
-// 路线图阶段图标（SVG path）。
-const PHASE_ICONS: Record<string, ReactNode> = {
-  立即行动: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2.5">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="9 12 11 14 15 10"/>
-    </svg>
-  ),
-  短期目标: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
-    </svg>
-  ),
-  中期规划: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.blue} strokeWidth="2">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-      <line x1="16" y1="2" x2="16" y2="6"/>
-      <line x1="8" y1="2" x2="8" y2="6"/>
-      <line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-  ),
-}
-
-const PHASE_COLORS: Record<string, string> = {
-  立即行动: RD.green,
-  短期目标: RD.amber,
-  中期规划: RD.blue,
-}
-
-// 用于渲染学习规划与建议板块。
-function RdLearningPlan({ plan }: {
-  plan: NonNullable<NonNullable<InterviewSession['report_data']>['learning_plan']>
-}) {
-  const priorities = plan.learning_priorities || []
-  const roadmap = plan.improvement_roadmap || []
-  if (priorities.length === 0 && roadmap.length === 0) return null
-
+// 用于渲染截图风格的单题报告。
+function ScreenshotQuestionReview({ turn, index, rewrite }: { turn: InterviewSession['turns'][number]; index: number; rewrite?: NonNullable<ReportData['answer_rewrites']>[number] }) {
+  const gaps = turn.evaluation?.gaps || []
+  const evidence = turn.evaluation?.evidence || []
+  const improvements = [...gaps, rewrite?.original_problem].filter(Boolean) as string[]
+  const thinking = turn.evaluation?.advice || '采用总-分-总结构：先给结论，再按背景、技术动作、结果证据展开，最后回扣岗位要求。'
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.text} strokeWidth="2">
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-        </svg>
-        <span style={{ fontSize: 18, fontWeight: 600, color: RD.text }}>学习规划与建议</span>
+    <article style={{ borderTop: `1px solid ${RD.border}`, padding: '28px 30px 38px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 26 }}>
+        <span style={{ background: RD.yellowLight, color: RD.amber, borderRadius: 4, padding: '6px 12px', fontSize: 14, fontWeight: 800 }}>第 {index + 1} 题</span>
+        <strong style={{ color: RD.red, fontSize: 22 }}>{turnScore(turn, rewrite)} / 10 分</strong>
       </div>
-
-      {/* 学习重点推荐 */}
-      {priorities.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: RD.textMuted, marginBottom: 10 }}>学习重点推荐</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 8 }}>
-            {priorities.map((p, i) => {
-              const style = PRIORITY_STYLE[p.level] || PRIORITY_STYLE['低']
-              return (
-                <span key={i} style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  padding: '5px 14px',
-                  borderRadius: 99,
-                  background: style.bg,
-                  color: style.color,
-                  border: `1px solid ${style.border}`,
-                }}>
-                  {p.topic}（{p.level}）
-                </span>
-              )
-            })}
-          </div>
+      <p style={{ margin: '0 0 22px', color: RD.text, fontSize: 16, lineHeight: 1.8, fontWeight: 700 }}>{turn.question}</p>
+      <div style={{ marginBottom: 22 }}>
+        <strong style={{ display: 'block', marginBottom: 10, color: RD.text, fontSize: 15 }}>您的回答：</strong>
+        <div style={{ background: '#F3F3F3', borderRadius: 8, padding: '18px 20px', color: RD.textMuted, fontSize: 15, lineHeight: 1.8 }}>
+          {turn.answer || '（候选人未作答）'}
         </div>
-      )}
-
-      {/* 提升路线图 */}
-      {roadmap.length > 0 && (
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: RD.textMuted, marginBottom: 14 }}>提升路线图</div>
-          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 0 }}>
-            {roadmap.map((phase, phaseIdx) => {
-              const phaseColor = PHASE_COLORS[phase.phase] || RD.amber
-              const phaseIcon = PHASE_ICONS[phase.phase] || PHASE_ICONS['短期目标']
-              const isLast = phaseIdx === roadmap.length - 1
-              return (
-                <div key={phaseIdx} style={{ display: 'flex', gap: 16, position: 'relative' as const }}>
-                  {/* 时间线轴 */}
-                  <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', flexShrink: 0 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: RD.surface, border: `2px solid ${phaseColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
-                      {phaseIcon}
-                    </div>
-                    {!isLast && (
-                      <div style={{ width: 2, flex: 1, background: RD.border, minHeight: 16, marginTop: 2, marginBottom: 2 }} />
-                    )}
-                  </div>
-
-                  {/* 内容 */}
-                  <div style={{ flex: 1, paddingBottom: isLast ? 0 : 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, marginTop: 7 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: phaseColor }}>{phase.phase}</span>
-                      {phase.timeframe && (
-                        <span style={{ fontSize: 12, color: RD.textFaint }}>（{phase.timeframe}）</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-                      {phase.items.map((item, itemIdx) => (
-                        <div key={itemIdx} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted, lineHeight: 1.6 }}>
-                          <span style={{ color: phaseColor, flexShrink: 0, marginTop: 1 }}>•</span>
-                          <span>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+      </div>
+      <div className="report-two-column" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 22 }}>
+        <ScreenshotListCard title="优点" icon="●" items={evidence.length > 0 ? evidence : ['无']} tone="green" />
+        <ScreenshotListCard title="待改进" icon="!" items={improvements} tone="amber" />
+      </div>
+      <ScreenshotTextBlock icon="□" title="面试官点评">
+        {turn.evaluation?.summary || rewrite?.original_problem || '该题暂无单独点评。'}
+      </ScreenshotTextBlock>
+      <ScreenshotTextBlock icon="○" title="参考思路">
+        <div>{thinking}</div>
+        {(turn.expected_points || []).length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <strong style={{ display: 'block', color: RD.text, marginBottom: 8 }}>关键要点：</strong>
+            {(turn.expected_points || []).map((point, pointIndex) => (
+              <div key={pointIndex} style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <span style={{ color: RD.yellow }}>•</span>
+                <span>{point}</span>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+      </ScreenshotTextBlock>
+      {rewrite?.recommended_answer && (
+        <ScreenshotTextBlock icon="▤" title="参考回答">
+          {rewrite.recommended_answer}
+        </ScreenshotTextBlock>
       )}
-    </div>
+    </article>
   )
 }
 
-
-// 用于渲染面试官综合评价板块。
-function RdInterviewerEvaluation({ evaluation }: {
-  evaluation: NonNullable<ReportData['interviewer_evaluation']>
-}) {
-  const observations = evaluation.key_observations || []
-  const recommendations = evaluation.core_recommendations || []
-  return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.text} strokeWidth="2">
-          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-          <rect x="9" y="3" width="6" height="4" rx="1"/>
-          <line x1="9" y1="12" x2="15" y2="12"/>
-          <line x1="9" y1="16" x2="13" y2="16"/>
-        </svg>
-        <span style={{ fontSize: 18, fontWeight: 600, color: RD.text }}>面试官评价</span>
-      </div>
-
-      {evaluation.overall && (
-        <p style={{ fontSize: 14, color: RD.textMuted, lineHeight: 1.75, marginBottom: 20 }}>
-          {evaluation.overall}
-        </p>
-      )}
-
-      {(observations.length > 0 || recommendations.length > 0) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-          {observations.length > 0 && (
-            <div style={{
-              background: '#FFFBF0',
-              border: '1px solid #F0D9A0',
-              borderRadius: 12,
-              padding: '18px 20px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span style={{ fontSize: 13, fontWeight: 600, color: RD.amber }}>关键观察</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
-                {observations.map((obs, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.6 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: RD.amber, flexShrink: 0, marginTop: 7 }} />
-                    <span style={{ color: RD.textMuted }}>{obs}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {recommendations.length > 0 && (
-            <div style={{
-              background: '#F0FAF4',
-              border: '1px solid #A8D8BC',
-              borderRadius: 12,
-              padding: '18px 20px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="9 12 11 14 15 10"/>
-                </svg>
-                <span style={{ fontSize: 13, fontWeight: 600, color: RD.green }}>核心建议</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
-                {recommendations.map((rec, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.6 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: RD.green, flexShrink: 0, marginTop: 7 }} />
-                    <span style={{ color: RD.textMuted }}>{rec}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// 用于渲染完整的面试复盘报告。
-function ReportPreview({
-  report,
-  turns,
-  session,
-}: {
-  report: InterviewSession['report_data']
-  turns: InterviewSession['turns']
-  session?: InterviewSession
-}) {
+// 用于渲染截图风格的完整面试报告。
+function ScreenshotReportPreview({ report, turns, session }: { report: InterviewSession['report_data']; turns: InterviewSession['turns']; session?: InterviewSession }) {
   if (!report) return null
 
   const data = report as ReportData
-  const verdict = data.candidate_verdict
-  const match = data.job_match
-  const score = computeOverallScore(data.dimensions, verdict?.level)
-  const scoreBadge = score >= 75 ? '良好' : score >= 55 ? '待加强' : '高风险'
-  const scoreColor = verdictColor(score, verdict?.level)
-  const dimensions = data.dimensions || []
-  const suggestions = data.next_training_plan || []
-  const resumeFeedback = data.resume_feedback || []
+  const evaluation = data.interviewer_evaluation
+  const observations = evaluation?.key_observations || data.interviewer_risks || []
+  const recommendations = evaluation?.core_recommendations || data.next_training_plan || []
   const rewrites = data.answer_rewrites || []
-  const firstRewrite = rewrites.find(rewrite => rewrite.recommended_answer || rewrite.original_problem)
-  const primaryRisk = getPrimaryRisk(data)
-  const primaryAction = getPrimaryAction(data)
-  const targetTitle = match?.target_title || session?.target_title || '综合面试'
-  const targetCompany = match?.target_company || session?.target_company || ''
-
-  // 按 turn_index 建立 answer_rewrites 索引，用于 Q&A 卡片。
   const rewriteByIndex = Object.fromEntries(
-    rewrites
-      .filter(r => typeof r.turn_index === 'number')
-      .map(r => [r.turn_index!, r])
+    rewrites.filter(rewrite => typeof rewrite.turn_index === 'number').map(rewrite => [rewrite.turn_index!, rewrite]),
   ) as Record<number, NonNullable<ReportData['answer_rewrites']>[number]>
-
-  const startedAt = session?.started_at
-  const endedAt = session?.ended_at
-  let duration = ''
-  if (startedAt) {
-    const s = new Date(startedAt.includes('Z') ? startedAt : `${startedAt}Z`).getTime()
-    const e = endedAt ? new Date(endedAt.includes('Z') ? endedAt : `${endedAt}Z`).getTime() : Date.now()
-    const mins = Math.max(1, Math.round((e - s) / 60000))
-    duration = mins >= 60 ? `${Math.floor(mins / 60)}小时${mins % 60 ? `${mins % 60}分钟` : ''}` : `${mins}分钟`
-  }
 
   return (
     <>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700;800&display=swap');`}</style>
-      <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.6, color: RD.text }}>
-
-        {/* Hero */}
-        <section style={{
-          background: RD.surface,
-          border: `1px solid ${RD.border}`,
-          borderRadius: 24,
-          padding: '34px 36px',
-          marginBottom: 28,
-          position: 'relative' as const,
-          overflow: 'hidden',
-          boxShadow: '0 24px 70px rgba(26,24,20,0.06)',
-        }}>
-          <div style={{ position: 'absolute' as const, right: -120, top: -120, width: 300, height: 300, borderRadius: '50%', background: `${scoreColor}12` }} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 32, alignItems: 'start', position: 'relative' as const }}>
-            <div>
-              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textMuted, letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 12 }}>
-                INTERVIEW DOSSIER
-              </div>
-              <h1 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 'clamp(34px, 5vw, 58px)', lineHeight: 1, letterSpacing: '-0.045em', margin: '0 0 16px' }}>
-                面试复盘报告
-              </h1>
-              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 10, marginBottom: 22 }}>
-                <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
-                  {targetCompany ? `${targetCompany} · ${targetTitle}` : targetTitle}
-                </span>
-                {duration && (
-                  <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
-                    用时 {duration}
-                  </span>
-                )}
-                <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
-                  {turns.length} 道题目
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-                <div style={{ background: RD.surface2, borderRadius: 16, padding: '16px 18px' }}>
-                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>最大风险</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: primaryRisk ? RD.red : RD.text }}>
-                    {primaryRisk || '本次报告没有识别到单一高风险项'}
-                  </div>
-                </div>
-                <div style={{ background: RD.blueLight, borderRadius: 16, padding: '16px 18px' }}>
-                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>下一步先做</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: RD.blue }}>
-                    {primaryAction || '先复盘最关键的一道题'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ background: RD.dark, color: '#fff', borderRadius: 20, padding: '24px 24px 26px', textAlign: 'center' as const, position: 'relative' as const, overflow: 'hidden' }}>
-              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.14em', opacity: 0.5, marginBottom: 12 }}>
-                综合得分
-              </div>
-              <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 70, lineHeight: 1, letterSpacing: '-0.06em' }}>
-                {score}<span style={{ fontSize: 18, opacity: 0.42 }}>/100</span>
-              </div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: `${scoreColor}33`, color: '#fff', border: `1px solid ${scoreColor}88`, borderRadius: 99, padding: '5px 12px', fontSize: 12, fontWeight: 800 }}>
-                {verdict?.label || scoreBadge}
-              </div>
-            </div>
+      <style>{`
+        @media (max-width: 960px) {
+          .report-hero-grid,
+          .report-meta-grid,
+          .report-two-column {
+            grid-template-columns: 1fr !important;
+          }
+          .report-main {
+            padding-left: 22px !important;
+            padding-right: 22px !important;
+          }
+        }
+      `}</style>
+      <div style={{ width: '100%', maxWidth: 1366, margin: '0 auto', background: RD.surface, color: RD.text, boxShadow: '0 14px 45px rgba(0,0,0,0.08)' }}>
+      <ScreenshotReportHero data={data} session={session} turns={turns} />
+      <main className="report-main" style={{ padding: '58px 54px 70px' }}>
+        <section style={{ marginBottom: 40 }}>
+          <ScreenshotSectionTitle icon="▣" title="面试官评价" />
+          <p style={{ margin: '0 0 26px', color: RD.text, fontSize: 15, lineHeight: 1.9 }}>
+            {evaluation?.overall || data.candidate_verdict?.reason || data.summary || '本次面试报告暂无总体评价。'}
+          </p>
+          <div className="report-two-column" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <ScreenshotListCard title="关键观察" icon="◎" items={observations} tone="amber" />
+            <ScreenshotListCard title="核心建议" icon="✓" items={recommendations} tone="green" />
           </div>
         </section>
-
-        {(data.summary || verdict?.reason) && (
-          <section style={{ marginBottom: 28 }}>
-            <RdSectionLabel label="面试官结论" />
-            <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 18, padding: '22px 24px', display: 'grid', gridTemplateColumns: verdict?.label ? '160px 1fr' : '1fr', gap: 20, alignItems: 'start' }}>
-              {verdict?.label && (
-                <div style={{ borderRight: `1px solid ${RD.border}`, paddingRight: 18 }}>
-                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>推进判断</div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: scoreColor, letterSpacing: '-0.03em' }}>{verdict.label}</div>
-                </div>
-              )}
-              <p style={{ color: RD.text, fontSize: 16, lineHeight: 1.85, margin: 0 }}>
-                {verdict?.reason || data.summary}
-              </p>
-            </div>
-          </section>
-        )}
-
-        <section style={{ marginBottom: 28 }}>
-          <RdSectionLabel label="3 步行动计划" />
-          <RdActionPlan suggestions={suggestions} resumeFeedback={resumeFeedback} rewrite={firstRewrite} />
-        </section>
-
-        {match && (
-          <section style={{ marginBottom: 28 }}>
-            <RdSectionLabel label="岗位匹配差距" />
-            <RdJobMatchGap match={match} />
-          </section>
-        )}
-
-        {dimensions.length > 0 && (
-          <section style={{ marginBottom: 28 }}>
-            <RdSectionLabel label="综合能力分析" />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-              {dimensions.map((dim, i) => <RdDimCard key={i} dimension={dim} />)}
-            </div>
-          </section>
-        )}
-
-        {turns.length > 0 && (
-          <section style={{ marginBottom: 28 }}>
-            <RdSectionLabel label="面试题目解析记录" />
-            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
-              {turns.map((turn, i) => (
-                <RdQACard
-                  key={turn.id}
-                  turn={turn}
-                  index={i}
-                  rewrite={rewriteByIndex[turn.turn_index]}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {((data.strengths || []).length > 0 || (data.weaknesses || []).length > 0) && (
-          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 28 }}>
-            <RdSideCard
-              title="突出优势"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-                {(data.strengths || []).slice(0, 4).map((item, index) => (
-                  <div key={index} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted }}>
-                    <span style={{ color: RD.green, flexShrink: 0 }}>•</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </RdSideCard>
-            <RdSideCard
-              title="待改进"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-                {(data.weaknesses || []).slice(0, 4).map((item, index) => (
-                  <div key={index} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted }}>
-                    <span style={{ color: RD.amber, flexShrink: 0 }}>•</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </RdSideCard>
-          </section>
-        )}
-
-        {data.interviewer_evaluation && (
-          data.interviewer_evaluation.overall ||
-          (data.interviewer_evaluation.key_observations || []).length > 0 ||
-          (data.interviewer_evaluation.core_recommendations || []).length > 0
-        ) && (
-          <RdInterviewerEvaluation evaluation={data.interviewer_evaluation} />
-        )}
-
-        {data.learning_plan && (
-          (data.learning_plan.learning_priorities || []).length > 0 ||
-          (data.learning_plan.improvement_roadmap || []).length > 0
-        ) && (
-          <RdLearningPlan plan={data.learning_plan} />
-        )}
-      </div>
+        {turns.map((turn, index) => (
+          <ScreenshotQuestionReview
+            key={turn.id}
+            turn={turn}
+            index={index}
+            rewrite={rewriteByIndex[turn.turn_index]}
+          />
+        ))}
+      </main>
+      <footer style={{ display: 'flex', justifyContent: 'center', gap: 52, padding: '0 0 44px' }}>
+        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: '#fff', color: RD.yellow, padding: '10px 22px', fontSize: 16 }}>分享</button>
+        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: RD.text, padding: '10px 22px', fontSize: 16, fontWeight: 700 }}>下载报告</button>
+      </footer>
+    </div>
     </>
   )
 }
@@ -1671,11 +1126,11 @@ function CompletedInterviewReview({ session }: { session: InterviewSession }) {
   const report = session.report_data
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: RD.bg }}>
-      <div className="mx-auto w-full max-w-5xl px-8 py-10">
+      <div style={{ width: '100%', padding: '30px 0 64px' }}>
         {report ? (
-          <ReportPreview report={report} turns={session.turns || []} session={session} />
+          <ScreenshotReportPreview report={report} turns={session.turns || []} session={session} />
         ) : (
-          <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 16, color: RD.textMuted, fontSize: 14, padding: 24, textAlign: 'center' }}>
+          <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 8, color: RD.textMuted, fontSize: 14, margin: '0 auto', maxWidth: 960, padding: 24, textAlign: 'center' }}>
             报告尚未生成，请回到面试中心生成报告。
           </div>
         )}
