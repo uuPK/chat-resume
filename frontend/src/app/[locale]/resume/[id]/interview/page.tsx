@@ -950,7 +950,7 @@ function RdDimCard({ dimension }: { dimension: NonNullable<ReportData['dimension
 
 // 用于渲染可展开的单题解析卡片。
 function RdQACard({ turn, index }: { turn: InterviewSession['turns'][number]; index: number }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const evaluation = getTurnEvaluation(turn)
   const summary = evaluation?.summary || ''
   const strengths: string[] = Array.isArray(evaluation?.evidence) ? (evaluation.evidence as string[]) : []
