@@ -464,6 +464,14 @@ class ResumeAPI {
     return handleApiResponse<InterviewActionResponse>(response)
   }
 
+  // 用于基于历史面试创建新的复练会话。
+  static async retryInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
+    const response = await apiFetch(`/api/interviews/${sessionId}/retry`, {
+      method: 'POST',
+    })
+    return handleApiResponse<InterviewActionResponse>(response)
+  }
+
   // 用于获取面试会话。
   static async getInterviewSession(sessionId: number): Promise<InterviewActionResponse> {
     const response = await apiFetch(`/api/interviews/${sessionId}`)

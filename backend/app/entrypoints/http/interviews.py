@@ -32,6 +32,7 @@ from app.services.interview.session_service import (
     get_session_for_user,
     list_interview_sessions,
     record_voice_interview_message,
+    retry_interview_session,
 )
 
 router = APIRouter()
@@ -143,6 +144,26 @@ async def list_interviews(
 ):
     """用于返回当前用户的面试 session 列表。"""
     return list_interview_sessions(db=db, user_id=current_user["id"])
+
+
+@router.post("/{session_id}/retry", response_model=InterviewActionResponse)
+async def retry_interview(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """用于基于历史面试创建一场新的实时语音面试。"""
+    try:
+        session = retry_interview_session(
+            db=db,
+            user_id=current_user["id"],
+            session_id=session_id,
+        )
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
+    return InterviewActionResponse(
+        session=serialize_session(session), next_action="voice"
+    )
 
 
 @router.get("/{session_id}", response_model=InterviewActionResponse)

@@ -151,6 +151,17 @@ const completedSessionWithReport = {
   },
 }
 
+const retrySession = {
+  ...activeSession,
+  id: 789,
+  status: 'interview_ready',
+  started_at: null,
+  ended_at: null,
+  turns: [],
+  current_turn: null,
+  report_data: null,
+}
+
 /**
  * 把报告生成事件序列编码为 SSE 响应体。
  */
@@ -480,6 +491,41 @@ test('面试列表对 completed session 显示查看报告', async ({ page }) =>
 
   await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
   await expect(page.getByRole('link', { name: '继续面试' })).toBeVisible()
+})
+
+test('面试列表再练一次直接创建复练 session 并跳转', async ({ page }) => {
+  await mockInterviewApis(page)
+  await page.route('**/api/resumes/', async route => {
+    await route.fulfill({ json: [resume] })
+  })
+  await page.route('**/api/interviews/', async route => {
+    await route.fulfill({
+      json: [
+        {
+          ...completedSession,
+          answered_turn_count: 1,
+          has_report: true,
+        },
+      ],
+    })
+  })
+  await page.route(/\/api\/interviews\/456\/retry$/, async route => {
+    await route.fulfill({ json: { session: retrySession, next_action: 'voice' } })
+  })
+  await page.route(/\/api\/interviews\/789$/, async route => {
+    await route.fulfill({ json: { session: retrySession } })
+  })
+
+  await page.goto('/zh/interviews')
+
+  const [retryRequest] = await Promise.all([
+    page.waitForRequest('**/api/interviews/456/retry'),
+    page.getByRole('button', { name: '再练一次' }).click(),
+  ])
+
+  expect(retryRequest.method()).toBe('POST')
+  await expect(page).toHaveURL(/\/zh\/resume\/123\/interview\?session=789$/)
+  await expect(page.getByRole('dialog', { name: '创建面试' })).toHaveCount(0)
 })
 
 test('创建面试表单的简历选择控件和文本输入视觉一致', async ({ page }) => {

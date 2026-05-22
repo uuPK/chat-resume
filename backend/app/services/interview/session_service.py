@@ -178,6 +178,45 @@ def create_interview_session(
     return session
 
 
+def retry_interview_session(
+    *,
+    db: Session,
+    user_id: int,
+    session_id: int,
+) -> InterviewSession:
+    """基于历史面试创建一场不带对话和报告的新面试。"""
+    source_session = get_session_for_user(db, session_id, user_id)
+    resume = get_resume_for_user(db, source_session.resume_id, user_id)
+    resume_content = resume.content if isinstance(resume.content, dict) else {}
+
+    session = InterviewSession(
+        user_id=user_id,
+        resume_id=source_session.resume_id,
+        target_title=source_session.target_title,
+        target_company=source_session.target_company,
+        jd_text=source_session.jd_text,
+        interview_type=source_session.interview_type,
+        difficulty=source_session.difficulty,
+        language=source_session.language,
+        mode=source_session.mode,
+        status="interview_ready",
+        current_round_index=0,
+        current_turn_index=0,
+        plan_json=_build_interview_plan(
+            target_title=source_session.target_title or "",
+            target_company=source_session.target_company or "",
+            jd_text=source_session.jd_text or "",
+            interview_type=source_session.interview_type,
+            difficulty=source_session.difficulty,
+            resume_content=resume_content,
+        ),
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
 def list_interview_sessions(*, db: Session, user_id: int) -> list[dict[str, Any]]:
     """返回当前用户的面试 session 列表。"""
     answered_turn_counts = (

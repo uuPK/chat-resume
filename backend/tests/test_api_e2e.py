@@ -2562,6 +2562,86 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
 
+    def test_retry_interview_creates_clean_session_from_history(self):
+        """用于验证历史面试可以复用上下文创建干净的新会话。"""
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={
+                "resume_id": self.resume_id,
+                "target_company": "腾讯",
+                "target_title": "AGENT 开发",
+                "jd_text": "负责 Agent Runtime 和工具调用链路",
+                "interview_type": "general",
+                "difficulty": "hard",
+                "language": "zh-CN",
+                "mode": "practice",
+            },
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        source_session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{source_session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个 Agent 项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{source_session_id}/messages",
+            json={"role": "candidate", "text": "我负责工具调用和确认链路。"},
+            headers=self.headers,
+        )
+        end_resp = self.client.post(
+            f"/api/interviews/{source_session_id}/end",
+            headers=self.headers,
+        )
+        assert end_resp.status_code == 200, end_resp.text
+
+        db = _TestingSession()
+        try:
+            source_session = (
+                db.query(InterviewSession)
+                .filter(InterviewSession.id == source_session_id)
+                .one()
+            )
+            source_session.report_data = {"summary": "历史报告"}
+            db.commit()
+        finally:
+            db.close()
+
+        retry_resp = self.client.post(
+            f"/api/interviews/{source_session_id}/retry",
+            headers=self.headers,
+        )
+
+        assert retry_resp.status_code == 200, retry_resp.text
+        body = retry_resp.json()
+        new_session = body["session"]
+        assert body["next_action"] == "voice"
+        assert new_session["id"] != source_session_id
+        assert new_session["resume_id"] == self.resume_id
+        assert new_session["target_company"] == "腾讯"
+        assert new_session["target_title"] == "AGENT 开发"
+        assert new_session["jd_text"] == "负责 Agent Runtime 和工具调用链路"
+        assert new_session["difficulty"] == "hard"
+        assert new_session["language"] == "zh-CN"
+        assert new_session["mode"] == "practice"
+        assert new_session["status"] == "interview_ready"
+        assert new_session["turns"] == []
+        assert new_session["report_data"] is None
+        assert new_session["started_at"] is None
+        assert new_session["ended_at"] is None
+        assert new_session["plan"]["target_company"] == "腾讯"
+        assert new_session["plan"]["target_role"] == "AGENT 开发"
+
+        original_resp = self.client.get(
+            f"/api/interviews/{source_session_id}",
+            headers=self.headers,
+        )
+        original = original_resp.json()["session"]
+        assert original["status"] == "completed"
+        assert original["report_data"] == {"summary": "历史报告"}
+        assert len(original["turns"]) == 1
+
     def test_voice_interview_ignores_short_interviewer_fragments(self):
         """用于验证语音面试不会把短碎片当成新题目。"""
         create_resp = self.client.post(

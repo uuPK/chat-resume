@@ -251,6 +251,7 @@ function InterviewCard({
   onDelete,
   onPracticeAgain,
   onGenerateReport,
+  retryingSessionId,
   generatingReportSessionId,
   t,
 }: {
@@ -259,8 +260,9 @@ function InterviewCard({
   index: number
   deletingSessionId: number | null
   onDelete: (sessionId: number) => void
-  onPracticeAgain: () => void
+  onPracticeAgain: (sessionId: number) => void
   onGenerateReport: (sessionId: number) => void
+  retryingSessionId: number | null
   generatingReportSessionId: number | null
   t: ReturnType<typeof useTranslations>
 }) {
@@ -269,6 +271,7 @@ function InterviewCard({
   const isCompleted = session.status === 'completed'
   const scoreValue = `${score || 0}${t('center.scoreSuffix')}`
   const isGeneratingReport = generatingReportSessionId === session.id
+  const isRetrying = retryingSessionId === session.id
   const hasReport = Boolean(session.has_report)
 
   return (
@@ -349,7 +352,14 @@ function InterviewCard({
                 {isGeneratingReport ? t('session.generatingReport') : t('session.generateReport')}
               </button>
             )}
-            <button type="button" onClick={onPracticeAgain} className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white" style={{ backgroundColor: LIST_BLUE }}>
+            <button
+              type="button"
+              onClick={() => onPracticeAgain(session.id)}
+              disabled={isRetrying}
+              className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-lg text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
+              style={{ backgroundColor: LIST_BLUE }}
+            >
+              {isRetrying && <ArrowPathIcon className="h-3 w-3 animate-spin" />}
               {t('center.practiceAgain')}
             </button>
           </>
@@ -393,6 +403,7 @@ export default function InterviewsPage() {
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null)
   const [generatingReportSessionId, setGeneratingReportSessionId] = useState<number | null>(null)
+  const [retryingSessionId, setRetryingSessionId] = useState<number | null>(null)
   const [sessionSearchQuery, setSessionSearchQuery] = useState('')
   const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionStatusFilter>('all')
   const [sessionSortOrder, setSessionSortOrder] = useState<SessionSortOrder>('recent')
@@ -587,6 +598,30 @@ export default function InterviewsPage() {
       setPageError(error instanceof Error ? error.message : t('errors.reportFailed'))
     } finally {
       setGeneratingReportSessionId(null)
+    }
+  }
+
+
+  /**
+   * 用于基于历史面试记录创建一场新的复练面试并进入房间。
+   */
+  // 用于处理历史面试复练。
+  const handlePracticeAgain = async (sessionId: number) => {
+    if (retryingSessionId) return
+
+    setRetryingSessionId(sessionId)
+    setPageError(null)
+    try {
+      const result = await resumeApi.retryInterviewSession(sessionId)
+      router.push(`/resume/${result.session.resume_id}/interview?session=${result.session.id}`)
+    } catch (error) {
+      setPageError(formatApiErrorMessage(
+        error,
+        { activeSubscriptionRequired: common('errors.activeSubscriptionRequired') },
+        t('center.createError'),
+      ))
+    } finally {
+      setRetryingSessionId(null)
     }
   }
 
@@ -952,8 +987,9 @@ export default function InterviewsPage() {
                     index={index}
                     deletingSessionId={deletingSessionId}
                     onDelete={handleDeleteInterview}
-                    onPracticeAgain={handlePracticeCardClick}
+                    onPracticeAgain={handlePracticeAgain}
                     onGenerateReport={handleGenerateReport}
+                    retryingSessionId={retryingSessionId}
                     generatingReportSessionId={generatingReportSessionId}
                     t={t}
                   />
