@@ -836,3 +836,49 @@ def test_resume_agent_session_rebuilds_transcript_model_and_summary():
     assert session.pending_tool_call == {"id": "call_1"}
     assert session.usage["total_tokens"] == 3
     assert session.context_summary is not None
+
+
+@pytest.mark.asyncio
+async def test_stream_assistant_turn_only_publishes_first_tool_call_event():
+    """用于验证每轮流式只向前端发布第一个工具调用事件，防止幽灵"运行中"卡片。"""
+    agent = ResumeAgent()
+    multi_tool_message = AssistantMessage(
+        content=[
+            ToolCall(id="call_first", name="read_memory", arguments={"key": "profile"}),
+            ToolCall(id="call_second", name="read_memory", arguments={"key": "summary"}),
+        ],
+        stop_reason="toolUse",
+    )
+    stream_fn = FakeLoopStream([multi_tool_message])
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream_fn, tool_stage=stage)
+    state = _new_test_stream_state()
+    context: dict[str, Any] = {"resume_content": {}}
+    pi_context, _prompts, config = _build_test_turn_inputs(
+        agent,
+        user_message="分析",
+        context=context,
+        state=state,
+    )
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    assistant_message, _deltas = await loop.stream_assistant_turn(
+        run_id="test",
+        llm_context=pi_context,
+        config=config,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    tool_call_events = [e for e in events if e.get("event_type") == "tool_call"]
+    assert len(tool_call_events) == 1, f"期望只发布1个工具调用事件，实际: {len(tool_call_events)}"
+    assert tool_call_events[0]["call_id"] == "call_first"
+    assert state["visible_tool_call_ids"] == {"call_first"}
+    tool_calls_in_message = [b for b in assistant_message.content if isinstance(b, ToolCall)]
+    assert len(tool_calls_in_message) == 1
+    assert tool_calls_in_message[0].id == "call_first"

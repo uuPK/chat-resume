@@ -242,6 +242,7 @@ class ResumeAgentLoop:
             ),
         )
         text_deltas: list[str] = []
+        early_tool_call_published = False
         try:
             if inspect.isawaitable(response):
                 response = await response
@@ -250,10 +251,12 @@ class ResumeAgentLoop:
 
             async for raw_event in response["events"]:
                 early_tool_call = self.early_tool_call_from_event(raw_event)
-                if early_tool_call is not None and self.tool_stage.remember_visible_tool_call(
-                    state,
-                    early_tool_call.id,
+                if (
+                    early_tool_call is not None
+                    and not early_tool_call_published
+                    and self.tool_stage.remember_visible_tool_call(state, early_tool_call.id)
                 ):
+                    early_tool_call_published = True
                     await self.tool_stage.publish_visible_tool_call(
                         call_id=early_tool_call.id,
                         tool_name=early_tool_call.name,

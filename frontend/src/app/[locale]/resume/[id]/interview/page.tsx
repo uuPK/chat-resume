@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/auth'
 import { digitalHumanApi, resumeApi } from '@/lib/api'
 import type { DigitalHumanConversation, InterviewSession, Resume } from '@/lib/api'
 import { useInterviewSession } from '@/hooks/useInterviewSession'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const SEND_SAMPLE_RATE = 16000
@@ -87,7 +87,7 @@ function VoicePanel({
   const processorRef = useRef<ScriptProcessorNode | null>(null)
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const gainRef = useRef<GainNode | null>(null)
-  const playbackQueueRef = useRef<Float32Array[]>([])
+  const playbackQueueRef = useRef<Float32Array<ArrayBuffer>[]>([])
   const captureQueueRef = useRef<number[]>([])
   const sendQueueRef = useRef<ArrayBuffer[]>([])
   const sendTimerRef = useRef<number | null>(null)
@@ -836,26 +836,26 @@ type ReportLearningPlan = NonNullable<ReportData['learning_plan']>
 type ReportLearningPriority = NonNullable<ReportLearningPlan['learning_priorities']>[number]
 type ReportRoadmapPhase = NonNullable<ReportLearningPlan['improvement_roadmap']>[number]
 
-// 报告色彩系统用于模拟面试报告的纸面视觉。
+// 报告色彩系统，与应用主色调 #0052ff 统一。
 const RD = {
-  bg: '#F5F5F5',
+  bg: '#f9fafb',
   surface: '#FFFFFF',
   surface2: '#F6F6F6',
-  border: '#EFEFEF',
-  text: '#2D2F33',
-  textMuted: '#666D75',
-  textFaint: '#9AA0A6',
-  blue: '#59636F',
-  blueLight: '#F1F3F5',
+  border: 'rgba(91,97,110,0.2)',
+  text: '#0a0b0d',
+  textMuted: '#5b616e',
+  textFaint: '#9ca3af',
+  blue: '#5b616e',
+  blueLight: '#eef0f3',
   green: '#0BA77A',
   greenLight: '#EAFBF3',
-  amber: '#D68124',
-  amberLight: '#FFF9E6',
+  amber: '#0052ff',
+  amberLight: 'rgba(0,82,255,0.06)',
   red: '#F05252',
   redLight: '#FFF1F1',
-  yellow: '#FFD84D',
-  yellowLight: '#FFF7D8',
-  dark: '#26282C',
+  yellow: '#0052ff',
+  yellowLight: 'rgba(0,82,255,0.06)',
+  dark: '#282b31',
 } as const
 
 // 用于从维度平均分或结论等级推导综合评分。
@@ -914,40 +914,102 @@ function ScreenshotInfoItem({ icon, label, value }: { icon: string; label: strin
   )
 }
 
-// 用于渲染报告头部的关键指标卡片。
-function ScreenshotHeroMetric({ label, value }: { label: string; value: string }) {
+
+// 用于把分数映射成等级文案。
+function scoreGrade(score: number): string {
+  if (score >= 80) return '优秀'
+  if (score >= 60) return '良好'
+  if (score >= 40) return '待提升'
+  return '较弱'
+}
+
+// 用于渲染环形评分图，分数等级标注在圆心内。
+function ScoreRing({ score }: { score: number }) {
+  const size = 196
+  const strokeWidth = 13
+  const r = size / 2 - strokeWidth / 2 - 3
+  const cx = size / 2
+  const cy = size / 2
+  const circumference = 2 * Math.PI * r
+  const dashoffset = circumference * (1 - Math.max(0, Math.min(100, score)) / 100)
+  const ringColor = score >= 70 ? RD.green : score >= 40 ? '#f59e0b' : RD.red
+  const grade = scoreGrade(score)
+
   return (
-    <div style={{ border: `1px solid ${RD.border}`, borderRadius: 8, background: '#fff', padding: '14px 16px' }}>
-      <div style={{ color: RD.textFaint, fontSize: 13, marginBottom: 8 }}>{label}</div>
-      <strong style={{ color: RD.text, fontSize: 18 }}>{value}</strong>
-    </div>
+    <svg
+      width={size} height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ display: 'block', filter: `drop-shadow(0 2px 14px ${ringColor}30)` }}
+    >
+      {/* Track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={RD.blueLight} strokeWidth={strokeWidth} />
+      {/* Filled arc */}
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke={ringColor}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={dashoffset}
+        transform={`rotate(-90 ${cx} ${cy})`}
+      />
+      {/* Score number — dominantBaseline=central 确保文字块垂直居中 */}
+      <text x={cx} y={cy - 12} textAnchor="middle" dominantBaseline="central"
+        style={{ fontSize: 52, fontWeight: 800, fill: RD.text, fontFamily: 'inherit', letterSpacing: '-1px' }}>
+        {score}
+      </text>
+      {/* Grade label */}
+      <text x={cx} y={cy + 24} textAnchor="middle" dominantBaseline="central"
+        style={{ fontSize: 14, fontWeight: 700, fill: ringColor, fontFamily: 'inherit' }}>
+        {grade}
+      </text>
+    </svg>
   )
 }
 
 // 用于渲染报告头部右侧的得分概览。
-function ScreenshotScorePanel({ score, verdict, turns, session }: { score: number; verdict: string; turns: InterviewSession['turns']; session?: InterviewSession }) {
-  const scoreWidth = `${Math.max(0, Math.min(100, score))}%`
+function ScreenshotScorePanel({ score, verdict }: { score: number; verdict: string }) {
+  const ringColor = score >= 70 ? RD.green : score >= 40 ? '#d97706' : RD.red
+
   return (
-    <aside style={{ position: 'relative', overflow: 'hidden', border: `1px solid ${RD.border}`, borderRadius: 8, background: '#fff', padding: 28, boxShadow: '0 18px 45px rgba(38,40,44,0.08)' }}>
-      <div aria-hidden="true" style={{ position: 'absolute', right: -54, top: -64, width: 180, height: 180, borderRadius: '50%', background: RD.yellowLight }} />
-      <div aria-hidden="true" style={{ position: 'absolute', right: -12, bottom: -28, width: 140, height: 140, borderRadius: '50%', background: '#F1F3F5' }} />
-      <div style={{ position: 'relative' }}>
-        <div style={{ color: RD.textMuted, fontSize: 14, fontWeight: 800, marginBottom: 20 }}>报告概览</div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 14 }}>
-          <strong style={{ color: RD.text, fontSize: 76, lineHeight: 0.9 }}>{score}</strong>
-          <span style={{ color: RD.textMuted, fontSize: 18, paddingBottom: 8 }}>综合得分</span>
-        </div>
-        <div style={{ height: 10, borderRadius: 999, background: RD.blueLight, overflow: 'hidden', marginBottom: 22 }}>
-          <div style={{ width: scoreWidth, height: '100%', borderRadius: 999, background: RD.yellow }} />
-        </div>
-        <div style={{ borderLeft: `4px solid ${RD.yellow}`, background: RD.yellowLight, borderRadius: 8, padding: '14px 16px', color: RD.text, lineHeight: 1.55, marginBottom: 18 }}>
-          <span style={{ display: 'block', color: RD.textMuted, fontSize: 13, marginBottom: 4 }}>面试结论</span>
-          <strong style={{ fontSize: 17 }}>{verdict}</strong>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <ScreenshotHeroMetric label="题目数量" value={`${turns.length}题`} />
-          <ScreenshotHeroMetric label="面试时长" value={reportDuration(session)} />
-        </div>
+    <aside style={{
+      border: `1px solid ${RD.border}`,
+      borderRadius: 16,
+      background: '#fff',
+      padding: '24px 24px 22px',
+      boxShadow: '0 2px 16px rgba(10,11,13,0.06)',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: RD.textFaint, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          报告概览
+        </span>
+        <span style={{
+          fontSize: 11, fontWeight: 600, padding: '3px 9px',
+          borderRadius: 999,
+          background: `${ringColor}14`,
+          color: ringColor,
+          letterSpacing: '0.04em',
+        }}>
+          AI 评估
+        </span>
+      </div>
+
+      {/* Ring — flex:1 让它占满中间剩余空间并居中 */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0' }}>
+        <ScoreRing score={score} />
+      </div>
+
+      {/* Verdict pinned to bottom, centered */}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ height: 1, background: RD.border, marginBottom: 16 }} />
+        <span style={{ display: 'block', fontSize: 11, color: RD.textFaint, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+          面试结论
+        </span>
+        <strong style={{ fontSize: 17, color: ringColor, lineHeight: 1.3 }}>{verdict}</strong>
       </div>
     </aside>
   )
@@ -995,7 +1057,7 @@ function ScreenshotReportHero({ data, session, turns }: { data: ReportData; sess
           <p style={{ margin: '0 0 30px', maxWidth: 720, color: RD.textMuted, fontSize: 16, lineHeight: 1.8 }}>{reportHeroSummary(data)}</p>
           <ScreenshotHeroMetaGrid title={title} session={session} turns={turns} />
         </div>
-        <ScreenshotScorePanel score={score} verdict={verdict} turns={turns} session={session} />
+        <ScreenshotScorePanel score={score} verdict={verdict} />
       </div>
     </section>
   )
@@ -1015,7 +1077,7 @@ function ScreenshotSectionTitle({ icon, title }: { icon: string; title: string }
 function ScreenshotListCard({ title, icon, items, tone }: { title: string; icon: string; items: string[]; tone: 'amber' | 'green' }) {
   const color = tone === 'green' ? RD.green : RD.amber
   const bg = tone === 'green' ? RD.greenLight : RD.amberLight
-  const border = tone === 'green' ? '#A8EFD2' : '#F7DEA0'
+  const border = tone === 'green' ? '#A8EFD2' : 'rgba(0,82,255,0.24)'
   return (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: '22px 24px', minHeight: 212 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, color }}>
@@ -1241,7 +1303,7 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
         ))}
       </main>
       <footer style={{ display: 'flex', justifyContent: 'center', gap: 52, padding: '0 0 44px' }}>
-        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: RD.text, padding: '10px 22px', fontSize: 16, fontWeight: 700 }}>下载报告</button>
+        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700 }}>下载报告</button>
       </footer>
     </div>
     </>
@@ -1274,7 +1336,6 @@ export default function InterviewPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const t = useTranslations('interview.session')
-  const locale = useLocale()
   const resumeId = Number(params?.id as string)
   const requestedSessionId = Number(searchParams?.get('session') || 0)
 
