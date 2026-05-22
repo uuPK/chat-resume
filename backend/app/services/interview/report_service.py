@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 import json
 import logging
 from dataclasses import dataclass
+from threading import Lock as ThreadLock
 from time import perf_counter
 from typing import Any
 
@@ -17,6 +20,9 @@ from app.services.interview.session_service import get_session_for_user
 from app.services.llm import ChatService
 
 logger = logging.getLogger(__name__)
+
+_REPORT_LOCKS: dict[int, ThreadLock] = {}
+_REPORT_LOCKS_GUARD = ThreadLock()
 
 
 @dataclass
@@ -37,6 +43,7 @@ class InterviewReportProgressEvent:
     status: str
     progress: int
     result: InterviewReportResult | None = None
+
 
 async def generate_interview_report(
     *, db: Session, user_id: int, session_id: int
@@ -78,78 +85,24 @@ async def stream_interview_report(
                 "Interview must be completed before generating report"
             )
         yield _report_phase("validate_session", "校验面试状态", "completed", 12)
-
-        yield _report_phase("load_turns", "读取面试回答", "running", 18)
-        turns = _answered_turns(db, session_id)
-        logger.info(
-            "interview_report.turns_loaded",
-            extra={
-                "session_id": session_id,
-                "user_id": user_id,
-                "turn_count": len(turns),
-            },
-        )
-        yield _report_phase("load_turns", "读取面试回答", "completed", 28)
-        if not turns:
-            logger.info(
-                "interview_report.skipped",
-                extra={
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "reason": "no_answered_turns",
-                    "elapsed_ms": _elapsed_ms(started_at),
-                },
-            )
-            yield _report_phase(
-                "done",
-                "没有可复盘回答",
-                "skipped",
-                100,
-                result=InterviewReportResult(session=session, generated=False),
-            )
+        if session.report_data:
+            yield _cached_report_event(session, session_id, user_id)
             return
 
-        yield _report_phase("request_llm", "调用 AI 生成报告", "running", 36)
-        response = await _request_report_response(session, turns)
-        yield _report_phase("request_llm", "调用 AI 生成报告", "completed", 68)
+        async with _report_lock(session_id):
+            db.refresh(session)
+            if session.report_data:
+                yield _cached_report_event(session, session_id, user_id)
+                return
 
-        yield _report_phase("parse_report", "解析报告结构", "running", 74)
-        report = _parse_report_response(response, turns)
-        public_report = _public_report(report)
-        turn_evaluation_count = _apply_turn_evaluations(turns, report)
-        logger.info(
-            "interview_report.parsed",
-            extra={
-                "session_id": session_id,
-                "user_id": user_id,
-                "strength_count": len(public_report["strengths"]),
-                "dimension_count": len(public_report["dimensions"]),
-                "turn_evaluation_count": turn_evaluation_count,
-            },
-        )
-        yield _report_phase("parse_report", "解析报告结构", "completed", 84)
-
-        yield _report_phase("save_report", "保存报告结果", "running", 90)
-        session.report_data = public_report
-        db.commit()
-        db.refresh(session)
-        logger.info(
-            "interview_report.saved",
-            extra={
-                "session_id": session_id,
-                "user_id": user_id,
-                "turn_evaluation_count": turn_evaluation_count,
-                "elapsed_ms": _elapsed_ms(started_at),
-            },
-        )
-        yield _report_phase("save_report", "保存报告结果", "completed", 100)
-        yield _report_phase(
-            "done",
-            "报告已生成",
-            "completed",
-            100,
-            result=InterviewReportResult(session=session, generated=True),
-        )
+            async for event in _stream_new_report_generation(
+                db=db,
+                session=session,
+                user_id=user_id,
+                session_id=session_id,
+                started_at=started_at,
+            ):
+                yield event
     except ServiceValidationError:
         raise
     except Exception:
@@ -162,6 +115,126 @@ async def stream_interview_report(
             },
         )
         raise
+
+
+@asynccontextmanager
+async def _report_lock(session_id: int) -> AsyncIterator[None]:
+    """异步等待单个面试会话的跨线程报告生成锁。"""
+    lock = _thread_report_lock(session_id)
+    await asyncio.to_thread(lock.acquire)
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+def _thread_report_lock(session_id: int) -> ThreadLock:
+    """返回单个面试会话的线程锁。"""
+    with _REPORT_LOCKS_GUARD:
+        lock = _REPORT_LOCKS.get(session_id)
+        if lock is None:
+            lock = ThreadLock()
+            _REPORT_LOCKS[session_id] = lock
+        return lock
+
+
+async def _stream_new_report_generation(
+    *,
+    db: Session,
+    session: InterviewSession,
+    user_id: int,
+    session_id: int,
+    started_at: float,
+) -> AsyncIterator[InterviewReportProgressEvent]:
+    """生成新的面试报告并逐步产出进度事件。"""
+    yield _report_phase("load_turns", "读取面试回答", "running", 18)
+    turns = _answered_turns(db, session_id)
+    logger.info(
+        "interview_report.turns_loaded",
+        extra={
+            "session_id": session_id,
+            "user_id": user_id,
+            "turn_count": len(turns),
+        },
+    )
+    yield _report_phase("load_turns", "读取面试回答", "completed", 28)
+    if not turns:
+        logger.info(
+            "interview_report.skipped",
+            extra={
+                "session_id": session_id,
+                "user_id": user_id,
+                "reason": "no_answered_turns",
+                "elapsed_ms": _elapsed_ms(started_at),
+            },
+        )
+        yield _report_phase(
+            "done",
+            "没有可复盘回答",
+            "skipped",
+            100,
+            result=InterviewReportResult(session=session, generated=False),
+        )
+        return
+
+    yield _report_phase("request_llm", "调用 AI 生成报告", "running", 36)
+    response = await _request_report_response(session, turns)
+    yield _report_phase("request_llm", "调用 AI 生成报告", "completed", 68)
+
+    yield _report_phase("parse_report", "解析报告结构", "running", 74)
+    report = _parse_report_response(response, turns)
+    public_report = _public_report(report)
+    turn_evaluation_count = _apply_turn_evaluations(turns, report)
+    logger.info(
+        "interview_report.parsed",
+        extra={
+            "session_id": session_id,
+            "user_id": user_id,
+            "strength_count": len(public_report["strengths"]),
+            "dimension_count": len(public_report["dimensions"]),
+            "turn_evaluation_count": turn_evaluation_count,
+        },
+    )
+    yield _report_phase("parse_report", "解析报告结构", "completed", 84)
+
+    yield _report_phase("save_report", "保存报告结果", "running", 90)
+    session.report_data = public_report
+    db.commit()
+    db.refresh(session)
+    logger.info(
+        "interview_report.saved",
+        extra={
+            "session_id": session_id,
+            "user_id": user_id,
+            "turn_evaluation_count": turn_evaluation_count,
+            "elapsed_ms": _elapsed_ms(started_at),
+        },
+    )
+    yield _report_phase("save_report", "保存报告结果", "completed", 100)
+    yield _report_phase(
+        "done",
+        "报告已生成",
+        "completed",
+        100,
+        result=InterviewReportResult(session=session, generated=True),
+    )
+
+
+def _cached_report_event(
+    session: InterviewSession, session_id: int, user_id: int
+) -> InterviewReportProgressEvent:
+    """构造已有报告的完成事件。"""
+    logger.info(
+        "interview_report.cached",
+        extra={"session_id": session_id, "user_id": user_id},
+    )
+    return _report_phase(
+        "done",
+        "报告已存在",
+        "completed",
+        100,
+        result=InterviewReportResult(session=session, generated=True),
+    )
 
 
 def _report_phase(

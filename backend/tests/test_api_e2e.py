@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -3190,6 +3192,186 @@ class TestInterviewSessions:
         report_logs = [record.message for record in caplog.records]
         assert "interview_report.invalid_json" in report_logs
         assert "interview_report.saved" in report_logs
+
+    def test_report_generation_returns_existing_report_without_llm(self, monkeypatch):
+        """用于验证已有报告时重复生成不会再次调用 LLM。"""
+
+        class FakeChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化可成功返回的假 LLM。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于返回首次报告 JSON。"""
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"首次报告",'
+                                    '"strengths":["完整","相关","清晰"],'
+                                    '"weaknesses":["量化不足"],'
+                                    '"next_training_plan":["补充指标"],'
+                                    '"resume_feedback":["补充成果"],'
+                                    '"dimensions":[],'
+                                    '"turn_evaluations":[]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        class ExplodingChatService:
+            def __init__(self, *args, **kwargs):
+                """用于确保重复生成不会调用 LLM。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于在重复调用 LLM 时让测试失败。"""
+                raise AssertionError("existing report should skip LLM")
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            FakeChatService,
+        )
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过 Agent 项目"},
+            headers=self.headers,
+        )
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        first_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+        assert first_resp.status_code == 200, first_resp.text
+        assert first_resp.json()["session"]["report_data"]["summary"] == "首次报告"
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            ExplodingChatService,
+        )
+        second_resp = self.client.post(
+            f"/api/interviews/{session_id}/report",
+            headers=self.headers,
+        )
+
+        assert second_resp.status_code == 200, second_resp.text
+        assert second_resp.json()["next_action"] == "report"
+        assert second_resp.json()["session"]["report_data"]["summary"] == "首次报告"
+
+    def test_report_generation_deduplicates_concurrent_requests(self, monkeypatch):
+        """用于验证并发重复生成同一报告只调用一次 LLM。"""
+        first_call_started = threading.Event()
+        allow_first_call_to_finish = threading.Event()
+        call_count = 0
+
+        class SlowChatService:
+            def __init__(self, *args, **kwargs):
+                """用于初始化慢速假 LLM。"""
+
+            async def __aenter__(self):
+                """用于进入假 LLM 上下文。"""
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                """用于退出假 LLM 上下文。"""
+                return None
+
+            async def chat_completion(self, *args, **kwargs):
+                """用于阻塞首次报告生成以制造并发。"""
+                nonlocal call_count
+                call_count += 1
+                first_call_started.set()
+                assert allow_first_call_to_finish.wait(timeout=5)
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"summary":"并发报告",'
+                                    '"strengths":["完整","相关","清晰"],'
+                                    '"weaknesses":["量化不足"],'
+                                    '"next_training_plan":["补充指标"],'
+                                    '"resume_feedback":["补充成果"],'
+                                    '"dimensions":[],'
+                                    '"turn_evaluations":[]}'
+                                )
+                            }
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "app.services.interview.report_service.ChatService",
+            SlowChatService,
+        )
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "介绍一个项目"},
+            headers=self.headers,
+        )
+        self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我做过 Agent 项目"},
+            headers=self.headers,
+        )
+        self.client.post(f"/api/interviews/{session_id}/end", headers=self.headers)
+
+        def post_report():
+            """用于发起报告生成请求。"""
+            return self.client.post(
+                f"/api/interviews/{session_id}/report",
+                headers=self.headers,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first_future = executor.submit(post_report)
+            assert first_call_started.wait(timeout=5)
+            second_future = executor.submit(post_report)
+            allow_first_call_to_finish.set()
+            first_resp = first_future.result(timeout=10)
+            second_resp = second_future.result(timeout=10)
+
+        assert first_resp.status_code == 200, first_resp.text
+        assert second_resp.status_code == 200, second_resp.text
+        assert call_count == 1
+        assert first_resp.json()["session"]["report_data"]["summary"] == "并发报告"
+        assert second_resp.json()["session"]["report_data"]["summary"] == "并发报告"
 
     def test_report_generation_requires_completed_session(self):
         """用于验证reportgenerationrequirescompleted会话。"""
