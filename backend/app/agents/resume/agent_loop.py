@@ -24,9 +24,9 @@ from pi_agent_core.types import Message, StreamFn
 
 from app.agents.resume.stream_events import llm_request_event, text_delta_event
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
+from app.agents.resume.event_publisher import publish_resume_runtime_event
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.runtime.runtime_event_adapter import publish_runtime_event
 from app.types.stream import ResumeStreamEvent
 
 logger = logging.getLogger("app.agents.resume.runtime")
@@ -587,7 +587,7 @@ class ResumeAgentLoop:
         event: ResumeStreamEvent,
     ) -> None:
         """用于发布 runtime 事件。"""
-        await publish_runtime_event(
+        await publish_resume_runtime_event(
             event_queue=event_queue,
             event_callback=event_callback,
             event=event,

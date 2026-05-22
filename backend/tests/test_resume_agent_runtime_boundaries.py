@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import logging
 import sys
+from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -44,6 +45,7 @@ from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E40
 from app.infra.config import settings  # noqa: E402
 from app.agents.resume.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
+from app.runtime.contracts import AgentDefinition  # noqa: E402
 from app.agents.resume.session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
@@ -66,6 +68,17 @@ RESUME_EDIT_TOOL_NAMES = {
     "read_memory",
     "update_memory",
 }
+
+
+def test_agent_definition_default_tool_profile_is_not_resume_specific():
+    """用于验证通用 runtime contract 不携带 Resume Agent 业务默认。"""
+    default_profile = next(
+        field.default
+        for field in fields(AgentDefinition)
+        if field.name == "default_tool_profile"
+    )
+
+    assert default_profile == ""
 
 
 def _new_test_stream_state() -> dict[str, Any]:

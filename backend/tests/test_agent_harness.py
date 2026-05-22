@@ -15,7 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.infra.database import Base  # noqa: E402
 from app.models import Resume, User  # noqa: E402
-from app.agents.resume.harness import AgentHarness  # noqa: E402
+from app.agents.resume.harness import ResumeAgentHarness  # noqa: E402
 from app.state.store import AgentSessionStore  # noqa: E402
 
 
@@ -113,7 +113,7 @@ class CapturingResumeAgent:
         yield {"content": "ok"}
 
 
-class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
+class ResumeAgentHarnessTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """用于准备测试前置状态。"""
         engine = create_engine(
@@ -141,7 +141,7 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_resume_stream_records_session_events(self):
         """用于验证简历streamrecords会话事件。"""
-        harness = AgentHarness(self.db)
+        harness = ResumeAgentHarness(self.db)
         store = AgentSessionStore(self.db)
         session_id = "harness_session_1"
 
@@ -185,7 +185,7 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_resume_stream_passes_resume_id_to_agent(self):
         """用于验证 harness 把 resume_id 传入真实 Agent 调用上下文。"""
-        harness = AgentHarness(self.db)
+        harness = ResumeAgentHarness(self.db)
         agent = CapturingResumeAgent()
 
         events = []
@@ -206,7 +206,7 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
 
     def test_resume_session_applies_confirmed_paused_tool_call(self):
         """用于验证简历会话appliesconfirmedpausedtoolcall。"""
-        harness = AgentHarness(self.db)
+        harness = ResumeAgentHarness(self.db)
         store = AgentSessionStore(self.db)
         session_id = "resume_paused_session"
         resume = {
@@ -274,7 +274,7 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_resume_stream_marks_session_cancelled_when_agent_is_cancelled(self):
         """用于验证用户停止 Agent 时 session 收敛为 cancelled。"""
-        harness = AgentHarness(self.db)
+        harness = ResumeAgentHarness(self.db)
         store = AgentSessionStore(self.db)
         session_id = "harness_cancelled_session"
 

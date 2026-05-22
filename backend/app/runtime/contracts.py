@@ -25,7 +25,7 @@ class AgentDefinition:
     max_iterations: int | None = None
     max_history_messages: int = 20
     auto_execute_tool_names: set[str] = field(default_factory=set)
-    default_tool_profile: str = "resume_edit"
+    default_tool_profile: str = ""
     tool_profiles: dict[str, set[str]] = field(default_factory=dict)
 
 

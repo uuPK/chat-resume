@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.resume.agent import ResumeAgent
 from app.infra.request_context import log_context
-from app.agents.resume.harness import AgentHarness
+from app.agents.resume.harness import ResumeAgentHarness
 from app.runtime.permissions import confirmation_manager
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore
@@ -103,7 +103,7 @@ class ResumeAgentStreamService:
                     else request.chat_history
                 )
                 store = AgentSessionStore(self.db)
-                harness = AgentHarness(self.db, session_store=store)
+                harness = ResumeAgentHarness(self.db, session_store=store)
                 harness.create_resume_session(
                     session_id=session_id,
                     user_id=request.user_id,
@@ -201,7 +201,7 @@ class ResumeAgentStreamService:
         )
         original_resume = deepcopy(filtered_resume)
 
-        result = AgentHarness(self.db, session_store=store).resume_session(
+        result = ResumeAgentHarness(self.db, session_store=store).resume_session(
             session_id=session_id,
             resume_content=filtered_resume,
             allowed_sections=set(filtered_resume.keys()),

@@ -8,11 +8,14 @@ from collections.abc import Callable
 from time import perf_counter
 from typing import Any
 
+from app.agents.resume.event_publisher import (
+    emit_resume_runtime_event,
+    publish_resume_runtime_event,
+)
 from app.agents.resume.stream_events import llm_response_event, prompt_rendered_event
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.runtime.runtime_event_adapter import emit_runtime_event, publish_runtime_event
 from app.types.stream import ResumeStreamEvent
 
 logger = logging.getLogger("app.agents.resume.runtime")
@@ -183,7 +186,7 @@ class ResumeRunLifecycle:
         event: ResumeStreamEvent,
     ) -> None:
         """用于发布 runtime callback 和 SSE 队列事件。"""
-        await publish_runtime_event(
+        await publish_resume_runtime_event(
             event_queue=event_queue,
             event_callback=event_callback,
             event=event,
@@ -195,7 +198,7 @@ class ResumeRunLifecycle:
         event: ResumeStreamEvent,
     ) -> None:
         """用于向同步调用方发布 runtime 事件。"""
-        emit_runtime_event(event_callback, event)
+        emit_resume_runtime_event(event_callback, event)
 
     @staticmethod
     def preview_text(value: Any, limit: int = 240) -> str:

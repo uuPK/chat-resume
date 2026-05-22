@@ -1,14 +1,19 @@
 """用于暴露简历优化 Agent 相关能力。"""
 
-__all__ = ["AgentHarness", "ResumeAgent", "ResumeAgentRuntime", "ResumeToolExecutor"]
+__all__ = [
+    "ResumeAgent",
+    "ResumeAgentHarness",
+    "ResumeAgentRuntime",
+    "ResumeToolExecutor",
+]
 
 
 def __getattr__(name: str):
     """用于按需加载简历 Agent，避免包初始化时引入重依赖。"""
-    if name == "AgentHarness":
-        from .harness import AgentHarness
+    if name == "ResumeAgentHarness":
+        from .harness import ResumeAgentHarness
 
-        return AgentHarness
+        return ResumeAgentHarness
     if name == "ResumeAgent":
         from .agent import ResumeAgent
 

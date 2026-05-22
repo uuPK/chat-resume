@@ -1872,6 +1872,15 @@ class RuntimePublicApiTests(unittest.TestCase):
         agent = ResumeAgent()
         self.assertIsInstance(agent.definition, AgentDefinition)
 
+    def test_resume_agent_public_api_uses_resume_specific_harness_name(self):
+        """用于验证ResumeAgent公开API不再导出通用AgentHarness命名。"""
+        import app.agents.resume as resume_agent
+
+        self.assertNotIn("AgentHarness", resume_agent.__all__)
+        self.assertIn("ResumeAgentHarness", resume_agent.__all__)
+        with self.assertRaises(AttributeError):
+            getattr(resume_agent, "AgentHarness")
+
 
 if __name__ == "__main__":
     unittest.main()

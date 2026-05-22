@@ -16,7 +16,7 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 
-class AgentHarness:
+class ResumeAgentHarness:
     """用于管理简历 Agent 的 session 生命周期和事件落库。"""
 
     def __init__(
@@ -39,7 +39,7 @@ class AgentHarness:
     ) -> None:
         """用于创建一次新的简历优化 session 并记录首条用户消息。"""
         logger.debug(
-            "AgentHarness create_resume_session resume_id=%s user_id=%s",
+            "ResumeAgentHarness create_resume_session resume_id=%s user_id=%s",
             resume_id,
             user_id,
         )
@@ -78,7 +78,7 @@ class AgentHarness:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
         latest_resume_content: dict[str, Any] | None = None
-        logger.debug("AgentHarness run_resume_stream started")
+        logger.debug("ResumeAgentHarness run_resume_stream started")
 
         try:
             agent_kwargs: dict[str, Any] = {"user_id": user_id}
@@ -101,7 +101,7 @@ class AgentHarness:
                 )
                 yield event
         except Exception as exc:
-            logger.exception("AgentHarness run_resume_stream failed")
+            logger.exception("ResumeAgentHarness run_resume_stream failed")
             self.record_failure(session_id, exc)
             raise
         except asyncio.CancelledError:
@@ -113,13 +113,13 @@ class AgentHarness:
             final_content="".join(final_content_parts),
             latest_resume_content=latest_resume_content,
         )
-        logger.debug("AgentHarness run_resume_stream completed")
+        logger.debug("ResumeAgentHarness run_resume_stream completed")
 
     def record_failure(self, session_id: str, exc: Exception) -> None:
         """用于在流式执行失败时更新会话状态并记录失败事件。"""
         if not self.session_store.get_session(session_id):
             return
-        logger.error("AgentHarness record_failure error=%s", exc)
+        logger.error("ResumeAgentHarness record_failure error=%s", exc)
         self.session_store.update_status(
             session_id,
             "failed",
@@ -136,7 +136,7 @@ class AgentHarness:
         """用于在用户主动停止流式执行时收敛 session 状态。"""
         if not self.session_store.get_session(session_id):
             return
-        logger.info("AgentHarness record_cancelled session_id=%s", session_id)
+        logger.info("ResumeAgentHarness record_cancelled session_id=%s", session_id)
         self.session_store.update_status(
             session_id,
             "cancelled",
@@ -159,7 +159,7 @@ class AgentHarness:
     ) -> None:
         """用于在流式执行结束后补齐最终回复和完成事件。"""
         logger.debug(
-            "AgentHarness complete_resume_session has_checkpoint=%s",
+            "ResumeAgentHarness complete_resume_session has_checkpoint=%s",
             latest_resume_content is not None,
         )
         if final_content:
@@ -281,4 +281,4 @@ class AgentHarness:
         return latest_resume_content
 
 
-__all__ = ["AgentHarness"]
+__all__ = ["ResumeAgentHarness"]
