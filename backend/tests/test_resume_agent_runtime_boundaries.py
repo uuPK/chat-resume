@@ -36,6 +36,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.agents.resume.agent_loop import ResumeAgentLoop  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
+from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
@@ -241,6 +242,43 @@ def test_system_prompt_tool_list_matches_requested_profile():
     ]
     assert "generate_job_match_summary" not in pi_context.system_prompt
     assert "update_bullet" not in pi_context.system_prompt
+
+
+def test_resume_turn_context_builder_prepares_profiled_tools_independently():
+    """用于验证 turn context 构建可以脱离 PiAgentRuntime 单独测试。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    state = agent.runtime._new_stream_state()
+    context = {
+        "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        "tool_profile": "read_only",
+    }
+
+    pi_context, prompts, config = builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message="只分析，不要修改",
+        context=context,
+        conversation_history=[{"role": "assistant", "content": "历史回答"}],
+        run_id="turn_builder_test",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+
+    assert [tool.name for tool in pi_context.tools] == [
+        "generate_job_match_summary",
+        "read_memory",
+    ]
+    assert prompts[0].role == "user"
+    assert context["tool_profile"] == "read_only"
+    assert context["available_tool_names"] == ["generate_job_match_summary", "read_memory"]
+    assert state["tool_profile"] == "read_only"
+    assert state["tool_names"] == ["generate_job_match_summary", "read_memory"]
+    assert state["prompt_chars"] == len(pi_context.system_prompt)
+    assert config.convert_to_llm is not None
 
 
 def test_system_prompt_resume_json_hides_technologies_compat_fields():
