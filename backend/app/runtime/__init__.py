@@ -4,7 +4,6 @@ __all__ = [
     "AgentDefinition",
     "AgentHarness",
     "ConfirmationSessionManager",
-    "PiAgentRuntime",
     "confirmation_manager",
 ]
 
@@ -19,10 +18,6 @@ def __getattr__(name: str):
         from .harness import AgentHarness
 
         return AgentHarness
-    if name == "PiAgentRuntime":
-        from .pi_agent_runtime import PiAgentRuntime
-
-        return PiAgentRuntime
     if name in {"ConfirmationSessionManager", "confirmation_manager"}:
         from .permissions import ConfirmationSessionManager, confirmation_manager
 

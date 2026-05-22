@@ -187,7 +187,7 @@ def _patch_loguru_record(record: Any) -> None:
 
 def _logger_label(logger_name: str) -> str:
     """用于处理日志器标签。"""
-    if logger_name == "app.runtime.pi_agent_runtime":
+    if logger_name == "app.agents.resume.runtime":
         return "piagent"
     if logger_name.startswith("app."):
         parts = logger_name.split(".")

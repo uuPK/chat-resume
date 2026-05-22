@@ -27,7 +27,7 @@ from app.runtime.runtime_event_adapter import publish_runtime_event
 from app.runtime.tool_confirmation import ToolConfirmationPolicy
 from app.types.stream import ResumeStreamEvent
 
-logger = logging.getLogger("app.runtime.pi_agent_runtime")
+logger = logging.getLogger("app.agents.resume.runtime")
 
 _TOOL_ARGUMENTS_PARSE_ERROR_KEY = "__tool_arguments_parse_error"
 

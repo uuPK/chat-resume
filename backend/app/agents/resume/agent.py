@@ -9,12 +9,12 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from app.prompts import load_prompt
 from app.runtime.contracts import AgentDefinition
-from app.runtime.pi_agent_runtime import PiAgentRuntime
 from app.tools.resume.registry import RESUME_TOOLS_SCHEMA
 from app.types.stream import ResumeStreamEvent
 
 from .executor import TOOL_REQUIRED_ARGS, ResumeToolExecutor
 from .prompt_context import build_resume_prompt_context, strip_redundant_fields
+from .runtime import ResumeAgentRuntime
 from .stream_events import normalize_resume_stream_payload
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ class ResumeAgent:
         """用于初始化简历 Agent 运行所需的固定依赖。"""
         self.tool_executor = ResumeToolExecutor()
         self.prompt_spec = load_prompt("resume_agent")
-        self.runtime: Any = PiAgentRuntime()
+        self.runtime: Any = ResumeAgentRuntime()
         self.definition = AgentDefinition(
             prompt_spec=self.prompt_spec,
             tools_schema=RESUME_TOOLS_SCHEMA,

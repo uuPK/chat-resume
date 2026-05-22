@@ -1,6 +1,6 @@
 """用于暴露简历优化 Agent 相关能力。"""
 
-__all__ = ["ResumeAgent", "ResumeToolExecutor"]
+__all__ = ["ResumeAgent", "ResumeAgentRuntime", "ResumeToolExecutor"]
 
 
 def __getattr__(name: str):
@@ -9,6 +9,10 @@ def __getattr__(name: str):
         from .agent import ResumeAgent
 
         return ResumeAgent
+    if name == "ResumeAgentRuntime":
+        from .runtime import ResumeAgentRuntime
+
+        return ResumeAgentRuntime
     if name == "ResumeToolExecutor":
         from .executor import ResumeToolExecutor
 

@@ -15,7 +15,7 @@ from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.runtime_event_adapter import emit_runtime_event, publish_runtime_event
 from app.types.stream import ResumeStreamEvent
 
-logger = logging.getLogger("app.runtime.pi_agent_runtime")
+logger = logging.getLogger("app.agents.resume.runtime")
 
 
 class ResumeRunLifecycle:

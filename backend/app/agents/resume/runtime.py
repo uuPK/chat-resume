@@ -1,9 +1,10 @@
-"""用于提供基于 pi-agent-core 的业务 Agent 运行时。"""
+"""用于组装 Resume Agent 的 pi-agent-core 运行时适配器。"""
 
 from __future__ import annotations
 
 import asyncio
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from pi_agent_core.types import StreamFn
 
@@ -14,25 +15,21 @@ from app.agents.resume.stream_adapter import ResumeReActStreamAdapter
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.turn_context import ResumeTurnContextBuilder
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.runtime.openrouter_adapter import (
-    openrouter_chat_model_name,
-)
-from app.runtime.tool_confirmation import (
-    ToolConfirmationPolicy,
-)
+from app.runtime.openrouter_adapter import openrouter_chat_model_name
 from app.runtime.pi_agent_openrouter import stream_openrouter
+from app.runtime.tool_confirmation import ToolConfirmationPolicy
 from app.types.stream import ResumeStreamEvent
 
 
-class PiAgentRuntime:
-    """Runtime adapter that uses pi-agent-core as the execution loop."""
+class ResumeAgentRuntime:
+    """用于把 Resume Agent 组件组装成公开 run/run_stream 接口。"""
 
     def __init__(
         self,
         stream_fn: StreamFn | None = None,
         confirmation_policy: ToolConfirmationPolicy | None = None,
     ):
-        """用于初始化当前对象。"""
+        """用于初始化 Resume Agent 运行时依赖图。"""
         self.stream_fn = ResumeReActStreamAdapter(stream_fn or stream_openrouter)
         self.tool_stage = ResumeToolExecutionStage(
             confirmation_policy=confirmation_policy or ToolConfirmationPolicy()
@@ -92,4 +89,4 @@ class PiAgentRuntime:
             yield event
 
 
-__all__ = ["PiAgentRuntime"]
+__all__ = ["ResumeAgentRuntime"]

@@ -267,7 +267,7 @@ def test_system_prompt_tool_list_matches_requested_profile():
 
 
 def test_resume_turn_context_builder_prepares_profiled_tools_independently():
-    """用于验证 turn context 构建可以脱离 PiAgentRuntime 单独测试。"""
+    """用于验证 turn context 构建可以脱离 ResumeAgentRuntime 单独测试。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     builder = ResumeTurnContextBuilder(tool_stage=stage)
@@ -383,7 +383,7 @@ def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
 
 
 def test_resume_run_lifecycle_builds_events_independently():
-    """用于验证 run lifecycle 可以脱离 PiAgentRuntime 单独生成事件。"""
+    """用于验证 run lifecycle 可以脱离 ResumeAgentRuntime 单独生成事件。"""
     agent = ResumeAgent()
     lifecycle = ResumeRunLifecycle(model_name_provider=lambda: "test-model")
     state = lifecycle.new_stream_state()
@@ -414,7 +414,7 @@ def test_resume_run_lifecycle_builds_events_independently():
 
 @pytest.mark.asyncio
 async def test_resume_agent_runner_runs_sync_independently():
-    """用于验证 Resume Agent runner 可脱离 PiAgentRuntime 编排一次 run。"""
+    """用于验证 Resume Agent runner 可脱离 ResumeAgentRuntime 编排一次 run。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     loop = ResumeAgentLoop(
@@ -448,7 +448,7 @@ async def test_resume_agent_runner_runs_sync_independently():
 
 @pytest.mark.asyncio
 async def test_resume_react_stream_adapter_keeps_one_tool_call_per_turn():
-    """用于验证 ReAct stream adapter 可脱离 PiAgentRuntime 裁剪工具调用。"""
+    """用于验证 ReAct stream adapter 可脱离 ResumeAgentRuntime 裁剪工具调用。"""
     message = AssistantMessage(
         content=[
             ToolCall(id="call_1", name="update_bullet", arguments={"text": "A"}),
@@ -485,7 +485,7 @@ def test_allowed_tool_call_uses_normal_detection_trace(
     )
     monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
-    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+    with caplog.at_level("INFO", logger="app.agents.resume.runtime"):
         loop.trace_tool_call_detected(agent.definition, "run_test", event, state)
         loop.trace_tool_call_detected(agent.definition, "run_test", event, state)
 
@@ -503,7 +503,7 @@ def test_failed_tool_preview_logs_warning(
     stage = ResumeToolExecutionStage()
     monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
-    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+    with caplog.at_level("INFO", logger="app.agents.resume.runtime"):
         stage.trace_tool_preview(
             agent.definition,
             "run_test",
@@ -536,7 +536,7 @@ def test_tool_requested_trace_summarizes_large_text_input(
     long_text = "基于 LlamaIndex 构建文档索引与向量存储层，支撑 RAG 检索。" * 8
     monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
-    with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
+    with caplog.at_level("INFO", logger="app.agents.resume.runtime"):
         stage.trace_tool_requested(
             agent.definition,
             "run_test",
@@ -602,7 +602,7 @@ async def test_confirmation_policy_returns_feedback_without_terminating_turn():
 
 @pytest.mark.asyncio
 async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
-    """用于验证工具执行确认阶段可以脱离 PiAgentRuntime 单独测试。"""
+    """用于验证工具执行确认阶段可以脱离 ResumeAgentRuntime 单独测试。"""
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
@@ -663,7 +663,7 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
 
 @pytest.mark.asyncio
 async def test_resume_agent_loop_runs_react_turns_independently():
-    """用于验证 ReAct loop 可以脱离 PiAgentRuntime 单独测试。"""
+    """用于验证 ReAct loop 可以脱离 ResumeAgentRuntime 单独测试。"""
     agent = ResumeAgent()
     stream = FakeLoopStream(
         [

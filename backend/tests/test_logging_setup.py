@@ -135,7 +135,7 @@ def test_text_agent_tool_trace_uses_compact_mainline(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "BACKEND_LOG_FILE", str(log_file))
 
     logging_setup.configure_logging()
-    logging.getLogger("app.runtime.pi_agent_runtime").info(
+    logging.getLogger("app.agents.resume.runtime").info(
         "agent.trace.tool.executed",
         extra={
             "agent_trace": True,

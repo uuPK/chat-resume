@@ -25,8 +25,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.agents.resume.runtime import ResumeAgentRuntime  # noqa: E402
 from app.infra.config import settings  # noqa: E402
-from app.runtime.pi_agent_runtime import PiAgentRuntime  # noqa: E402
 from app.services.llm.chat_service import ChatService  # noqa: E402
 
 
@@ -252,7 +252,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
     def _build_agent(self, responses):
         """用于构建Agent。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [fake_pi_message(response) for response in responses]
             )
@@ -1328,7 +1328,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "已完成流式重试。",
         )
 
-class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
+class ResumeAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
     def _sample_resume(self):
         """用于处理示例简历。"""
         return {
@@ -1342,16 +1342,16 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ]
         }
 
-    async def test_resume_agent_uses_pi_agent_runtime_by_default(self):
+    async def test_resume_agent_uses_resume_agent_runtime_by_default(self):
         """用于验证简历AgentusespiAgentruntimebydefault。"""
         agent = ResumeAgent()
 
-        self.assertIsInstance(agent.runtime, PiAgentRuntime)
+        self.assertIsInstance(agent.runtime, ResumeAgentRuntime)
 
-    async def test_pi_agent_runtime_stream_preserves_confirmation_flow(self):
+    async def test_resume_agent_runtime_stream_preserves_confirmation_flow(self):
         """用于验证piAgentruntimestreampreservesconfirmationflow。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_tool_call(
@@ -1391,10 +1391,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
 
-    async def test_pi_agent_runtime_stream_hides_tool_preamble_text(self):
+    async def test_resume_agent_runtime_stream_hides_tool_preamble_text(self):
         """用于验证工具调用前的 assistant 文本不会展示。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_message(
@@ -1439,7 +1439,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("已完成优化。", visible_text)
         self.assertTrue(any(event.get("tool_pending") for event in events))
 
-    async def test_pi_agent_runtime_stream_shows_running_tool_on_early_start(self):
+    async def test_resume_agent_runtime_stream_shows_running_tool_on_early_start(self):
         """用于验证 first_tool_delta 时可提前显示 Running 工具名。"""
         agent = ResumeAgent()
         tool_call = fake_tool_call(
@@ -1458,7 +1458,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             name="update_bullet",
             arguments={},
         )
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakeEarlyToolStartStream(
                 [
                     fake_pi_message(FakeModelResponse(content="", tool_calls=[tool_call])),
@@ -1496,10 +1496,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tool_call_events[0]["tool_display_name"], "update_bullet")
         self.assertTrue(any(event.get("tool_confirmed") for event in events))
 
-    async def test_pi_agent_runtime_stream_failed_event_for_invalid_tool_arguments_marker(self):
+    async def test_resume_agent_runtime_stream_failed_event_for_invalid_tool_arguments_marker(self):
         """用于验证模型工具参数损坏时走失败事件而不是确认卡片。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_tool_call(
@@ -1538,10 +1538,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "".join(event.get("content", "") for event in events),
         )
 
-    async def test_pi_agent_runtime_stream_failed_preview_skips_confirmation_card(self):
+    async def test_resume_agent_runtime_stream_failed_preview_skips_confirmation_card(self):
         """用于验证工具预览失败时不展示待确认空 diff 卡片。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_tool_call(
@@ -1590,10 +1590,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "".join(event.get("content", "") for event in events),
         )
 
-    async def test_pi_agent_runtime_noop_update_skips_confirmation_card(self):
+    async def test_resume_agent_runtime_noop_update_skips_confirmation_card(self):
         """用于验证空修改走失败事件而不是展示待确认卡片。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_tool_call(
@@ -1637,11 +1637,11 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
             "".join(event.get("content", "") for event in events),
         )
 
-    async def test_pi_agent_runtime_sets_provider_cancel_event_when_stream_is_cancelled(self):
+    async def test_resume_agent_runtime_sets_provider_cancel_event_when_stream_is_cancelled(self):
         """用于验证消费端取消时通知底层模型流停止。"""
         stream = HangingPiAgentStream()
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(stream_fn=stream)
+        agent.runtime = ResumeAgentRuntime(stream_fn=stream)
 
         async def consume_stream():
             """消费 Agent 流直到测试主动取消。"""
@@ -1665,10 +1665,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(stream.options[0].cancel_event.is_set())
 
-    async def test_pi_agent_runtime_stream_emits_agent_trace_logs(self):
+    async def test_resume_agent_runtime_stream_emits_agent_trace_logs(self):
         """用于验证piAgentruntimestreamemitsAgenttracelogs。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(
+        agent.runtime = ResumeAgentRuntime(
             stream_fn=FakePiAgentStream(
                 [
                     fake_pi_tool_call(
@@ -1695,7 +1695,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         settings.AGENT_TRACE_LOG_ENABLED = True
         settings.AGENT_TRACE_CHUNK_LOG_ENABLED = False
         try:
-            with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
+            with self.assertLogs("app.agents.resume.runtime", level="INFO") as logs:
                 events = []
                 async for event in agent.optimize_stream(
                     user_message="优化这段工作经历",
@@ -1729,10 +1729,10 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("agent.trace.run.completed", trace_messages)
         self.assertNotIn("agent.trace.intermediate.chunk", trace_messages)
 
-    async def test_pi_agent_runtime_can_opt_into_chunk_trace_logs(self):
+    async def test_resume_agent_runtime_can_opt_into_chunk_trace_logs(self):
         """用于验证流式 chunk 日志需要显式开启。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
+        agent.runtime = ResumeAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
         resume = self._sample_resume()
 
         original_trace_log_enabled = settings.AGENT_TRACE_LOG_ENABLED
@@ -1740,7 +1740,7 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         settings.AGENT_TRACE_LOG_ENABLED = True
         settings.AGENT_TRACE_CHUNK_LOG_ENABLED = True
         try:
-            with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
+            with self.assertLogs("app.agents.resume.runtime", level="INFO") as logs:
                 events = []
                 async for event in agent.optimize_stream(
                     user_message="帮我看看简历",
@@ -1761,13 +1761,13 @@ class ResumePiAgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(event.get("content") == "你好" for event in events))
         self.assertIn("agent.trace.intermediate.chunk", trace_messages)
 
-    async def test_pi_agent_runtime_stream_logs_single_run_summary(self):
+    async def test_resume_agent_runtime_stream_logs_single_run_summary(self):
         """用于验证每次流式 run 只记录一条结构化摘要。"""
         agent = ResumeAgent()
-        agent.runtime = PiAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
+        agent.runtime = ResumeAgentRuntime(stream_fn=FakePiAgentStream([fake_pi_text("你好")]))
         resume = self._sample_resume()
 
-        with self.assertLogs("app.runtime.pi_agent_runtime", level="INFO") as logs:
+        with self.assertLogs("app.agents.resume.runtime", level="INFO") as logs:
             events = []
             async for event in agent.optimize_stream(
                 user_message="帮我看看简历",
@@ -1856,8 +1856,11 @@ class RuntimePublicApiTests(unittest.TestCase):
         import app.runtime as runtime
 
         self.assertNotIn("AgentRuntime", runtime.__all__)
+        self.assertNotIn("PiAgentRuntime", runtime.__all__)
         with self.assertRaises(AttributeError):
             getattr(runtime, "AgentRuntime")
+        with self.assertRaises(AttributeError):
+            getattr(runtime, "PiAgentRuntime")
 
     def test_agent_definition_lives_in_runtime_contracts(self):
         """用于验证Agentdefinitionlivesinruntimecontracts。"""
