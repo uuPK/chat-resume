@@ -1855,8 +1855,11 @@ class RuntimePublicApiTests(unittest.TestCase):
         """用于验证Agentruntimecompatibilityentrypointisremoved。"""
         import app.runtime as runtime
 
+        self.assertNotIn("AgentHarness", runtime.__all__)
         self.assertNotIn("AgentRuntime", runtime.__all__)
         self.assertNotIn("PiAgentRuntime", runtime.__all__)
+        with self.assertRaises(AttributeError):
+            getattr(runtime, "AgentHarness")
         with self.assertRaises(AttributeError):
             getattr(runtime, "AgentRuntime")
         with self.assertRaises(AttributeError):

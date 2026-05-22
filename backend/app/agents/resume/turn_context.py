@@ -19,7 +19,7 @@ from pi_agent_core.types import Message
 
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
-from app.runtime.message_conversion import convert_resume_messages_to_llm
+from app.agents.resume.message_conversion import convert_resume_messages_to_llm
 from app.runtime.openrouter_adapter import build_openrouter_loop_config
 
 

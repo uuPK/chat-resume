@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from app.schemas.resume import dump_resume_content_for_frontend
-from app.runtime.resume_agent_session import maybe_compact_resume_context
+from app.agents.resume.session import maybe_compact_resume_context
 
 
 def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:

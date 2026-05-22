@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.resume.agent import ResumeAgent
 from app.infra.request_context import log_context
-from app.runtime.harness import AgentHarness
+from app.agents.resume.harness import AgentHarness
 from app.runtime.permissions import confirmation_manager
 from app.services.domain import ResumeService
 from app.state import AgentSessionStore

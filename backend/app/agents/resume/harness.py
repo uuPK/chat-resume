@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator
 from sqlalchemy.orm import Session
 
 from app.agents.resume.agent import ResumeAgent
-from app.runtime.recovery import recover_resume_session
+from app.agents.resume.recovery import recover_resume_session
 from app.state.store import AgentSessionStore
 from app.types.stream import ResumeStreamEvent
 

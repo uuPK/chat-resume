@@ -42,9 +42,9 @@ from app.agents.resume.stream_adapter import ResumeReActStreamAdapter  # noqa: E
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.infra.config import settings  # noqa: E402
-from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
+from app.agents.resume.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
-from app.runtime.resume_agent_session import (  # noqa: E402
+from app.agents.resume.session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
 )

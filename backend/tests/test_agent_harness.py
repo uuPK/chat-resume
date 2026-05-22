@@ -15,7 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.infra.database import Base  # noqa: E402
 from app.models import Resume, User  # noqa: E402
-from app.runtime.harness import AgentHarness  # noqa: E402
+from app.agents.resume.harness import AgentHarness  # noqa: E402
 from app.state.store import AgentSessionStore  # noqa: E402
 
 

@@ -2,7 +2,6 @@
 
 __all__ = [
     "AgentDefinition",
-    "AgentHarness",
     "ConfirmationSessionManager",
     "confirmation_manager",
 ]
@@ -14,10 +13,6 @@ def __getattr__(name: str):
         from .contracts import AgentDefinition
 
         return AgentDefinition
-    if name == "AgentHarness":
-        from .harness import AgentHarness
-
-        return AgentHarness
     if name in {"ConfirmationSessionManager", "confirmation_manager"}:
         from .permissions import ConfirmationSessionManager, confirmation_manager
 
