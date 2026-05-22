@@ -11,35 +11,28 @@ from typing import Any, Optional
 from app.models import InterviewSession, InterviewTurn
 
 
-def normalize_evaluation_text(evaluation: Any) -> str:
-    """用于把历史结构化评估和新文本评估统一转换成纯文本。"""
+def _normalize_string_list(value: Any) -> list[str]:
+    """把列表中的项目转成去空白字符串列表。"""
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def serialize_turn_evaluation(evaluation: Any) -> Optional[dict[str, Any]]:
+    """用于把 turn evaluation 统一转成结构化字典。"""
+    if evaluation is None:
+        return None
     if isinstance(evaluation, str):
-        return evaluation.strip()
-    if not isinstance(evaluation, dict):
-        return ""
-
-    parts: list[str] = []
-    summary = str(evaluation.get("summary") or "").strip()
-    if summary:
-        parts.append(summary)
-
-    gaps = [
-        str(item).strip()
-        for item in (evaluation.get("gaps") or [])
-        if str(item).strip()
-    ]
-    if gaps:
-        parts.append("问题：" + "；".join(gaps[:3]))
-
-    evidence = [
-        str(item).strip()
-        for item in (evaluation.get("evidence") or [])
-        if str(item).strip()
-    ]
-    if evidence:
-        parts.append("亮点：" + "；".join(evidence[:2]))
-
-    return "\n".join(parts).strip()
+        text = evaluation.strip()
+        return {"summary": text, "gaps": [], "evidence": [], "advice": ""} if text else None
+    if isinstance(evaluation, dict):
+        return {
+            "summary": str(evaluation.get("summary") or "").strip(),
+            "gaps": _normalize_string_list(evaluation.get("gaps")),
+            "evidence": _normalize_string_list(evaluation.get("evidence")),
+            "advice": str(evaluation.get("advice") or "").strip(),
+        }
+    return None
 
 
 def serialize_turn(turn: InterviewTurn) -> dict[str, Any]:
@@ -53,7 +46,7 @@ def serialize_turn(turn: InterviewTurn) -> dict[str, Any]:
         "intent": turn.intent,
         "expected_points": turn.expected_points,
         "answer": turn.answer,
-        "evaluation": normalize_evaluation_text(turn.evaluation),
+        "evaluation": serialize_turn_evaluation(turn.evaluation),
         "follow_up_count": turn.follow_up_count,
         "status": turn.status,
         "asked_at": turn.asked_at.isoformat() if turn.asked_at else None,
@@ -112,4 +105,5 @@ def serialize_session_summary(
         "started_at": session.started_at.isoformat() if session.started_at else None,
         "ended_at": session.ended_at.isoformat() if session.ended_at else None,
         "answered_turn_count": answered_turn_count,
+        "has_report": bool(session.report_data),
     }

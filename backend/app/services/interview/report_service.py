@@ -220,7 +220,7 @@ async def _request_report_response(
                     }
                 ],
                 temperature=0.2,
-                max_tokens=3000,
+                max_tokens=4500,
                 system_prompt=_REPORT_SYSTEM_PROMPT,
             )
     except Exception as exc:
@@ -337,7 +337,30 @@ def _public_report(report: dict[str, Any]) -> dict[str, Any]:
         "answer_rewrites": _answer_rewrites(report.get("answer_rewrites")),
         "dimensions": _dimensions(report.get("dimensions")),
         "interviewer_evaluation": _interviewer_evaluation(report.get("interviewer_evaluation")),
+        "learning_plan": _learning_plan(report.get("learning_plan")),
     }
+
+
+def _learning_plan(value: Any) -> dict[str, Any]:
+    """标准化学习规划字段。"""
+    empty: dict[str, Any] = {"learning_priorities": [], "improvement_roadmap": []}
+    if not isinstance(value, dict):
+        return empty
+    priorities = [
+        {"topic": _as_text(item.get("topic")), "level": _as_text(item.get("level")) or "中"}
+        for item in _list_of_dicts(value.get("learning_priorities"))
+        if _as_text(item.get("topic"))
+    ]
+    roadmap = [
+        {
+            "phase": _as_text(item.get("phase")),
+            "timeframe": _as_text(item.get("timeframe")),
+            "items": _string_list(item.get("items")),
+        }
+        for item in _list_of_dicts(value.get("improvement_roadmap"))
+        if _as_text(item.get("phase"))
+    ]
+    return {"learning_priorities": priorities, "improvement_roadmap": roadmap}
 
 
 def _interviewer_evaluation(value: Any) -> dict[str, Any]:
@@ -522,6 +545,19 @@ def _fallback_report_from_text(
                 "advice": "重新点击生成报告，或减少单次面试内容后再生成。",
             }
         ],
+        "learning_plan": {
+            "learning_priorities": [
+                {"topic": "面试结构化表达", "level": "高"},
+                {"topic": "STAR法则训练", "level": "高"},
+            ],
+            "improvement_roadmap": [
+                {
+                    "phase": "立即行动",
+                    "timeframe": "1-2周",
+                    "items": ["重新生成完整报告获取个性化学习建议", "整理本次面试中每道题的回答要点"],
+                },
+            ],
+        },
         "turn_evaluations": turn_evaluations,
     }
 
@@ -561,6 +597,12 @@ JSON 字段必须包含：
   - overall: 3~5 句话的面试官总体评价，从面试官视角客观描述候选人整体表现
   - key_observations: 至少 4 条关键观察，描述候选人在面试中表现出的具体行为或模式（正负均可）
   - core_recommendations: 至少 4 条核心建议，给出候选人在下次面试或日常准备中最应该做的具体行动
+- learning_plan: 对象，包含：
+  - learning_priorities: 数组，每项包含 topic（技能/主题名称，简短，4-8字）和 level（”高”/”中”/”低”）。按优先级排序，至少 4 项
+  - improvement_roadmap: 数组，固定 3 项（立即行动/短期目标/中期规划），每项包含：
+    - phase: 固定为”立即行动”/”短期目标”/”中期规划”之一
+    - timeframe: 时间范围，如”1-2周”/”1个月”/”2-3个月”
+    - items: 该阶段具体可操作的任务，至少 3 条，每条20-60字，聚焦在候选人当前最弱的地方
 所有判断必须基于输入中的 JD、问题和候选人回答。没有证据就写”未证明”，不要编造不存在的事实。
 建议要具体到下次怎么说、怎么练、简历怎么补，不要写泛泛鼓励。
 输出必须是一个紧凑 JSON 对象，不要代码块，不要解释文字，不要在字符串里使用未转义的双引号。

@@ -863,13 +863,6 @@ function computeOverallScore(dimensions: ReportData['dimensions'] = [], level?: 
   return level === 'strong' ? 85 : level === 'risky' ? 55 : 70
 }
 
-// 用于把面试轮次评价统一成可渲染对象。
-function getTurnEvaluation(turn: InterviewSession['turns'][number]) {
-  if (!turn.evaluation) return null
-  if (typeof turn.evaluation === 'string') return { summary: turn.evaluation }
-  return turn.evaluation
-}
-
 // 用于把分数百分比分类为 good/mid/low。
 function scoreTier(pct: number): 'good' | 'mid' | 'low' {
   if (pct >= 70) return 'good'
@@ -948,21 +941,28 @@ function RdDimCard({ dimension }: { dimension: NonNullable<ReportData['dimension
   )
 }
 
-// 用于渲染可展开的单题解析卡片。
-function RdQACard({ turn, index }: { turn: InterviewSession['turns'][number]; index: number }) {
+// 用于渲染可展开的单题解析卡片（含面试官点评、参考思路、参考回答）。
+function RdQACard({
+  turn,
+  index,
+  rewrite,
+}: {
+  turn: InterviewSession['turns'][number]
+  index: number
+  rewrite?: NonNullable<NonNullable<InterviewSession['report_data']>['answer_rewrites']>[number]
+}) {
   const [open, setOpen] = useState(true)
-  const evaluation = getTurnEvaluation(turn)
-  const summary = evaluation?.summary || ''
-  const strengths: string[] = Array.isArray(evaluation?.evidence) ? (evaluation.evidence as string[]) : []
-  const gaps: string[] = Array.isArray(evaluation?.gaps) ? (evaluation.gaps as string[]) : []
+  const evaluation = turn.evaluation
+  const evalSummary = evaluation?.summary || ''
+  const evalAdvice = evaluation?.advice || ''
+  const expectedPoints: string[] = turn.expected_points || []
+  const hasEvaluation = Boolean(evalSummary)
+  const hasRefThinking = Boolean(evalAdvice) || expectedPoints.length > 0
+  const hasRefAnswer = Boolean(rewrite?.recommended_answer)
 
   return (
-    <div style={{
-      background: RD.surface,
-      border: `1px solid ${RD.border}`,
-      borderRadius: 12,
-      overflow: 'hidden',
-    }}>
+    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 12, overflow: 'hidden' }}>
+      {/* 题目标题行（可折叠） */}
       <div
         role="button"
         tabIndex={0}
@@ -970,70 +970,93 @@ function RdQACard({ turn, index }: { turn: InterviewSession['turns'][number]; in
         onClick={() => setOpen(v => !v)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(v => !v) }}
       >
-        <span style={{
-          fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
-          fontSize: 11,
-          color: RD.textFaint,
-          paddingTop: 2,
-          flexShrink: 0,
-          minWidth: 20,
-        }}>
+        <span style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, paddingTop: 2, flexShrink: 0, minWidth: 20 }}>
           {String(index + 1).padStart(2, '0')}
         </span>
         <p style={{ flex: 1, fontSize: 14, fontWeight: 500, lineHeight: 1.5, margin: 0, color: RD.text }}>
           {turn.question}
         </p>
-        <span style={{
-          fontSize: 16,
-          color: RD.textFaint,
-          flexShrink: 0,
-          transition: 'transform 0.2s',
-          transform: open ? 'rotate(180deg)' : 'none',
-          display: 'inline-block',
-        }}>▾</span>
+        <span style={{ fontSize: 16, color: RD.textFaint, flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none', display: 'inline-block' }}>▾</span>
       </div>
+
       {open && (
-        <div style={{ borderTop: `1px solid ${RD.border}`, padding: '18px 20px' }}>
-          <div style={{
-            fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
-            fontSize: 10,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase' as const,
-            color: RD.textFaint,
-            marginBottom: 8,
-          }}>
-            你的回答
+        <div style={{ borderTop: `1px solid ${RD.border}` }}>
+          {/* 你的回答 */}
+          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
+            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: RD.textFaint, marginBottom: 8 }}>
+              你的回答
+            </div>
+            <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7, paddingLeft: 12, borderLeft: `2px solid ${RD.border}` }}>
+              {turn.answer || '（候选人跳过此问题）'}
+            </div>
           </div>
-          <div style={{
-            fontSize: 13,
-            color: RD.textMuted,
-            lineHeight: 1.7,
-            paddingLeft: 12,
-            borderLeft: `2px solid ${RD.border}`,
-            marginBottom: 16,
-          }}>
-            {turn.answer || '（候选人跳过此问题）'}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-            {strengths.map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.greenLight, color: RD.green }}>✓</span>
-                <span style={{ color: RD.textMuted }}>{s}</span>
+
+          {/* 面试官点评 */}
+          {hasEvaluation && (
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <line x1="9" y1="12" x2="15" y2="12"/>
+                  <line x1="9" y1="16" x2="13" y2="16"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: RD.amber }}>面试官点评</span>
               </div>
-            ))}
-            {gaps.map((g, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.amberLight, color: RD.amber }}>!</span>
-                <span style={{ color: RD.textMuted }}>{g}</span>
+              <div style={{ background: RD.amberLight, border: `1px solid #e8c97a`, borderLeft: `3px solid ${RD.amber}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#5c3d0f', lineHeight: 1.7 }}>
+                {evalSummary}
               </div>
-            ))}
-            {summary && !strengths.length && !gaps.length && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.blueLight, color: RD.blue }}>↗</span>
-                <span style={{ color: RD.textMuted }}>{summary}</span>
+            </div>
+          )}
+
+          {/* 参考思路 */}
+          {hasRefThinking && (
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.blue} strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <circle cx="12" cy="16" r="0.5" fill={RD.blue}/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: RD.blue }}>参考思路</span>
               </div>
-            )}
-          </div>
+              <div style={{ background: RD.blueLight, border: `1px solid #c5d6f9`, borderRadius: 8, padding: '12px 14px' }}>
+                {evalAdvice && (
+                  <div style={{ fontSize: 13, color: '#1a2a6e', lineHeight: 1.7, marginBottom: expectedPoints.length > 0 ? 10 : 0 }}>
+                    <span style={{ fontWeight: 600 }}>解题思路：</span>{evalAdvice}
+                  </div>
+                )}
+                {expectedPoints.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1a2a6e', marginBottom: 6 }}>关键要点：</div>
+                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
+                      {expectedPoints.map((pt, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 7, fontSize: 13, color: '#1a2a6e', lineHeight: 1.55 }}>
+                          <span style={{ color: RD.blue, flexShrink: 0 }}>•</span>
+                          <span>{pt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 参考回答 */}
+          {hasRefAnswer && (
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: RD.green }}>参考回答</span>
+              </div>
+              <div style={{ background: RD.greenLight, border: `1px solid #a8d8bc`, borderLeft: `3px solid ${RD.green}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#0d4a2c', lineHeight: 1.75 }}>
+                {rewrite!.recommended_answer}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1069,6 +1092,135 @@ function RdSideCard({ title, icon, children }: { title: string; icon: ReactNode;
     </div>
   )
 }
+
+// 优先级标签颜色映射。
+const PRIORITY_STYLE: Record<string, { bg: string; color: string; border: string }> = {
+  高: { bg: '#FFF0F0', color: '#C0392B', border: '#f5b8b8' },
+  中: { bg: '#FFFBF0', color: '#B85C00', border: '#F0D9A0' },
+  低: { bg: RD.surface2, color: RD.textMuted, border: RD.border },
+}
+
+// 路线图阶段图标（SVG path）。
+const PHASE_ICONS: Record<string, ReactNode> = {
+  立即行动: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2.5">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="9 12 11 14 15 10"/>
+    </svg>
+  ),
+  短期目标: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  中期规划: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.blue} strokeWidth="2">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
+}
+
+const PHASE_COLORS: Record<string, string> = {
+  立即行动: RD.green,
+  短期目标: RD.amber,
+  中期规划: RD.blue,
+}
+
+// 用于渲染学习规划与建议板块。
+function RdLearningPlan({ plan }: {
+  plan: NonNullable<NonNullable<InterviewSession['report_data']>['learning_plan']>
+}) {
+  const priorities = plan.learning_priorities || []
+  const roadmap = plan.improvement_roadmap || []
+  if (priorities.length === 0 && roadmap.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.text} strokeWidth="2">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+        <span style={{ fontSize: 18, fontWeight: 600, color: RD.text }}>学习规划与建议</span>
+      </div>
+
+      {/* 学习重点推荐 */}
+      {priorities.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: RD.textMuted, marginBottom: 10 }}>学习重点推荐</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 8 }}>
+            {priorities.map((p, i) => {
+              const style = PRIORITY_STYLE[p.level] || PRIORITY_STYLE['低']
+              return (
+                <span key={i} style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  padding: '5px 14px',
+                  borderRadius: 99,
+                  background: style.bg,
+                  color: style.color,
+                  border: `1px solid ${style.border}`,
+                }}>
+                  {p.topic}（{p.level}）
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 提升路线图 */}
+      {roadmap.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: RD.textMuted, marginBottom: 14 }}>提升路线图</div>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 0 }}>
+            {roadmap.map((phase, phaseIdx) => {
+              const phaseColor = PHASE_COLORS[phase.phase] || RD.amber
+              const phaseIcon = PHASE_ICONS[phase.phase] || PHASE_ICONS['短期目标']
+              const isLast = phaseIdx === roadmap.length - 1
+              return (
+                <div key={phaseIdx} style={{ display: 'flex', gap: 16, position: 'relative' as const }}>
+                  {/* 时间线轴 */}
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: RD.surface, border: `2px solid ${phaseColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+                      {phaseIcon}
+                    </div>
+                    {!isLast && (
+                      <div style={{ width: 2, flex: 1, background: RD.border, minHeight: 16, marginTop: 2, marginBottom: 2 }} />
+                    )}
+                  </div>
+
+                  {/* 内容 */}
+                  <div style={{ flex: 1, paddingBottom: isLast ? 0 : 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10, marginTop: 7 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: phaseColor }}>{phase.phase}</span>
+                      {phase.timeframe && (
+                        <span style={{ fontSize: 12, color: RD.textFaint }}>（{phase.timeframe}）</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                      {phase.items.map((item, itemIdx) => (
+                        <div key={itemIdx} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted, lineHeight: 1.6 }}>
+                          <span style={{ color: phaseColor, flexShrink: 0, marginTop: 1 }}>•</span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 // 用于渲染面试官综合评价板块。
 function RdInterviewerEvaluation({ evaluation }: {
@@ -1176,6 +1328,13 @@ function ReportPreview({
   const targetTitle = match?.target_title || session?.target_title || '综合面试'
   const targetCompany = match?.target_company || session?.target_company || ''
 
+  // 按 turn_index 建立 answer_rewrites 索引，用于 Q&A 卡片。
+  const rewriteByIndex = Object.fromEntries(
+    (data.answer_rewrites || [])
+      .filter(r => typeof r.turn_index === 'number')
+      .map(r => [r.turn_index!, r])
+  )
+
   const startedAt = session?.started_at
   const endedAt = session?.ended_at
   let duration = ''
@@ -1262,7 +1421,14 @@ function ReportPreview({
               <div style={{ marginBottom: 28 }}>
                 <RdSectionLabel label="题目详情" />
                 <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
-                  {turns.map((turn, i) => <RdQACard key={turn.id} turn={turn} index={i} />)}
+                  {turns.map((turn, i) => (
+                    <RdQACard
+                      key={turn.id}
+                      turn={turn}
+                      index={i}
+                      rewrite={rewriteByIndex[turn.turn_index]}
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -1274,6 +1440,14 @@ function ReportPreview({
               (data.interviewer_evaluation.core_recommendations || []).length > 0
             ) && (
               <RdInterviewerEvaluation evaluation={data.interviewer_evaluation} />
+            )}
+
+            {/* Learning Plan */}
+            {data.learning_plan && (
+              (data.learning_plan.learning_priorities || []).length > 0 ||
+              (data.learning_plan.improvement_roadmap || []).length > 0
+            ) && (
+              <RdLearningPlan plan={data.learning_plan} />
             )}
           </div>
 

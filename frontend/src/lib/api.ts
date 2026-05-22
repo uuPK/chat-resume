@@ -75,9 +75,25 @@ interface InterviewTurn {
   intent?: string
   expected_points?: string[]
   answer?: string
-  evaluation?: string | InterviewTurnEvaluation
+  evaluation?: InterviewTurnEvaluation | null
   follow_up_count: number
   status: string
+}
+
+interface LearningPriority {
+  topic: string
+  level: string
+}
+
+interface RoadmapPhase {
+  phase: string
+  timeframe: string
+  items: string[]
+}
+
+interface LearningPlan {
+  learning_priorities?: LearningPriority[]
+  improvement_roadmap?: RoadmapPhase[]
 }
 
 interface InterviewReportDimension {
@@ -146,6 +162,7 @@ interface InterviewSession {
       key_observations?: string[]
       core_recommendations?: string[]
     }
+    learning_plan?: LearningPlan
   }
   turns: InterviewTurn[]
   current_turn?: InterviewTurn | null
