@@ -6,7 +6,6 @@ import asyncio
 import contextlib
 import inspect
 import logging
-from itertools import count
 from time import perf_counter
 from typing import Any, AsyncGenerator
 from uuid import uuid4
@@ -18,21 +17,18 @@ from pi_agent_core import (
     AgentToolResult,
     AgentToolSchema,
     AssistantMessage,
-    SimpleStreamOptions,
     TextContent,
     ToolCall,
     ToolExecutionStartEvent,
-    ToolResultMessage,
     UserMessage,
 )
 from pi_agent_core.types import Message, StreamFn
 
 from app.agents.resume.stream_events import (
-    llm_request_event,
     llm_response_event,
     prompt_rendered_event,
-    text_delta_event,
 )
+from app.agents.resume.agent_loop import ResumeAgentLoop
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
@@ -54,53 +50,6 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
-_UNEXECUTED_MUTATION_RETRY_PROMPT = (
-    "上一轮回复声称已经修改简历，但没有发出结构化工具调用。"
-    "如果要新增、修改、删除、拆分、精简或优化简历内容，"
-    "必须立即调用一个可用的简历工具；不能只用自然语言声称完成。"
-)
-_UNEXECUTED_MUTATION_FALLBACK = (
-    "我还没有通过简历工具完成修改，因此不能声称已完成改动。请明确要修改的具体条目。"
-)
-_MUTATION_CLAIM_MARKERS = (
-    "已新增",
-    "已更新",
-    "已修改",
-    "已删除",
-    "已拆分",
-    "已精简",
-    "已优化",
-    "已经新增",
-    "已经更新",
-    "已经修改",
-    "已经删除",
-    "已经拆分",
-    "已经精简",
-    "已经优化",
-)
-_MUTATION_COMPLETION_WORDS = (
-    "已完成",
-    "已经完成",
-    "完成。",
-    "完成，",
-    "完成：",
-    "优化总结",
-    "修改总结",
-    "改动总结",
-)
-_MUTATION_ACTION_WORDS = (
-    "新增",
-    "更新",
-    "修改",
-    "删除",
-    "拆分",
-    "精简",
-    "优化",
-    "改写",
-    "重写",
-    "bullet",
-    "要点",
-)
 
 
 class _ReActStreamFn:
@@ -216,6 +165,10 @@ class PiAgentRuntime:
         self.tool_stage = ResumeToolExecutionStage(
             confirmation_policy=confirmation_policy or ToolConfirmationPolicy()
         )
+        self.agent_loop = ResumeAgentLoop(
+            stream_fn=self.stream_fn,
+            tool_stage=self.tool_stage,
+        )
 
     async def run(
         self,
@@ -249,7 +202,7 @@ class PiAgentRuntime:
             self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
         )
         try:
-            await self._run_react_loop(
+            await self.agent_loop.run(
                 agent=agent,
                 run_id=run_id,
                 pi_context=pi_context,
@@ -261,6 +214,7 @@ class PiAgentRuntime:
                 event_callback=event_callback,
                 state=state,
                 executed_tools=executed_tools,
+                model_name=self._chat_model_name(),
             )
             response_event = self._llm_response_event(agent, state)
             self._trace_llm_response(agent, run_id, response_event)
@@ -362,7 +316,7 @@ class PiAgentRuntime:
     ) -> None:
         """用于处理produce流式events。"""
         try:
-            await self._run_react_loop(
+            await self.agent_loop.run(
                 agent=agent,
                 run_id=run_id,
                 pi_context=pi_context,
@@ -374,6 +328,7 @@ class PiAgentRuntime:
                 event_callback=event_callback,
                 state=state,
                 executed_tools=executed_tools,
+                model_name=self._chat_model_name(),
             )
         except Exception as exc:
             state["error_type"] = type(exc).__name__
@@ -396,355 +351,6 @@ class PiAgentRuntime:
                 error_type=error_type if isinstance(error_type, str) else None,
             )
             await event_queue.put(_SENTINEL)
-
-    async def _run_react_loop(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        pi_context: AgentContext,
-        prompts: list[Message],
-        config: AgentLoopConfig,
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        executed_tools: list[dict[str, Any]],
-    ) -> None:
-        """显式执行 Claude Code 风格的 ReAct 循环。"""
-        messages = [*pi_context.messages, *prompts]
-        iteration_limit = (
-            max(1, agent.max_iterations)
-            if agent.max_iterations is not None
-            else None
-        )
-        for turn_index in count():
-            if iteration_limit is not None and turn_index >= iteration_limit:
-                self._trace(
-                    "agent.trace.run.max_iterations_reached",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_call_count=state.get("tool_call_count"),
-                    reason="react_loop_limit",
-                )
-                return
-            llm_context = await self._llm_context_for_turn(
-                pi_context=pi_context,
-                messages=messages,
-                config=config,
-            )
-            request_event = self._llm_request_event(agent, llm_context, [], state)
-            self._trace_llm_request(agent, run_id, request_event)
-            await self._publish_event(
-                event_queue=event_queue,
-                event_callback=event_callback,
-                event=request_event,
-            )
-            assistant_message, text_deltas = await self._stream_assistant_turn(
-                agent=agent,
-                run_id=run_id,
-                llm_context=llm_context,
-                config=config,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-            )
-            messages.append(assistant_message)
-            if assistant_message.stop_reason in ("error", "aborted"):
-                return
-
-            tool_calls = self._assistant_tool_calls(assistant_message)
-            if not tool_calls:
-                if await self._retry_or_publish_unexecuted_mutation_claim(
-                    agent=agent,
-                    run_id=run_id,
-                    messages=messages,
-                    event_queue=event_queue,
-                    event_callback=event_callback,
-                    state=state,
-                    text_deltas=text_deltas,
-                    executed_tools=executed_tools,
-                ):
-                    continue
-                return
-            tool_call = tool_calls[0]
-            if len(tool_calls) > 1:
-                self._trace(
-                    "agent.trace.reasoning.extra_tool_calls_ignored",
-                    run_id=run_id,
-                    agent_name=agent.prompt_spec.name,
-                    tool_name=tool_call.name,
-                    tool_call_count=len(tool_calls),
-                    reason="one_tool_per_react_turn",
-                )
-            tool_result = await self._execute_react_tool(
-                agent=agent,
-                run_id=run_id,
-                tool_call=tool_call,
-                context=context,
-                confirmation_queue=confirmation_queue,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                executed_tools=executed_tools,
-            )
-            messages.append(tool_result)
-
-    async def _llm_context_for_turn(
-        self,
-        *,
-        pi_context: AgentContext,
-        messages: list[Message],
-        config: AgentLoopConfig,
-    ) -> AgentContext:
-        """把当前 ReAct 消息链转换成供应商请求上下文。"""
-        convert_result = config.convert_to_llm(messages)
-        if inspect.isawaitable(convert_result):
-            llm_messages = await convert_result
-        else:
-            llm_messages = convert_result
-        return AgentContext(
-            system_prompt=pi_context.system_prompt,
-            messages=list(llm_messages),
-            tools=pi_context.tools,
-        )
-
-    async def _stream_assistant_turn(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        llm_context: AgentContext,
-        config: AgentLoopConfig,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-    ) -> tuple[AssistantMessage, list[str]]:
-        """流式拉取单轮 assistant 响应，确认无工具调用后再发布文本。"""
-        cancel_event = asyncio.Event()
-        response = self.stream_fn(
-            config.model,
-            llm_context,
-            SimpleStreamOptions(
-                api_key=config.api_key,
-                temperature=config.temperature,
-                max_tokens=config.max_tokens,
-                reasoning=config.reasoning,
-                session_id=config.session_id,
-                transport=config.transport,
-                thinking_budgets=config.thinking_budgets,
-                max_retry_delay_ms=config.max_retry_delay_ms,
-                cancel_event=cancel_event,
-            ),
-        )
-        text_deltas: list[str] = []
-        try:
-            if inspect.isawaitable(response):
-                response = await response
-            if not isinstance(response, dict) or "events" not in response or "result" not in response:
-                raise TypeError("StreamFn must return {'events': AsyncIterator, 'result': async callable}")
-
-            async for raw_event in response["events"]:
-                early_tool_call = self._early_tool_call_from_event(raw_event)
-                if early_tool_call is not None and self.tool_stage.remember_visible_tool_call(
-                    state,
-                    early_tool_call.id,
-                ):
-                    await self.tool_stage.publish_visible_tool_call(
-                        call_id=early_tool_call.id,
-                        tool_name=early_tool_call.name,
-                        tool_input={},
-                        event_queue=event_queue,
-                        event_callback=event_callback,
-                    )
-                delta = self._text_delta_from_event(raw_event)
-                if delta:
-                    if state["first_token_latency_ms"] is None:
-                        state["first_token_latency_ms"] = round(
-                            (perf_counter() - state["started_at"]) * 1000,
-                            2,
-                        )
-                    text_deltas.append(delta)
-
-            result = response["result"]()
-            if inspect.isawaitable(result):
-                result = await result
-            if not isinstance(result, AssistantMessage):
-                raise TypeError("StreamFn result must be an AssistantMessage")
-            assistant_message = _ReActStreamFn._single_tool_message(result)
-            state["last_assistant_text"] = self._assistant_text(assistant_message)
-            state["usage"] = self._usage_to_dict(getattr(assistant_message, "usage", None))
-            return assistant_message, text_deltas
-        finally:
-            cancel_event.set()
-
-    def _assistant_tool_calls(self, message: AssistantMessage) -> list[ToolCall]:
-        """从 assistant 消息中提取本轮工具调用。"""
-        return [block for block in message.content if isinstance(block, ToolCall)]
-
-    async def _retry_or_publish_unexecuted_mutation_claim(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        messages: list[Message],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        text_deltas: list[str],
-        executed_tools: list[dict[str, Any]],
-    ) -> bool:
-        """拦截没有真实工具调用的简历修改完成声明，必要时重试一轮。"""
-        assistant_text = "".join(text_deltas) or str(state.get("last_assistant_text") or "")
-        if not self._is_unexecuted_mutation_claim(assistant_text, executed_tools):
-            await self._publish_text_deltas(
-                agent=agent,
-                run_id=run_id,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                text_deltas=text_deltas,
-            )
-            return False
-
-        retry_count = int(state.get("mutation_claim_retry_count") or 0)
-        if retry_count >= 1:
-            await self._publish_text_deltas(
-                agent=agent,
-                run_id=run_id,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                text_deltas=[_UNEXECUTED_MUTATION_FALLBACK],
-            )
-            return False
-
-        state["mutation_claim_retry_count"] = retry_count + 1
-        self._trace(
-            "agent.trace.reasoning.unexecuted_mutation_claim_retry",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            reason="no_tool_call_before_mutation_claim",
-        )
-        messages.append(UserMessage(content=[TextContent(text=_UNEXECUTED_MUTATION_RETRY_PROMPT)]))
-        return True
-
-    @staticmethod
-    def _is_unexecuted_mutation_claim(
-        assistant_text: str,
-        executed_tools: list[dict[str, Any]],
-    ) -> bool:
-        """判断回复是否在没有工具结果时声称已修改简历。"""
-        if executed_tools:
-            return False
-        text = assistant_text.strip()
-        if not text:
-            return False
-        if any(marker in text for marker in _MUTATION_CLAIM_MARKERS):
-            return True
-        has_completion = any(word in text for word in _MUTATION_COMPLETION_WORDS)
-        return has_completion and any(word in text for word in _MUTATION_ACTION_WORDS)
-
-    @staticmethod
-    def _early_tool_call_from_event(raw_event: Any) -> ToolCall | None:
-        """从底层 toolcall_start 事件中读取可提前展示的工具名。"""
-        if str(getattr(raw_event, "type", "") or "") != "toolcall_start":
-            return None
-        content_index = getattr(raw_event, "content_index", None)
-        if not isinstance(content_index, int):
-            return None
-        partial = getattr(raw_event, "partial", None)
-        content = getattr(partial, "content", None)
-        if not isinstance(content, list) or content_index < 0 or content_index >= len(content):
-            return None
-        block = content[content_index]
-        if not isinstance(block, ToolCall) or not block.id or not block.name:
-            return None
-        return block
-
-    @staticmethod
-    def _text_delta_from_event(raw_event: Any) -> str:
-        """从底层流式事件中提取纯文本增量。"""
-        if str(getattr(raw_event, "type", "") or "") != "text_delta":
-            return ""
-        return str(getattr(raw_event, "delta", "") or "")
-
-    async def _publish_text_deltas(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        text_deltas: list[str],
-    ) -> None:
-        """把已确认可见的 assistant 文本增量发布给前端。"""
-        for content in text_deltas:
-            if not content:
-                continue
-            state["chunk_index"] += 1
-            state["response_parts"].append(content)
-            self._trace_chunk(
-                "agent.trace.intermediate.chunk",
-                run_id=run_id,
-                agent_name=agent.prompt_spec.name,
-                chunk_index=state["chunk_index"],
-                content_preview=self._preview_text(content),
-                content_chars=len(content),
-            )
-            await self._publish_event(
-                event_queue=event_queue,
-                event_callback=event_callback,
-                event=text_delta_event(content=content),
-            )
-
-    async def _execute_react_tool(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        tool_call: ToolCall,
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        executed_tools: list[dict[str, Any]],
-    ) -> ToolResultMessage:
-        """执行一个 ReAct 工具调用并返回可追加到消息链的 tool result。"""
-        state["tool_call_count"] += 1
-        self._trace_tool_call_detected(
-            agent,
-            run_id,
-            ToolExecutionStartEvent(
-                tool_call_id=tool_call.id,
-                tool_name=tool_call.name,
-                args=tool_call.arguments,
-            ),
-            state,
-        )
-        result = await self.tool_stage.execute_tool_result(
-            agent=agent,
-            run_id=run_id,
-            call_id=tool_call.id,
-            tool_name=tool_call.name,
-            tool_input=tool_call.arguments,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=state,
-        )
-        return ToolResultMessage(
-            tool_call_id=tool_call.id,
-            tool_name=tool_call.name,
-            content=result.content,
-            details=result.details,
-            is_error=False,
-        )
 
     def _build_loop_inputs(
         self,
@@ -952,20 +558,13 @@ class PiAgentRuntime:
         prompts: list[Message],
         state: dict[str, Any],
     ) -> ResumeStreamEvent:
-        """用于处理模型请求事件。"""
-        messages = [self._message_to_dict(message) for message in context.messages + prompts]
-        tool_names: list[str | None] = [tool.name for tool in context.tools]
-        return llm_request_event(
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            messages=[{"role": "system", "content": context.system_prompt}, *messages],
-            params={
-                "temperature": agent.prompt_spec.model_defaults.get("temperature", 0.3),
-                "max_tokens": agent.prompt_spec.model_defaults.get("max_tokens", 1500),
-            },
-            tool_names=tool_names,
-            tool_profile=str(state.get("tool_profile") or ""),
-            prompt_chars=int(state.get("prompt_chars") or len(context.system_prompt)),
+        """用于兼容旧测试入口，并委托 agent loop 生成请求事件。"""
+        return self.agent_loop.llm_request_event(
+            agent,
+            context,
+            prompts,
+            state,
+            self._chat_model_name(),
         )
 
     def _llm_response_event(
@@ -1000,19 +599,13 @@ class PiAgentRuntime:
 
     @staticmethod
     def _message_to_dict(message: Message) -> dict[str, Any]:
-        """用于处理消息to字典。"""
-        role = getattr(message, "role", "unknown")
-        content = PiAgentRuntime._assistant_text(message)
-        return {"role": role, "content": content}
+        """用于兼容旧测试入口，并委托 agent loop 转换消息。"""
+        return ResumeAgentLoop.message_to_dict(message)
 
     @staticmethod
     def _assistant_text(message: Any) -> str:
-        """用于处理助手文本。"""
-        parts = []
-        for block in getattr(message, "content", []):
-            if isinstance(block, TextContent):
-                parts.append(block.text)
-        return "".join(parts)
+        """用于兼容旧测试入口，并委托 agent loop 提取文本。"""
+        return ResumeAgentLoop.assistant_text(message)
 
     def _trace_run_start(
         self,
@@ -1053,18 +646,12 @@ class PiAgentRuntime:
         run_id: str,
         event: ResumeStreamEvent,
     ) -> None:
-        """用于处理追踪模型请求。"""
-        self._trace(
-            "agent.trace.llm.request",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            message_count=len(event.get("messages", [])),
-            tool_profile=event.get("tool_profile"),
-            tool_count=event.get("tool_count"),
-            prompt_chars=event.get("prompt_chars"),
-            tool_names=event.get("tool_names", []),
-            params=event.get("params", {}),
+        """用于兼容旧测试入口，并委托 agent loop 记录请求 trace。"""
+        self.agent_loop.trace_llm_request(
+            agent,
+            run_id,
+            event,
+            self._chat_model_name(),
         )
 
     def _trace_llm_response(
@@ -1218,22 +805,12 @@ class PiAgentRuntime:
         event: ToolExecutionStartEvent,
         state: dict[str, Any],
     ) -> None:
-        """用于处理追踪工具调用detected。"""
-        allowed_tool_names = {
-            str(tool_name)
-            for tool_name in state.get("tool_names", [])
-            if isinstance(tool_name, str)
-        }
-        if event.tool_name not in allowed_tool_names:
-            self._trace_unexpected_tool_call(agent, run_id, event, state)
-            return
-        self._trace(
-            "agent.trace.reasoning.tool_call_detected",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            tool_call_count=1,
-            tool_call_chunk_count=1,
-            tool_names=[event.tool_name],
+        """用于兼容旧测试入口，并委托 agent loop 记录工具调用。"""
+        self.agent_loop.trace_tool_call_detected(
+            agent,
+            run_id,
+            event,
+            state,
         )
 
     def _trace_unexpected_tool_call(
@@ -1243,22 +820,12 @@ class PiAgentRuntime:
         event: ToolExecutionStartEvent,
         state: dict[str, Any],
     ) -> None:
-        """用于记录模型请求未暴露工具时出现的异常工具调用。"""
-        logged = state.get("unexpected_tool_call_names")
-        if not isinstance(logged, set):
-            logged = set()
-            state["unexpected_tool_call_names"] = logged
-        if event.tool_name in logged:
-            return
-        logged.add(event.tool_name)
-        self._trace(
-            "agent.trace.reasoning.unexpected_tool_call",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            tool_name=event.tool_name,
-            tool_profile=str(state.get("tool_profile") or ""),
-            allowed_tool_names=list(state.get("tool_names", [])),
-            reason="tool_not_exposed",
+        """用于兼容旧测试入口，并委托 agent loop 记录异常工具调用。"""
+        self.agent_loop.trace_unexpected_tool_call(
+            agent,
+            run_id,
+            event,
+            state,
         )
 
     @staticmethod
@@ -1360,16 +927,8 @@ class PiAgentRuntime:
 
     @staticmethod
     def _usage_to_dict(usage: Any) -> dict[str, Any]:
-        """用于把 pi-agent-core usage 转换成日志友好的字典。"""
-        if usage is None:
-            return {}
-        return {
-            "input": int(getattr(usage, "input", 0) or 0),
-            "output": int(getattr(usage, "output", 0) or 0),
-            "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
-            "cache_read": int(getattr(usage, "cache_read", 0) or 0),
-            "cache_write": int(getattr(usage, "cache_write", 0) or 0),
-        }
+        """用于兼容旧测试入口，并委托 agent loop 转换 usage。"""
+        return ResumeAgentLoop.usage_to_dict(usage)
 
 
 __all__ = ["PiAgentRuntime"]

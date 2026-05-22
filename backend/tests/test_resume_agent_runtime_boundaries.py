@@ -11,18 +11,30 @@ from typing import Any
 
 import pytest
 from pi_agent_core import (
+    AgentContext,
     AssistantMessage,
+    SimpleStreamOptions,
+    StreamDoneEvent,
+    StreamStartEvent,
+    StreamTextDeltaEvent,
+    StreamTextEndEvent,
+    StreamTextStartEvent,
+    StreamToolCallEndEvent,
+    StreamToolCallStartEvent,
     TextContent,
+    ToolCall,
     ToolExecutionStartEvent,
     ToolResultMessage,
     UserMessage,
 )
+from pi_agent_core.types import Model, StreamResult
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.agents.resume.agent_loop import ResumeAgentLoop  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
@@ -49,6 +61,98 @@ RESUME_EDIT_TOOL_NAMES = {
     "read_memory",
     "update_memory",
 }
+
+
+class FakeLoopStream:
+    """用于给独立 ResumeAgentLoop 提供确定性模型事件。"""
+
+    def __init__(self, messages: list[AssistantMessage]):
+        """用于保存模型消息序列。"""
+        self.messages = list(messages)
+        self.contexts: list[AgentContext] = []
+        self.options: list[SimpleStreamOptions] = []
+        self.calls = 0
+
+    async def __call__(
+        self,
+        model: Model,
+        context: AgentContext,
+        options: SimpleStreamOptions,
+    ) -> StreamResult:
+        """用于返回 pi-agent-core stream result。"""
+        del model
+        self.contexts.append(context)
+        self.options.append(options)
+        message = self.messages[self.calls]
+        self.calls += 1
+        events = self._events_for(message)
+
+        async def events_iter():
+            """用于按顺序返回预设流事件。"""
+            for event in events:
+                yield event
+
+        async def result():
+            """用于返回当前完整 assistant message。"""
+            return message
+
+        return {"events": events_iter(), "result": result}
+
+    @staticmethod
+    def _events_for(message: AssistantMessage) -> list[Any]:
+        """用于把完整 assistant message 转换成测试流事件。"""
+        events: list[Any] = [StreamStartEvent(partial=message)]
+        for index, block in enumerate(message.content):
+            if isinstance(block, TextContent):
+                events.extend(
+                    [
+                        StreamTextStartEvent(content_index=index, partial=message),
+                        StreamTextDeltaEvent(
+                            content_index=index,
+                            delta=block.text,
+                            partial=message,
+                        ),
+                        StreamTextEndEvent(
+                            content_index=index,
+                            content=block.text,
+                            partial=message,
+                        ),
+                    ]
+                )
+            if isinstance(block, ToolCall):
+                events.extend(
+                    [
+                        StreamToolCallStartEvent(
+                            content_index=index,
+                            partial=message,
+                        ),
+                        StreamToolCallEndEvent(
+                            content_index=index,
+                            tool_call=block,
+                            partial=message,
+                        ),
+                    ]
+                )
+        events.append(StreamDoneEvent(reason=message.stop_reason, message=message))
+        return events
+
+
+def fake_loop_text(text: str) -> AssistantMessage:
+    """用于构造测试文本 assistant message。"""
+    return AssistantMessage(content=[TextContent(text=text)], stop_reason="stop")
+
+
+def fake_loop_tool_call(
+    *,
+    name: str,
+    args: dict[str, Any],
+    call_id: str,
+) -> AssistantMessage:
+    """用于构造测试工具调用 assistant message。"""
+    return AssistantMessage(
+        content=[ToolCall(id=call_id, name=name, arguments=args)],
+        stop_reason="toolUse",
+    )
 
 
 def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, dict[str, Any]]:
@@ -405,6 +509,86 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
     assert any(event.get("tool_confirmed") for event in events)
     assert executed_tools[0]["success"] is True
     assert stream_state["confirmed_diff_items"]
+
+
+@pytest.mark.asyncio
+async def test_resume_agent_loop_runs_react_turns_independently():
+    """用于验证 ReAct loop 可以脱离 PiAgentRuntime 单独测试。"""
+    agent = ResumeAgent()
+    stream = FakeLoopStream(
+        [
+            fake_loop_tool_call(
+                name="update_bullet",
+                args={
+                    "section": "work_experience",
+                    "item_id": "work_1",
+                    "bullet_id": "hl_1",
+                    "text": "维护多个后台服务，支撑日活 10 万用户",
+                    "reason": "补充业务规模",
+                },
+                call_id="call_loop_1",
+            ),
+            fake_loop_text("已完成优化。"),
+        ]
+    )
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(stream_fn=stream, tool_stage=stage)
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+            }
+        ]
+    }
+    state = agent.runtime._new_stream_state()
+    context = {"resume_content": resume, "allowed_sections": {"work_experience"}}
+    pi_context, prompts, config = agent.runtime._build_loop_inputs(
+        agent=agent.definition,
+        user_message="优化这段工作经历",
+        context=context,
+        conversation_history=[],
+        run_id="run_loop_test",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    executed_tools: list[dict[str, Any]] = []
+
+    await loop.run(
+        agent=agent.definition,
+        run_id="run_loop_test",
+        pi_context=pi_context,
+        prompts=prompts,
+        config=config,
+        context=context,
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        state=state,
+        executed_tools=executed_tools,
+        model_name="test-model",
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert stream.calls == 2
+    assert any(event.get("event_type") == "llm_request" for event in events)
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert any(event.get("content") == "已完成优化。" for event in events)
+    assert resume["work_experience"][0]["highlights"][0]["text"] == (
+        "维护多个后台服务，支撑日活 10 万用户"
+    )
 
 
 def test_openrouter_adapter_preserves_business_model_defaults():
