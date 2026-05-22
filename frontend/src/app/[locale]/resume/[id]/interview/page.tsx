@@ -1070,6 +1070,88 @@ function RdSideCard({ title, icon, children }: { title: string; icon: ReactNode;
   )
 }
 
+// 用于渲染面试官综合评价板块。
+function RdInterviewerEvaluation({ evaluation }: {
+  evaluation: NonNullable<ReportData['interviewer_evaluation']>
+}) {
+  const observations = evaluation.key_observations || []
+  const recommendations = evaluation.core_recommendations || []
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={RD.text} strokeWidth="2">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/>
+          <line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+        <span style={{ fontSize: 18, fontWeight: 600, color: RD.text }}>面试官评价</span>
+      </div>
+
+      {evaluation.overall && (
+        <p style={{ fontSize: 14, color: RD.textMuted, lineHeight: 1.75, marginBottom: 20 }}>
+          {evaluation.overall}
+        </p>
+      )}
+
+      {(observations.length > 0 || recommendations.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          {observations.length > 0 && (
+            <div style={{
+              background: '#FFFBF0',
+              border: '1px solid #F0D9A0',
+              borderRadius: 12,
+              padding: '18px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: RD.amber }}>关键观察</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                {observations.map((obs, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: RD.amber, flexShrink: 0, marginTop: 7 }} />
+                    <span style={{ color: RD.textMuted }}>{obs}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {recommendations.length > 0 && (
+            <div style={{
+              background: '#F0FAF4',
+              border: '1px solid #A8D8BC',
+              borderRadius: 12,
+              padding: '18px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: RD.green }}>核心建议</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                {recommendations.map((rec, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.6 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: RD.green, flexShrink: 0, marginTop: 7 }} />
+                    <span style={{ color: RD.textMuted }}>{rec}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // 用于渲染完整的面试复盘报告。
 function ReportPreview({
   report,
@@ -1183,6 +1265,15 @@ function ReportPreview({
                   {turns.map((turn, i) => <RdQACard key={turn.id} turn={turn} index={i} />)}
                 </div>
               </div>
+            )}
+
+            {/* Interviewer Evaluation */}
+            {data.interviewer_evaluation && (
+              data.interviewer_evaluation.overall ||
+              (data.interviewer_evaluation.key_observations || []).length > 0 ||
+              (data.interviewer_evaluation.core_recommendations || []).length > 0
+            ) && (
+              <RdInterviewerEvaluation evaluation={data.interviewer_evaluation} />
             )}
           </div>
 

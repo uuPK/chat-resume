@@ -141,6 +141,11 @@ interface InterviewSession {
     answer_rewrites?: InterviewAnswerRewrite[]
     next_training_plan?: string[]
     resume_feedback?: string[]
+    interviewer_evaluation?: {
+      overall?: string
+      key_observations?: string[]
+      core_recommendations?: string[]
+    }
   }
   turns: InterviewTurn[]
   current_turn?: InterviewTurn | null
@@ -160,6 +165,7 @@ interface InterviewSessionSummary {
   started_at?: string
   ended_at?: string
   answered_turn_count: number
+  has_report?: boolean
 }
 
 interface InterviewActionResponse {

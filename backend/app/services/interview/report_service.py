@@ -336,6 +336,18 @@ def _public_report(report: dict[str, Any]) -> dict[str, Any]:
         "resume_feedback": _string_list(report.get("resume_feedback")),
         "answer_rewrites": _answer_rewrites(report.get("answer_rewrites")),
         "dimensions": _dimensions(report.get("dimensions")),
+        "interviewer_evaluation": _interviewer_evaluation(report.get("interviewer_evaluation")),
+    }
+
+
+def _interviewer_evaluation(value: Any) -> dict[str, Any]:
+    """标准化面试官综合评价字段。"""
+    if not isinstance(value, dict):
+        return {"overall": "", "key_observations": [], "core_recommendations": []}
+    return {
+        "overall": _as_text(value.get("overall")),
+        "key_observations": _string_list(value.get("key_observations")),
+        "core_recommendations": _string_list(value.get("core_recommendations")),
     }
 
 
@@ -534,7 +546,7 @@ _REPORT_SYSTEM_PROMPT = """
 请从面试官视角判断候选人是否像目标岗位需要的人，并基于原始回答证据给出可执行建议。
 请只返回 JSON，不要 Markdown。
 JSON 字段必须包含：
-- summary: 一句话结论，说明当前更像“可推进 / 边缘 / 风险较高”的哪一种
+- summary: 一句话结论，说明当前更像”可推进 / 边缘 / 风险较高”的哪一种
 - candidate_verdict: 对象，包含 level/label/reason。level 可用 strong/borderline/risky
 - job_match: 对象，包含 target_title/target_company/required_capabilities/covered_capabilities/missing_capabilities/interviewer_concerns/likely_followups
 - strengths: 至少 3 条优势
@@ -545,7 +557,11 @@ JSON 字段必须包含：
 - answer_rewrites: 数组，每项包含 turn_index/original_problem/recommended_answer/why_better。至少为最弱的 1 道题生成可直接复述的推荐回答
 - dimensions: 数组，每项包含 title/score/assessment/evidence/advice。维度建议覆盖岗位相关度、技术深度、项目表达清晰度、证据/量化结果、沟通结构
 - turn_evaluations: 数组，每项包含 turn_index/summary/gaps/evidence/advice
-所有判断必须基于输入中的 JD、问题和候选人回答。没有证据就写“未证明”，不要编造不存在的事实。
+- interviewer_evaluation: 对象，包含：
+  - overall: 3~5 句话的面试官总体评价，从面试官视角客观描述候选人整体表现
+  - key_observations: 至少 4 条关键观察，描述候选人在面试中表现出的具体行为或模式（正负均可）
+  - core_recommendations: 至少 4 条核心建议，给出候选人在下次面试或日常准备中最应该做的具体行动
+所有判断必须基于输入中的 JD、问题和候选人回答。没有证据就写”未证明”，不要编造不存在的事实。
 建议要具体到下次怎么说、怎么练、简历怎么补，不要写泛泛鼓励。
 输出必须是一个紧凑 JSON 对象，不要代码块，不要解释文字，不要在字符串里使用未转义的双引号。
 """.strip()
