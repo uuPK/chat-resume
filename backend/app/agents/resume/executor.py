@@ -25,6 +25,8 @@ TOOL_REQUIRED_ARGS: dict[str, set[str]] = {
     "add_highlight": {"section", "item_id", "text"},
     "remove_highlight": {"section", "item_id", "highlight_id"},
     "generate_job_match_summary": set(),
+    "read_memory": {"scope"},
+    "update_memory": {"operation", "scope"},
 }
 
 TOOL_SECTION_ENUMS: dict[str, set[str]] = {
@@ -71,6 +73,8 @@ TOOL_DISPLAY_NAMES = {
     "remove_highlight": "删除要点",
     "generate_job_match_summary": "岗位匹配摘要",
     "read_resume": "读取简历",
+    "read_memory": "读取记忆",
+    "update_memory": "更新记忆",
 }
 _SYNC_TOOL_NAME = Literal[
     "update_summary",
@@ -88,6 +92,8 @@ _SYNC_TOOL_NAME = Literal[
     "add_highlight",
     "remove_highlight",
     "read_resume",
+    "read_memory",
+    "update_memory",
 ]
 
 
@@ -168,6 +174,13 @@ class ResumeToolExecutor(ToolExecutor):
                 tool_input = {
                     "confirmed_diff_items": context.get("confirmed_diff_items", []),
                     "semantic_analyzer": context.get("semantic_analyzer"),
+                }
+            if tool_name in {"read_memory", "update_memory"}:
+                tool_input = {
+                    **tool_input,
+                    "user_id": context.get("user_id"),
+                    "resume_id": context.get("resume_id"),
+                    "memory_dir": context.get("memory_dir"),
                 }
             result = execute_resume_tool(
                 tool_name=tool_name,

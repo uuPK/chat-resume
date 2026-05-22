@@ -37,9 +37,12 @@ _TOOL_PROFILES: dict[str, set[str]] = {
         "add_bullet",
         "remove_bullet",
         "generate_job_match_summary",
+        "read_memory",
+        "update_memory",
     },
     "read_only": {
         "generate_job_match_summary",
+        "read_memory",
     },
 }
 _LOG_VALUE_LIMIT = 64
@@ -139,6 +142,7 @@ class ResumeAgent:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         allowed_sections: Optional[set[str]] = None,
         user_id: Optional[int] = None,
+        resume_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """用于执行一次非流式简历优化请求。"""
         runtime_result = await self.runtime.run(
@@ -148,6 +152,7 @@ class ResumeAgent:
                 "resume_content": resume_content,
                 "allowed_sections": allowed_sections,
                 "user_id": user_id,
+                "resume_id": resume_id,
             },
             conversation_history=conversation_history,
         )
@@ -167,12 +172,14 @@ class ResumeAgent:
         allowed_sections: Optional[set[str]] = None,
         event_callback=None,
         user_id: Optional[int] = None,
+        resume_id: Optional[int] = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
         """用于执行一次带工具确认能力的流式简历优化请求。"""
         context: dict[str, Any] = {
             "resume_content": resume_content,
             "allowed_sections": allowed_sections,
             "user_id": user_id,
+            "resume_id": resume_id,
         }
         async for event in self.runtime.run_stream(
             agent=self.definition,

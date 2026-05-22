@@ -81,6 +81,38 @@ class CancelledResumeAgent:
         raise asyncio.CancelledError()
 
 
+class CapturingResumeAgent:
+    """用于捕获 harness 传入 ResumeAgent 的上下文字段。"""
+
+    def __init__(self):
+        """用于初始化捕获字段。"""
+        self.resume_id: int | None = None
+
+    async def optimize_stream(
+        self,
+        user_message: str,
+        resume_content: dict[str, Any],
+        conversation_history: list[dict[str, str]],
+        confirmation_queue: asyncio.Queue | None,
+        allowed_sections: set[str],
+        event_callback=None,
+        user_id: int | None = None,
+        resume_id: int | None = None,
+    ):
+        """用于捕获 resume_id 并返回一个最小流事件。"""
+        del (
+            user_message,
+            resume_content,
+            conversation_history,
+            confirmation_queue,
+            allowed_sections,
+            event_callback,
+            user_id,
+        )
+        self.resume_id = resume_id
+        yield {"content": "ok"}
+
+
 class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         """用于准备测试前置状态。"""
@@ -150,6 +182,27 @@ class AgentHarnessTests(unittest.IsolatedAsyncioTestCase):
                 "session_completed",
             ],
         )
+
+    async def test_resume_stream_passes_resume_id_to_agent(self):
+        """用于验证 harness 把 resume_id 传入真实 Agent 调用上下文。"""
+        harness = AgentHarness(self.db)
+        agent = CapturingResumeAgent()
+
+        events = []
+        async for event in harness.run_resume_stream(
+            session_id="harness_session_resume_id",
+            agent=agent,  # type: ignore[arg-type]
+            user_message="读取记忆",
+            resume_content={},
+            conversation_history=[],
+            confirmation_queue=None,
+            allowed_sections=set(),
+            resume_id=self.resume.id,
+        ):
+            events.append(event)
+
+        self.assertEqual(events, [{"content": "ok"}])
+        self.assertEqual(agent.resume_id, self.resume.id)
 
     def test_resume_session_applies_confirmed_paused_tool_call(self):
         """用于验证简历会话appliesconfirmedpausedtoolcall。"""

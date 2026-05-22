@@ -40,6 +40,7 @@ class FakeResumeAgent:
         allowed_sections: set[str],
         event_callback=None,
         user_id: int | None = None,
+        resume_id: int | None = None,
     ):
         """用于输出一条最小可持久化的流事件。"""
         del (
@@ -50,6 +51,7 @@ class FakeResumeAgent:
             allowed_sections,
             event_callback,
             user_id,
+            resume_id,
         )
         yield {"content": "已开始优化"}
 
@@ -64,6 +66,7 @@ class FakeResumeAgentWithConfirmedChange:
         allowed_sections: set[str],
         event_callback=None,
         user_id: int | None = None,
+        resume_id: int | None = None,
     ):
         """用于输出一条已确认工具改动事件。"""
         del (
@@ -73,6 +76,7 @@ class FakeResumeAgentWithConfirmedChange:
             allowed_sections,
             event_callback,
             user_id,
+            resume_id,
         )
         yield {
             "tool_confirmed": True,

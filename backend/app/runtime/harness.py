@@ -73,6 +73,7 @@ class AgentHarness:
         allowed_sections: set[str],
         event_callback=None,
         user_id: int | None = None,
+        resume_id: int | None = None,
     ) -> AsyncIterator[ResumeStreamEvent]:
         """用于驱动简历 Agent 流式运行并同步写入会话事件。"""
         final_content_parts: list[str] = []
@@ -80,6 +81,9 @@ class AgentHarness:
         logger.debug("AgentHarness run_resume_stream started")
 
         try:
+            agent_kwargs: dict[str, Any] = {"user_id": user_id}
+            if resume_id is not None:
+                agent_kwargs["resume_id"] = resume_id
             async for event in agent.optimize_stream(
                 user_message=user_message,
                 resume_content=resume_content,
@@ -87,7 +91,7 @@ class AgentHarness:
                 confirmation_queue=confirmation_queue,
                 allowed_sections=allowed_sections,
                 event_callback=event_callback,
-                user_id=user_id,
+                **agent_kwargs,
             ):
                 latest_resume_content = self._record_resume_stream_event(
                     session_id=session_id,

@@ -4,6 +4,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -189,6 +190,164 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
 
         self.assertNotIn("read_user_memory", tool_names)
         self.assertNotIn("write_user_memory", tool_names)
+
+    def test_resume_tools_schema_exposes_memory_tools(self):
+        """用于验证简历 Agent 显式暴露读写记忆工具。"""
+        tool_names = {tool["function"]["name"] for tool in RESUME_TOOLS_SCHEMA}
+        agent = ResumeAgent()
+
+        self.assertIn("read_memory", tool_names)
+        self.assertIn("update_memory", tool_names)
+        self.assertIn("read_memory", agent.definition.tool_profiles["resume_edit"])
+        self.assertIn("update_memory", agent.definition.tool_profiles["resume_edit"])
+
+    def test_memory_tools_write_and_read_markdown_store(self):
+        """用于验证记忆工具通过执行器读写固定 md 文件。"""
+        executor = ResumeToolExecutor()
+        with TemporaryDirectory() as memory_dir:
+            update_result = executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "append",
+                    "scope": "user",
+                    "kind": "preference",
+                    "content": "优化简历时不要编造数字；没有数据就强化结果表达。",
+                    "reason": "用户明确要求长期遵守",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "memory_dir": memory_dir,
+                },
+            )
+
+            self.assertTrue(update_result["result"]["success"])
+            self.assertEqual(update_result["tool_name"], "更新记忆")
+            self.assertTrue(update_result["result"]["memory_id"].startswith("mem_"))
+
+            memory_file = Path(memory_dir) / "7" / "resume_memory.md"
+            self.assertTrue(memory_file.exists())
+            self.assertIn(
+                "不要编造数字",
+                memory_file.read_text(encoding="utf-8"),
+            )
+
+            read_result = executor.execute(
+                tool_name="read_memory",
+                tool_input={"scope": "user", "query": "数字"},
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "memory_dir": memory_dir,
+                },
+            )
+
+        self.assertTrue(read_result["result"]["success"])
+        self.assertEqual(read_result["tool_name"], "读取记忆")
+        self.assertEqual(len(read_result["result"]["memories"]), 1)
+        self.assertEqual(
+            read_result["result"]["memories"][0]["content"],
+            "优化简历时不要编造数字；没有数据就强化结果表达。",
+        )
+
+    def test_memory_tools_replace_disable_and_isolate_resume_scope(self):
+        """用于验证更新记忆支持替换停用并隔离不同简历。"""
+        executor = ResumeToolExecutor()
+        with TemporaryDirectory() as memory_dir:
+            first = executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "append",
+                    "scope": "resume",
+                    "kind": "target_strategy",
+                    "content": "这份简历主要投递后端岗位。",
+                    "reason": "用户明确说明目标岗位",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 42,
+                    "memory_dir": memory_dir,
+                },
+            )
+            executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "append",
+                    "scope": "resume",
+                    "kind": "target_strategy",
+                    "content": "另一份简历投递产品岗位。",
+                    "reason": "用户明确说明目标岗位",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 43,
+                    "memory_dir": memory_dir,
+                },
+            )
+            memory_id = first["result"]["memory_id"]
+
+            replaced = executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "replace",
+                    "scope": "resume",
+                    "memory_id": memory_id,
+                    "kind": "target_strategy",
+                    "content": "这份简历主要投递 AI Agent 后端岗位。",
+                    "reason": "用户更新目标岗位",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 42,
+                    "memory_dir": memory_dir,
+                },
+            )
+            read_replaced = executor.execute(
+                tool_name="read_memory",
+                tool_input={"scope": "resume", "query": "AI Agent"},
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 42,
+                    "memory_dir": memory_dir,
+                },
+            )
+
+            disabled = executor.execute(
+                tool_name="update_memory",
+                tool_input={
+                    "operation": "disable",
+                    "scope": "resume",
+                    "memory_id": memory_id,
+                    "kind": "target_strategy",
+                    "content": "这份简历主要投递 AI Agent 后端岗位。",
+                    "reason": "用户不再需要这条记忆",
+                },
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 42,
+                    "memory_dir": memory_dir,
+                },
+            )
+            read_disabled = executor.execute(
+                tool_name="read_memory",
+                tool_input={"scope": "resume"},
+                context={
+                    "resume_content": {},
+                    "user_id": 7,
+                    "resume_id": 42,
+                    "memory_dir": memory_dir,
+                },
+            )
+
+        self.assertTrue(replaced["result"]["success"])
+        self.assertEqual(read_replaced["result"]["memories"][0]["content"], "这份简历主要投递 AI Agent 后端岗位。")
+        self.assertTrue(disabled["result"]["success"])
+        self.assertEqual(read_disabled["result"]["memories"], [])
 
     def test_update_summary_tool_updates_summary_text_with_diff(self):
         """用于验证update_summary通过执行器修改个人总结并返回diff。"""
@@ -866,7 +1025,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             resume_json="{}",
         )
 
-        self.assertIn("根据当前简历、用户目标和 API tools", rendered)
+        self.assertIn("根据当前简历、用户目标和工具", rendered)
         self.assertIn("不要编造经历、数字、奖项、年限或业务结果", rendered)
         self.assertNotIn("可用工具", rendered)
         self.assertNotIn("量化改写优先级", rendered)

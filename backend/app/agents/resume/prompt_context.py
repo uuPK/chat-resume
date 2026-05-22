@@ -13,6 +13,7 @@ from app.runtime.resume_agent_session import maybe_compact_resume_context
 def strip_redundant_fields(resume_content: dict[str, Any]) -> dict[str, Any]:
     """用于移除当前提示词阶段不需要的冗余字段。"""
     content = dump_resume_content_for_frontend(copy.deepcopy(resume_content))
+    content.pop("summary", None)
     for section in ("work_experience", "projects"):
         items = content.get(section)
         if isinstance(items, list):

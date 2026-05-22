@@ -126,6 +126,7 @@ class ResumeAgentStreamService:
                     allowed_sections=set(resume_dict.keys()),
                     event_callback=None,
                     user_id=request.user_id,
+                    resume_id=request.resume_id,
                 )
                 async for event in event_stream:
                     if event.get("internal_only"):

@@ -8,6 +8,7 @@ from typing import Any
 
 from .add_highlight_tool import add_bullet, add_highlight
 from .job_match_summary_tool import generate_job_match_summary
+from .memory_tool import read_memory, update_memory
 from .read_resume_tool import read_resume_content
 from .remove_highlight_tool import remove_bullet, remove_highlight
 from .resume_item_tool import add_resume_item, remove_resume_item
@@ -357,6 +358,78 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "read_memory",
+            "description": (
+                "读取当前用户或当前简历的长期记忆。适合在优化前了解用户长期偏好、"
+                "事实约束、目标方向或已拒绝的写法。该工具只读，不修改简历。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scope": {
+                        "type": "string",
+                        "enum": ["user", "resume"],
+                        "description": "读取用户级或当前简历级记忆",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "可选关键词，用于筛选相关记忆",
+                    },
+                },
+                "required": ["scope"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_memory",
+            "description": (
+                "更新当前用户或当前简历的长期记忆。只能记录用户明确表达的偏好、"
+                "事实约束或目标方向；不能把推断、临时上下文或编造内容写入记忆。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": ["append", "replace", "disable"],
+                        "description": "追加、替换或停用一条记忆",
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": ["user", "resume"],
+                        "description": "更新用户级或当前简历级记忆",
+                    },
+                    "memory_id": {
+                        "type": "string",
+                        "description": "replace/disable 时要操作的记忆 id",
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "preference",
+                            "fact_constraint",
+                            "target_strategy",
+                        ],
+                        "description": "记忆类型",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "要写入的记忆内容",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "为什么这条内容值得长期记住",
+                    },
+                },
+                "required": ["operation", "scope"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_bullet",
             "description": (
                 "精准更新某个条目下单条 bullet 的文本。仅当新的 bullet 文本与原 bullet "
@@ -540,6 +613,12 @@ RESUME_TOOL_CATALOG: tuple[ResumeToolDefinition, ...] = (
         "generate_job_match_summary",
         generate_job_match_summary,
         _SCHEMA_BY_NAME.get("generate_job_match_summary"),
+    ),
+    ResumeToolDefinition("read_memory", read_memory, _SCHEMA_BY_NAME.get("read_memory")),
+    ResumeToolDefinition(
+        "update_memory",
+        update_memory,
+        _SCHEMA_BY_NAME.get("update_memory"),
     ),
     ResumeToolDefinition("update_highlight", update_highlight),
     ResumeToolDefinition("add_highlight", add_highlight),

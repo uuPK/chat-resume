@@ -45,6 +45,8 @@ RESUME_EDIT_TOOL_NAMES = {
     "add_bullet",
     "remove_bullet",
     "generate_job_match_summary",
+    "read_memory",
+    "update_memory",
 }
 
 
@@ -128,7 +130,10 @@ def test_system_prompt_tool_list_matches_requested_profile():
         stream_state=state,
     )
 
-    assert [tool.name for tool in pi_context.tools] == ["generate_job_match_summary"]
+    assert [tool.name for tool in pi_context.tools] == [
+        "generate_job_match_summary",
+        "read_memory",
+    ]
     assert "generate_job_match_summary" not in pi_context.system_prompt
     assert "update_bullet" not in pi_context.system_prompt
 
