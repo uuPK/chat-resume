@@ -412,16 +412,16 @@ test('completed 面试报告展示行动报告结构', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: '面试复盘报告' })).toBeVisible()
   await expect(page.getByText('综合得分')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '面试官评价' })).toBeVisible()
+  await expect(page.getByText('最大风险')).toBeVisible()
+  await expect(page.getByText('3 步行动计划')).toBeVisible()
+  await expect(page.getByText('岗位匹配差距')).toBeVisible()
   await expect(page.getByText('项目方向相关，但负责边界和量化结果没有证明清楚。')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '综合能力分析' })).toBeVisible()
+  await expect(page.getByText('综合能力分析')).toBeVisible()
   await expect(page.getByText('岗位相关度')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '学习规划与建议' })).toBeVisible()
-  await expect(page.getByText('强化项目成果').first()).toBeVisible()
-  await expect(page.getByRole('heading', { name: '面试题目解析记录' })).toBeVisible()
+  await expect(page.getByText('面试题目解析记录')).toBeVisible()
   await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
   await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
-  await expect(page.getByText('没有说明用户规模')).toBeVisible()
+  await expect(page.getByText('为什么更好：')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {

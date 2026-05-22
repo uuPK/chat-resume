@@ -877,11 +877,48 @@ function tierColor(tier: 'good' | 'mid' | 'low'): string {
   return RD.red
 }
 
+// 用于从多个文本列表中取第一个可展示的诊断句。
+function firstReportText(...groups: Array<Array<string | undefined> | undefined>): string {
+  for (const group of groups) {
+    const found = group?.find(item => item?.trim())
+    if (found) return found
+  }
+  return ''
+}
+
+// 用于提取报告中最需要先处理的面试风险。
+function getPrimaryRisk(data: ReportData): string {
+  return firstReportText(
+    data.interviewer_risks,
+    data.job_match?.interviewer_concerns,
+    data.recurring_issues,
+    data.weaknesses,
+    [data.candidate_verdict?.reason],
+  )
+}
+
+// 用于提取报告中最适合作为下一步动作的建议。
+function getPrimaryAction(data: ReportData): string {
+  return firstReportText(
+    data.next_training_plan,
+    data.resume_feedback,
+    data.interviewer_evaluation?.core_recommendations,
+    data.answer_rewrites?.map(rewrite => rewrite.original_problem || rewrite.recommended_answer),
+  )
+}
+
+// 用于按分数和结论等级选择报告主色。
+function verdictColor(score: number, level?: string): string {
+  if (level === 'strong' || score >= 75) return RD.green
+  if (level === 'risky' || score < 55) return RD.red
+  return RD.amber
+}
+
 // 用于渲染带延伸线的区块标签。
 function RdSectionLabel({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-      <span style={{
+      <h2 style={{
         fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
         fontSize: 10,
         letterSpacing: '0.12em',
@@ -889,52 +926,59 @@ function RdSectionLabel({ label }: { label: string }) {
         color: RD.textMuted,
         whiteSpace: 'nowrap' as const,
         flexShrink: 0,
+        margin: 0,
       }}>
         {label}
-      </span>
+      </h2>
       <div style={{ flex: 1, height: 1, background: RD.border }} />
     </div>
   )
 }
 
-// 用于渲染带色边的维度评分卡片。
+// 用于渲染带证据和建议的维度诊断卡片。
 function RdDimCard({ dimension }: { dimension: NonNullable<ReportData['dimensions']>[number] }) {
   const pct = typeof dimension.score === 'number' ? dimension.score * 20 : 0
   const tier = scoreTier(pct)
   const color = tierColor(tier)
+  const scoreText = typeof dimension.score === 'number' ? `${dimension.score}/5` : '未评分'
   return (
     <div style={{
       background: RD.surface,
       border: `1px solid ${RD.border}`,
-      borderLeft: `3px solid ${color}`,
-      borderRadius: 12,
-      padding: '18px 20px',
+      borderTop: `4px solid ${color}`,
+      borderRadius: 16,
+      padding: '20px 22px',
       overflow: 'hidden',
     }}>
-      <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 8 }}>{dimension.title}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: 28,
-          letterSpacing: '-0.03em',
-          lineHeight: 1,
-          color,
-        }}>
-          {Math.round(pct)}
-        </span>
-        <div style={{ flex: 1, height: 3, background: RD.surface2, borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: color, borderRadius: 2, width: `${pct}%`, transition: 'width 1s cubic-bezier(.16,1,.3,1)' }} />
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: RD.text }}>{dimension.title}</div>
+          {dimension.assessment && (
+            <div style={{ fontSize: 12, color: RD.textMuted, marginTop: 4 }}>{dimension.assessment}</div>
+          )}
+        </div>
+        <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
+          <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 34, lineHeight: 1, letterSpacing: '-0.04em', color }}>
+            {Math.round(pct)}
+          </div>
+          <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, color: RD.textFaint, marginTop: 2 }}>
+            {scoreText}
+          </div>
         </div>
       </div>
-      {dimension.assessment && (
-        <div style={{
-          fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
-          fontSize: 10,
-          marginTop: 6,
-          color: RD.textFaint,
-          lineHeight: 1.5,
-        }}>
-          {dimension.assessment}
+
+      <div style={{ height: 4, background: RD.surface2, borderRadius: 2, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ height: '100%', background: color, borderRadius: 2, width: `${pct}%`, transition: 'width 1s cubic-bezier(.16,1,.3,1)' }} />
+      </div>
+
+      {dimension.evidence && (
+        <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.65, marginBottom: 10 }}>
+          <span style={{ fontWeight: 700, color: RD.text }}>面试证据：</span>{dimension.evidence}
+        </div>
+      )}
+      {dimension.advice && (
+        <div style={{ background: RD.surface2, borderRadius: 10, padding: '10px 12px', fontSize: 13, color: RD.text, lineHeight: 1.65 }}>
+          <span style={{ fontWeight: 700, color }}>补救建议：</span>{dimension.advice}
         </div>
       )}
     </div>
@@ -959,6 +1003,8 @@ function RdQACard({
   const hasEvaluation = Boolean(evalSummary)
   const hasRefThinking = Boolean(evalAdvice) || expectedPoints.length > 0
   const hasRefAnswer = Boolean(rewrite?.recommended_answer)
+  const hasOriginalProblem = Boolean(rewrite?.original_problem)
+  const hasWhyBetter = Boolean(rewrite?.why_better)
 
   return (
     <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -990,6 +1036,17 @@ function RdQACard({
               {turn.answer || '（候选人跳过此问题）'}
             </div>
           </div>
+
+          {hasOriginalProblem && (
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${RD.border}` }}>
+              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: RD.red, marginBottom: 8 }}>
+                问题点
+              </div>
+              <div style={{ background: RD.redLight, border: `1px solid #f2b8b0`, borderLeft: `3px solid ${RD.red}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#7a1f14', lineHeight: 1.7 }}>
+                {rewrite!.original_problem}
+              </div>
+            </div>
+          )}
 
           {/* 面试官点评 */}
           {hasEvaluation && (
@@ -1043,18 +1100,23 @@ function RdQACard({
             </div>
           )}
 
-          {/* 参考回答 */}
+          {/* 训练版本 */}
           {hasRefAnswer && (
             <div style={{ padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
-                <span style={{ fontSize: 12, fontWeight: 600, color: RD.green }}>参考回答</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: RD.green }}>可直接练习的回答</span>
               </div>
               <div style={{ background: RD.greenLight, border: `1px solid #a8d8bc`, borderLeft: `3px solid ${RD.green}`, borderRadius: 8, padding: '12px 14px', fontSize: 13, color: '#0d4a2c', lineHeight: 1.75 }}>
                 {rewrite!.recommended_answer}
               </div>
+              {hasWhyBetter && (
+                <div style={{ marginTop: 10, fontSize: 12, color: RD.textMuted, lineHeight: 1.65 }}>
+                  <span style={{ fontWeight: 700, color: RD.text }}>为什么更好：</span>{rewrite!.why_better}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1077,6 +1139,89 @@ function RdKeyword({ label, hit }: { label: string; hit: boolean }) {
     }}>
       {label}
     </span>
+  )
+}
+
+// 用于渲染报告首页的三步行动路径。
+function RdActionPlan({
+  suggestions,
+  resumeFeedback,
+  rewrite,
+}: {
+  suggestions: string[]
+  resumeFeedback: string[]
+  rewrite?: NonNullable<ReportData['answer_rewrites']>[number]
+}) {
+  const steps = [
+    { label: '今天先改', text: suggestions[0] || rewrite?.original_problem || '补齐本次面试暴露出的关键证据。', color: RD.red },
+    { label: '下次重点练', text: suggestions[1] || rewrite?.recommended_answer || '把核心项目回答练到能在 90 秒内讲清楚。', color: RD.amber },
+    { label: '简历同步补', text: resumeFeedback[0] || suggestions[2] || '把面试中缺失的量化结果同步写回简历。', color: RD.blue },
+  ]
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      {steps.map((step, index) => (
+        <div key={step.label} style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 16, padding: '18px 18px 20px', minHeight: 150 }}>
+          <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, marginBottom: 20 }}>
+            STEP {String(index + 1).padStart(2, '0')}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: step.color, marginBottom: 8 }}>{step.label}</div>
+          <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7 }}>{step.text}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 用于渲染岗位能力覆盖和差距诊断。
+function RdJobMatchGap({ match }: { match?: ReportData['job_match'] }) {
+  if (!match) return null
+
+  const required = match.required_capabilities || []
+  const covered = match.covered_capabilities || []
+  const missing = match.missing_capabilities || []
+  const concerns = match.interviewer_concerns || []
+  const followups = match.likely_followups || []
+  const hasContent = required.length > 0 || covered.length > 0 || missing.length > 0 || concerns.length > 0 || followups.length > 0
+  if (!hasContent) return null
+
+  return (
+    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 18, padding: 22 }}>
+      {(required.length > 0 || covered.length > 0 || missing.length > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: concerns.length > 0 || followups.length > 0 ? 18 : 0 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: RD.green, marginBottom: 10 }}>已覆盖能力</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
+              {covered.map((item, index) => <RdKeyword key={`covered-${index}`} label={item} hit={true} />)}
+              {covered.length === 0 && <span style={{ fontSize: 13, color: RD.textFaint }}>暂无明确命中</span>}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: RD.red, marginBottom: 10 }}>缺口能力</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
+              {missing.map((item, index) => <RdKeyword key={`missing-${index}`} label={item} hit={false} />)}
+              {missing.length === 0 && <span style={{ fontSize: 13, color: RD.textFaint }}>暂无明显缺口</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {required.length > 0 && (
+        <div style={{ fontSize: 13, color: RD.textMuted, lineHeight: 1.7, marginBottom: concerns.length > 0 || followups.length > 0 ? 14 : 0 }}>
+          <span style={{ fontWeight: 800, color: RD.text }}>岗位要求：</span>{required.join(' / ')}
+        </div>
+      )}
+      {concerns.length > 0 && (
+        <div style={{ background: RD.redLight, border: '1px solid #f2b8b0', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#7a1f14', lineHeight: 1.7, marginBottom: followups.length > 0 ? 10 : 0 }}>
+          <span style={{ fontWeight: 800 }}>面试官疑虑：</span>{concerns[0]}
+        </div>
+      )}
+      {followups.length > 0 && (
+        <div style={{ background: RD.amberLight, border: '1px solid #e8c97a', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#5c3d0f', lineHeight: 1.7 }}>
+          <span style={{ fontWeight: 800 }}>高概率追问：</span>{followups[0]}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1320,20 +1465,24 @@ function ReportPreview({
   const verdict = data.candidate_verdict
   const match = data.job_match
   const score = computeOverallScore(data.dimensions, verdict?.level)
-  const scoreBadge = score >= 75 ? '良好' : score >= 55 ? '一般' : '需提高'
+  const scoreBadge = score >= 75 ? '良好' : score >= 55 ? '待加强' : '高风险'
+  const scoreColor = verdictColor(score, verdict?.level)
   const dimensions = data.dimensions || []
-  const hitKeywords = match?.covered_capabilities || []
-  const missKeywords = match?.missing_capabilities || []
   const suggestions = data.next_training_plan || []
+  const resumeFeedback = data.resume_feedback || []
+  const rewrites = data.answer_rewrites || []
+  const firstRewrite = rewrites.find(rewrite => rewrite.recommended_answer || rewrite.original_problem)
+  const primaryRisk = getPrimaryRisk(data)
+  const primaryAction = getPrimaryAction(data)
   const targetTitle = match?.target_title || session?.target_title || '综合面试'
   const targetCompany = match?.target_company || session?.target_company || ''
 
   // 按 turn_index 建立 answer_rewrites 索引，用于 Q&A 卡片。
   const rewriteByIndex = Object.fromEntries(
-    (data.answer_rewrites || [])
+    rewrites
       .filter(r => typeof r.turn_index === 'number')
       .map(r => [r.turn_index!, r])
-  )
+  ) as Record<number, NonNullable<ReportData['answer_rewrites']>[number]>
 
   const startedAt = session?.started_at
   const endedAt = session?.ended_at
@@ -1345,181 +1494,173 @@ function ReportPreview({
     duration = mins >= 60 ? `${Math.floor(mins / 60)}小时${mins % 60 ? `${mins % 60}分钟` : ''}` : `${mins}分钟`
   }
 
-  const hasSidebar = hitKeywords.length > 0 || missKeywords.length > 0 || suggestions.length > 0
-    || (data.strengths || []).length > 0 || (data.weaknesses || []).length > 0
-
   return (
     <>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700;800&display=swap');`}</style>
       <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.6, color: RD.text }}>
 
         {/* Hero */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 40, alignItems: 'start', marginBottom: 40 }}>
-          <div>
-            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ display: 'inline-block', width: 20, height: 1, background: RD.textMuted }} />
-              面试报告
-            </div>
-            <h1 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 'clamp(26px, 4vw, 40px)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 10px' }}>
-              {targetCompany && <>{targetCompany}<br /></>}
-              <em style={{ fontStyle: 'italic', color: RD.blue }}>{targetTitle}</em>
-            </h1>
-            <div style={{ fontSize: 13, color: RD.textMuted, display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginTop: 16 }}>
-              {duration && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  用时 {duration}
+        <section style={{
+          background: RD.surface,
+          border: `1px solid ${RD.border}`,
+          borderRadius: 24,
+          padding: '34px 36px',
+          marginBottom: 28,
+          position: 'relative' as const,
+          overflow: 'hidden',
+          boxShadow: '0 24px 70px rgba(26,24,20,0.06)',
+        }}>
+          <div style={{ position: 'absolute' as const, right: -120, top: -120, width: 300, height: 300, borderRadius: '50%', background: `${scoreColor}12` }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 32, alignItems: 'start', position: 'relative' as const }}>
+            <div>
+              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textMuted, letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 12 }}>
+                INTERVIEW DOSSIER
+              </div>
+              <h1 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 'clamp(34px, 5vw, 58px)', lineHeight: 1, letterSpacing: '-0.045em', margin: '0 0 16px' }}>
+                面试复盘报告
+              </h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 10, marginBottom: 22 }}>
+                <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
+                  {targetCompany ? `${targetCompany} · ${targetTitle}` : targetTitle}
                 </span>
-              )}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                {turns.length} 道题目
-              </span>
-            </div>
-          </div>
-
-          {/* Score card */}
-          <div style={{ background: RD.dark, color: '#fff', borderRadius: 16, padding: '28px 32px', textAlign: 'center' as const, minWidth: 160, position: 'relative' as const, overflow: 'hidden' }}>
-            <div style={{ position: 'absolute' as const, top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-            <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 64, lineHeight: 1, letterSpacing: '-0.04em' }}>
-              {score}<span style={{ fontSize: 18, opacity: 0.4, fontWeight: 300 }}>/100</span>
-            </div>
-            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' as const, opacity: 0.5, marginTop: 8 }}>
-              综合得分
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 500 }}>
-              ★ {scoreBadge}
-            </div>
-          </div>
-        </div>
-
-        {/* Two-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: hasSidebar ? '1fr 300px' : '1fr', gap: 28, alignItems: 'start' }}>
-          <div>
-            {/* AI Summary */}
-            {(data.summary || verdict?.reason) && (
-              <div style={{ marginBottom: 28 }}>
-                <RdSectionLabel label="AI 综合评价" />
-                <div style={{ background: RD.blueLight, border: '1px solid #c5d6f9', borderRadius: 12, padding: '20px 22px', fontSize: 14, color: '#1a2a6e', lineHeight: 1.7, fontStyle: 'italic' as const }}>
-                  {data.summary || verdict?.reason}
-                </div>
+                {duration && (
+                  <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
+                    用时 {duration}
+                  </span>
+                )}
+                <span style={{ border: `1px solid ${RD.border}`, borderRadius: 99, padding: '5px 12px', fontSize: 13, color: RD.textMuted }}>
+                  {turns.length} 道题目
+                </span>
               </div>
-            )}
-
-            {/* Dimensions */}
-            {dimensions.length > 0 && (
-              <div style={{ marginBottom: 28 }}>
-                <RdSectionLabel label="维度评分" />
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                  {dimensions.map((dim, i) => <RdDimCard key={i} dimension={dim} />)}
-                </div>
-              </div>
-            )}
-
-            {/* Q&A */}
-            {turns.length > 0 && (
-              <div style={{ marginBottom: 28 }}>
-                <RdSectionLabel label="题目详情" />
-                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
-                  {turns.map((turn, i) => (
-                    <RdQACard
-                      key={turn.id}
-                      turn={turn}
-                      index={i}
-                      rewrite={rewriteByIndex[turn.turn_index]}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Interviewer Evaluation */}
-            {data.interviewer_evaluation && (
-              data.interviewer_evaluation.overall ||
-              (data.interviewer_evaluation.key_observations || []).length > 0 ||
-              (data.interviewer_evaluation.core_recommendations || []).length > 0
-            ) && (
-              <RdInterviewerEvaluation evaluation={data.interviewer_evaluation} />
-            )}
-
-            {/* Learning Plan */}
-            {data.learning_plan && (
-              (data.learning_plan.learning_priorities || []).length > 0 ||
-              (data.learning_plan.improvement_roadmap || []).length > 0
-            ) && (
-              <RdLearningPlan plan={data.learning_plan} />
-            )}
-          </div>
-
-          {/* Sidebar */}
-          {hasSidebar && (
-            <div style={{ position: 'sticky' as const, top: 72 }}>
-              {((data.strengths || []).length > 0 || (data.weaknesses || []).length > 0) && (
-                <RdSideCard
-                  title="核心评价"
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
-                >
-                  {(data.strengths || []).length > 0 && (
-                    <div style={{ marginBottom: 12 }}>
-                      <p style={{ fontSize: 11, fontWeight: 500, color: RD.green, marginBottom: 8, margin: '0 0 8px' }}>突出优势</p>
-                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
-                        {(data.strengths || []).slice(0, 3).map((s, i) => (
-                          <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: RD.textMuted }}>
-                            <span style={{ color: RD.green, flexShrink: 0 }}>•</span>
-                            <span>{s}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {(data.weaknesses || []).length > 0 && (
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 500, color: RD.amber, margin: '0 0 8px' }}>待改进</p>
-                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
-                        {(data.weaknesses || []).slice(0, 3).map((w, i) => (
-                          <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: RD.textMuted }}>
-                            <span style={{ color: RD.amber, flexShrink: 0 }}>•</span>
-                            <span>{w}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </RdSideCard>
-              )}
-
-              {(hitKeywords.length > 0 || missKeywords.length > 0) && (
-                <RdSideCard
-                  title="关键词覆盖"
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>}
-                >
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
-                    {hitKeywords.map((k, i) => <RdKeyword key={`hit-${i}`} label={k} hit={true} />)}
-                    {missKeywords.map((k, i) => <RdKeyword key={`miss-${i}`} label={k} hit={false} />)}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <div style={{ background: RD.surface2, borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>最大风险</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: primaryRisk ? RD.red : RD.text }}>
+                    {primaryRisk || '本次报告没有识别到单一高风险项'}
                   </div>
-                </RdSideCard>
-              )}
-
-              {suggestions.length > 0 && (
-                <RdSideCard
-                  title="优先改进建议"
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
-                    {suggestions.slice(0, 4).map((sug, i) => (
-                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: RD.textMuted, lineHeight: 1.55 }}>
-                        <span style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, paddingTop: 2, flexShrink: 0 }}>
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span>{sug}</span>
-                      </div>
-                    ))}
+                </div>
+                <div style={{ background: RD.blueLight, borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>下一步先做</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: RD.blue }}>
+                    {primaryAction || '先复盘最关键的一道题'}
                   </div>
-                </RdSideCard>
-              )}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div style={{ background: RD.dark, color: '#fff', borderRadius: 20, padding: '24px 24px 26px', textAlign: 'center' as const, position: 'relative' as const, overflow: 'hidden' }}>
+              <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.14em', opacity: 0.5, marginBottom: 12 }}>
+                综合得分
+              </div>
+              <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 70, lineHeight: 1, letterSpacing: '-0.06em' }}>
+                {score}<span style={{ fontSize: 18, opacity: 0.42 }}>/100</span>
+              </div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: `${scoreColor}33`, color: '#fff', border: `1px solid ${scoreColor}88`, borderRadius: 99, padding: '5px 12px', fontSize: 12, fontWeight: 800 }}>
+                {verdict?.label || scoreBadge}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {(data.summary || verdict?.reason) && (
+          <section style={{ marginBottom: 28 }}>
+            <RdSectionLabel label="面试官结论" />
+            <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 18, padding: '22px 24px', display: 'grid', gridTemplateColumns: verdict?.label ? '160px 1fr' : '1fr', gap: 20, alignItems: 'start' }}>
+              {verdict?.label && (
+                <div style={{ borderRight: `1px solid ${RD.border}`, paddingRight: 18 }}>
+                  <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 6 }}>推进判断</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: scoreColor, letterSpacing: '-0.03em' }}>{verdict.label}</div>
+                </div>
+              )}
+              <p style={{ color: RD.text, fontSize: 16, lineHeight: 1.85, margin: 0 }}>
+                {verdict?.reason || data.summary}
+              </p>
+            </div>
+          </section>
+        )}
+
+        <section style={{ marginBottom: 28 }}>
+          <RdSectionLabel label="3 步行动计划" />
+          <RdActionPlan suggestions={suggestions} resumeFeedback={resumeFeedback} rewrite={firstRewrite} />
+        </section>
+
+        {match && (
+          <section style={{ marginBottom: 28 }}>
+            <RdSectionLabel label="岗位匹配差距" />
+            <RdJobMatchGap match={match} />
+          </section>
+        )}
+
+        {dimensions.length > 0 && (
+          <section style={{ marginBottom: 28 }}>
+            <RdSectionLabel label="综合能力分析" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
+              {dimensions.map((dim, i) => <RdDimCard key={i} dimension={dim} />)}
+            </div>
+          </section>
+        )}
+
+        {turns.length > 0 && (
+          <section style={{ marginBottom: 28 }}>
+            <RdSectionLabel label="面试题目解析记录" />
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
+              {turns.map((turn, i) => (
+                <RdQACard
+                  key={turn.id}
+                  turn={turn}
+                  index={i}
+                  rewrite={rewriteByIndex[turn.turn_index]}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {((data.strengths || []).length > 0 || (data.weaknesses || []).length > 0) && (
+          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 28 }}>
+            <RdSideCard
+              title="突出优势"
+              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.green} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                {(data.strengths || []).slice(0, 4).map((item, index) => (
+                  <div key={index} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted }}>
+                    <span style={{ color: RD.green, flexShrink: 0 }}>•</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </RdSideCard>
+            <RdSideCard
+              title="待改进"
+              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={RD.amber} strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+                {(data.weaknesses || []).slice(0, 4).map((item, index) => (
+                  <div key={index} style={{ display: 'flex', gap: 8, fontSize: 13, color: RD.textMuted }}>
+                    <span style={{ color: RD.amber, flexShrink: 0 }}>•</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </RdSideCard>
+          </section>
+        )}
+
+        {data.interviewer_evaluation && (
+          data.interviewer_evaluation.overall ||
+          (data.interviewer_evaluation.key_observations || []).length > 0 ||
+          (data.interviewer_evaluation.core_recommendations || []).length > 0
+        ) && (
+          <RdInterviewerEvaluation evaluation={data.interviewer_evaluation} />
+        )}
+
+        {data.learning_plan && (
+          (data.learning_plan.learning_priorities || []).length > 0 ||
+          (data.learning_plan.improvement_roadmap || []).length > 0
+        ) && (
+          <RdLearningPlan plan={data.learning_plan} />
+        )}
       </div>
     </>
   )
