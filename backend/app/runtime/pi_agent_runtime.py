@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import inspect
 from typing import Any, AsyncGenerator
-from uuid import uuid4
 
 from pi_agent_core import (
     AgentContext,
@@ -20,6 +18,7 @@ from pi_agent_core.types import Message, StreamFn
 
 from app.agents.resume.agent_loop import ResumeAgentLoop
 from app.agents.resume.run_lifecycle import ResumeRunLifecycle
+from app.agents.resume.runner import ResumeAgentRunner
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.turn_context import ResumeTurnContextBuilder
 from app.infra.config import settings
@@ -32,8 +31,6 @@ from app.runtime.tool_confirmation import (
 )
 from app.runtime.pi_agent_openrouter import stream_openrouter
 from app.types.stream import ResumeStreamEvent
-
-_SENTINEL = object()
 
 
 class _ReActStreamFn:
@@ -159,6 +156,12 @@ class PiAgentRuntime:
         self.turn_context_builder = ResumeTurnContextBuilder(
             tool_stage=self.tool_stage,
         )
+        self.runner = ResumeAgentRunner(
+            agent_loop=self.agent_loop,
+            turn_context_builder=self.turn_context_builder,
+            lifecycle=self.lifecycle,
+            model_name_provider=openrouter_chat_model_name,
+        )
 
     async def run(
         self,
@@ -168,61 +171,14 @@ class PiAgentRuntime:
         conversation_history: list[dict[str, str]] | None = None,
         event_callback: RuntimeEventCallback | None = None,
     ) -> dict[str, Any]:
-        """用于处理run。"""
-        run_id = uuid4().hex
-        executed_tools: list[dict[str, Any]] = []
-        state = self._new_stream_state()
-        error_type: str | None = None
-        pi_context, prompts, config = self._build_loop_inputs(
+        """用于兼容 runtime 接口，并委托 Resume Agent runner 执行。"""
+        return await self.runner.run(
             agent=agent,
             user_message=user_message,
             context=context,
             conversation_history=conversation_history,
-            run_id=run_id,
-            confirmation_queue=None,
-            event_queue=None,
             event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=state,
         )
-        self._trace_run_start(agent, run_id, "sync", user_message, conversation_history)
-        self._trace_prompt(agent, run_id, pi_context.system_prompt)
-        self._emit_event(
-            event_callback,
-            self._prompt_rendered_event(agent, pi_context.system_prompt, user_message),
-        )
-        try:
-            await self.agent_loop.run(
-                agent=agent,
-                run_id=run_id,
-                pi_context=pi_context,
-                prompts=prompts,
-                config=config,
-                context=context,
-                confirmation_queue=None,
-                event_queue=None,
-                event_callback=event_callback,
-                state=state,
-                executed_tools=executed_tools,
-                model_name=self._chat_model_name(),
-            )
-            response_event = self._llm_response_event(agent, state)
-            self._trace_llm_response(agent, run_id, response_event)
-            self._emit_event(event_callback, response_event)
-            self._trace_run_completed(agent, run_id, "sync", state)
-            return {"content": "".join(state["response_parts"]), "tool_calls": executed_tools}
-        except Exception as exc:
-            error_type = type(exc).__name__
-            raise
-        finally:
-            self._log_run_summary(
-                agent=agent,
-                run_id=run_id,
-                mode="sync",
-                state=state,
-                success=error_type is None,
-                error_type=error_type,
-            )
 
     async def run_stream(
         self,
@@ -233,114 +189,16 @@ class PiAgentRuntime:
         confirmation_queue: asyncio.Queue | None = None,
         event_callback: RuntimeEventCallback | None = None,
     ) -> AsyncGenerator[ResumeStreamEvent, None]:
-        """用于拉取模型流并写入本地事件队列。"""
-        run_id = uuid4().hex
-        executed_tools: list[dict[str, Any]] = []
-        event_queue: asyncio.Queue[Any] = asyncio.Queue()
-        state = self._new_stream_state()
-        pi_context, prompts, config = self._build_loop_inputs(
+        """用于兼容 runtime 接口，并委托 Resume Agent runner 返回事件流。"""
+        async for event in self.runner.run_stream(
             agent=agent,
             user_message=user_message,
             context=context,
             conversation_history=conversation_history,
-            run_id=run_id,
             confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
             event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=state,
-        )
-        self._trace_run_start(agent, run_id, "stream", user_message, conversation_history)
-        self._trace_prompt(agent, run_id, pi_context.system_prompt)
-        prompt_event = self._prompt_rendered_event(
-            agent,
-            pi_context.system_prompt,
-            user_message,
-        )
-        self._emit_event(event_callback, prompt_event)
-        yield prompt_event
-
-        producer = asyncio.create_task(
-            self._produce_stream_events(
-                agent=agent,
-                run_id=run_id,
-                pi_context=pi_context,
-                prompts=prompts,
-                config=config,
-                context=context,
-                confirmation_queue=confirmation_queue,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                executed_tools=executed_tools,
-            )
-        )
-        try:
-            while True:
-                event = await event_queue.get()
-                if event is _SENTINEL:
-                    break
-                yield event
-            await producer
-        finally:
-            if not producer.done():
-                producer.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await producer
-        self._trace_run_completed(agent, run_id, "stream", state)
-
-    async def _produce_stream_events(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        pi_context: AgentContext,
-        prompts: list[Message],
-        config: AgentLoopConfig,
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any],
-        event_callback: RuntimeEventCallback | None,
-        state: dict[str, Any],
-        executed_tools: list[dict[str, Any]],
-    ) -> None:
-        """用于处理produce流式events。"""
-        try:
-            await self.agent_loop.run(
-                agent=agent,
-                run_id=run_id,
-                pi_context=pi_context,
-                prompts=prompts,
-                config=config,
-                context=context,
-                confirmation_queue=confirmation_queue,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                state=state,
-                executed_tools=executed_tools,
-                model_name=self._chat_model_name(),
-            )
-        except Exception as exc:
-            state["error_type"] = type(exc).__name__
-            raise
-        finally:
-            response_event = self._llm_response_event(agent, state)
-            self._trace_llm_response(agent, run_id, response_event)
-            await self._publish_event(
-                event_queue=event_queue,
-                event_callback=event_callback,
-                event=response_event,
-            )
-            error_type = state.get("error_type")
-            self._log_run_summary(
-                agent=agent,
-                run_id=run_id,
-                mode="stream",
-                state=state,
-                success=not isinstance(error_type, str),
-                error_type=error_type if isinstance(error_type, str) else None,
-            )
-            await event_queue.put(_SENTINEL)
+        ):
+            yield event
 
     def _build_loop_inputs(
         self,

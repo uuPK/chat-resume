@@ -36,6 +36,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.agents.resume.agent_loop import ResumeAgentLoop  # noqa: E402
 from app.agents.resume.run_lifecycle import ResumeRunLifecycle  # noqa: E402
+from app.agents.resume.runner import ResumeAgentRunner  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
@@ -388,6 +389,40 @@ def test_resume_run_lifecycle_builds_events_independently():
     assert response_event["first_token_latency_ms"] == 8.0
     assert response_event["usage"]["total_tokens"] == 12
     assert response_event["confirmation_wait_ms"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_resume_agent_runner_runs_sync_independently():
+    """用于验证 Resume Agent runner 可脱离 PiAgentRuntime 编排一次 run。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    loop = ResumeAgentLoop(
+        stream_fn=FakeLoopStream([fake_loop_text("这是简历建议。")]),
+        tool_stage=stage,
+    )
+    runner = ResumeAgentRunner(
+        agent_loop=loop,
+        turn_context_builder=ResumeTurnContextBuilder(tool_stage=stage),
+        lifecycle=ResumeRunLifecycle(model_name_provider=lambda: "test-model"),
+        model_name_provider=lambda: "test-model",
+    )
+    events: list[dict[str, Any]] = []
+
+    result = await runner.run(
+        agent=agent.definition,
+        user_message="分析这份简历",
+        context={"resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]}},
+        conversation_history=[],
+        event_callback=events.append,
+    )
+
+    assert result["content"] == "这是简历建议。"
+    assert result["tool_calls"] == []
+    assert events[0]["event_type"] == "prompt_rendered"
+    assert any(event.get("event_type") == "llm_request" for event in events)
+    assert any(event.get("content") == "这是简历建议。" for event in events)
+    assert events[-1]["event_type"] == "llm_response"
+    assert events[-1]["model"] == "test-model"
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(
