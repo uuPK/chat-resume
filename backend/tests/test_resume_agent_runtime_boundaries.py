@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import sys
 from pathlib import Path
@@ -37,6 +38,7 @@ from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.agents.resume.agent_loop import ResumeAgentLoop  # noqa: E402
 from app.agents.resume.run_lifecycle import ResumeRunLifecycle  # noqa: E402
 from app.agents.resume.runner import ResumeAgentRunner  # noqa: E402
+from app.agents.resume.stream_adapter import ResumeReActStreamAdapter  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
@@ -423,6 +425,28 @@ async def test_resume_agent_runner_runs_sync_independently():
     assert any(event.get("content") == "这是简历建议。" for event in events)
     assert events[-1]["event_type"] == "llm_response"
     assert events[-1]["model"] == "test-model"
+
+
+@pytest.mark.asyncio
+async def test_resume_react_stream_adapter_keeps_one_tool_call_per_turn():
+    """用于验证 ReAct stream adapter 可脱离 PiAgentRuntime 裁剪工具调用。"""
+    message = AssistantMessage(
+        content=[
+            ToolCall(id="call_1", name="update_bullet", arguments={"text": "A"}),
+            ToolCall(id="call_2", name="update_summary", arguments={"summary": "B"}),
+        ],
+        stop_reason="toolUse",
+    )
+    stream = FakeLoopStream([message])
+    adapter = ResumeReActStreamAdapter(stream)
+    response = await adapter(None, AgentContext(system_prompt="", messages=[], tools=[]), None)
+
+    result = response["result"]()
+    if inspect.isawaitable(result):
+        result = await result
+
+    assert isinstance(result, AssistantMessage)
+    assert [block.id for block in result.content if isinstance(block, ToolCall)] == ["call_1"]
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(
