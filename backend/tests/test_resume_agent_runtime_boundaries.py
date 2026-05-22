@@ -41,7 +41,7 @@ from app.agents.resume.runner import ResumeAgentRunner  # noqa: E402
 from app.agents.resume.stream_adapter import ResumeReActStreamAdapter  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
-from app.runtime import pi_agent_runtime  # noqa: E402
+from app.infra.config import settings  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
 from app.runtime.resume_agent_session import (  # noqa: E402
@@ -66,6 +66,36 @@ RESUME_EDIT_TOOL_NAMES = {
     "read_memory",
     "update_memory",
 }
+
+
+def _new_test_stream_state() -> dict[str, Any]:
+    """用于创建测试里的 Resume Agent stream state。"""
+    return ResumeRunLifecycle.new_stream_state()
+
+
+def _build_test_turn_inputs(
+    agent: ResumeAgent,
+    *,
+    user_message: str,
+    context: dict[str, Any],
+    state: dict[str, Any],
+    conversation_history: list[dict[str, str]] | None = None,
+) -> tuple[AgentContext, list[Message], Any]:
+    """用于通过 turn context builder 生成测试 loop 输入。"""
+    stage = ResumeToolExecutionStage()
+    builder = ResumeTurnContextBuilder(tool_stage=stage)
+    return builder.build_loop_inputs(
+        agent=agent.definition,
+        user_message=user_message,
+        context=context,
+        conversation_history=conversation_history or [],
+        run_id="run_test",
+        confirmation_queue=None,
+        event_queue=None,
+        event_callback=None,
+        executed_tools=[],
+        stream_state=state,
+    )
 
 
 class FakeLoopStream:
@@ -161,22 +191,16 @@ def fake_loop_tool_call(
 
 
 def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, dict[str, Any]]:
-    """用于生成最小 runtime 输入并返回 pi_context 和 state。"""
-    state = agent.runtime._new_stream_state()
+    """用于生成最小 turn 输入并返回 pi_context 和 state。"""
+    state = _new_test_stream_state()
     context = {
         "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
     }
-    pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
-        agent=agent.definition,
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
         user_message=user_message,
         context=context,
-        conversation_history=[],
-        run_id="run_test",
-        confirmation_queue=None,
-        event_queue=None,
-        event_callback=None,
-        executed_tools=[],
-        stream_state=state,
+        state=state,
     )
     return pi_context, state
 
@@ -221,23 +245,17 @@ def test_system_prompt_template_omits_tool_summary_variables():
 def test_system_prompt_tool_list_matches_requested_profile():
     """用于验证工具摘要随当前工具 profile 更新。"""
     agent = ResumeAgent()
-    state = agent.runtime._new_stream_state()
+    state = _new_test_stream_state()
     context = {
         "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
         "tool_profile": "read_only",
     }
 
-    pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
-        agent=agent.definition,
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
         user_message="只分析，不要修改",
         context=context,
-        conversation_history=[],
-        run_id="run_test",
-        confirmation_queue=None,
-        event_queue=None,
-        event_callback=None,
-        executed_tools=[],
-        stream_state=state,
+        state=state,
     )
 
     assert [tool.name for tool in pi_context.tools] == [
@@ -253,7 +271,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     builder = ResumeTurnContextBuilder(tool_stage=stage)
-    state = agent.runtime._new_stream_state()
+    state = _new_test_stream_state()
     context = {
         "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
         "tool_profile": "read_only",
@@ -288,7 +306,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
 def test_system_prompt_resume_json_hides_technologies_compat_fields():
     """用于验证提示词中的简历 JSON 不暴露兼容用 technologies 字段。"""
     agent = ResumeAgent()
-    state = agent.runtime._new_stream_state()
+    state = _new_test_stream_state()
     context = {
         "resume_content": {
             "work_experience": [
@@ -308,17 +326,11 @@ def test_system_prompt_resume_json_hides_technologies_compat_fields():
         }
     }
 
-    pi_context, _prompts, _config = agent.runtime._build_loop_inputs(
-        agent=agent.definition,
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
         user_message="补充 Python 技术栈",
         context=context,
-        conversation_history=[],
-        run_id="run_test",
-        confirmation_queue=None,
-        event_queue=None,
-        event_callback=None,
-        executed_tools=[],
-        stream_state=state,
+        state=state,
     )
 
     assert "technologies" not in pi_context.system_prompt
@@ -340,7 +352,13 @@ def test_llm_request_event_records_profile_counts_and_prompt_size():
     agent = ResumeAgent()
     pi_context, state = _build_runtime_inputs(agent, "优化项目经历")
 
-    event = agent.runtime._llm_request_event(agent.definition, pi_context, [], state)
+    event = ResumeAgentLoop.llm_request_event(
+        agent.definition,
+        pi_context,
+        [],
+        state,
+        "test-model",
+    )
 
     assert event["tool_profile"] == "resume_edit"
     assert event["tool_count"] == len(RESUME_EDIT_TOOL_NAMES)
@@ -351,12 +369,13 @@ def test_llm_request_event_records_profile_counts_and_prompt_size():
 def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
     """用于验证 LLM 响应日志字段包含首 token、usage 和确认等待耗时。"""
     agent = ResumeAgent()
-    state = agent.runtime._new_stream_state()
+    lifecycle = ResumeRunLifecycle(model_name_provider=lambda: "test-model")
+    state = lifecycle.new_stream_state()
     state["first_token_latency_ms"] = 12.5
     state["confirmation_wait_ms"] = 30.0
     state["usage"] = {"input": 10, "output": 5, "total_tokens": 15}
 
-    event = agent.runtime._llm_response_event(agent.definition, state)
+    event = lifecycle.llm_response_event(agent.definition, state)
 
     assert event["first_token_latency_ms"] == 12.5
     assert event["confirmation_wait_ms"] == 30.0
@@ -455,7 +474,8 @@ def test_allowed_tool_call_uses_normal_detection_trace(
 ):
     """用于验证默认工具集下模型工具调用不再被判为 unexpected。"""
     agent = ResumeAgent()
-    state = agent.runtime._new_stream_state()
+    loop = ResumeAgentLoop(stream_fn=FakeLoopStream([]), tool_stage=ResumeToolExecutionStage())
+    state = _new_test_stream_state()
     state["tool_profile"] = "resume_edit"
     state["tool_names"] = ["update_bullet"]
     event = ToolExecutionStartEvent(
@@ -463,11 +483,11 @@ def test_allowed_tool_call_uses_normal_detection_trace(
         tool_name="update_bullet",
         args={},
     )
-    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
     with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
-        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
-        agent.runtime._trace_tool_call_detected(agent.definition, "run_test", event, state)
+        loop.trace_tool_call_detected(agent.definition, "run_test", event, state)
+        loop.trace_tool_call_detected(agent.definition, "run_test", event, state)
 
     messages = [record.getMessage() for record in caplog.records]
     assert "agent.trace.reasoning.unexpected_tool_call" not in messages
@@ -480,10 +500,11 @@ def test_failed_tool_preview_logs_warning(
 ):
     """用于验证工具预览失败在日志里更醒目。"""
     agent = ResumeAgent()
-    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    stage = ResumeToolExecutionStage()
+    monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
     with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
-        agent.runtime._trace_tool_preview(
+        stage.trace_tool_preview(
             agent.definition,
             "run_test",
             "call_preview",
@@ -511,11 +532,12 @@ def test_tool_requested_trace_summarizes_large_text_input(
 ):
     """用于验证工具请求日志只记录可读摘要而不是完整文本。"""
     agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
     long_text = "基于 LlamaIndex 构建文档索引与向量存储层，支撑 RAG 检索。" * 8
-    monkeypatch.setattr(pi_agent_runtime.settings, "AGENT_TRACE_LOG_ENABLED", True)
+    monkeypatch.setattr(settings, "AGENT_TRACE_LOG_ENABLED", True)
 
     with caplog.at_level("INFO", logger="app.runtime.pi_agent_runtime"):
-        agent.runtime._trace_tool_requested(
+        stage.trace_tool_requested(
             agent.definition,
             "run_test",
             "call_requested",
@@ -671,19 +693,13 @@ async def test_resume_agent_loop_runs_react_turns_independently():
             }
         ]
     }
-    state = agent.runtime._new_stream_state()
+    state = _new_test_stream_state()
     context = {"resume_content": resume, "allowed_sections": {"work_experience"}}
-    pi_context, prompts, config = agent.runtime._build_loop_inputs(
-        agent=agent.definition,
+    pi_context, prompts, config = _build_test_turn_inputs(
+        agent,
         user_message="优化这段工作经历",
         context=context,
-        conversation_history=[],
-        run_id="run_loop_test",
-        confirmation_queue=None,
-        event_queue=None,
-        event_callback=None,
-        executed_tools=[],
-        stream_state=state,
+        state=state,
     )
     confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
     confirmation_queue.put_nowait(True)
