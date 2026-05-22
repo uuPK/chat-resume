@@ -6,3 +6,15 @@ servers:
     rootMarkers:
       - frontend/package.json
       - frontend/tsconfig.json
+  pyright:
+    command: uv
+    args:
+      - run
+      - --project
+      - backend
+      - basedpyright-langserver
+      - --stdio
+    rootMarkers:
+      - pyrightconfig.json
+      - backend/pyrightconfig.json
+      - backend/pyproject.toml

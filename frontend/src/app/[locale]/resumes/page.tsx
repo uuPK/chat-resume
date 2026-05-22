@@ -52,18 +52,21 @@ const LIST_FAINT = '#9ca3af'
 const LIST_BORDER = 'rgba(0,0,0,0.14)'
 const LIST_SOFT_BORDER = 'rgba(0,0,0,0.08)'
 
+type ResumeStatusFilter = 'all' | 'optimized' | 'draft'
+type ResumeSortOrder = 'recent' | 'oldest'
+
 // 用于等待当前数据。
 function sleep(ms: number) {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
 // 用于生成简历列表卡片的状态标签。
-function getResumeCardStatus(resume: Resume, index: number, t: ReturnType<typeof useTranslations>) {
+function getResumeCardStatus(resume: Resume, t: ReturnType<typeof useTranslations>) {
   if (resume.target_company || resume.target_title) {
     return {
-      label: index === 0 ? t('cardStatusActive') : t('cardStatusOptimized'),
-      backgroundColor: index === 0 ? '#ecfdf5' : LIST_BLUE_BG,
-      color: index === 0 ? '#065f46' : '#1e40af',
+      label: t('cardStatusOptimized'),
+      backgroundColor: LIST_BLUE_BG,
+      color: '#1e40af',
     }
   }
 
@@ -79,6 +82,16 @@ function getResumeSubtitle(resume: Resume, t: ReturnType<typeof useTranslations>
   const targetParts = [resume.target_company, resume.target_title].filter(Boolean)
   if (targetParts.length > 0) return targetParts.join(' · ')
   return resume.target_title || resume.original_filename || t('cardUntargeted')
+}
+
+// 用于渲染简历卡片的主标题和副标题。
+function ResumeCardTitleBlock({ resume, t }: { resume: Resume; t: ReturnType<typeof useTranslations> }) {
+  return (
+    <div className="min-w-0">
+      <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{getResumeSubtitle(resume, t)}</h2>
+      <p className="mt-0.5 truncate text-xs" style={{ color: LIST_MUTED }}>{resume.title}</p>
+    </div>
+  )
 }
 
 // 用于格式化列表卡片的修改时间。
@@ -180,6 +193,36 @@ function resumeMatchesQuery(resume: Resume, query: string) {
   ].some(value => value?.toLowerCase().includes(normalizedQuery))
 }
 
+// 用于判断简历是否符合状态筛选。
+function resumeMatchesStatus(resume: Resume, filter: ResumeStatusFilter) {
+  if (filter === 'all') return true
+  const hasTarget = Boolean(resume.target_company || resume.target_title)
+  return filter === 'optimized' ? hasTarget : !hasTarget
+}
+
+// 用于给简历排序提供稳定修改时间。
+function getResumeSortTimestamp(resume: Resume) {
+  const timestamp = new Date(resume.updated_at || resume.created_at).getTime()
+  return Number.isNaN(timestamp) ? resume.id : timestamp
+}
+
+// 用于组合搜索、状态筛选和修改时间排序。
+function getVisibleResumes(
+  resumes: Resume[],
+  query: string,
+  statusFilter: ResumeStatusFilter,
+  sortOrder: ResumeSortOrder,
+) {
+  return resumes
+    .filter(resume => resumeMatchesQuery(resume, query))
+    .filter(resume => resumeMatchesStatus(resume, statusFilter))
+    .sort((left, right) => {
+      const leftTime = getResumeSortTimestamp(left)
+      const rightTime = getResumeSortTimestamp(right)
+      return sortOrder === 'recent' ? rightTime - leftTime : leftTime - rightTime
+    })
+}
+
 // 简历中心主页，展示用户所有简历
 export default function ResumesPage() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -190,11 +233,13 @@ export default function ResumesPage() {
   const [resumesLoading, setResumesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [resumeSearchQuery, setResumeSearchQuery] = useState('')
+  const [resumeStatusFilter, setResumeStatusFilter] = useState<ResumeStatusFilter>('all')
+  const [resumeSortOrder, setResumeSortOrder] = useState<ResumeSortOrder>('recent')
   const [openResumeActionsId, setOpenResumeActionsId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
   const common = useTranslations('common')
-  const filteredResumes = resumes.filter(resume => resumeMatchesQuery(resume, resumeSearchQuery))
+  const filteredResumes = getVisibleResumes(resumes, resumeSearchQuery, resumeStatusFilter, resumeSortOrder)
   const visibleResumes = filteredResumes.slice(0, FREE_RESUME_LIMIT)
   const hiddenResumeCount = Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
 
@@ -514,27 +559,36 @@ export default function ResumesPage() {
                   style={{ borderColor: LIST_BORDER, color: LIST_TEXT }}
                 />
               </label>
-              <button
-                type="button"
-                className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]"
-                style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-              >
-                <span>{t('filterAllStatus')}</span>
-                <ChevronDownIcon className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]"
-                style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-              >
-                <span>{t('sortRecent')}</span>
-                <ChevronDownIcon className="h-3.5 w-3.5" />
-              </button>
+              <label className="relative block w-full sm:w-[150px]" aria-label={t('filterStatusLabel')}>
+                <select
+                  value={resumeStatusFilter}
+                  onChange={event => setResumeStatusFilter(event.target.value as ResumeStatusFilter)}
+                  className="h-[34px] w-full appearance-none rounded-lg border bg-white pl-3 pr-9 text-[13px] outline-none"
+                  style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                >
+                  <option value="all">{t('filterAllStatus')}</option>
+                  <option value="optimized">{t('cardStatusOptimized')}</option>
+                  <option value="draft">{t('cardStatusDraft')}</option>
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: LIST_MUTED }} />
+              </label>
+              <label className="relative block w-full sm:w-[150px]" aria-label={t('sortModifiedLabel')}>
+                <select
+                  value={resumeSortOrder}
+                  onChange={event => setResumeSortOrder(event.target.value as ResumeSortOrder)}
+                  className="h-[34px] w-full appearance-none rounded-lg border bg-white pl-3 pr-9 text-[13px] outline-none"
+                  style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                >
+                  <option value="recent">{t('sortRecent')}</option>
+                  <option value="oldest">{t('sortOldest')}</option>
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: LIST_MUTED }} />
+              </label>
             </div>
 
             <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
               {visibleResumes.map((resume, index) => {
-                const status = getResumeCardStatus(resume, index, t)
+                const status = getResumeCardStatus(resume, t)
                 return (
                   <motion.div
                     key={resume.id}
@@ -570,10 +624,7 @@ export default function ResumesPage() {
 
                     <div className="flex flex-1 flex-col gap-2.5 px-4 py-3.5">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{resume.title}</h2>
-                          <p className="mt-0.5 truncate text-xs" style={{ color: LIST_MUTED }}>{getResumeSubtitle(resume, t)}</p>
-                        </div>
+                        <ResumeCardTitleBlock resume={resume} t={t} />
                         <button
                           type="button"
                           onClick={event => {
@@ -611,7 +662,6 @@ export default function ResumesPage() {
                           <ClockIcon className="h-3 w-3" />
                           {formatResumeModifiedAt(resume.updated_at || resume.created_at, t)}
                         </span>
-                        <span>{index === 0 ? t('submittedCount', { count: 3 }) : t('notSubmitted')}</span>
                       </div>
                       <div className="mt-auto grid grid-cols-3 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
                         <button
@@ -651,10 +701,9 @@ export default function ResumesPage() {
                       {t('upgradeProAction')}
                     </Link>
                   </div>
-                  <ResumeCardPreview resume={filteredResumes[FREE_RESUME_LIMIT]} status={getResumeCardStatus(filteredResumes[FREE_RESUME_LIMIT], FREE_RESUME_LIMIT, t)} t={t} />
+                  <ResumeCardPreview resume={filteredResumes[FREE_RESUME_LIMIT]} status={getResumeCardStatus(filteredResumes[FREE_RESUME_LIMIT], t)} t={t} />
                   <div className="px-4 py-3.5">
-                    <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{filteredResumes[FREE_RESUME_LIMIT]?.title}</h2>
-                    <p className="mt-0.5 truncate text-xs" style={{ color: LIST_MUTED }}>{getResumeSubtitle(filteredResumes[FREE_RESUME_LIMIT], t)}</p>
+                    <ResumeCardTitleBlock resume={filteredResumes[FREE_RESUME_LIMIT]} t={t} />
                   </div>
                 </div>
               )}

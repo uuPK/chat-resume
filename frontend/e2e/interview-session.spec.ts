@@ -236,6 +236,19 @@ test('结束面试会把 session 标记为 completed 并返回面试列表', asy
   const endButton = page.getByRole('button', { name: '结束面试' })
   await expect(endButton).toBeVisible()
   await expect(page.getByRole('button', { name: '继续面试' })).toBeVisible()
+  await page.evaluate(() => {
+    window.__sawReportGenerationPanel = false
+    const markIfPanelAppears = () => {
+      if (document.body.textContent?.includes('生成面试复盘报告')) {
+        window.__sawReportGenerationPanel = true
+      }
+    }
+    markIfPanelAppears()
+    new MutationObserver(markIfPanelAppears).observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
+  })
   const [endRequest] = await Promise.all([
     page.waitForRequest('**/api/interviews/456/end'),
     endButton.click(),
@@ -243,98 +256,57 @@ test('结束面试会把 session 标记为 completed 并返回面试列表', asy
 
   expect(endRequest.method()).toBe('POST')
   await expect(page).toHaveURL(/\/zh\/interviews$/)
-  await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '生成报告' })).toBeVisible()
+  await expect.poll(
+    () => page.evaluate(() => window.__sawReportGenerationPanel),
+  ).toBe(false)
 })
 
-test('completed 面试可以点击生成报告并展示摘要', async ({ page }) => {
+test('面试列表 completed 无报告卡片可以生成报告', async ({ page }) => {
   await mockInterviewApis(page)
+  let finishReport!: () => void
+  const reportCanFinish = new Promise<void>(resolve => {
+    finishReport = resolve
+  })
 
-  await page.route(/\/api\/interviews\/456$/, async route => {
-    await route.fulfill({ json: { session: completedSession } })
+  await page.route('**/api/resumes/', async route => {
+    await route.fulfill({ json: [resume] })
+  })
+  await page.route('**/api/interviews/', async route => {
+    await route.fulfill({
+      json: [
+        {
+          ...completedSession,
+          answered_turn_count: 1,
+          has_report: false,
+        },
+      ],
+    })
   })
   await page.route(/\/api\/interviews\/456\/report\/stream$/, async route => {
+    await reportCanFinish
     await route.fulfill({
       contentType: 'text/event-stream',
       body: reportStreamBody([reportDone(completedSessionWithReport)]),
     })
   })
 
-  await page.goto('/zh/resume/123/interview?session=456')
+  await page.goto('/zh/interviews')
 
-  const generateButton = page.getByRole('button', { name: '生成报告', exact: true })
-  await expect(generateButton).toBeVisible()
+  const generateButton = page.getByRole('button', { name: '生成报告' })
   const [reportRequest] = await Promise.all([
     page.waitForRequest('**/api/interviews/456/report/stream'),
     generateButton.click(),
   ])
 
   expect(reportRequest.method()).toBe('POST')
-  await expect(generateButton).toBeHidden()
-  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
-  await expect(page.getByText('边缘通过，岗位方向相关但证据不足')).toBeVisible()
-  await expect(page.getByRole('button', { name: '查看对话' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '生成中...' })).toBeVisible()
+  finishReport()
+  await expect(page.getByRole('link', { name: '查看报告' })).toBeVisible()
 })
 
-test('completed 空面试点击报告入口会提示无法生成', async ({ page }) => {
+test('completed 无报告详情页不再展示生成报告卡片', async ({ page }) => {
   await mockInterviewApis(page)
-
-  await page.route(/\/api\/interviews\/456$/, async route => {
-    await route.fulfill({ json: { session: completedEmptySession } })
-  })
-  await page.route(/\/api\/interviews\/456\/report\/stream$/, async route => {
-    await route.fulfill({
-      contentType: 'text/event-stream',
-      body: reportStreamBody([reportDone(completedEmptySession, 'report_skipped')]),
-    })
-  })
-
-  await page.goto('/zh/resume/123/interview?session=456')
-
-  const [reportRequest] = await Promise.all([
-    page.waitForRequest('**/api/interviews/456/report/stream'),
-    page.getByRole('button', { name: '开始生成报告' }).click(),
-  ])
-
-  expect(reportRequest.method()).toBe('POST')
-  await expect(page.getByText('这场面试还没有可复盘的回答，先完成一次问答后再生成报告。')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toBeVisible()
-})
-
-test('生成报告进度使用后端 SSE 阶段', async ({ page }) => {
-  await mockInterviewApis(page)
-  await page.addInitScript(({ session }) => {
-    const originalFetch = window.fetch.bind(window)
-    window.fetch = async (input, init) => {
-      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
-      if (!url.includes('/api/interviews/456/report/stream')) return originalFetch(input, init)
-
-      const encoder = new TextEncoder()
-      const events = [
-        { event_type: 'phase', phase: 'validate_session', label: '校验面试状态', status: 'running', progress: 5 },
-        { event_type: 'phase', phase: 'validate_session', label: '校验面试状态', status: 'completed', progress: 12 },
-        { event_type: 'phase', phase: 'load_turns', label: '读取面试回答', status: 'running', progress: 18 },
-        { event_type: 'phase', phase: 'load_turns', label: '读取面试回答', status: 'completed', progress: 28 },
-        { event_type: 'phase', phase: 'request_llm', label: '调用 AI 生成报告', status: 'running', progress: 36 },
-        { event_type: 'phase', phase: 'request_llm', label: '调用 AI 生成报告', status: 'completed', progress: 68 },
-        { event_type: 'phase', phase: 'parse_report', label: '解析报告结构', status: 'running', progress: 74 },
-        { event_type: 'done', phase: 'done', label: '报告已生成', status: 'completed', progress: 100, done: true, generated: true, next_action: 'report', session },
-      ]
-      const body = new ReadableStream({
-        start(controller) {
-          events.forEach((event, index) => {
-            window.setTimeout(() => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-              if (index === events.length - 1) controller.close()
-            }, 200 + index * 700)
-          })
-        },
-      })
-      return new Response(body, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-  }, { session: completedSessionWithReport })
 
   await page.route(/\/api\/interviews\/456$/, async route => {
     await route.fulfill({ json: { session: completedSession } })
@@ -342,16 +314,10 @@ test('生成报告进度使用后端 SSE 阶段', async ({ page }) => {
 
   await page.goto('/zh/resume/123/interview?session=456')
 
-  const status = page.getByRole('status')
-  await page.getByRole('button', { name: '生成报告', exact: true }).click()
-
-  await expect(status).toContainText('校验面试状态')
-  await expect(status).toContainText('调用 AI 生成报告', { timeout: 5_000 })
-  await expect(page.getByRole('progressbar', { name: '报告生成进度' })).toBeVisible()
-  await expect(status).toContainText('解析报告结构', { timeout: 2_000 })
-  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
+  await expect(page.getByText('报告尚未生成，请回到面试中心生成报告。')).toBeVisible()
+  await expect(page.getByRole('button', { name: '开始生成报告' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '生成面试复盘报告' })).toHaveCount(0)
 })
-
 
 test('语音面试候选人回答时不隐藏面试官实时消息', async ({ page }) => {
   await mockInterviewApis(page)
@@ -444,17 +410,18 @@ test('completed 面试报告展示行动报告结构', async ({ page }) => {
 
   await page.goto('/zh/resume/123/interview?session=456')
 
-  await expect(page.getByRole('heading', { name: '面试作战报告' })).toBeVisible()
-  await expect(page.getByText('边缘通过，岗位方向相关但证据不足')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '面试官结论' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '岗位匹配' })).toBeVisible()
-  await expect(page.getByText('量化结果', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '风险追问' })).toBeVisible()
-  await expect(page.getByText('负责边界不清，面试官可能继续追问具体贡献。')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '逐题重写' })).toBeVisible()
-  await expect(page.getByText('我负责 Agent 工具编排和确认链路，首轮响应耗时降低 30%。')).toBeVisible()
-  await expect(page.getByRole('heading', { name: '下一步行动' })).toBeVisible()
-  await expect(page.getByText('强化项目成果')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试复盘报告' })).toBeVisible()
+  await expect(page.getByText('综合得分')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试官评价' })).toBeVisible()
+  await expect(page.getByText('项目方向相关，但负责边界和量化结果没有证明清楚。')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '综合能力分析' })).toBeVisible()
+  await expect(page.getByText('岗位相关度')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '学习规划与建议' })).toBeVisible()
+  await expect(page.getByText('强化项目成果').first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: '面试题目解析记录' })).toBeVisible()
+  await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
+  await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
+  await expect(page.getByText('没有说明用户规模')).toBeVisible()
 })
 
 test('面试列表对 completed session 显示查看报告', async ({ page }) => {
@@ -468,6 +435,7 @@ test('面试列表对 completed session 显示查看报告', async ({ page }) =>
         {
           ...completedSession,
           answered_turn_count: 1,
+          has_report: true,
         },
         {
           ...activeSession,

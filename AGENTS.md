@@ -174,6 +174,7 @@ bv --robot-label-health | jq '.results.labels[] | select(.health_level == "criti
 
 
 ## MCP Agent Mail：多 Agent 工作流协作
+- 改动前请使用AGENT MAIL预约文件以避免冲突
 
 它是什么
 - 一个类似邮件的协作层，让编码 Agent 通过 MCP 工具和资源异步协作。

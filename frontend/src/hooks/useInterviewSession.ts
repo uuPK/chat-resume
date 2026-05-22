@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 
-import { resumeApi, type InterviewReportProgressEvent, type InterviewSession } from '@/lib/api'
+import { resumeApi, type InterviewSession } from '@/lib/api'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 
 type InterviewResumeSource = {
@@ -31,18 +31,6 @@ interface UseInterviewSessionOptions {
   defaultMode?: 'practice' | 'simulation'
 }
 
-// 用于避免新增消息热更新滞后时中断面试会话操作。
-function translateOrFallback(
-  t: ReturnType<typeof useTranslations>,
-  key: string,
-  fallback: string,
-) {
-  try {
-    return t(key)
-  } catch {
-    return fallback
-  }
-}
 
 /**
  * 读取求职目标，用于创建实时语音面试上下文。
@@ -57,16 +45,6 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
   }
 }
 
-// 用于按后端阶段键合并报告生成进度事件。
-function mergeReportProgressEvent(
-  events: InterviewReportProgressEvent[],
-  event: InterviewReportProgressEvent,
-) {
-  if (event.event_type !== 'phase' || !event.phase) return events
-  const index = events.findIndex(item => item.phase === event.phase)
-  if (index < 0) return [...events, event]
-  return events.map((item, itemIndex) => itemIndex === index ? event : item)
-}
 
 /**
  * 统一加载已有 session 或创建新 session。实时语音面试由 digital-human
@@ -112,7 +90,6 @@ export function useInterviewSession({
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [reportProgress, setReportProgress] = useState<InterviewReportProgressEvent[]>([])
   const locale = useLocale() as AppLocale
   const t = useTranslations('interview.errors')
 
@@ -123,7 +100,6 @@ export function useInterviewSession({
     setSession(null)
     setError(null)
     setIsSending(false)
-    setReportProgress([])
   }, [defaultMode, resume?.id, requestedSessionId])
 
   /**
@@ -179,45 +155,11 @@ export function useInterviewSession({
     }
   }, [isSending, session, t])
 
-  /**
-   * 为已完成面试生成评估报告并刷新 session。
-   */
-  const generateReport = useCallback(async () => {
-    if (!session || isSending || session.status !== 'completed') return
-
-    setIsSending(true)
-    setError(null)
-    setReportProgress([])
-    try {
-      const result = await resumeApi.generateInterviewReportStream(
-        session.id,
-        event => setReportProgress(current => mergeReportProgressEvent(current, event)),
-      )
-      setSession(result.session)
-      if (result.next_action === 'report_skipped') {
-        setError(translateOrFallback(
-          t,
-          'reportSkipped',
-          '这场面试还没有可复盘的回答，先完成一次问答后再生成报告。',
-        ))
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : translateOrFallback(t, 'reportFailed', '生成报告失败')
-      )
-    } finally {
-      setIsSending(false)
-    }
-  }, [isSending, session, t])
 
   return {
     session,
     isSending,
     error,
-    reportProgress,
     endInterview,
-    generateReport,
   }
 }

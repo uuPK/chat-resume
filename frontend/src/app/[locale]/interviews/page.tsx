@@ -17,6 +17,7 @@ import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { useLocale, useTranslations } from 'next-intl'
 import { toInterviewLanguage, type AppLocale } from '@/i18n/routing'
 import {
+  ArrowPathIcon,
   ArrowRightIcon,
   ChevronDownIcon,
   ChatBubbleLeftRightIcon,
@@ -50,6 +51,9 @@ const LIST_MUTED = '#6b7280'
 const LIST_FAINT = '#9ca3af'
 const LIST_BORDER = 'rgba(0,0,0,0.14)'
 const LIST_SOFT_BORDER = 'rgba(0,0,0,0.08)'
+
+type SessionStatusFilter = 'all' | 'completed' | 'active' | 'not_started'
+type SessionSortOrder = 'recent' | 'oldest'
 
 // 用于生成面试记录卡片的完整开始时间。
 function formatInterviewStartTime(dateString: string | undefined, locale: string) {
@@ -182,7 +186,7 @@ function NoResumeInterviewState({
 // 用于判断面试卡片视觉状态。
 function getInterviewVisualState(status: string, t: ReturnType<typeof useTranslations>) {
   if (status === 'completed') {
-    return { label: t('status.completed'), badgeBg: '#ecfdf5', badgeColor: '#047857', kind: 'done' as const }
+    return { label: t('status.completed'), badgeBg: LIST_BLUE_BG, badgeColor: '#1e40af', kind: 'done' as const }
   }
   if (status === 'waiting_user_answer') {
     return { label: t('status.active'), badgeBg: '#ecfdf5', badgeColor: '#047857', kind: 'ongoing' as const }
@@ -204,6 +208,40 @@ function sessionMatchesQuery(session: InterviewSessionSummary, query: string) {
     .some(value => value?.toLowerCase().includes(normalizedQuery))
 }
 
+// 用于判断面试记录是否符合状态筛选。
+function sessionMatchesStatus(session: InterviewSessionSummary, filter: SessionStatusFilter) {
+  if (filter === 'all') return true
+  if (filter === 'completed') return session.status === 'completed'
+  if (filter === 'active') return session.status === 'waiting_user_answer' || session.status === 'in_progress'
+  return session.status !== 'completed' && session.status !== 'waiting_user_answer' && session.status !== 'in_progress'
+}
+
+// 用于给面试记录排序提供稳定时间戳。
+function getSessionSortTimestamp(session: InterviewSessionSummary) {
+  const dateString = session.started_at || session.ended_at
+  if (!dateString) return session.id
+  const normalizedDate = dateString.includes('Z') || dateString.includes('+') ? dateString : `${dateString}Z`
+  const timestamp = new Date(normalizedDate).getTime()
+  return Number.isNaN(timestamp) ? session.id : timestamp
+}
+
+// 用于组合搜索、状态筛选和时间排序。
+function getVisibleInterviewSessions(
+  sessions: InterviewSessionSummary[],
+  query: string,
+  statusFilter: SessionStatusFilter,
+  sortOrder: SessionSortOrder,
+) {
+  return sessions
+    .filter(session => sessionMatchesQuery(session, query))
+    .filter(session => sessionMatchesStatus(session, statusFilter))
+    .sort((left, right) => {
+      const leftTime = getSessionSortTimestamp(left)
+      const rightTime = getSessionSortTimestamp(right)
+      return sortOrder === 'recent' ? rightTime - leftTime : leftTime - rightTime
+    })
+}
+
 // 面试记录卡片。
 function InterviewCard({
   session,
@@ -212,6 +250,8 @@ function InterviewCard({
   deletingSessionId,
   onDelete,
   onPracticeAgain,
+  onGenerateReport,
+  generatingReportSessionId,
   t,
 }: {
   session: InterviewSessionSummary
@@ -220,12 +260,16 @@ function InterviewCard({
   deletingSessionId: number | null
   onDelete: (sessionId: number) => void
   onPracticeAgain: () => void
+  onGenerateReport: (sessionId: number) => void
+  generatingReportSessionId: number | null
   t: ReturnType<typeof useTranslations>
 }) {
   const visual = getInterviewVisualState(session.status, t)
   const score = getInterviewScore(session)
   const isCompleted = session.status === 'completed'
   const scoreValue = `${score || 0}${t('center.scoreSuffix')}`
+  const isGeneratingReport = generatingReportSessionId === session.id
+  const hasReport = Boolean(session.has_report)
 
   return (
     <motion.div
@@ -246,14 +290,13 @@ function InterviewCard({
       <div className="flex flex-1 flex-col gap-3 px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{session.target_title || t('session.untitledRole')}</h2>
-            <p className="mt-0.5 flex items-center gap-1 truncate text-xs" style={{ color: LIST_MUTED }}>
-              <DocumentTextIcon className="h-3 w-3 shrink-0" />
-              <span>{session.target_company || t('center.noTargetCompany')}</span>
+            <h2 className="truncate text-sm font-medium" style={{ color: LIST_TEXT }}>{session.target_company || t('center.noTargetCompany')}</h2>
+            <p className="mt-0.5 truncate text-xs" style={{ color: LIST_MUTED }}>
+              {session.target_title || t('session.untitledRole')}
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: visual.badgeBg, color: visual.badgeColor, border: visual.kind === 'draft' ? `1px solid ${LIST_BORDER}` : 'none' }}>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium" style={{ backgroundColor: visual.badgeBg, color: visual.badgeColor, border: visual.kind === 'draft' ? `1px solid ${LIST_BORDER}` : 'none' }}>
               {visual.label}
             </span>
             <button
@@ -290,9 +333,22 @@ function InterviewCard({
       <div className="grid grid-cols-2 gap-1.5 px-[18px] pb-4">
         {isCompleted ? (
           <>
-            <Link href={`/resume/${session.resume_id}/interview?session=${session.id}`} aria-label={t('session.viewReport')} className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-              {t('center.reviewAction')}
-            </Link>
+            {hasReport ? (
+              <Link href={`/resume/${session.resume_id}/interview?session=${session.id}`} aria-label={t('session.viewReport')} className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
+                {t('center.reviewAction')}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onGenerateReport(session.id)}
+                disabled={isGeneratingReport}
+                className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                style={{ borderColor: LIST_BORDER, color: LIST_BLUE }}
+              >
+                {isGeneratingReport && <ArrowPathIcon className="h-3 w-3 animate-spin" />}
+                {isGeneratingReport ? t('session.generatingReport') : t('session.generateReport')}
+              </button>
+            )}
             <button type="button" onClick={onPracticeAgain} className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white" style={{ backgroundColor: LIST_BLUE }}>
               {t('center.practiceAgain')}
             </button>
@@ -336,13 +392,16 @@ export default function InterviewsPage() {
   const [selectedResumeLoading, setSelectedResumeLoading] = useState(false)
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null)
+  const [generatingReportSessionId, setGeneratingReportSessionId] = useState<number | null>(null)
   const [sessionSearchQuery, setSessionSearchQuery] = useState('')
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionStatusFilter>('all')
+  const [sessionSortOrder, setSessionSortOrder] = useState<SessionSortOrder>('recent')
   const [formError, setFormError] = useState<string | null>(null)
   const [targetCompany, setTargetCompany] = useState('')
   const [targetTitle, setTargetTitle] = useState('')
   const [jdText, setJdText] = useState('')
   const hasResumes = resumes.length > 0
-  const filteredSessions = sessions.filter(session => sessionMatchesQuery(session, sessionSearchQuery))
+  const filteredSessions = getVisibleInterviewSessions(sessions, sessionSearchQuery, sessionStatusFilter, sessionSortOrder)
 
   /**
    * 用于在客户端挂载后再读取鉴权状态和本地缓存。
@@ -505,6 +564,32 @@ export default function InterviewsPage() {
       setDeletingSessionId(null)
     }
   }
+
+  /**
+   * 用于在面试列表卡片上直接生成报告。
+   */
+  // 用于处理生成报告。
+  const handleGenerateReport = async (sessionId: number) => {
+    if (generatingReportSessionId) return
+
+    setGeneratingReportSessionId(sessionId)
+    setPageError(null)
+    try {
+      const result = await resumeApi.generateInterviewReportStream(sessionId, () => {})
+      if (result.next_action === 'report_skipped') {
+        setPageError(t('errors.reportSkipped'))
+        return
+      }
+      setSessions((currentSessions) => currentSessions.map((session) => (
+        session.id === sessionId ? { ...session, has_report: true } : session
+      )))
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : t('errors.reportFailed'))
+    } finally {
+      setGeneratingReportSessionId(null)
+    }
+  }
+
 
   /**
    * 用于打开创建面试弹层，让用户在不离开当前页面布局的情况下完成配置。
@@ -830,14 +915,32 @@ export default function InterviewsPage() {
                     style={{ borderColor: LIST_BORDER, color: LIST_TEXT }}
                   />
                 </label>
-                <button type="button" className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-                  <span>{t('center.filterAllStatus')}</span>
-                  <ChevronDownIcon className="h-3.5 w-3.5" />
-                </button>
-                <button type="button" className="inline-flex h-[34px] items-center justify-between gap-3 rounded-lg border bg-white px-3 text-[13px]" style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}>
-                  <span>{t('center.sortRecent')}</span>
-                  <ChevronDownIcon className="h-3.5 w-3.5" />
-                </button>
+                <label className="relative block w-full sm:w-[150px]" aria-label={t('center.filterStatusLabel')}>
+                  <select
+                    value={sessionStatusFilter}
+                    onChange={event => setSessionStatusFilter(event.target.value as SessionStatusFilter)}
+                    className="h-[34px] w-full appearance-none rounded-lg border bg-white pl-3 pr-9 text-[13px] outline-none"
+                    style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                  >
+                    <option value="all">{t('center.filterAllStatus')}</option>
+                    <option value="completed">{t('status.completed')}</option>
+                    <option value="active">{t('status.active')}</option>
+                    <option value="not_started">{t('status.notStarted')}</option>
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: LIST_MUTED }} />
+                </label>
+                <label className="relative block w-full sm:w-[150px]" aria-label={t('center.sortTimeLabel')}>
+                  <select
+                    value={sessionSortOrder}
+                    onChange={event => setSessionSortOrder(event.target.value as SessionSortOrder)}
+                    className="h-[34px] w-full appearance-none rounded-lg border bg-white pl-3 pr-9 text-[13px] outline-none"
+                    style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                  >
+                    <option value="recent">{t('center.sortRecent')}</option>
+                    <option value="oldest">{t('center.sortOldest')}</option>
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={{ color: LIST_MUTED }} />
+                </label>
               </div>
 
               <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
@@ -850,6 +953,8 @@ export default function InterviewsPage() {
                     deletingSessionId={deletingSessionId}
                     onDelete={handleDeleteInterview}
                     onPracticeAgain={handlePracticeCardClick}
+                    onGenerateReport={handleGenerateReport}
+                    generatingReportSessionId={generatingReportSessionId}
                     t={t}
                   />
                 ))}
