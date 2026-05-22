@@ -416,6 +416,8 @@ test('completed 面试报告展示行动报告结构', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '面试官评价' })).toBeVisible()
   await expect(page.getByText('关键观察')).toBeVisible()
   await expect(page.getByText('核心建议')).toBeVisible()
+  await expect(page.getByText('优点')).toHaveCount(0)
+  await expect(page.getByText('待改进')).toHaveCount(0)
   await expect(page.getByText('项目方向相关，但负责边界和量化结果没有证明清楚。')).toBeVisible()
   await expect(page.getByText('第 1 题')).toBeVisible()
   await expect(page.getByText('2 / 10 分')).toBeVisible()

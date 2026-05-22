@@ -1015,9 +1015,6 @@ function ScreenshotTextBlock({ icon, title, children }: { icon: string; title: s
 
 // 用于渲染截图风格的单题报告。
 function ScreenshotQuestionReview({ turn, index, rewrite }: { turn: InterviewSession['turns'][number]; index: number; rewrite?: NonNullable<ReportData['answer_rewrites']>[number] }) {
-  const gaps = turn.evaluation?.gaps || []
-  const evidence = turn.evaluation?.evidence || []
-  const improvements = [...gaps, rewrite?.original_problem].filter(Boolean) as string[]
   const thinking = turn.evaluation?.advice || '采用总-分-总结构：先给结论，再按背景、技术动作、结果证据展开，最后回扣岗位要求。'
   return (
     <article style={{ borderTop: `1px solid ${RD.border}`, padding: '28px 30px 38px' }}>
@@ -1031,10 +1028,6 @@ function ScreenshotQuestionReview({ turn, index, rewrite }: { turn: InterviewSes
         <div style={{ background: '#F3F3F3', borderRadius: 8, padding: '18px 20px', color: RD.textMuted, fontSize: 15, lineHeight: 1.8 }}>
           {turn.answer || '（候选人未作答）'}
         </div>
-      </div>
-      <div className="report-two-column" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 22 }}>
-        <ScreenshotListCard title="优点" icon="●" items={evidence.length > 0 ? evidence : ['无']} tone="green" />
-        <ScreenshotListCard title="待改进" icon="!" items={improvements} tone="amber" />
       </div>
       <ScreenshotTextBlock icon="□" title="面试官点评">
         {turn.evaluation?.summary || rewrite?.original_problem || '该题暂无单独点评。'}
