@@ -128,6 +128,25 @@ const completedSessionWithReport = {
       },
     ],
     next_training_plan: ['补充数据', '练习追问', '压缩表达'],
+    learning_plan: {
+      learning_priorities: [
+        { topic: '结构化表达', level: '高' },
+        { topic: '量化结果', level: '高' },
+        { topic: '追问准备', level: '中' },
+      ],
+      improvement_roadmap: [
+        {
+          phase: '立即行动',
+          timeframe: '1-2周',
+          items: ['重写核心项目回答，补充职责边界、技术动作和量化结果。'],
+        },
+        {
+          phase: '短期目标',
+          timeframe: '1个月',
+          items: ['完成三次追问模拟，覆盖项目深挖、技术取舍和线上效果。'],
+        },
+      ],
+    },
     resume_feedback: ['强化项目成果'],
   },
 }
@@ -418,6 +437,10 @@ test('completed 面试报告展示行动报告结构', async ({ page }) => {
   await expect(page.getByText('核心建议')).toBeVisible()
   await expect(page.getByText('优点')).toHaveCount(0)
   await expect(page.getByText('待改进')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '学习规划与建议' })).toBeVisible()
+  await expect(page.getByText('结构化表达（高）')).toBeVisible()
+  await expect(page.getByText('提升路线图')).toBeVisible()
+  await expect(page.getByText('立即行动')).toBeVisible()
   await expect(page.getByText('项目方向相关，但负责边界和量化结果没有证明清楚。')).toBeVisible()
   await expect(page.getByText('第 1 题')).toBeVisible()
   await expect(page.getByText('2 / 10 分')).toBeVisible()

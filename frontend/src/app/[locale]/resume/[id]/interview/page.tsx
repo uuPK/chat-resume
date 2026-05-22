@@ -832,6 +832,9 @@ function VoicePanel({
 }
 
 type ReportData = NonNullable<InterviewSession['report_data']>
+type ReportLearningPlan = NonNullable<ReportData['learning_plan']>
+type ReportLearningPriority = NonNullable<ReportLearningPlan['learning_priorities']>[number]
+type ReportRoadmapPhase = NonNullable<ReportLearningPlan['improvement_roadmap']>[number]
 
 // 报告色彩系统用于模拟面试报告的纸面视觉。
 const RD = {
@@ -1000,6 +1003,105 @@ function ScreenshotListCard({ title, icon, items, tone }: { title: string; icon:
   )
 }
 
+// 用于给学习优先级标签选择报告色彩。
+function learningLevelStyle(level: string): { bg: string; color: string } {
+  if (level === '高') return { bg: RD.redLight, color: RD.red }
+  if (level === '低') return { bg: RD.blueLight, color: RD.blue }
+  return { bg: RD.yellowLight, color: RD.amber }
+}
+
+// 用于把旧报告中的训练建议兜底转成学习规划。
+function reportLearningPlan(data: ReportData): ReportLearningPlan {
+  const priorities = data.learning_plan?.learning_priorities || []
+  const roadmap = data.learning_plan?.improvement_roadmap || []
+  if (priorities.length > 0 || roadmap.length > 0) return { learning_priorities: priorities, improvement_roadmap: roadmap }
+  if ((data.next_training_plan || []).length === 0) return { learning_priorities: [], improvement_roadmap: [] }
+  return {
+    learning_priorities: [],
+    improvement_roadmap: [{ phase: '立即行动', timeframe: '1-2周', items: data.next_training_plan || [] }],
+  }
+}
+
+// 用于渲染学习重点标签。
+function ScreenshotLearningPriority({ priority }: { priority: ReportLearningPriority }) {
+  const style = learningLevelStyle(priority.level)
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: style.bg, color: style.color, fontSize: 15, fontWeight: 800, padding: '8px 16px' }}>
+      {priority.topic}（{priority.level || '中'}）
+    </span>
+  )
+}
+
+// 用于渲染学习路线图中的一个阶段。
+function ScreenshotRoadmapPhase({ phase, isLast }: { phase: ReportRoadmapPhase; isLast: boolean }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr', gap: 12, position: 'relative' }}>
+      {!isLast && <div style={{ position: 'absolute', left: 20, top: 34, bottom: -24, width: 3, background: RD.yellow }} />}
+      <div style={{ position: 'relative', zIndex: 1, width: 26, height: 26, borderRadius: '50%', border: `3px solid ${RD.yellow}`, background: RD.surface, marginTop: 2 }} />
+      <div style={{ paddingBottom: isLast ? 0 : 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+          <strong style={{ color: RD.text, fontSize: 17 }}>{phase.phase}</strong>
+          <span style={{ color: RD.textFaint, fontSize: 14 }}>（{phase.timeframe || '按计划'}）</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(phase.items || []).map((item, index) => (
+            <div key={index} style={{ display: 'flex', gap: 10, color: RD.textMuted, fontSize: 14, lineHeight: 1.75 }}>
+              <span style={{ color: RD.yellow, flexShrink: 0 }}>•</span>
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 用于渲染学习规划右侧的轻量插画。
+function ScreenshotLearningIllustration() {
+  return (
+    <div aria-hidden="true" style={{ position: 'relative', minHeight: 300 }}>
+      <div style={{ position: 'absolute', right: 52, top: 42, width: 170, height: 120, borderRadius: 24, background: RD.yellowLight }} />
+      <div style={{ position: 'absolute', right: 86, top: 78, width: 100, height: 70, border: `2px solid ${RD.textMuted}`, background: '#fff' }} />
+      <div style={{ position: 'absolute', right: 110, top: 100, color: RD.text, fontSize: 30, fontWeight: 900 }}>{'</>'}</div>
+      <div style={{ position: 'absolute', right: 246, top: 72, width: 150, height: 10, background: '#DADDE0' }} />
+      <div style={{ position: 'absolute', right: 206, top: 104, width: 190, height: 10, background: RD.yellow }} />
+      <div style={{ position: 'absolute', right: 236, top: 136, width: 160, height: 10, background: '#DADDE0' }} />
+      <div style={{ position: 'absolute', right: 128, bottom: 34, width: 300, height: 22, borderRadius: '50%', background: '#DADDE0' }} />
+      <div style={{ position: 'absolute', right: 178, bottom: 70, width: 132, height: 96, borderRadius: '60px 60px 18px 18px', background: RD.yellow }} />
+      <div style={{ position: 'absolute', right: 210, bottom: 102, width: 64, height: 64, borderRadius: '50%', background: RD.dark, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900 }}>{'</>'}</div>
+    </div>
+  )
+}
+
+// 用于渲染报告中的学习规划与建议。
+function ScreenshotLearningPlanSection({ plan }: { plan: ReportLearningPlan }) {
+  if ((plan.learning_priorities || []).length === 0 && (plan.improvement_roadmap || []).length === 0) return null
+  return (
+    <section style={{ marginBottom: 46 }}>
+      <ScreenshotSectionTitle icon="▱" title="学习规划与建议" />
+      {(plan.learning_priorities || []).length > 0 && (
+        <>
+          <h3 style={{ margin: '8px 0 14px', color: RD.text, fontSize: 17 }}>学习重点推荐</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 30 }}>
+            {(plan.learning_priorities || []).map((priority, index) => (
+              <ScreenshotLearningPriority key={`${priority.topic}-${index}`} priority={priority} />
+            ))}
+          </div>
+        </>
+      )}
+      <div className="report-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 36, alignItems: 'center' }}>
+        <div>
+          <h3 style={{ margin: '0 0 18px', color: RD.text, fontSize: 17 }}>提升路线图</h3>
+          {(plan.improvement_roadmap || []).map((phase, index, phases) => (
+            <ScreenshotRoadmapPhase key={`${phase.phase}-${index}`} phase={phase} isLast={index === phases.length - 1} />
+          ))}
+        </div>
+        <ScreenshotLearningIllustration />
+      </div>
+    </section>
+  )
+}
+
 // 用于渲染截图风格的灰底说明块。
 function ScreenshotTextBlock({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
   return (
@@ -1063,6 +1165,7 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
   const evaluation = data.interviewer_evaluation
   const observations = evaluation?.key_observations || data.interviewer_risks || []
   const recommendations = evaluation?.core_recommendations || data.next_training_plan || []
+  const learningPlan = reportLearningPlan(data)
   const rewrites = data.answer_rewrites || []
   const rewriteByIndex = Object.fromEntries(
     rewrites.filter(rewrite => typeof rewrite.turn_index === 'number').map(rewrite => [rewrite.turn_index!, rewrite]),
@@ -1096,6 +1199,7 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
             <ScreenshotListCard title="核心建议" icon="✓" items={recommendations} tone="green" />
           </div>
         </section>
+        <ScreenshotLearningPlanSection plan={learningPlan} />
         {turns.map((turn, index) => (
           <ScreenshotQuestionReview
             key={turn.id}
