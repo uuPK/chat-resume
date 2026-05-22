@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
-import logging
-from time import perf_counter
 from typing import Any, AsyncGenerator
 from uuid import uuid4
 
@@ -20,11 +18,8 @@ from pi_agent_core import (
 )
 from pi_agent_core.types import Message, StreamFn
 
-from app.agents.resume.stream_events import (
-    llm_response_event,
-    prompt_rendered_event,
-)
 from app.agents.resume.agent_loop import ResumeAgentLoop
+from app.agents.resume.run_lifecycle import ResumeRunLifecycle
 from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.agents.resume.turn_context import ResumeTurnContextBuilder
 from app.infra.config import settings
@@ -35,14 +30,8 @@ from app.runtime.openrouter_adapter import (
 from app.runtime.tool_confirmation import (
     ToolConfirmationPolicy,
 )
-from app.runtime.runtime_event_adapter import (
-    emit_runtime_event,
-    publish_runtime_event,
-)
 from app.runtime.pi_agent_openrouter import stream_openrouter
 from app.types.stream import ResumeStreamEvent
-
-logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
 
@@ -163,6 +152,9 @@ class PiAgentRuntime:
         self.agent_loop = ResumeAgentLoop(
             stream_fn=self.stream_fn,
             tool_stage=self.tool_stage,
+        )
+        self.lifecycle = ResumeRunLifecycle(
+            model_name_provider=openrouter_chat_model_name,
         )
         self.turn_context_builder = ResumeTurnContextBuilder(
             tool_stage=self.tool_stage,
@@ -396,24 +388,8 @@ class PiAgentRuntime:
 
     @staticmethod
     def _new_stream_state() -> dict[str, Any]:
-        """用于处理new流式state。"""
-        return {
-            "started_at": perf_counter(),
-            "chunk_index": 0,
-            "response_parts": [],
-            "last_assistant_text": "",
-            "confirmed_diff_items": [],
-            "tool_profile": "",
-            "tool_names": [],
-            "visible_tool_call_ids": set(),
-            "unexpected_tool_call_names": set(),
-            "prompt_chars": 0,
-            "tool_call_count": 0,
-            "first_token_latency_ms": None,
-            "usage": {},
-            "confirmation_wait_ms": 0.0,
-            "mutation_claim_retry_count": 0,
-        }
+        """用于兼容旧测试入口，并委托 run lifecycle 创建状态。"""
+        return ResumeRunLifecycle.new_stream_state()
 
     def _llm_request_event(
         self,
@@ -436,30 +412,17 @@ class PiAgentRuntime:
         agent: AgentDefinition,
         state: dict[str, Any],
     ) -> ResumeStreamEvent:
-        """用于处理模型响应事件。"""
-        return llm_response_event(
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            response_content="".join(state["response_parts"]),
-            tool_call_count=int(state.get("tool_call_count") or 0),
-            latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-            first_token_latency_ms=state.get("first_token_latency_ms"),
-            usage=state.get("usage") if isinstance(state.get("usage"), dict) else {},
-            confirmation_wait_ms=float(state.get("confirmation_wait_ms") or 0.0),
-        )
+        """用于兼容旧测试入口，并委托 run lifecycle 生成响应事件。"""
+        return self.lifecycle.llm_response_event(agent, state)
 
-    @staticmethod
     def _prompt_rendered_event(
+        self,
         agent: AgentDefinition,
         system_prompt: str,
         user_message: str,
     ) -> ResumeStreamEvent:
-        """用于处理提示词渲染结果事件。"""
-        return prompt_rendered_event(
-            agent_name=agent.prompt_spec.name,
-            system_prompt=system_prompt,
-            user_message_preview=str(user_message)[:1500],
-        )
+        """用于兼容旧测试入口，并委托 run lifecycle 生成 prompt 事件。"""
+        return self.lifecycle.prompt_rendered_event(agent, system_prompt, user_message)
 
     @staticmethod
     def _message_to_dict(message: Message) -> dict[str, Any]:
@@ -479,15 +442,13 @@ class PiAgentRuntime:
         user_message: str,
         conversation_history: list[dict[str, str]] | None,
     ) -> None:
-        """用于处理追踪run开始。"""
-        self._trace(
-            "agent.trace.run.started",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            mode=mode,
-            user_message_preview=self._preview_text(user_message),
-            history_count=len(conversation_history or []),
-            tool_names=list(agent.tool_profiles.get(agent.default_tool_profile, set())),
+        """用于兼容旧测试入口，并委托 run lifecycle 记录开始。"""
+        self.lifecycle.trace_run_start(
+            agent,
+            run_id,
+            mode,
+            user_message,
+            conversation_history,
         )
 
     def _trace_prompt(
@@ -496,13 +457,8 @@ class PiAgentRuntime:
         run_id: str,
         system_prompt: str,
     ) -> None:
-        """用于处理追踪提示词。"""
-        self._trace(
-            "agent.trace.prompt.rendered",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            prompt_chars=len(system_prompt),
-        )
+        """用于兼容旧测试入口，并委托 run lifecycle 记录 prompt。"""
+        self.lifecycle.trace_prompt(agent, run_id, system_prompt)
 
     def _trace_llm_request(
         self,
@@ -524,19 +480,8 @@ class PiAgentRuntime:
         run_id: str,
         event: ResumeStreamEvent,
     ) -> None:
-        """用于处理追踪模型响应。"""
-        self._trace(
-            "agent.trace.llm.response",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            model=self._chat_model_name(),
-            response_preview=self._preview_text(event.get("response_content")),
-            response_chars=len(str(event.get("response_content") or "")),
-            latency_ms=event.get("latency_ms"),
-            first_token_latency_ms=event.get("first_token_latency_ms"),
-            usage=event.get("usage"),
-            confirmation_wait_ms=event.get("confirmation_wait_ms"),
-        )
+        """用于兼容旧测试入口，并委托 run lifecycle 记录响应。"""
+        self.lifecycle.trace_llm_response(agent, run_id, event)
 
     def _trace_run_completed(
         self,
@@ -545,14 +490,8 @@ class PiAgentRuntime:
         mode: str,
         state: dict[str, Any],
     ) -> None:
-        """用于处理追踪runcompleted。"""
-        self._trace(
-            "agent.trace.run.completed",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            mode=mode,
-            latency_ms=round((perf_counter() - state["started_at"]) * 1000, 2),
-        )
+        """用于兼容旧测试入口，并委托 run lifecycle 记录完成。"""
+        self.lifecycle.trace_run_completed(agent, run_id, mode, state)
 
     def _log_run_summary(
         self,
@@ -564,24 +503,14 @@ class PiAgentRuntime:
         success: bool,
         error_type: str | None,
     ) -> None:
-        """用于记录一次 Resume Agent run 的单条结构化摘要。"""
-        logger.info(
-            "resume_agent.run.summary",
-            extra={
-                "agent_trace": True,
-                "agent_name": agent.prompt_spec.name,
-                "run_id": run_id,
-                "mode": mode,
-                "model": self._chat_model_name(),
-                "tool_call_count": int(state.get("tool_call_count") or 0),
-                "confirmation_wait_ms": round(
-                    float(state.get("confirmation_wait_ms") or 0.0),
-                    2,
-                ),
-                "elapsed_ms": round((perf_counter() - state["started_at"]) * 1000, 2),
-                "success": success,
-                "error_type": error_type or "-",
-            },
+        """用于兼容旧测试入口，并委托 run lifecycle 记录摘要。"""
+        self.lifecycle.log_run_summary(
+            agent=agent,
+            run_id=run_id,
+            mode=mode,
+            state=state,
+            success=success,
+            error_type=error_type,
         )
 
     def _trace_tool_requested(
@@ -699,8 +628,8 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        """用于发布事件。"""
-        await publish_runtime_event(
+        """用于兼容旧测试入口，并委托 run lifecycle 发布事件。"""
+        await ResumeRunLifecycle.publish_event(
             event_queue=event_queue,
             event_callback=event_callback,
             event=event,
@@ -711,8 +640,8 @@ class PiAgentRuntime:
         event_callback: RuntimeEventCallback | None,
         event: ResumeStreamEvent,
     ) -> None:
-        """用于发送事件。"""
-        emit_runtime_event(event_callback, event)
+        """用于兼容旧测试入口，并委托 run lifecycle 发送事件。"""
+        ResumeRunLifecycle.emit_event(event_callback, event)
 
     @staticmethod
     def _preview_text(value: Any, limit: int = 240) -> str:
@@ -721,18 +650,13 @@ class PiAgentRuntime:
 
     @staticmethod
     def _trace(message: str, **fields: Any) -> None:
-        """用于处理追踪。"""
-        if not settings.AGENT_TRACE_LOG_ENABLED:
-            return
-        level = int(fields.pop("log_level", logging.INFO))
-        logger.log(level, message, extra={"agent_trace": True, **fields})
+        """用于兼容旧测试入口，并委托 run lifecycle 记录 trace。"""
+        ResumeRunLifecycle.trace(message, **fields)
 
     @staticmethod
     def _trace_chunk(message: str, **fields: Any) -> None:
-        """用于在需要排查流式细节时记录单个 chunk。"""
-        if not settings.AGENT_TRACE_CHUNK_LOG_ENABLED:
-            return
-        PiAgentRuntime._trace(message, **fields)
+        """用于兼容旧测试入口，并委托 run lifecycle 记录 chunk trace。"""
+        ResumeRunLifecycle.trace_chunk(message, **fields)
 
     @staticmethod
     def _tool_names(agent: AgentDefinition) -> list[str]:

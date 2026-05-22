@@ -35,6 +35,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
 from app.agents.resume.agent_loop import ResumeAgentLoop  # noqa: E402
+from app.agents.resume.run_lifecycle import ResumeRunLifecycle  # noqa: E402
 from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.agents.resume.turn_context import ResumeTurnContextBuilder  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
@@ -357,6 +358,36 @@ def test_llm_response_event_records_first_token_usage_and_confirmation_wait():
     assert event["first_token_latency_ms"] == 12.5
     assert event["confirmation_wait_ms"] == 30.0
     assert event["usage"]["total_tokens"] == 15
+
+
+def test_resume_run_lifecycle_builds_events_independently():
+    """用于验证 run lifecycle 可以脱离 PiAgentRuntime 单独生成事件。"""
+    agent = ResumeAgent()
+    lifecycle = ResumeRunLifecycle(model_name_provider=lambda: "test-model")
+    state = lifecycle.new_stream_state()
+    state["response_parts"] = ["已完成", "优化。"]
+    state["tool_call_count"] = 1
+    state["first_token_latency_ms"] = 8.0
+    state["usage"] = {"total_tokens": 12}
+    state["confirmation_wait_ms"] = 20.0
+
+    prompt_event = lifecycle.prompt_rendered_event(
+        agent.definition,
+        "system prompt",
+        "x" * 2000,
+    )
+    response_event = lifecycle.llm_response_event(agent.definition, state)
+
+    assert prompt_event["event_type"] == "prompt_rendered"
+    assert prompt_event["agent_name"] == agent.definition.prompt_spec.name
+    assert len(prompt_event["user_message_preview"]) == 1500
+    assert response_event["event_type"] == "llm_response"
+    assert response_event["model"] == "test-model"
+    assert response_event["response_content"] == "已完成优化。"
+    assert response_event["tool_call_count"] == 1
+    assert response_event["first_token_latency_ms"] == 8.0
+    assert response_event["usage"]["total_tokens"] == 12
+    assert response_event["confirmation_wait_ms"] == 20.0
 
 
 def test_allowed_tool_call_uses_normal_detection_trace(
