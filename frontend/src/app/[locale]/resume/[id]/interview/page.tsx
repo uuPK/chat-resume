@@ -904,35 +904,74 @@ function turnScore(turn: InterviewSession['turns'][number], rewrite?: NonNullabl
 // 用于渲染报告头部的元信息行。
 function ScreenshotInfoItem({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 240 }}>
-      <span style={{ width: 18, color: RD.textMuted, fontSize: 16 }}>{icon}</span>
-      <span style={{ color: RD.textMuted, fontSize: 14 }}>{label}</span>
-      <strong style={{ color: RD.text, fontSize: 14 }}>{value}</strong>
+    <div style={{ border: `1px solid ${RD.border}`, borderRadius: 8, background: RD.surface, padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: RD.textMuted, fontSize: 13 }}>
+        <span style={{ width: 18, color: RD.amber, fontSize: 16 }}>{icon}</span>
+        <span>{label}</span>
+      </div>
+      <strong style={{ display: 'block', color: RD.text, fontSize: 15, lineHeight: 1.4 }}>{value}</strong>
     </div>
   )
 }
 
-// 用于渲染截图风格的报告插画。
-function ScreenshotHeroIllustration() {
+// 用于渲染报告头部的关键指标卡片。
+function ScreenshotHeroMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div aria-hidden="true" style={{ position: 'relative', height: 250 }}>
-      <div style={{ position: 'absolute', right: 40, top: 30, width: 78, height: 58, border: '2px solid #8C8C8C', background: '#fff' }} />
-      <div style={{ position: 'absolute', right: 58, top: 54, width: 38, height: 22, borderBottom: '2px solid #D6D6D6', transform: 'skew(-28deg)' }} />
-      <div style={{ position: 'absolute', right: 198, top: 88, width: 76, height: 46, border: '2px solid #8C8C8C', background: '#fff' }} />
-      <div style={{ position: 'absolute', right: 270, top: 136, width: 110, height: 92, borderRadius: '999px', background: RD.yellow }} />
-      <div style={{ position: 'absolute', right: 214, top: 120, width: 58, height: 116, borderRadius: '30px 30px 0 0', background: RD.yellow }} />
-      <div style={{ position: 'absolute', right: 246, top: 78, width: 48, height: 78, borderRadius: 24, border: '2px solid #343434', background: '#fff' }} />
-      <div style={{ position: 'absolute', right: 258, top: 156, width: 28, height: 76, background: '#111', clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }} />
-      <div style={{ position: 'absolute', right: 320, top: 132, width: 84, height: 84, borderRadius: '50%', border: '4px solid #777', background: '#fff' }} />
-      <div style={{ position: 'absolute', right: 392, top: 204, width: 70, height: 12, borderRadius: 10, background: RD.yellow, transform: 'rotate(135deg)' }} />
-      <div style={{ position: 'absolute', right: 346, top: 169, display: 'flex', gap: 8 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
+    <div style={{ border: `1px solid ${RD.border}`, borderRadius: 8, background: '#fff', padding: '14px 16px' }}>
+      <div style={{ color: RD.textFaint, fontSize: 13, marginBottom: 8 }}>{label}</div>
+      <strong style={{ color: RD.text, fontSize: 18 }}>{value}</strong>
+    </div>
+  )
+}
+
+// 用于渲染报告头部右侧的得分概览。
+function ScreenshotScorePanel({ score, verdict, turns, session }: { score: number; verdict: string; turns: InterviewSession['turns']; session?: InterviewSession }) {
+  const scoreWidth = `${Math.max(0, Math.min(100, score))}%`
+  return (
+    <aside style={{ position: 'relative', overflow: 'hidden', border: `1px solid ${RD.border}`, borderRadius: 8, background: '#fff', padding: 28, boxShadow: '0 18px 45px rgba(38,40,44,0.08)' }}>
+      <div aria-hidden="true" style={{ position: 'absolute', right: -54, top: -64, width: 180, height: 180, borderRadius: '50%', background: RD.yellowLight }} />
+      <div aria-hidden="true" style={{ position: 'absolute', right: -12, bottom: -28, width: 140, height: 140, borderRadius: '50%', background: '#F1F3F5' }} />
+      <div style={{ position: 'relative' }}>
+        <div style={{ color: RD.textMuted, fontSize: 14, fontWeight: 800, marginBottom: 20 }}>报告概览</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 14 }}>
+          <strong style={{ color: RD.text, fontSize: 76, lineHeight: 0.9 }}>{score}</strong>
+          <span style={{ color: RD.textMuted, fontSize: 18, paddingBottom: 8 }}>综合得分</span>
+        </div>
+        <div style={{ height: 10, borderRadius: 999, background: RD.blueLight, overflow: 'hidden', marginBottom: 22 }}>
+          <div style={{ width: scoreWidth, height: '100%', borderRadius: 999, background: RD.yellow }} />
+        </div>
+        <div style={{ borderLeft: `4px solid ${RD.yellow}`, background: RD.yellowLight, borderRadius: 8, padding: '14px 16px', color: RD.text, lineHeight: 1.55, marginBottom: 18 }}>
+          <span style={{ display: 'block', color: RD.textMuted, fontSize: 13, marginBottom: 4 }}>面试结论</span>
+          <strong style={{ fontSize: 17 }}>{verdict}</strong>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <ScreenshotHeroMetric label="题目数量" value={`${turns.length}题`} />
+          <ScreenshotHeroMetric label="面试时长" value={reportDuration(session)} />
+        </div>
       </div>
-      <div style={{ position: 'absolute', right: 160, bottom: 28, width: 220, height: 26, border: '2px solid #E5E5E5', color: '#DDD', fontSize: 22, fontWeight: 800, textAlign: 'center' }}>
-        PROFILE
-      </div>
+    </aside>
+  )
+}
+
+// 用于渲染报告头部的简短结论文案。
+function reportHeroSummary(data: ReportData): string {
+  return data.candidate_verdict?.reason || data.interviewer_evaluation?.overall || data.summary || '本次报告已根据面试问答生成综合评估。'
+}
+
+// 用于渲染报告头部的结论标签。
+function reportVerdictLabel(data: ReportData): string {
+  return data.candidate_verdict?.label || data.candidate_verdict?.level || '已生成'
+}
+
+// 用于渲染报告头部的元信息网格。
+function ScreenshotHeroMetaGrid({ title, session, turns }: { title: string; session?: InterviewSession; turns: InterviewSession['turns'] }) {
+  return (
+    <div className="report-meta-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 14, columnGap: 14 }}>
+      <ScreenshotInfoItem icon="▱" label="面试类型" value="综合面试" />
+      <ScreenshotInfoItem icon="▣" label="岗位名称" value={title} />
+      <ScreenshotInfoItem icon="◷" label="面试时长" value={reportDuration(session)} />
+      <ScreenshotInfoItem icon="▤" label="题目数量" value={`${turns.length}题`} />
+      <ScreenshotInfoItem icon="□" label="面试时间" value={formatReportDate(session?.ended_at || session?.started_at) || '-'} />
     </div>
   )
 }
@@ -941,31 +980,23 @@ function ScreenshotHeroIllustration() {
 function ScreenshotReportHero({ data, session, turns }: { data: ReportData; session?: InterviewSession; turns: InterviewSession['turns'] }) {
   const title = reportTitle(data, session)
   const score = computeOverallScore(data.dimensions, data.candidate_verdict?.level)
+  const verdict = reportVerdictLabel(data)
   return (
-    <section style={{ position: 'relative', minHeight: 350, padding: '54px 56px 0', overflow: 'hidden', background: 'linear-gradient(180deg, #fff 0%, #FAFAFA 100%)' }}>
-      <div style={{ position: 'absolute', left: 70, bottom: 36, width: 88, height: 88, borderRadius: '45% 55% 52% 48%', background: RD.yellowLight, transform: 'rotate(12deg)' }} />
-      <div style={{ position: 'absolute', right: 72, top: -42, width: 180, height: 180, borderRadius: '50%', background: RD.yellowLight }} />
-      <div style={{ position: 'absolute', left: '50%', top: 22, width: 130, height: 130, borderRadius: '50%', background: RD.yellowLight }} />
-      <div className="report-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 580px', gap: 36, position: 'relative' }}>
+    <section style={{ position: 'relative', padding: '54px 56px 46px', overflow: 'hidden', background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)', borderBottom: `1px solid ${RD.border}` }}>
+      <div aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, width: 8, height: '100%', background: RD.yellow }} />
+      <div aria-hidden="true" style={{ position: 'absolute', right: 48, top: 40, width: 96, height: 96, borderRadius: '50%', background: RD.yellowLight }} />
+      <div className="report-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 390px', gap: 44, position: 'relative', alignItems: 'stretch' }}>
         <div>
-          <h1 style={{ margin: '0 0 34px', fontSize: 34, lineHeight: 1.2, fontWeight: 800, color: RD.text }}>{title}</h1>
-          <div className="report-meta-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 18, columnGap: 28 }}>
-            <ScreenshotInfoItem icon="▱" label="面试类型" value="综合面试" />
-            <ScreenshotInfoItem icon="▣" label="岗位名称" value={title} />
-            <ScreenshotInfoItem icon="◷" label="面试时长" value={reportDuration(session)} />
-            <ScreenshotInfoItem icon="▤" label="题目数量" value={`${turns.length}题`} />
-            <ScreenshotInfoItem icon="□" label="面试时间" value={formatReportDate(session?.ended_at || session?.started_at) || '-'} />
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${RD.border}`, borderRadius: 999, background: '#fff', color: RD.textMuted, fontSize: 13, fontWeight: 800, padding: '7px 12px', marginBottom: 22 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: RD.yellow }} />
+            AI 面试报告
           </div>
+          <h1 style={{ margin: '0 0 18px', fontSize: 36, lineHeight: 1.2, fontWeight: 800, color: RD.text }}>{title}</h1>
+          <p style={{ margin: '0 0 30px', maxWidth: 720, color: RD.textMuted, fontSize: 16, lineHeight: 1.8 }}>{reportHeroSummary(data)}</p>
+          <ScreenshotHeroMetaGrid title={title} session={session} turns={turns} />
         </div>
-        <div style={{ position: 'relative' }}>
-          <div style={{ position: 'absolute', left: 74, top: 16, width: 160, height: 160, borderRadius: '50%', border: `5px solid ${RD.yellow}`, background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 28px rgba(255, 216, 77, 0.28)', zIndex: 2 }}>
-            <div style={{ fontSize: 58, lineHeight: 1, fontWeight: 800, color: RD.text }}>{score}</div>
-            <div style={{ marginTop: 12, fontSize: 14, color: RD.textMuted }}>综合得分</div>
-          </div>
-          <ScreenshotHeroIllustration />
-        </div>
+        <ScreenshotScorePanel score={score} verdict={verdict} turns={turns} session={session} />
       </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 56, background: '#fff', clipPath: 'ellipse(65% 80% at 50% 100%)' }} />
     </section>
   )
 }
