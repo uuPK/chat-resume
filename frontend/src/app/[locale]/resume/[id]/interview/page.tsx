@@ -1106,7 +1106,6 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
         ))}
       </main>
       <footer style={{ display: 'flex', justifyContent: 'center', gap: 52, padding: '0 0 44px' }}>
-        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: '#fff', color: RD.yellow, padding: '10px 22px', fontSize: 16 }}>分享</button>
         <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: RD.text, padding: '10px 22px', fontSize: 16, fontWeight: 700 }}>下载报告</button>
       </footer>
     </div>

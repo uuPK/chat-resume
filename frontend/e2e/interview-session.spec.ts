@@ -424,6 +424,7 @@ test('completed 面试报告展示行动报告结构', async ({ page }) => {
   await expect(page.getByText('请介绍一下你做过的 Agent 项目')).toBeVisible()
   await expect(page.getByText('我做过简历优化 Agent，并接入了语音面试流程。')).toBeVisible()
   await expect(page.getByText('参考回答')).toBeVisible()
+  await expect(page.getByRole('button', { name: '分享' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '下载报告' })).toBeVisible()
 })
 
