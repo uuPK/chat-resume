@@ -205,3 +205,41 @@ bv --robot-label-health | jq '.results.labels[] | select(.health_level == "criti
 - “from_agent not registered”：表示发送方 Agent 未注册。一定要先在正确的 `project_key` 下执行 `register_agent`。
 - “FILE_RESERVATION_CONFLICT”：调整路径模式，等待租约过期，或在合适时使用非独占预约。
 - 认证错误：如果启用了 JWT+JWKS，请携带 bearer 令牌，并确保其中的 `kid` 与服务器 JWKS 匹配；只有在 JWT 禁用时才使用静态 bearer。
+
+
+## 与 Beads 集成（依赖感知的任务规划）
+
+Beads 提供轻量、依赖感知的 issue 数据库和 CLI（`bd`），用于选择“可开始工作”、设置优先级和追踪状态。它补充 MCP Agent Mail 的消息沟通、审计记录和文件预约信号。项目：[steveyegge/beads](https://github.com/steveyegge/beads)
+
+推荐约定
+- **单一事实来源**：使用 **Beads** 管理任务状态、优先级和依赖；使用 **Agent Mail** 记录对话、决策和附件（审计）。
+- **共享标识符**：使用 Beads issue id（例如 `bd-123`）作为 Mail 的 `thread_id`，并在消息主题前加上 `[bd-123]`。
+- **文件预约**：开始 `bd-###` 任务时，对受影响路径调用 `file_reservation_paths(...)`；在 `reason` 中包含 issue id，并在完成后释放预约。
+
+典型流程（Agent）
+1) **选择可开始工作**（Beads）
+   - `bd ready --json` → 选择一个条目（最高优先级、无阻塞）
+2) **预约编辑范围**（Mail）
+   - `file_reservation_paths(project_key, agent_name, ["src/**"], ttl_seconds=3600, exclusive=true, reason="bd-123")`
+3) **宣布开始**（Mail）
+   - `send_message(..., thread_id="bd-123", subject="[bd-123] Start: <short title>", ack_required=true)`
+4) **执行并更新**
+   - 在线程内回复进展，并附加产物或图片；每个 issue id 的讨论保持在同一个线程中
+5) **完成并释放**
+   - `bd close bd-123 --reason "Completed"`（Beads 是状态权威）
+   - `release_file_reservations(project_key, agent_name, paths=["src/**"])`
+   - 最后一封 Mail 回复：`[bd-123] Completed`，包含摘要和链接
+
+映射速查
+- **Mail `thread_id`** ↔ `bd-###`
+- **Mail 主题**：`[bd-###] …`
+- **文件预约 `reason`**：`bd-###`
+- **Commit message（可选）**：包含 `bd-###`，便于追踪
+
+事件镜像（可选自动化）
+- 当执行 `bd update --status blocked` 时，在 `bd-###` 线程中发送一条高重要性 Mail，说明阻塞原因。
+- 当关键决策出现 Mail “ACK overdue” 时，给 Beads 添加标签（例如 `needs-ack`）或提高优先级，让它在 `bd ready` 中浮现。
+
+避免踩坑
+- 不要在 Mail 中创建或管理任务；把 Beads 视为唯一任务队列。
+- 始终在消息 `thread_id` 中包含 `bd-###`，避免不同工具之间的 ID 漂移。
