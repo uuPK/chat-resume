@@ -472,7 +472,7 @@ def _fallback_report_from_text(
     content: str, turns: list[InterviewTurn]
 ) -> dict[str, Any]:
     """在模型返回非严格 JSON 时生成可展示的保守报告。"""
-    summary = " ".join(content.split())
+    summary = _fallback_summary(content)
     if len(summary) > 600:
         summary = f"{summary[:600]}..."
     if not summary:
@@ -560,6 +560,20 @@ def _fallback_report_from_text(
         },
         "turn_evaluations": turn_evaluations,
     }
+
+
+def _fallback_summary(content: str) -> str:
+    """把非结构化模型输出转成可给用户看的报告摘要。"""
+    compact = " ".join(content.split())
+    if _looks_like_json_payload(compact):
+        return "报告模型返回了格式不完整的结构化内容，本次已保留面试记录用于后续复盘。"
+    return compact
+
+
+def _looks_like_json_payload(content: str) -> bool:
+    """判断文本是否像一段未成功解析的 JSON。"""
+    stripped = content.strip()
+    return stripped.startswith("{") and ":" in stripped
 
 
 def _response_content_length(response: dict[str, Any]) -> int:

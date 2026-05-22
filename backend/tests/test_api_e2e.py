@@ -2560,6 +2560,62 @@ class TestInterviewSessions:
         ended = end_resp.json()["session"]
         assert ended["status"] == "completed"
 
+    def test_voice_interview_ignores_short_interviewer_fragments(self):
+        """用于验证语音面试不会把短碎片当成新题目。"""
+        create_resp = self.client.post(
+            "/api/interviews/",
+            json={"resume_id": self.resume_id},
+            headers=self.headers,
+        )
+        assert create_resp.status_code == 200, create_resp.text
+        session_id = create_resp.json()["session"]["id"]
+
+        question = "请你介绍一个最能体现 Agent 开发能力的项目。"
+        first_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": question},
+            headers=self.headers,
+        )
+        assert first_resp.status_code == 200, first_resp.text
+
+        fragment_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "？"},
+            headers=self.headers,
+        )
+        assert fragment_resp.status_code == 200, fragment_resp.text
+
+        answer_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "candidate", "text": "我负责记忆系统和工具调用。"},
+            headers=self.headers,
+        )
+        assert answer_resp.status_code == 200, answer_resp.text
+
+        turns = answer_resp.json()["session"]["turns"]
+        assert len(turns) == 1
+        assert turns[0]["question"] == question
+        assert turns[0]["answer"] == "我负责记忆系统和工具调用。"
+
+        tail_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": "工作吗？"},
+            headers=self.headers,
+        )
+        assert tail_resp.status_code == 200, tail_resp.text
+        assert len(tail_resp.json()["session"]["turns"]) == 1
+
+        next_question = "请继续说明这个项目最终带来了哪些业务结果。"
+        next_resp = self.client.post(
+            f"/api/interviews/{session_id}/messages",
+            json={"role": "interviewer", "text": next_question},
+            headers=self.headers,
+        )
+        assert next_resp.status_code == 200, next_resp.text
+        turns = next_resp.json()["session"]["turns"]
+        assert len(turns) == 2
+        assert turns[1]["question"] == next_question
+
     def test_completed_interview_can_generate_report(self, monkeypatch, caplog):
         """用于验证completed面试cangenerate报告。"""
 
@@ -2644,9 +2700,16 @@ class TestInterviewSessions:
         report = body["session"]["report_data"]
         assert report["summary"] == "回答完整但需要更多量化细节"
         assert len(report["strengths"]) >= 3
-        assert body["session"]["turns"][0]["evaluation"] == (
-            "回答覆盖核心项目\n问题：缺少数据\n亮点：说明了职责"
-        )
+        evaluation = body["session"]["turns"][0]["evaluation"]
+        if isinstance(evaluation, dict):
+            assert evaluation == {
+                "summary": "回答覆盖核心项目",
+                "gaps": ["缺少数据"],
+                "evidence": ["说明了职责"],
+                "advice": "补充影响",
+            }
+        else:
+            assert evaluation == "回答覆盖核心项目\n问题：缺少数据\n亮点：说明了职责"
         report_logs = [record.message for record in caplog.records]
         assert "interview_report.requested" in report_logs
         assert "interview_report.turns_loaded" in report_logs
@@ -3112,14 +3175,18 @@ class TestInterviewSessions:
         report = body["session"]["report_data"]
         assert body["next_action"] == "report"
         assert report["summary"]
+        assert not report["summary"].lstrip().startswith("{")
+        assert "candidate_verdict" not in report["summary"]
         assert report["candidate_verdict"]["level"] == "risky"
         assert report["job_match"]["interviewer_concerns"]
         assert report["interviewer_risks"]
         assert report["answer_rewrites"][0]["recommended_answer"]
         assert len(report["strengths"]) == 3
-        assert body["session"]["turns"][0]["evaluation"].startswith(
-            "已记录本轮问答"
-        )
+        evaluation = body["session"]["turns"][0]["evaluation"]
+        if isinstance(evaluation, dict):
+            assert evaluation["summary"].startswith("已记录本轮问答")
+        else:
+            assert evaluation.startswith("已记录本轮问答")
         report_logs = [record.message for record in caplog.records]
         assert "interview_report.invalid_json" in report_logs
         assert "interview_report.saved" in report_logs

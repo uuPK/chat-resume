@@ -265,7 +265,16 @@ def record_voice_interview_message(
     )
 
     if role == "interviewer":
+        if latest and _is_interviewer_fragment(content):
+            return latest
         if latest and latest.question.strip() == content:
+            return latest
+        if latest and content in latest.question.strip():
+            return latest
+        if latest and not latest.answer and latest.question.strip() in content:
+            latest.question = content
+            db.commit()
+            db.refresh(latest)
             return latest
 
         next_turn_index = (latest.turn_index + 1) if latest else 0
@@ -317,3 +326,11 @@ def record_voice_interview_message(
         return latest
 
     return None
+
+
+def _is_interviewer_fragment(content: str) -> bool:
+    """判断实时面试官文本是否只是尾词或标点碎片。"""
+    compact = content.strip()
+    if not compact:
+        return True
+    return len(compact) <= 4
