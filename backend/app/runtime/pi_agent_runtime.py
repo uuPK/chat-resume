@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
-import json
 import logging
-from copy import deepcopy
 from itertools import count
 from time import perf_counter
 from typing import Any, AsyncGenerator
@@ -34,13 +32,8 @@ from app.agents.resume.stream_events import (
     llm_response_event,
     prompt_rendered_event,
     text_delta_event,
-    tool_call_event,
-    tool_call_failed_event,
-    tool_confirmed_event,
-    tool_pending_event,
-    tool_rejected_event,
-    tool_result_event,
 )
+from app.agents.resume.tool_execution import ResumeToolExecutionStage
 from app.infra.config import settings
 from app.runtime.contracts import AgentDefinition, RuntimeEventCallback
 from app.runtime.message_conversion import convert_resume_messages_to_llm
@@ -61,7 +54,6 @@ from app.types.stream import ResumeStreamEvent
 logger = logging.getLogger(__name__)
 
 _SENTINEL = object()
-_TOOL_ARGUMENTS_PARSE_ERROR_KEY = "__tool_arguments_parse_error"
 _UNEXECUTED_MUTATION_RETRY_PROMPT = (
     "上一轮回复声称已经修改简历，但没有发出结构化工具调用。"
     "如果要新增、修改、删除、拆分、精简或优化简历内容，"
@@ -221,7 +213,9 @@ class PiAgentRuntime:
     ):
         """用于初始化当前对象。"""
         self.stream_fn = _ReActStreamFn(stream_fn or stream_openrouter)
-        self.confirmation_policy = confirmation_policy or ToolConfirmationPolicy()
+        self.tool_stage = ResumeToolExecutionStage(
+            confirmation_policy=confirmation_policy or ToolConfirmationPolicy()
+        )
 
     async def run(
         self,
@@ -553,11 +547,11 @@ class PiAgentRuntime:
 
             async for raw_event in response["events"]:
                 early_tool_call = self._early_tool_call_from_event(raw_event)
-                if early_tool_call is not None and self._remember_visible_tool_call(
+                if early_tool_call is not None and self.tool_stage.remember_visible_tool_call(
                     state,
                     early_tool_call.id,
                 ):
-                    await self._publish_visible_tool_call(
+                    await self.tool_stage.publish_visible_tool_call(
                         call_id=early_tool_call.id,
                         tool_name=early_tool_call.name,
                         tool_input={},
@@ -670,15 +664,6 @@ class PiAgentRuntime:
         return block
 
     @staticmethod
-    def _remember_visible_tool_call(state: dict[str, Any], call_id: str) -> bool:
-        """记录已展示的工具调用，返回当前是否首次出现。"""
-        visible_call_ids = state.setdefault("visible_tool_call_ids", set())
-        if call_id in visible_call_ids:
-            return False
-        visible_call_ids.add(call_id)
-        return True
-
-    @staticmethod
     def _text_delta_from_event(raw_event: Any) -> str:
         """从底层流式事件中提取纯文本增量。"""
         if str(getattr(raw_event, "type", "") or "") != "text_delta":
@@ -740,7 +725,7 @@ class PiAgentRuntime:
             ),
             state,
         )
-        result = await self._execute_tool_result(
+        result = await self.tool_stage.execute_tool_result(
             agent=agent,
             run_id=run_id,
             call_id=tool_call.id,
@@ -875,7 +860,7 @@ class PiAgentRuntime:
         ) -> AgentToolResult:
             """用于执行一次业务工具调用。"""
             if tool_name in agent.auto_execute_tool_names:
-                return await self._execute_tool_result(
+                return await self.tool_stage.execute_tool_result(
                     agent=agent,
                     run_id=run_id,
                     call_id=tool_call_id,
@@ -889,7 +874,7 @@ class PiAgentRuntime:
                     stream_state=stream_state,
                 )
             async with lock:
-                return await self._execute_tool_result(
+                return await self.tool_stage.execute_tool_result(
                     agent=agent,
                     run_id=run_id,
                     call_id=tool_call_id,
@@ -908,501 +893,6 @@ class PiAgentRuntime:
             description=str(function.get("description", "")),
             parameters=self._tool_schema(function.get("parameters")),
             execute=execute,
-        )
-
-    async def _execute_tool_result(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        stream_state: dict[str, Any],
-    ) -> AgentToolResult:
-        """用于处理执行工具结果。"""
-        output = await self._execute_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            stream_state=stream_state,
-        )
-        return AgentToolResult(content=[TextContent(text=output)], details=output)
-
-    async def _execute_tool(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        stream_state: dict[str, Any],
-    ) -> str:
-        """用于处理执行工具。"""
-        tool_started_at = perf_counter()
-        confirmation_decision = self.confirmation_policy.before_tool_call(
-            confirmation_queue=confirmation_queue,
-            tool_name=tool_name,
-            auto_execute_tool_names=agent.auto_execute_tool_names,
-        )
-        needs_confirmation = confirmation_decision.requires_confirmation
-        tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
-        if self._remember_visible_tool_call(stream_state, call_id):
-            await self._publish_visible_tool_call(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                event_queue=event_queue,
-                event_callback=event_callback,
-            )
-        self._trace_tool_requested(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            tool_input,
-            needs_confirmation,
-        )
-        if self._has_tool_argument_parse_error(tool_input):
-            return await self._publish_invalid_tool_arguments(
-                agent=agent,
-                run_id=run_id,
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                context=context,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                executed_tools=executed_tools,
-                tool_started_at=tool_started_at,
-            )
-        preview = await self._maybe_confirm_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=tool_input,
-            tool_call=tool_call,
-            context=context,
-            confirmation_queue=confirmation_queue,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            needs_confirmation=needs_confirmation,
-            tool_started_at=tool_started_at,
-            stream_state=stream_state,
-        )
-        if isinstance(preview, str):
-            return preview
-        return await self._run_confirmed_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_call=tool_call,
-            context=context,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            needs_confirmation=needs_confirmation,
-            tool_started_at=tool_started_at,
-            stream_state=stream_state,
-        )
-
-    async def _publish_invalid_tool_arguments(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        context: dict[str, Any],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        tool_started_at: float,
-    ) -> str:
-        """把模型生成的坏工具参数作为可恢复工具错误发布。"""
-        parse_error = tool_input.get(_TOOL_ARGUMENTS_PARSE_ERROR_KEY)
-        message = self._invalid_tool_arguments_message(tool_name, parse_error)
-        result = {
-            "success": False,
-            "error": {
-                "type": "invalid_arguments_json",
-                "message": message,
-                "recoverable": True,
-            },
-            "message": message,
-        }
-        tool_result = {
-            "tool_name": tool_name,
-            "result": result,
-            "display_message": message,
-            "qr_image": None,
-            "updated_section_name": None,
-        }
-        self._trace_tool_executed(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            tool_result,
-            tool_started_at,
-        )
-        executed_tools.append(self._executed_tool_summary(tool_result, result))
-        await self._publish_tool_result(
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_result=tool_result,
-            result=result,
-            display_message=message,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            context=context,
-            needs_confirmation=False,
-        )
-        return json.dumps(result, ensure_ascii=False)
-
-    async def _maybe_confirm_tool(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        tool_call: dict[str, Any],
-        context: dict[str, Any],
-        confirmation_queue: asyncio.Queue | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        needs_confirmation: bool,
-        tool_started_at: float,
-        stream_state: dict[str, Any],
-    ) -> dict[str, Any] | str | None:
-        """用于处理maybeconfirm工具。"""
-        if not needs_confirmation:
-            return None
-        assert confirmation_queue is not None
-        preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
-        preview_result = await self._call_tool_executor(
-            agent=agent,
-            tool_call=tool_call,
-            context=preview_context,
-        )
-        diff_summary = preview_result.get("display_message") or "执行完成"
-        result = preview_result.get("result", {})
-        diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
-        self._trace_tool_preview(agent, run_id, call_id, tool_name, preview_result)
-        if self._is_tool_failure(preview_result):
-            display_message = preview_result.get("display_message")
-            self._trace_tool_executed(
-                agent,
-                run_id,
-                call_id,
-                tool_name,
-                preview_result,
-                tool_started_at,
-            )
-            executed_tools.append(self._executed_tool_summary(preview_result, result))
-            await self._publish_tool_result(
-                call_id=call_id,
-                tool_name=tool_name,
-                tool_result=preview_result,
-                result=result,
-                display_message=display_message,
-                event_queue=event_queue,
-                event_callback=event_callback,
-                executed_tools=executed_tools,
-                context=context,
-                needs_confirmation=False,
-            )
-            return json.dumps(result, ensure_ascii=False)
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=tool_pending_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_call=tool_call,
-                tool_display_name=preview_result["tool_name"],
-                tool_input=tool_input,
-                diff_summary=diff_summary,
-                diff_items=diff_items,
-                tool_calls=executed_tools,
-            ),
-        )
-        wait_started_at = perf_counter()
-        confirmed = await self.confirmation_policy.wait_for_decision(confirmation_queue)
-        confirmation_wait_ms = round((perf_counter() - wait_started_at) * 1000, 2)
-        stream_state["confirmation_wait_ms"] += confirmation_wait_ms
-        confirmation_result = self.confirmation_policy.after_tool_decision(
-            confirmed=confirmed,
-        )
-        self._trace_tool_confirmation(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            preview_result["tool_name"],
-            confirmed,
-            confirmation_wait_ms,
-            confirmation_result.terminate_turn,
-        )
-        if confirmed:
-            return preview_result
-        rejected = {"success": False, "error": "用户拒绝了此修改"}
-        await self._publish_rejected_tool(
-            agent=agent,
-            run_id=run_id,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=preview_result["tool_name"],
-            diff_summary=diff_summary,
-            diff_items=diff_items,
-            result=rejected,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            tool_started_at=tool_started_at,
-        )
-        await self._publish_terminal_text(
-            agent=agent,
-            run_id=run_id,
-            stream_state=stream_state,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            content="已取消这处修改。",
-        )
-        return json.dumps(rejected, ensure_ascii=False)
-
-    async def _run_confirmed_tool(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_call: dict[str, Any],
-        context: dict[str, Any],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        needs_confirmation: bool,
-        tool_started_at: float,
-        stream_state: dict[str, Any],
-    ) -> str:
-        """用于处理run已确认工具。"""
-        tool_result = await self._call_tool_executor(
-            agent=agent,
-            tool_call=tool_call,
-            context=context,
-        )
-        result = tool_result.get("result", {})
-        if needs_confirmation:
-            self._remember_confirmed_diff_items(stream_state, result)
-        display_message = tool_result.get("display_message")
-        self._trace_tool_executed(
-            agent,
-            run_id,
-            call_id,
-            tool_name,
-            tool_result,
-            tool_started_at,
-        )
-        executed_tools.append(self._executed_tool_summary(tool_result, result))
-        await self._publish_tool_result(
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_result=tool_result,
-            result=result,
-            display_message=display_message,
-            event_queue=event_queue,
-            event_callback=event_callback,
-            executed_tools=executed_tools,
-            context=context,
-            needs_confirmation=needs_confirmation,
-        )
-        return json.dumps(result, ensure_ascii=False)
-
-    async def _call_tool_executor(
-        self,
-        *,
-        agent: AgentDefinition,
-        tool_call: dict[str, Any],
-        context: dict[str, Any],
-    ) -> dict[str, Any]:
-        """用于兼容同步和异步业务工具执行器。"""
-        result = agent.tool_executor(tool_call, context)
-        if inspect.isawaitable(result):
-            return await result
-        return result
-
-    async def _publish_terminal_text(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        stream_state: dict[str, Any],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        content: str,
-    ) -> None:
-        """用于在确认后用确定性文本结束当前轮次，避免再次调用模型。"""
-        stream_state["chunk_index"] += 1
-        stream_state["response_parts"].append(content)
-        self._trace_chunk(
-            "agent.trace.intermediate.chunk",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            chunk_index=stream_state["chunk_index"],
-            content_preview=self._preview_text(content),
-            content_chars=len(content),
-        )
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=text_delta_event(content=content),
-        )
-
-    async def _publish_visible_tool_call(
-        self,
-        *,
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-    ) -> None:
-        """用于发布visible工具调用。"""
-        tool_call = self._tool_call_payload(call_id, tool_name, tool_input)
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=tool_call_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_call=tool_call,
-                tool_display_name=tool_name,
-                tool_input=tool_call["function"]["arguments"],
-                display_message=f"正在{tool_name}",
-                tool_calls=[],
-            ),
-        )
-
-    async def _publish_tool_result(
-        self,
-        *,
-        call_id: str,
-        tool_name: str,
-        tool_result: dict[str, Any],
-        result: Any,
-        display_message: str | None,
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        context: dict[str, Any],
-        needs_confirmation: bool,
-    ) -> None:
-        """用于发布工具结果。"""
-        tool_display_name = str(tool_result.get("tool_name") or tool_name)
-        if self._is_tool_failure(tool_result):
-            event = tool_call_failed_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_display_name=tool_display_name,
-                tool_calls=executed_tools,
-                result=result,
-                display_message=display_message,
-            )
-        elif needs_confirmation:
-            event = tool_confirmed_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_display_name=tool_display_name,
-                tool_calls=executed_tools,
-                qr_images=[tool_result["qr_image"]] if tool_result.get("qr_image") else [],
-                result=result,
-                display_message=display_message,
-                diff_summary=result.get("diff_summary") if isinstance(result, dict) else None,
-                diff_items=result.get("diff_items", []) if isinstance(result, dict) else [],
-                context=context,
-            )
-        else:
-            event = tool_result_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_display_name=tool_display_name,
-                tool_calls=executed_tools,
-                result=result,
-                display_message=display_message,
-                context=context,
-            )
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=event,
-        )
-
-    async def _publish_rejected_tool(
-        self,
-        *,
-        agent: AgentDefinition,
-        run_id: str,
-        call_id: str,
-        tool_name: str,
-        tool_display_name: str,
-        diff_summary: str,
-        diff_items: Any,
-        result: dict[str, Any],
-        event_queue: asyncio.Queue[Any] | None,
-        event_callback: RuntimeEventCallback | None,
-        executed_tools: list[dict[str, Any]],
-        tool_started_at: float,
-    ) -> None:
-        """用于发布rejected工具。"""
-        self._trace(
-            "agent.trace.tool.rejected",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=tool_display_name,
-            latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
-        )
-        await self._publish_event(
-            event_queue=event_queue,
-            event_callback=event_callback,
-            event=tool_rejected_event(
-                call_id=call_id,
-                tool_id=tool_name,
-                tool_display_name=tool_display_name,
-                diff_summary=diff_summary,
-                diff_items=diff_items,
-                result=result,
-                tool_calls=executed_tools,
-            ),
         )
 
     @staticmethod
@@ -1433,19 +923,6 @@ class PiAgentRuntime:
             elif role == "assistant":
                 messages.append(AssistantMessage(content=[TextContent(text=content)]))
         return messages
-
-    @staticmethod
-    def _tool_call_payload(
-        call_id: str,
-        tool_name: str,
-        tool_input: dict[str, Any],
-    ) -> dict[str, Any]:
-        """用于处理工具调用载荷。"""
-        return {
-            "id": call_id,
-            "type": "function",
-            "function": {"name": tool_name, "arguments": tool_input},
-        }
 
     @staticmethod
     def _new_stream_state() -> dict[str, Any]:
@@ -1665,15 +1142,14 @@ class PiAgentRuntime:
         tool_input: dict[str, Any],
         needs_confirmation: bool,
     ) -> None:
-        """用于处理追踪工具requested。"""
-        self._trace(
-            "agent.trace.tool.requested",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_input=self._safe_tool_input(tool_input),
-            requires_confirmation=needs_confirmation,
+        """用于兼容旧测试入口，并委托工具执行阶段记录请求。"""
+        self.tool_stage.trace_tool_requested(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            tool_input,
+            needs_confirmation,
         )
 
     def _trace_tool_preview(
@@ -1684,26 +1160,13 @@ class PiAgentRuntime:
         tool_name: str,
         preview_result: dict[str, Any],
     ) -> None:
-        """用于处理追踪工具preview。"""
-        result = preview_result.get("result", {})
-        diff_items = result.get("diff_items", []) if isinstance(result, dict) else []
-        result_success = self._tool_success(preview_result)
-        message = (
-            "agent.trace.tool.preview_failed"
-            if result_success is False
-            else "agent.trace.tool.preview"
-        )
-        self._trace(
-            message,
-            log_level=logging.WARNING if result_success is False else logging.INFO,
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=preview_result["tool_name"],
-            diff_summary=self._preview_text(preview_result.get("display_message")),
-            diff_item_count=len(diff_items),
-            result_success=result_success,
+        """用于兼容旧测试入口，并委托工具执行阶段记录预览。"""
+        self.tool_stage.trace_tool_preview(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            preview_result,
         )
 
     def _trace_tool_confirmation(
@@ -1717,17 +1180,16 @@ class PiAgentRuntime:
         confirmation_wait_ms: float,
         terminate_turn: bool,
     ) -> None:
-        """用于处理追踪工具confirmation。"""
-        self._trace(
-            "agent.trace.tool.confirmation",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=display_name,
-            confirmed=confirmed,
-            confirmation_wait_ms=confirmation_wait_ms,
-            terminate_turn=terminate_turn,
+        """用于兼容旧测试入口，并委托工具执行阶段记录确认。"""
+        self.tool_stage.trace_tool_confirmation(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            display_name,
+            confirmed,
+            confirmation_wait_ms,
+            terminate_turn,
         )
 
     def _trace_tool_executed(
@@ -1739,18 +1201,14 @@ class PiAgentRuntime:
         tool_result: dict[str, Any],
         tool_started_at: float,
     ) -> None:
-        """用于处理追踪工具executed。"""
-        self._trace(
-            "agent.trace.tool.executed",
-            run_id=run_id,
-            agent_name=agent.prompt_spec.name,
-            call_id=call_id,
-            tool_name=tool_name,
-            tool_display_name=tool_result["tool_name"],
-            result_success=self._tool_success(tool_result),
-            display_message=self._preview_text(tool_result.get("display_message")),
-            result_summary=self._result_summary(tool_result.get("result", {})),
-            latency_ms=round((perf_counter() - tool_started_at) * 1000, 2),
+        """用于兼容旧测试入口，并委托工具执行阶段记录执行。"""
+        self.tool_stage.trace_tool_executed(
+            agent,
+            run_id,
+            call_id,
+            tool_name,
+            tool_result,
+            tool_started_at,
         )
 
     def _trace_tool_call_detected(
@@ -1826,116 +1284,9 @@ class PiAgentRuntime:
         emit_runtime_event(event_callback, event)
 
     @staticmethod
-    def _executed_tool_summary(
-        tool_result: dict[str, Any],
-        result: Any,
-    ) -> dict[str, Any]:
-        """用于处理executed工具summary。"""
-        return {
-            "name": tool_result["tool_name"],
-            "result": result.get("diff_summary") if isinstance(result, dict) else tool_result.get("display_message"),
-            "success": result.get("success") if isinstance(result, dict) else None,
-        }
-
-    @staticmethod
-    def _remember_confirmed_diff_items(
-        stream_state: dict[str, Any],
-        result: Any,
-    ) -> None:
-        """用于把已确认工具产生的 diff 提供给后续只读摘要工具。"""
-        if not isinstance(result, dict) or result.get("success") is False:
-            return
-        diff_items = result.get("diff_items")
-        if not isinstance(diff_items, list):
-            return
-        confirmed = stream_state.get("confirmed_diff_items")
-        if isinstance(confirmed, list):
-            confirmed.extend(item for item in diff_items if isinstance(item, dict))
-
-    @staticmethod
-    def _is_tool_failure(tool_result: dict[str, Any]) -> bool:
-        """用于判断工具failure。"""
-        result = tool_result.get("result")
-        return isinstance(result, dict) and result.get("success") is False
-
-    @staticmethod
-    def _has_tool_argument_parse_error(tool_input: dict[str, Any]) -> bool:
-        """判断工具参数是否来自 OpenRouter JSON 解析错误。"""
-        return isinstance(tool_input.get(_TOOL_ARGUMENTS_PARSE_ERROR_KEY), dict)
-
-    @classmethod
-    def _invalid_tool_arguments_message(cls, tool_name: str, parse_error: Any) -> str:
-        """生成可回灌给模型的坏参数错误信息。"""
-        detail = ""
-        if isinstance(parse_error, dict):
-            detail = cls._preview_text(parse_error.get("message"))
-        if detail:
-            return f"{tool_name} 工具参数不是合法 JSON，无法执行：{detail}"
-        return f"{tool_name} 工具参数不是合法 JSON，无法执行。"
-
-    @staticmethod
-    def _tool_success(tool_result: dict[str, Any]) -> bool | None:
-        """用于处理工具success。"""
-        result = tool_result.get("result")
-        if isinstance(result, dict) and "success" in result:
-            return bool(result["success"])
-        return None
-
-    @classmethod
-    def _result_summary(cls, result: Any) -> dict[str, Any]:
-        """用于处理结果summary。"""
-        if not isinstance(result, dict):
-            return {"type": type(result).__name__, "preview": cls._preview_text(result)}
-        summary: dict[str, Any] = {"keys": sorted(str(key) for key in result.keys())}
-        if "success" in result:
-            summary["success"] = result.get("success")
-        if "diff_summary" in result:
-            summary["diff_summary"] = cls._preview_text(result.get("diff_summary"))
-        if isinstance(result.get("diff_items"), list):
-            summary["diff_item_count"] = len(result["diff_items"])
-        if "error" in result:
-            summary["error"] = cls._preview_text(result.get("error"))
-        return summary
-
-    @classmethod
-    def _safe_tool_input(cls, tool_input: dict[str, Any]) -> dict[str, Any]:
-        """用于处理安全工具input。"""
-        summary: dict[str, Any] = {}
-        for key, value in tool_input.items():
-            if key in {"resume_content", "content"}:
-                continue
-            if key == "text" and isinstance(value, str):
-                summary["text_chars"] = len(value)
-                summary["text_preview"] = cls._preview_text(value, limit=80)
-                continue
-            if key == "reason" and isinstance(value, str):
-                summary[key] = cls._preview_text(value, limit=80)
-                continue
-            summary[key] = cls._summarize_value(value)
-        return summary
-
-    @classmethod
-    def _summarize_value(cls, value: Any) -> Any:
-        """用于处理summarize值。"""
-        if isinstance(value, str):
-            return cls._preview_text(value)
-        if isinstance(value, (int, float, bool)) or value is None:
-            return value
-        if isinstance(value, list):
-            return {"type": "list", "count": len(value)}
-        if isinstance(value, dict):
-            return {"type": "dict", "keys": sorted(str(key) for key in value.keys())[:20]}
-        return {"type": type(value).__name__, "preview": cls._preview_text(value)}
-
-    @staticmethod
     def _preview_text(value: Any, limit: int = 240) -> str:
-        """用于处理preview文本。"""
-        if value is None:
-            return ""
-        text = " ".join(str(value).split())
-        if len(text) <= limit:
-            return text
-        return f"{text[:limit]}..."
+        """用于兼容旧测试入口，并委托工具执行阶段生成预览。"""
+        return ResumeToolExecutionStage.preview_text(value, limit=limit)
 
     @staticmethod
     def _trace(message: str, **fields: Any) -> None:

@@ -23,6 +23,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.agents.resume.agent import ResumeAgent  # noqa: E402
+from app.agents.resume.tool_execution import ResumeToolExecutionStage  # noqa: E402
 from app.runtime import pi_agent_runtime  # noqa: E402
 from app.runtime.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
@@ -343,6 +344,67 @@ async def test_confirmation_policy_returns_feedback_without_terminating_turn():
     assert decision.requires_confirmation is True
     assert result.confirmed is False
     assert result.terminate_turn is False
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
+    """用于验证工具执行确认阶段可以脱离 PiAgentRuntime 单独测试。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "work_experience": [
+            {
+                "id": "work_1",
+                "company": "某科技公司",
+                "position": "Python 开发工程师",
+                "highlights": [{"id": "hl_1", "text": "维护多个后台服务"}],
+            }
+        ]
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_test",
+        call_id="call_stage_1",
+        tool_name="update_bullet",
+        tool_input={
+            "section": "work_experience",
+            "item_id": "work_1",
+            "bullet_id": "hl_1",
+            "text": "维护多个后台服务，支撑日活 10 万用户",
+            "reason": "补充业务规模",
+        },
+        context={"resume_content": resume, "allowed_sections": {"work_experience"}},
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert "支撑日活 10 万用户" in str(result.details)
+    assert resume["work_experience"][0]["highlights"][0]["text"] == (
+        "维护多个后台服务，支撑日活 10 万用户"
+    )
+    assert any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_confirmed") for event in events)
+    assert executed_tools[0]["success"] is True
+    assert stream_state["confirmed_diff_items"]
 
 
 def test_openrouter_adapter_preserves_business_model_defaults():
