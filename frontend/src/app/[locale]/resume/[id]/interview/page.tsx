@@ -2,6 +2,7 @@
 // 用于提供 app/[locale]/resume/[id]/interview/page.tsx 模块。
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { Link } from '@/i18n/navigation'
@@ -832,39 +833,25 @@ function VoicePanel({
 
 type ReportData = NonNullable<InterviewSession['report_data']>
 
-// ── 报告色彩系统（对齐网站 Coinbase 设计语言） ──────────────────────────
-
-const RC = {
-  bg: '#eef0f3',           // 网站 section-gray
-  card: '#ffffff',
-  border: 'rgba(91,97,110,0.2)',  // 网站标准边框
-  borderSoft: 'rgba(91,97,110,0.08)',
-  ink: '#0a0b0d',          // 网站 body color
-  text: '#0a0b0d',
-  muted: '#5b616e',        // 网站 muted 文字
-  subtle: '#9ca3af',
-  blue: '#0052ff',         // 网站主色 Coinbase blue
-  blueDark: '#003ecb',
-  blueBg: 'rgba(0,82,255,0.06)',
-  blueBorder: 'rgba(0,82,255,0.2)',
-  green: '#059669',
-  greenBg: '#ecfdf5',
-  greenBorder: '#d1fae5',
-  amber: '#d97706',
-  amberBg: '#fffbeb',
-  amberBorder: '#fde68a',
-  red: '#dc2626',
-  redBg: '#fef2f2',
-  redBorder: '#fecaca',
-  dark: '#282b31',         // 网站 card-dark / btn-dark
+// 报告色彩系统（暖白设计语言）
+const RD = {
+  bg: '#F7F5F0',
+  surface: '#FFFFFF',
+  surface2: '#F0EDE7',
+  border: '#E2DDD6',
+  text: '#1A1814',
+  textMuted: '#7A756D',
+  textFaint: '#B0A99F',
+  blue: '#2B5CE6',
+  blueLight: '#EEF2FD',
+  green: '#1D7A4E',
+  greenLight: '#E8F5EE',
+  amber: '#B85C00',
+  amberLight: '#FDF3E7',
+  red: '#C0392B',
+  redLight: '#FDECEA',
+  dark: '#1A1814',
 } as const
-
-// 用于从结论等级推导对应色彩。
-function verdictColors(level?: string) {
-  if (level === 'strong') return { color: RC.green, bg: RC.greenBg, border: RC.greenBorder }
-  if (level === 'risky') return { color: RC.red, bg: RC.redBg, border: RC.redBorder }
-  return { color: RC.amber, bg: RC.amberBg, border: RC.amberBorder }
-}
 
 // 用于从维度平均分或结论等级推导综合评分。
 function computeOverallScore(dimensions: ReportData['dimensions'] = [], level?: string): number {
@@ -883,123 +870,78 @@ function getTurnEvaluation(turn: InterviewSession['turns'][number]) {
   return turn.evaluation
 }
 
-// 用于渲染评分环状图表。
-function ScoreRing({ score }: { score: number }) {
-  const radius = 44
-  const circumference = 2 * Math.PI * radius
-  const dashOffset = circumference * (1 - score / 100)
-  const ringColor = score >= 75 ? RC.green : score >= 55 ? RC.amber : RC.red
+// 用于把分数百分比分类为 good/mid/low。
+function scoreTier(pct: number): 'good' | 'mid' | 'low' {
+  if (pct >= 70) return 'good'
+  if (pct >= 50) return 'mid'
+  return 'low'
+}
+
+// 用于从分数等级取对应颜色。
+function tierColor(tier: 'good' | 'mid' | 'low'): string {
+  if (tier === 'good') return RD.green
+  if (tier === 'mid') return RD.amber
+  return RD.red
+}
+
+// 用于渲染带延伸线的区块标签。
+function RdSectionLabel({ label }: { label: string }) {
   return (
-    <div style={{ height: 120, position: 'relative', width: 120 }}>
-      <svg height="120" style={{ transform: 'rotate(-90deg)' }} width="120">
-        <circle cx="60" cy="60" fill="none" r={radius} stroke="rgba(255,255,255,0.15)" strokeWidth="8" />
-        <circle
-          cx="60" cy="60" fill="none" r={radius}
-          stroke={ringColor} strokeDasharray={circumference}
-          strokeDashoffset={dashOffset} strokeLinecap="round" strokeWidth="8"
-          style={{ transition: 'stroke-dashoffset 0.9s ease' }}
-        />
-      </svg>
-      <div style={{ alignItems: 'center', bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0 }}>
-        <span style={{ color: '#fff', fontSize: 30, fontWeight: 900, lineHeight: 1 }}>{score}</span>
-        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>/ 100</span>
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+      <span style={{
+        fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
+        fontSize: 10,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase' as const,
+        color: RD.textMuted,
+        whiteSpace: 'nowrap' as const,
+        flexShrink: 0,
+      }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, height: 1, background: RD.border }} />
     </div>
   )
 }
 
-// 用于渲染能力标签胶囊。
-function CapChip({ children, tone }: { children: string; tone: 'green' | 'red' | 'blue' | 'neutral' }) {
-  const styles = {
-    green: { bg: RC.greenBg, border: RC.greenBorder, color: '#065f46' },
-    red: { bg: RC.redBg, border: RC.redBorder, color: '#991b1b' },
-    blue: { bg: RC.blueBg, border: RC.blueBorder, color: '#0052ff' },
-    neutral: { bg: RC.borderSoft, border: RC.border, color: RC.muted },
-  }[tone]
-  return (
-    <span style={{
-      background: styles.bg,
-      border: `1px solid ${styles.border}`,
-      borderRadius: 99,
-      color: styles.color,
-      display: 'inline-block',
-      fontSize: 12,
-      fontWeight: 600,
-      padding: '4px 10px',
-    }}>
-      {children}
-    </span>
-  )
-}
-
-// 用于渲染带色点的项目列表。
-function BulletList({ items, tone = 'neutral' }: { items: string[]; tone?: 'green' | 'red' | 'blue' | 'neutral' }) {
-  const dotColor = { green: RC.green, red: RC.red, blue: RC.blue, neutral: RC.subtle }[tone]
-  return (
-    <ul style={{ display: 'grid', gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
-      {items.map((item, i) => (
-        <li key={i} style={{ alignItems: 'flex-start', display: 'flex', gap: 10 }}>
-          <span style={{ background: dotColor, borderRadius: 999, flexShrink: 0, height: 6, marginTop: 9, width: 6 }} />
-          <span style={{ color: RC.text, fontSize: 14, lineHeight: 1.75 }}>{item}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-// 用于渲染卡片区块标题行。
-function SectionHeading({ title, badge }: { title: string; badge?: string }) {
-  return (
-    <div style={{ alignItems: 'center', display: 'flex', gap: 10, marginBottom: 20 }}>
-      <h2 style={{ color: RC.ink, fontSize: 17, fontWeight: 800, margin: 0 }}>{title}</h2>
-      {badge && (
-        <span style={{ background: RC.borderSoft, border: `1px solid ${RC.border}`, borderRadius: 99, color: RC.muted, fontSize: 12, fontWeight: 600, padding: '2px 8px' }}>
-          {badge}
-        </span>
-      )}
-    </div>
-  )
-}
-
-// 用于渲染可展开的能力维度行。
-function DimensionRow({ dimension }: { dimension: NonNullable<ReportData['dimensions']>[number] }) {
-  const [expanded, setExpanded] = useState(false)
+// 用于渲染带色边的维度评分卡片。
+function RdDimCard({ dimension }: { dimension: NonNullable<ReportData['dimensions']>[number] }) {
   const pct = typeof dimension.score === 'number' ? dimension.score * 20 : 0
-  const barColor = pct >= 70 ? RC.green : pct >= 50 ? RC.amber : RC.red
-
+  const tier = scoreTier(pct)
+  const color = tierColor(tier)
   return (
-    <div style={{ border: `1px solid ${RC.border}`, borderRadius: 14, overflow: 'hidden' }}>
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        style={{ alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', gap: 14, padding: '14px 16px', textAlign: 'left', width: '100%' }}
-      >
-        <div style={{ flex: 1 }}>
-          <div style={{ alignItems: 'center', display: 'flex', gap: 8, marginBottom: 8 }}>
-            <span style={{ color: RC.ink, fontSize: 14, fontWeight: 700 }}>{dimension.title}</span>
-            {typeof dimension.score === 'number' && (
-              <span style={{ color: RC.muted, fontSize: 12, fontWeight: 600 }}>{dimension.score}/5</span>
-            )}
-          </div>
-          <div style={{ background: RC.borderSoft, borderRadius: 999, height: 6, overflow: 'hidden' }}>
-            <div style={{ background: barColor, borderRadius: 999, height: '100%', transition: 'width 0.7s ease', width: `${pct}%` }} />
-          </div>
+    <div style={{
+      background: RD.surface,
+      border: `1px solid ${RD.border}`,
+      borderLeft: `3px solid ${color}`,
+      borderRadius: 12,
+      padding: '18px 20px',
+      overflow: 'hidden',
+    }}>
+      <div style={{ fontSize: 12, color: RD.textMuted, marginBottom: 8 }}>{dimension.title}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{
+          fontFamily: "'DM Serif Display', Georgia, serif",
+          fontSize: 28,
+          letterSpacing: '-0.03em',
+          lineHeight: 1,
+          color,
+        }}>
+          {Math.round(pct)}
+        </span>
+        <div style={{ flex: 1, height: 3, background: RD.surface2, borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: color, borderRadius: 2, width: `${pct}%`, transition: 'width 1s cubic-bezier(.16,1,.3,1)' }} />
         </div>
-        <span style={{ color: RC.subtle, flexShrink: 0, fontSize: 16, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
-      </button>
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${RC.borderSoft}`, padding: '14px 16px 16px' }}>
-          <p style={{ color: RC.text, fontSize: 14, lineHeight: 1.7, margin: '0 0 10px' }}>{dimension.assessment}</p>
-          {dimension.evidence && (
-            <p style={{ color: RC.muted, fontSize: 13, lineHeight: 1.6, margin: '0 0 10px' }}>
-              <strong style={{ color: RC.ink }}>依据：</strong>{dimension.evidence}
-            </p>
-          )}
-          {dimension.advice && (
-            <p style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 10, color: '#0052ff', fontSize: 13, lineHeight: 1.6, margin: 0, padding: '10px 12px' }}>
-              建议：{dimension.advice}
-            </p>
-          )}
+      </div>
+      {dimension.assessment && (
+        <div style={{
+          fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
+          fontSize: 10,
+          marginTop: 6,
+          color: RD.textFaint,
+          lineHeight: 1.5,
+        }}>
+          {dimension.assessment}
         </div>
       )}
     </div>
@@ -1007,90 +949,123 @@ function DimensionRow({ dimension }: { dimension: NonNullable<ReportData['dimens
 }
 
 // 用于渲染可展开的单题解析卡片。
-function QuestionCard({ turn, index }: { turn: InterviewSession['turns'][number]; index: number }) {
-  const [expanded, setExpanded] = useState(false)
+function RdQACard({ turn, index }: { turn: InterviewSession['turns'][number]; index: number }) {
+  const [open, setOpen] = useState(false)
   const evaluation = getTurnEvaluation(turn)
-  const strengths: string[] = evaluation?.evidence || []
-  const gaps: string[] = evaluation?.gaps || []
+  const summary = evaluation?.summary || ''
+  const strengths: string[] = Array.isArray(evaluation?.evidence) ? (evaluation.evidence as string[]) : []
+  const gaps: string[] = Array.isArray(evaluation?.gaps) ? (evaluation.gaps as string[]) : []
 
   return (
-    <article style={{ border: `1px solid ${RC.border}`, borderRadius: 16, overflow: 'hidden' }}>
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        style={{ alignItems: 'flex-start', background: RC.borderSoft, border: 'none', cursor: 'pointer', display: 'flex', gap: 12, padding: '14px 16px', textAlign: 'left', width: '100%' }}
+    <div style={{
+      background: RD.surface,
+      border: `1px solid ${RD.border}`,
+      borderRadius: 12,
+      overflow: 'hidden',
+    }}>
+      <div
+        role="button"
+        tabIndex={0}
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '18px 20px', cursor: 'pointer' }}
+        onClick={() => setOpen(v => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(v => !v) }}
       >
-        <span style={{ background: RC.blue, borderRadius: 8, color: '#fff', flexShrink: 0, fontSize: 11, fontWeight: 700, marginTop: 2, padding: '3px 8px' }}>
-          Q{index + 1}
+        <span style={{
+          fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
+          fontSize: 11,
+          color: RD.textFaint,
+          paddingTop: 2,
+          flexShrink: 0,
+          minWidth: 20,
+        }}>
+          {String(index + 1).padStart(2, '0')}
         </span>
-        <p style={{ color: RC.ink, flex: 1, fontSize: 14, fontWeight: 700, lineHeight: 1.6, margin: 0 }}>{turn.question}</p>
-        <span style={{ color: RC.subtle, flexShrink: 0, fontSize: 16, marginTop: 2, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
-      </button>
-
-      {expanded && (
-        <div style={{ padding: 16 }}>
-          <div style={{ marginBottom: 14 }}>
-            <p style={{ color: RC.subtle, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', margin: '0 0 6px', textTransform: 'uppercase' }}>你的回答</p>
-            <p style={{ background: RC.borderSoft, borderLeft: `3px solid ${RC.border}`, borderRadius: 10, color: RC.text, fontSize: 14, lineHeight: 1.75, margin: 0, padding: '12px 14px' }}>
-              {turn.answer || '（候选人跳过此问题）'}
-            </p>
+        <p style={{ flex: 1, fontSize: 14, fontWeight: 500, lineHeight: 1.5, margin: 0, color: RD.text }}>
+          {turn.question}
+        </p>
+        <span style={{
+          fontSize: 16,
+          color: RD.textFaint,
+          flexShrink: 0,
+          transition: 'transform 0.2s',
+          transform: open ? 'rotate(180deg)' : 'none',
+          display: 'inline-block',
+        }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ borderTop: `1px solid ${RD.border}`, padding: '18px 20px' }}>
+          <div style={{
+            fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
+            fontSize: 10,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase' as const,
+            color: RD.textFaint,
+            marginBottom: 8,
+          }}>
+            你的回答
           </div>
-
-          {(strengths.length > 0 || gaps.length > 0) && (
-            <div className="grid gap-3 md:grid-cols-2" style={{ marginBottom: 14 }}>
-              {strengths.length > 0 && (
-                <div style={{ background: RC.greenBg, border: `1px solid ${RC.greenBorder}`, borderRadius: 12, padding: 14 }}>
-                  <p style={{ color: RC.green, fontSize: 12, fontWeight: 700, margin: '0 0 10px' }}>亮点</p>
-                  <BulletList items={strengths} tone="green" />
-                </div>
-              )}
-              {gaps.length > 0 && (
-                <div style={{ background: RC.redBg, border: `1px solid ${RC.redBorder}`, borderRadius: 12, padding: 14 }}>
-                  <p style={{ color: RC.red, fontSize: 12, fontWeight: 700, margin: '0 0 10px' }}>待改进</p>
-                  <BulletList items={gaps} tone="red" />
-                </div>
-              )}
-            </div>
-          )}
-
-          {(evaluation?.summary || evaluation?.advice) && (
-            <div style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 12, padding: 14 }}>
-              <p style={{ color: '#0052ff', fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>面试官点评</p>
-              {evaluation.summary && <p style={{ color: RC.text, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{evaluation.summary}</p>}
-              {evaluation.advice && evaluation.summary && (
-                <p style={{ color: RC.muted, fontSize: 13, lineHeight: 1.6, margin: '8px 0 0' }}>{evaluation.advice}</p>
-              )}
-              {evaluation.advice && !evaluation.summary && (
-                <p style={{ color: RC.text, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{evaluation.advice}</p>
-              )}
-            </div>
-          )}
+          <div style={{
+            fontSize: 13,
+            color: RD.textMuted,
+            lineHeight: 1.7,
+            paddingLeft: 12,
+            borderLeft: `2px solid ${RD.border}`,
+            marginBottom: 16,
+          }}>
+            {turn.answer || '（候选人跳过此问题）'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+            {strengths.map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.greenLight, color: RD.green }}>✓</span>
+                <span style={{ color: RD.textMuted }}>{s}</span>
+              </div>
+            ))}
+            {gaps.map((g, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.amberLight, color: RD.amber }}>!</span>
+                <span style={{ color: RD.textMuted }}>{g}</span>
+              </div>
+            ))}
+            {summary && !strengths.length && !gaps.length && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.55 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2, fontSize: 10, background: RD.blueLight, color: RD.blue }}>↗</span>
+                <span style={{ color: RD.textMuted }}>{summary}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
-    </article>
+    </div>
   )
 }
 
-// 用于渲染示范回答对比卡片。
-function AnswerRewriteCard({ rewrite, index }: { rewrite: NonNullable<ReportData['answer_rewrites']>[number]; index: number }) {
+// 用于渲染关键词胶囊（命中/缺失两态）。
+function RdKeyword({ label, hit }: { label: string; hit: boolean }) {
   return (
-    <div style={{ border: `1px solid ${RC.border}`, borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ background: RC.borderSoft, borderBottom: `1px solid ${RC.border}`, padding: '12px 16px' }}>
-        <span style={{ color: RC.muted, fontSize: 12, fontWeight: 700 }}>示范回答 {index + 1}</span>
-        {rewrite.original_problem && (
-          <p style={{ color: RC.ink, fontSize: 14, fontWeight: 700, lineHeight: 1.55, margin: '6px 0 0' }}>{rewrite.original_problem}</p>
-        )}
+    <span style={{
+      fontFamily: "'DM Mono', 'SFMono-Regular', monospace",
+      fontSize: 11,
+      padding: '3px 10px',
+      borderRadius: 99,
+      border: `1px solid ${hit ? '#b2ddc5' : RD.border}`,
+      background: hit ? RD.greenLight : RD.surface2,
+      color: hit ? RD.green : RD.textFaint,
+    }}>
+      {label}
+    </span>
+  )
+}
+
+// 用于渲染侧边栏卡片容器。
+function RdSideCard({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+  return (
+    <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: RD.textMuted, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
+        {icon}
+        {title}
       </div>
-      <div style={{ borderBottom: `1px solid ${RC.borderSoft}`, padding: 16 }}>
-        <p style={{ color: RC.green, fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>推荐回答</p>
-        <p style={{ color: RC.text, fontSize: 14, lineHeight: 1.8, margin: 0 }}>{rewrite.recommended_answer}</p>
-      </div>
-      {rewrite.why_better && (
-        <div style={{ padding: 16 }}>
-          <p style={{ color: RC.amber, fontSize: 12, fontWeight: 700, margin: '0 0 6px' }}>为什么更好</p>
-          <p style={{ color: RC.muted, fontSize: 13, lineHeight: 1.7, margin: 0 }}>{rewrite.why_better}</p>
-        </div>
-      )}
+      {children}
     </div>
   )
 }
@@ -1099,194 +1074,189 @@ function AnswerRewriteCard({ rewrite, index }: { rewrite: NonNullable<ReportData
 function ReportPreview({
   report,
   turns,
+  session,
 }: {
   report: InterviewSession['report_data']
   turns: InterviewSession['turns']
+  session?: InterviewSession
 }) {
   if (!report) return null
 
   const data = report as ReportData
   const verdict = data.candidate_verdict
   const match = data.job_match
-  const vc = verdictColors(verdict?.level)
   const score = computeOverallScore(data.dimensions, verdict?.level)
-  const targetLabel = [match?.target_company, match?.target_title].filter(Boolean).join(' · ') || '综合面试'
-  const verdictBadge = verdict?.label || (verdict?.level === 'strong' ? '推进意向强' : verdict?.level === 'risky' ? '风险较高' : '边缘候选')
+  const scoreBadge = score >= 75 ? '良好' : score >= 55 ? '一般' : '需提高'
   const dimensions = data.dimensions || []
-  const rewrites = data.answer_rewrites || []
-  const hasCovered = (match?.covered_capabilities || []).length > 0
-  const hasMissing = (match?.missing_capabilities || []).length > 0
-  const hasConcerns = (match?.interviewer_concerns || []).length > 0
-  const hasFollowups = (match?.likely_followups || []).length > 0
-  const hasTraining = (data.next_training_plan || []).length > 0
-  const hasResumeFeedback = (data.resume_feedback || []).length > 0
+  const hitKeywords = match?.covered_capabilities || []
+  const missKeywords = match?.missing_capabilities || []
+  const suggestions = data.next_training_plan || []
+  const targetTitle = match?.target_title || session?.target_title || '综合面试'
+  const targetCompany = match?.target_company || session?.target_company || ''
+
+  const startedAt = session?.started_at
+  const endedAt = session?.ended_at
+  let duration = ''
+  if (startedAt) {
+    const s = new Date(startedAt.includes('Z') ? startedAt : `${startedAt}Z`).getTime()
+    const e = endedAt ? new Date(endedAt.includes('Z') ? endedAt : `${endedAt}Z`).getTime() : Date.now()
+    const mins = Math.max(1, Math.round((e - s) / 60000))
+    duration = mins >= 60 ? `${Math.floor(mins / 60)}小时${mins % 60 ? `${mins % 60}分钟` : ''}` : `${mins}分钟`
+  }
+
+  const hasSidebar = hitKeywords.length > 0 || missKeywords.length > 0 || suggestions.length > 0
+    || (data.strengths || []).length > 0 || (data.weaknesses || []).length > 0
 
   return (
-    <div style={{ display: 'grid', gap: 20 }}>
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');`}</style>
+      <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 14, lineHeight: 1.6, color: RD.text }}>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <section style={{
-        background: RC.dark,
-        borderRadius: 24,
-        boxShadow: '0 20px 60px rgba(10,11,13,0.22)',
-        overflow: 'hidden',
-        padding: '32px 32px 28px',
-      }}>
-        {/* badges */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-          <span style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 99, color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: 700, padding: '5px 12px' }}>
-            面试复盘报告
-          </span>
-          <span style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 99, color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, padding: '5px 12px' }}>
-            {targetLabel}
-          </span>
-          {verdict?.level && (
-            <span style={{ background: vc.bg, border: `1px solid ${vc.border}`, borderRadius: 99, color: vc.color, fontSize: 12, fontWeight: 700, padding: '5px 12px' }}>
-              {verdictBadge}
-            </span>
-          )}
-        </div>
-
-        {/* title + score ring */}
-        <div className="grid gap-6 md:grid-cols-[1fr_auto]" style={{ alignItems: 'center', marginBottom: 24 }}>
+        {/* Hero */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 40, alignItems: 'start', marginBottom: 40 }}>
           <div>
-            <h1 style={{ color: '#fff', fontSize: 34, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.12, margin: '0 0 12px' }}>
-              面试复盘报告
+            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'inline-block', width: 20, height: 1, background: RD.textMuted }} />
+              面试报告
+            </div>
+            <h1 style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 'clamp(26px, 4vw, 40px)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 10px' }}>
+              {targetCompany && <>{targetCompany}<br /></>}
+              <em style={{ fontStyle: 'italic', color: RD.blue }}>{targetTitle}</em>
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 1.8, margin: 0, maxWidth: 620 }}>
-              {data.summary || verdict?.reason || '报告已生成，请查看下方各维度详细分析。'}
-            </p>
-          </div>
-          <ScoreRing score={score} />
-        </div>
-
-        {/* key stats */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: '岗位名称', value: match?.target_title || '目标岗位' },
-            { label: '目标公司', value: match?.target_company || '综合面试' },
-            { label: '题目数量', value: `${turns.length} 题` },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '13px 16px' }}>
-              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', margin: '0 0 5px', textTransform: 'uppercase' }}>{label}</p>
-              <p style={{ color: '#fff', fontSize: 15, fontWeight: 800, lineHeight: 1.2, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── 面试官核心评价 ───────────────────────────────────────────── */}
-      <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-        <SectionHeading title="面试官核心评价" />
-        {verdict?.reason && (
-          <p style={{ color: RC.text, fontSize: 15, lineHeight: 1.85, margin: '0 0 20px' }}>{verdict.reason}</p>
-        )}
-        <div className="grid gap-4 md:grid-cols-2">
-          {(data.strengths || []).length > 0 && (
-            <div style={{ background: RC.greenBg, border: `1px solid ${RC.greenBorder}`, borderRadius: 14, padding: 18 }}>
-              <p style={{ color: RC.green, fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>突出优势</p>
-              <BulletList items={data.strengths || []} tone="green" />
-            </div>
-          )}
-          {([...(data.interviewer_risks || []), ...(data.weaknesses || [])]).length > 0 && (
-            <div style={{ background: RC.redBg, border: `1px solid ${RC.redBorder}`, borderRadius: 14, padding: 18 }}>
-              <p style={{ color: RC.red, fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>面试官顾虑</p>
-              <BulletList items={[...(data.interviewer_risks || []), ...(data.weaknesses || [])]} tone="red" />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── 岗位匹配分析 ─────────────────────────────────────────────── */}
-      {(hasCovered || hasMissing || hasConcerns || hasFollowups) && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-          <SectionHeading title="岗位匹配分析" />
-          {(hasCovered || hasMissing) && (
-            <div className="grid gap-4 md:grid-cols-2" style={{ marginBottom: hasConcerns || hasFollowups ? 16 : 0 }}>
-              {hasCovered && (
-                <div>
-                  <p style={{ color: RC.green, fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>已覆盖能力</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(match?.covered_capabilities || []).map((cap, i) => <CapChip key={i} tone="green">{cap}</CapChip>)}
-                  </div>
-                </div>
+            <div style={{ fontSize: 13, color: RD.textMuted, display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginTop: 16 }}>
+              {duration && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  用时 {duration}
+                </span>
               )}
-              {hasMissing && (
-                <div>
-                  <p style={{ color: RC.red, fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>能力缺口</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(match?.missing_capabilities || []).map((cap, i) => <CapChip key={i} tone="red">{cap}</CapChip>)}
-                  </div>
-                </div>
-              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                {turns.length} 道题目
+              </span>
             </div>
-          )}
-          {hasConcerns && (
-            <div style={{ background: RC.amberBg, border: `1px solid ${RC.amberBorder}`, borderRadius: 14, marginBottom: hasFollowups ? 12 : 0, padding: 16 }}>
-              <p style={{ color: RC.amber, fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>面试官可能追问</p>
-              <BulletList items={match?.interviewer_concerns || []} />
-            </div>
-          )}
-          {hasFollowups && (
-            <div style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 14, padding: 16 }}>
-              <p style={{ color: RC.blue, fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>预计追问方向</p>
-              <BulletList items={match?.likely_followups || []} tone="blue" />
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ── 综合能力维度 ─────────────────────────────────────────────── */}
-      {dimensions.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-          <SectionHeading title="综合能力维度" badge={`${dimensions.length} 项`} />
-          <div style={{ display: 'grid', gap: 10 }}>
-            {dimensions.map((dim, i) => <DimensionRow key={i} dimension={dim} />)}
           </div>
-        </section>
-      )}
 
-      {/* ── 成长建议 ─────────────────────────────────────────────────── */}
-      {(hasTraining || hasResumeFeedback) && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-          <SectionHeading title="成长建议" />
-          <div className="grid gap-4 md:grid-cols-2">
-            {hasTraining && (
-              <div>
-                <p style={{ color: RC.blue, fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>训练计划</p>
-                <BulletList items={data.next_training_plan || []} tone="blue" />
+          {/* Score card */}
+          <div style={{ background: RD.dark, color: '#fff', borderRadius: 16, padding: '28px 32px', textAlign: 'center' as const, minWidth: 160, position: 'relative' as const, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute' as const, top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+            <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 64, lineHeight: 1, letterSpacing: '-0.04em' }}>
+              {score}<span style={{ fontSize: 18, opacity: 0.4, fontWeight: 300 }}>/100</span>
+            </div>
+            <div style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' as const, opacity: 0.5, marginTop: 8 }}>
+              综合得分
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 10, background: 'rgba(255,255,255,0.12)', borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 500 }}>
+              ★ {scoreBadge}
+            </div>
+          </div>
+        </div>
+
+        {/* Two-column layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: hasSidebar ? '1fr 300px' : '1fr', gap: 28, alignItems: 'start' }}>
+          <div>
+            {/* AI Summary */}
+            {(data.summary || verdict?.reason) && (
+              <div style={{ marginBottom: 28 }}>
+                <RdSectionLabel label="AI 综合评价" />
+                <div style={{ background: RD.blueLight, border: '1px solid #c5d6f9', borderRadius: 12, padding: '20px 22px', fontSize: 14, color: '#1a2a6e', lineHeight: 1.7, fontStyle: 'italic' as const }}>
+                  {data.summary || verdict?.reason}
+                </div>
               </div>
             )}
-            {hasResumeFeedback && (
-              <div>
-                <p style={{ color: RC.amber, fontSize: 13, fontWeight: 700, margin: '0 0 12px' }}>简历优化建议</p>
-                <BulletList items={data.resume_feedback || []} />
+
+            {/* Dimensions */}
+            {dimensions.length > 0 && (
+              <div style={{ marginBottom: 28 }}>
+                <RdSectionLabel label="维度评分" />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                  {dimensions.map((dim, i) => <RdDimCard key={i} dimension={dim} />)}
+                </div>
+              </div>
+            )}
+
+            {/* Q&A */}
+            {turns.length > 0 && (
+              <div style={{ marginBottom: 28 }}>
+                <RdSectionLabel label="题目详情" />
+                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 16 }}>
+                  {turns.map((turn, i) => <RdQACard key={turn.id} turn={turn} index={i} />)}
+                </div>
               </div>
             )}
           </div>
-        </section>
-      )}
 
-      {/* ── 示范回答 ─────────────────────────────────────────────────── */}
-      {rewrites.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-          <SectionHeading title="示范回答" badge={`${rewrites.length} 题`} />
-          <div style={{ display: 'grid', gap: 14 }}>
-            {rewrites.map((rewrite, i) => <AnswerRewriteCard key={i} rewrite={rewrite} index={i} />)}
-          </div>
-        </section>
-      )}
+          {/* Sidebar */}
+          {hasSidebar && (
+            <div style={{ position: 'sticky' as const, top: 72 }}>
+              {((data.strengths || []).length > 0 || (data.weaknesses || []).length > 0) && (
+                <RdSideCard
+                  title="核心评价"
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
+                >
+                  {(data.strengths || []).length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: RD.green, marginBottom: 8, margin: '0 0 8px' }}>突出优势</p>
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+                        {(data.strengths || []).slice(0, 3).map((s, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: RD.textMuted }}>
+                            <span style={{ color: RD.green, flexShrink: 0 }}>•</span>
+                            <span>{s}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(data.weaknesses || []).length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: RD.amber, margin: '0 0 8px' }}>待改进</p>
+                      <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+                        {(data.weaknesses || []).slice(0, 3).map((w, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 8, fontSize: 12, color: RD.textMuted }}>
+                            <span style={{ color: RD.amber, flexShrink: 0 }}>•</span>
+                            <span>{w}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </RdSideCard>
+              )}
 
-      {/* ── 逐题解析 ─────────────────────────────────────────────────── */}
-      {turns.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
-          <SectionHeading title="逐题解析" badge={`共 ${turns.length} 题`} />
-          <div style={{ display: 'grid', gap: 12 }}>
-            {turns.map((turn, i) => <QuestionCard key={turn.id} turn={turn} index={i} />)}
-          </div>
-        </section>
-      )}
-    </div>
+              {(hitKeywords.length > 0 || missKeywords.length > 0) && (
+                <RdSideCard
+                  title="关键词覆盖"
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>}
+                >
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+                    {hitKeywords.map((k, i) => <RdKeyword key={`hit-${i}`} label={k} hit={true} />)}
+                    {missKeywords.map((k, i) => <RdKeyword key={`miss-${i}`} label={k} hit={false} />)}
+                  </div>
+                </RdSideCard>
+              )}
+
+              {suggestions.length > 0 && (
+                <RdSideCard
+                  title="优先改进建议"
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+                    {suggestions.slice(0, 4).map((sug, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: RD.textMuted, lineHeight: 1.55 }}>
+                        <span style={{ fontFamily: "'DM Mono', 'SFMono-Regular', monospace", fontSize: 11, color: RD.textFaint, paddingTop: 2, flexShrink: 0 }}>
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <span>{sug}</span>
+                      </div>
+                    ))}
+                  </div>
+                </RdSideCard>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -1294,12 +1264,12 @@ function ReportPreview({
 function CompletedInterviewReview({ session }: { session: InterviewSession }) {
   const report = session.report_data
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: '#f9fafb' }}>
-      <div className="mx-auto w-full max-w-5xl px-5 py-8">
+    <div className="flex-1 overflow-y-auto" style={{ background: RD.bg }}>
+      <div className="mx-auto w-full max-w-5xl px-8 py-10">
         {report ? (
-          <ReportPreview report={report} turns={session.turns || []} />
+          <ReportPreview report={report} turns={session.turns || []} session={session} />
         ) : (
-          <div style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 16, color: RC.muted, fontSize: 14, padding: 24, textAlign: 'center' }}>
+          <div style={{ background: RD.surface, border: `1px solid ${RD.border}`, borderRadius: 16, color: RD.textMuted, fontSize: 14, padding: 24, textAlign: 'center' }}>
             报告尚未生成，请回到面试中心生成报告。
           </div>
         )}
