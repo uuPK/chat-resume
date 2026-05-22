@@ -832,30 +832,31 @@ function VoicePanel({
 
 type ReportData = NonNullable<InterviewSession['report_data']>
 
-// ── 报告色彩系统（专业 slate/blue 主题） ──────────────────────────────────
+// ── 报告色彩系统（对齐网站 Coinbase 设计语言） ──────────────────────────
 
 const RC = {
-  bg: '#f8fafc',
+  bg: '#eef0f3',           // 网站 section-gray
   card: '#ffffff',
-  border: '#e2e8f0',
-  borderSoft: '#f1f5f9',
-  ink: '#0f172a',
-  text: '#1e293b',
-  muted: '#64748b',
-  subtle: '#94a3b8',
-  blue: '#2563eb',
-  blueDark: '#1d4ed8',
-  blueBg: '#eff6ff',
-  blueBorder: '#bfdbfe',
+  border: 'rgba(91,97,110,0.2)',  // 网站标准边框
+  borderSoft: 'rgba(91,97,110,0.08)',
+  ink: '#0a0b0d',          // 网站 body color
+  text: '#0a0b0d',
+  muted: '#5b616e',        // 网站 muted 文字
+  subtle: '#9ca3af',
+  blue: '#0052ff',         // 网站主色 Coinbase blue
+  blueDark: '#003ecb',
+  blueBg: 'rgba(0,82,255,0.06)',
+  blueBorder: 'rgba(0,82,255,0.2)',
   green: '#059669',
   greenBg: '#ecfdf5',
-  greenBorder: '#a7f3d0',
+  greenBorder: '#d1fae5',
   amber: '#d97706',
   amberBg: '#fffbeb',
   amberBorder: '#fde68a',
   red: '#dc2626',
   redBg: '#fef2f2',
   redBorder: '#fecaca',
+  dark: '#282b31',         // 网站 card-dark / btn-dark
 } as const
 
 // 用于从结论等级推导对应色彩。
@@ -912,7 +913,7 @@ function CapChip({ children, tone }: { children: string; tone: 'green' | 'red' |
   const styles = {
     green: { bg: RC.greenBg, border: RC.greenBorder, color: '#065f46' },
     red: { bg: RC.redBg, border: RC.redBorder, color: '#991b1b' },
-    blue: { bg: RC.blueBg, border: RC.blueBorder, color: '#1e40af' },
+    blue: { bg: RC.blueBg, border: RC.blueBorder, color: '#0052ff' },
     neutral: { bg: RC.borderSoft, border: RC.border, color: RC.muted },
   }[tone]
   return (
@@ -995,7 +996,7 @@ function DimensionRow({ dimension }: { dimension: NonNullable<ReportData['dimens
             </p>
           )}
           {dimension.advice && (
-            <p style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 10, color: '#1e40af', fontSize: 13, lineHeight: 1.6, margin: 0, padding: '10px 12px' }}>
+            <p style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 10, color: '#0052ff', fontSize: 13, lineHeight: 1.6, margin: 0, padding: '10px 12px' }}>
               建议：{dimension.advice}
             </p>
           )}
@@ -1054,7 +1055,7 @@ function QuestionCard({ turn, index }: { turn: InterviewSession['turns'][number]
 
           {(evaluation?.summary || evaluation?.advice) && (
             <div style={{ background: RC.blueBg, border: `1px solid ${RC.blueBorder}`, borderRadius: 12, padding: 14 }}>
-              <p style={{ color: '#1e40af', fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>面试官点评</p>
+              <p style={{ color: '#0052ff', fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>面试官点评</p>
               {evaluation.summary && <p style={{ color: RC.text, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{evaluation.summary}</p>}
               {evaluation.advice && evaluation.summary && (
                 <p style={{ color: RC.muted, fontSize: 13, lineHeight: 1.6, margin: '8px 0 0' }}>{evaluation.advice}</p>
@@ -1125,9 +1126,9 @@ function ReportPreview({
 
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        background: RC.dark,
         borderRadius: 24,
-        boxShadow: '0 20px 60px rgba(15,23,42,0.18)',
+        boxShadow: '0 20px 60px rgba(10,11,13,0.22)',
         overflow: 'hidden',
         padding: '32px 32px 28px',
       }}>
@@ -1175,7 +1176,7 @@ function ReportPreview({
       </section>
 
       {/* ── 面试官核心评价 ───────────────────────────────────────────── */}
-      <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+      <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
         <SectionHeading title="面试官核心评价" />
         {verdict?.reason && (
           <p style={{ color: RC.text, fontSize: 15, lineHeight: 1.85, margin: '0 0 20px' }}>{verdict.reason}</p>
@@ -1198,7 +1199,7 @@ function ReportPreview({
 
       {/* ── 岗位匹配分析 ─────────────────────────────────────────────── */}
       {(hasCovered || hasMissing || hasConcerns || hasFollowups) && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
           <SectionHeading title="岗位匹配分析" />
           {(hasCovered || hasMissing) && (
             <div className="grid gap-4 md:grid-cols-2" style={{ marginBottom: hasConcerns || hasFollowups ? 16 : 0 }}>
@@ -1237,7 +1238,7 @@ function ReportPreview({
 
       {/* ── 综合能力维度 ─────────────────────────────────────────────── */}
       {dimensions.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
           <SectionHeading title="综合能力维度" badge={`${dimensions.length} 项`} />
           <div style={{ display: 'grid', gap: 10 }}>
             {dimensions.map((dim, i) => <DimensionRow key={i} dimension={dim} />)}
@@ -1247,7 +1248,7 @@ function ReportPreview({
 
       {/* ── 成长建议 ─────────────────────────────────────────────────── */}
       {(hasTraining || hasResumeFeedback) && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
           <SectionHeading title="成长建议" />
           <div className="grid gap-4 md:grid-cols-2">
             {hasTraining && (
@@ -1268,7 +1269,7 @@ function ReportPreview({
 
       {/* ── 示范回答 ─────────────────────────────────────────────────── */}
       {rewrites.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
           <SectionHeading title="示范回答" badge={`${rewrites.length} 题`} />
           <div style={{ display: 'grid', gap: 14 }}>
             {rewrites.map((rewrite, i) => <AnswerRewriteCard key={i} rewrite={rewrite} index={i} />)}
@@ -1278,7 +1279,7 @@ function ReportPreview({
 
       {/* ── 逐题解析 ─────────────────────────────────────────────────── */}
       {turns.length > 0 && (
-        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '26px 26px 28px' }}>
+        <section style={{ background: RC.card, border: `1px solid ${RC.border}`, borderRadius: 20, boxShadow: '0 1px 4px rgba(10,11,13,0.06)', padding: '26px 26px 28px' }}>
           <SectionHeading title="逐题解析" badge={`共 ${turns.length} 题`} />
           <div style={{ display: 'grid', gap: 12 }}>
             {turns.map((turn, i) => <QuestionCard key={turn.id} turn={turn} index={i} />)}
@@ -1293,7 +1294,7 @@ function ReportPreview({
 function CompletedInterviewReview({ session }: { session: InterviewSession }) {
   const report = session.report_data
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: RC.bg }}>
+    <div className="flex-1 overflow-y-auto" style={{ background: '#f9fafb' }}>
       <div className="mx-auto w-full max-w-5xl px-5 py-8">
         {report ? (
           <ReportPreview report={report} turns={session.turns || []} />
