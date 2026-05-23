@@ -631,9 +631,7 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     eventsBefore: summarizeToolEvents(eventsBuffer),
                   })
                   eventsBuffer = [
-                    ...eventsBuffer.filter((event) =>
-                      !(event.type === 'tool_call' && event.callId === callId)
-                    ),
+                    ...eventsBuffer,
                     {
                       type: 'tool_pending',
                       callId,
@@ -703,7 +701,14 @@ export function useStreamingChat(resumeId: number, options: StreamingChatOptions
                     ? 'tool_confirmed'
                     : 'tool_rejected'
                   eventsBuffer = eventsBuffer.flatMap(e => {
-                    if (e.type === 'tool_call' && e.callId === callId) return []
+                    if (e.type === 'tool_call' && e.callId === callId) {
+                      return [{
+                        type: 'tool_result' as const,
+                        callId,
+                        toolName: e.toolName,
+                        displayMessage: data.display_message ? String(data.display_message) : undefined,
+                      }]
+                    }
                     if (e.type === 'tool_pending' && e.callId === callId) {
                       return [{
                         type: newType,

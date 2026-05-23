@@ -1267,6 +1267,22 @@ test.describe('编辑页工作流', () => {
     await expect(page.getByText('思考中')).toHaveCount(0)
   })
 
+  test('Resume Agent 在待确认 diff 出现后仍保留工具运行状态', async ({ page }) => {
+    const resumeId = await createResumeFromDashboard(page, uniqueEmail('agenttoolpending'))
+
+    await installResumeAgentMock(page, { omitDiffItems: true })
+    await page.goto(`/resume/${resumeId}/edit`)
+    await page.waitForLoadState('networkidle')
+
+    const input = page.getByPlaceholder('输入消息...')
+    await input.fill('请帮我优化项目经历')
+    await input.press('Enter')
+
+    await expect(page.getByText('主导前端重构，首屏加载提速 35%')).toBeVisible()
+    await expect(page.getByText('工具运行中')).toBeVisible()
+    await expect(page.locator('span').filter({ hasText: /^优化项目经历$/ }).first()).toBeVisible()
+  })
+
   test('Resume Agent 可以拒绝待确认的 diff 修改', async ({ page }) => {
     const resumeId = await createResumeFromDashboard(page, uniqueEmail('agentreject'))
 
