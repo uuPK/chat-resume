@@ -234,7 +234,8 @@ class ResumeToolExecutionStage:
         if not needs_confirmation:
             return None
         assert confirmation_queue is not None
-        preview_context = {"resume_content": deepcopy(context.get("resume_content"))}
+        preview_context = dict(context)
+        preview_context["resume_content"] = deepcopy(context.get("resume_content"))
         preview_result = await self.call_tool_executor(
             agent=agent,
             tool_call=tool_call,

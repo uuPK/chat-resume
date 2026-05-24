@@ -39,6 +39,7 @@ _RESUME_SNAPSHOT_KEYWORDS = (
 )
 _MODULE_TO_SECTION = {
     "personal": "personal_info",
+    "summary": "summary",
     "education": "education",
     "work": "work_experience",
     "projects": "projects",

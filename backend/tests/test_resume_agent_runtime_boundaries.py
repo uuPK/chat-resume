@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import logging
 import sys
+from collections.abc import Mapping
 from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,7 +30,7 @@ from pi_agent_core import (
     ToolResultMessage,
     UserMessage,
 )
-from pi_agent_core.types import Model, StreamResult
+from pi_agent_core.types import Message, Model, StreamResult
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
@@ -46,6 +47,9 @@ from app.infra.config import settings  # noqa: E402
 from app.agents.resume.message_conversion import convert_resume_messages_to_llm  # noqa: E402
 from app.runtime.openrouter_adapter import build_openrouter_config  # noqa: E402
 from app.runtime.contracts import AgentDefinition  # noqa: E402
+from app.services.agent.resume_agent_stream_service import (  # noqa: E402
+    ResumeAgentStreamService,
+)
 from app.agents.resume.session import (  # noqa: E402
     ResumeAgentSession,
     maybe_compact_resume_context,
@@ -279,6 +283,55 @@ def test_system_prompt_tool_list_matches_requested_profile():
     assert "update_bullet" not in pi_context.system_prompt
 
 
+def test_turn_context_hides_tools_for_invisible_sections():
+    """用于验证模型不可见隐藏模块对应的修改工具。"""
+    agent = ResumeAgent()
+    state = _new_test_stream_state()
+    context = {
+        "resume_content": {
+            "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+            "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
+        },
+        "allowed_sections": {"projects"},
+    }
+
+    pi_context, _prompts, _config = _build_test_turn_inputs(
+        agent,
+        user_message="补充技能专长",
+        context=context,
+        state=state,
+    )
+
+    tools_by_name = {tool.name: tool for tool in pi_context.tools}
+    assert "update_skills" not in tools_by_name
+    assert "add_resume_item" in tools_by_name
+    assert (
+        tools_by_name["add_resume_item"].parameters.properties["section"]["enum"]
+        == ["projects"]
+    )
+    assert "skills" not in str(tools_by_name["add_resume_item"].parameters.properties)
+
+
+def test_visible_module_filter_keeps_visible_summary_section():
+    """用于验证前端 summary 模块会映射到后端 summary section。"""
+    content = {
+        "personal_info": {"name": "张三"},
+        "summary": {"text": "AI Agent 开发工程师"},
+        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+        "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
+    }
+
+    filtered = ResumeAgentStreamService._filter_resume_by_visible_modules(
+        content,
+        ["summary", "projects"],
+    )
+
+    assert filtered == {
+        "summary": {"text": "AI Agent 开发工程师"},
+        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+    }
+
+
 def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     """用于验证 turn context 构建可以脱离 ResumeAgentRuntime 单独测试。"""
     agent = ResumeAgent()
@@ -442,12 +495,16 @@ async def test_resume_agent_runner_runs_sync_independently():
     )
     events: list[dict[str, Any]] = []
 
+    def record_event(event: Mapping[str, Any]) -> None:
+        """用于保存 runtime callback 事件以便断言。"""
+        events.append(dict(event))
+
     result = await runner.run(
         agent=agent.definition,
         user_message="分析这份简历",
         context={"resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]}},
         conversation_history=[],
-        event_callback=events.append,
+        event_callback=record_event,
     )
 
     assert result["content"] == "这是简历建议。"
@@ -672,6 +729,58 @@ async def test_resume_tool_execution_stage_runs_confirmed_tool_independently():
     assert any(event.get("tool_confirmed") for event in events)
     assert executed_tools[0]["success"] is True
     assert stream_state["confirmed_diff_items"]
+
+
+@pytest.mark.asyncio
+async def test_resume_tool_preview_rejects_hidden_section_before_pending():
+    """用于验证隐藏模块工具调用在预览阶段失败且不进入确认卡片。"""
+    agent = ResumeAgent()
+    stage = ResumeToolExecutionStage()
+    resume = {
+        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+        "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
+    }
+    confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
+    confirmation_queue.put_nowait(True)
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    stream_state = {
+        "visible_tool_call_ids": set(),
+        "confirmed_diff_items": [],
+        "confirmation_wait_ms": 0.0,
+        "chunk_index": 0,
+        "response_parts": [],
+    }
+    executed_tools: list[dict[str, Any]] = []
+
+    result = await stage.execute_tool_result(
+        agent=agent.definition,
+        run_id="run_hidden_preview",
+        call_id="call_hidden_skills",
+        tool_name="add_resume_item",
+        tool_input={
+            "section": "skills",
+            "item": {"category": "AI & Agent", "items": ["ReAct"]},
+            "source": "用户要求补充技能",
+            "reason": "补充技能板块",
+        },
+        context={"resume_content": resume, "allowed_sections": {"projects"}},
+        confirmation_queue=confirmation_queue,
+        event_queue=event_queue,
+        event_callback=None,
+        executed_tools=executed_tools,
+        stream_state=stream_state,
+    )
+
+    events: list[dict[str, Any]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    assert "hidden_section" in str(result.details)
+    assert "板块 skills 当前已隐藏，禁止修改" in str(result.details)
+    assert not any(event.get("tool_pending") for event in events)
+    assert any(event.get("tool_call_failed") for event in events)
+    assert executed_tools[0]["success"] is False
+    assert resume["skills"] == [{"id": "skill_1", "category": "AI", "items": ["Agent"]}]
 
 
 @pytest.mark.asyncio
