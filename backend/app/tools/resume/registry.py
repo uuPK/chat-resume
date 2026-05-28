@@ -222,7 +222,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                                 "items": {"type": "object"},
                             },
                         },
-                        "additionalProperties": False,
                     },
                     "source": {
                         "type": "string",
@@ -268,7 +267,6 @@ _RESUME_TOOL_SCHEMAS: list[dict[str, Any]] = [
                                 "description": "目标岗位 JD 原文",
                             },
                         },
-                        "additionalProperties": False,
                     },
                     "reason": {
                         "type": "string",

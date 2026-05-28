@@ -25,7 +25,7 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   ClipboardDocumentListIcon,
-} from '@heroicons/react/24/outline'
+} from '@heroicons/react/24/solid'
 
 interface Resume {
   id: number
@@ -43,9 +43,9 @@ interface Resume {
 const UPLOAD_JOB_POLL_INTERVAL_MS = 1500
 const UPLOAD_JOB_TIMEOUT_MS = 120000
 const FREE_RESUME_LIMIT = 3
-const LIST_BLUE = '#2563eb'
-const LIST_BLUE_HOVER = '#1d4ed8'
-const LIST_BLUE_BG = '#eff6ff'
+const LIST_BLUE = '#7c3aed'
+const LIST_BLUE_HOVER = '#6d28d9'
+const LIST_BLUE_BG = '#f5f3ff'
 const LIST_TEXT = '#111827'
 const LIST_MUTED = '#6b7280'
 const LIST_FAINT = '#9ca3af'
@@ -72,7 +72,7 @@ function getResumeCardStatus(resume: Resume, t: ReturnType<typeof useTranslation
 
   return {
     label: t('cardStatusDraft'),
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fafafa',
     color: LIST_FAINT,
   }
 }
@@ -239,9 +239,9 @@ export default function ResumesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = useTranslations('resume.center')
   const common = useTranslations('common')
-  const filteredResumes = getVisibleResumes(resumes, resumeSearchQuery, resumeStatusFilter, resumeSortOrder)
-  const visibleResumes = filteredResumes.slice(0, FREE_RESUME_LIMIT)
-  const hiddenResumeCount = Math.max(filteredResumes.length - FREE_RESUME_LIMIT, 0)
+  const filteredResumes = resumes.filter(resume => resumeMatchesQuery(resume, resumeSearchQuery))
+  const visibleResumes = filteredResumes
+  const hiddenResumeCount = 0
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -357,14 +357,14 @@ export default function ResumesPage() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
         <div
           className="w-12 h-12 rounded-full border-2 border-transparent animate-spin"
-          style={{ borderTopColor: '#0052ff', borderRightColor: '#0052ff' }}
+          style={{ borderTopColor: '#7c3aed', borderRightColor: '#7c3aed' }}
         />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f9fafb' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
       {openResumeActionsId !== null && (
         <div className="fixed inset-0 z-[9]" onClick={() => setOpenResumeActionsId(null)} />
       )}
@@ -403,27 +403,17 @@ export default function ResumesPage() {
             </div>
           </div>
 
-          <div className="mt-auto rounded-xl border p-3.5" style={{ borderColor: LIST_BORDER, backgroundColor: '#f9fafb' }}>
-            <p className="text-[13px] font-medium" style={{ color: LIST_TEXT }}>{t('upgradeTitle')}</p>
-            <p className="mt-1 text-xs leading-5" style={{ color: LIST_MUTED }}>{t('upgradeDescription')}</p>
-            <Link
-              href="/pricing"
-              className="mt-2.5 inline-flex h-8 w-full items-center justify-center rounded-lg text-xs font-medium text-white"
-              style={{ backgroundColor: LIST_BLUE }}
-            >
-              {t('upgradeAction')}
-            </Link>
-          </div>
+
         </aside>
 
-      <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#f9fafb' }}>
+      <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#fafafa' }}>
         {resumesLoading ? (
           <div className="flex justify-center items-center py-20">
             <div
               className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
-              style={{ borderTopColor: '#0052ff', borderRightColor: '#0052ff' }}
+              style={{ borderTopColor: '#7c3aed', borderRightColor: '#7c3aed' }}
             />
-            <span className="ml-3 text-base" style={{ color: '#5b616e' }}>{t('loading')}</span>
+            <span className="ml-3 text-base" style={{ color: '#52525b' }}>{t('loading')}</span>
           </div>
         ) : resumes.length === 0 ? (
           <motion.div
@@ -433,10 +423,10 @@ export default function ResumesPage() {
             className="mx-auto max-w-[760px] py-8"
           >
             <div className="mb-9">
-              <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#0a0b0d' }}>
+              <h1 className="text-2xl font-semibold tracking-tight" style={{ color: '#18181b' }}>
                 {t('emptyCreateHeading')}
               </h1>
-              <p className="mt-3 text-base" style={{ color: '#5b616e' }}>
+              <p className="mt-3 text-base" style={{ color: '#52525b' }}>
                 {t('emptyCreateSubheading')}
               </p>
             </div>
@@ -449,14 +439,14 @@ export default function ResumesPage() {
                 aria-label={t('upload')}
                 className="group flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left transition-all disabled:opacity-50"
                 style={{ borderColor: 'rgba(91,97,110,0.2)' }}
-                onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
+                onMouseEnter={e => { if (!uploadLoading) { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#0052ff' }}>
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#7c3aed' }}>
                   <ArrowUpTrayIcon className="h-5 w-5" />
                 </span>
-                <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('emptyUploadTitle')}</span>
-                <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('emptyUploadDescription')}</span>
+                <span className="mt-6 block text-lg font-semibold" style={{ color: '#18181b' }}>{t('emptyUploadTitle')}</span>
+                <span className="mt-3 block text-sm leading-6" style={{ color: '#52525b' }}>{t('emptyUploadDescription')}</span>
                 <span className="mt-auto flex items-end justify-between gap-4 pt-6">
                   <span className="flex gap-1.5">
                     {['PDF', 'Word', 'TXT'].map(label => (
@@ -478,14 +468,14 @@ export default function ResumesPage() {
                 aria-label={t('create')}
                 className="group flex min-h-[240px] flex-col rounded-2xl border bg-white p-7 text-left transition-all disabled:opacity-50"
                 style={{ borderColor: 'rgba(91,97,110,0.2)' }}
-                onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#0052ff'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
+                onMouseEnter={e => { if (!creating) { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.boxShadow = '0 16px 42px rgba(15,23,42,0.08)' } }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(91,97,110,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#5b616e' }}>
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: '#f7f8fa', color: '#52525b' }}>
                   <ClipboardDocumentListIcon className="h-5 w-5" />
                 </span>
-                <span className="mt-6 block text-lg font-semibold" style={{ color: '#0a0b0d' }}>{t('templateCreateTitle')}</span>
-                <span className="mt-3 block text-sm leading-6" style={{ color: '#5b616e' }}>{t('templateCreateDescription')}</span>
+                <span className="mt-6 block text-lg font-semibold" style={{ color: '#18181b' }}>{t('templateCreateTitle')}</span>
+                <span className="mt-3 block text-sm leading-6" style={{ color: '#52525b' }}>{t('templateCreateDescription')}</span>
                 <span className="mt-auto flex items-end justify-between gap-4 pt-6">
                   <span className="text-sm font-medium" style={{ color: '#b0b6c0' }}>
                     {creating ? t('creating') : t('templateCreateEta')}
@@ -599,7 +589,7 @@ export default function ResumesPage() {
                     style={{ borderColor: LIST_BORDER }}
                     onMouseEnter={event => {
                       event.currentTarget.style.borderColor = LIST_BLUE
-                      event.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.07)'
+                      event.currentTarget.style.boxShadow = '0 0 0 3px rgba(124,58,237,0.07)'
                     }}
                     onMouseLeave={event => {
                       event.currentTarget.style.borderColor = LIST_BORDER
@@ -663,7 +653,7 @@ export default function ResumesPage() {
                           {formatResumeModifiedAt(resume.updated_at || resume.created_at, t)}
                         </span>
                       </div>
-                      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
+                      <div className="mt-auto grid grid-cols-4 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
                         <button
                           type="button"
                           className="h-[30px] rounded-lg border text-xs transition-colors"
@@ -685,28 +675,28 @@ export default function ResumesPage() {
                         >
                           {t('aiOptimizeAction')}
                         </Link>
+                        <Link
+                          href={`/resume/${resume.id}/learning-path`}
+                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
+                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
+                        >
+                          路线
+                        </Link>
+                        <Link
+                          href={`/resume/${resume.id}/jobs`}
+                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
+                          style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
+                        >
+                          职位匹配
+                        </Link>
                       </div>
                     </div>
                   </motion.div>
                 )
               })}
 
-              {hiddenResumeCount > 0 && (
-                <div className="relative min-h-[280px] overflow-hidden rounded-2xl border bg-white opacity-60" style={{ borderColor: LIST_BORDER }}>
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-5 text-center" style={{ backgroundColor: 'rgba(249,250,251,0.85)' }}>
-                    <LockClosedIcon className="h-5 w-5" style={{ color: LIST_FAINT }} />
-                    <p className="text-[13px] font-medium" style={{ color: LIST_MUTED }}>{t('freeLimitReached')}</p>
-                    <p className="text-xs leading-5" style={{ color: LIST_FAINT }}>{t('upgradeToSaveMore')}</p>
-                    <Link href="/pricing" className="mt-1 inline-flex h-8 items-center justify-center rounded-lg px-4 text-xs font-medium text-white" style={{ backgroundColor: LIST_BLUE }}>
-                      {t('upgradeProAction')}
-                    </Link>
-                  </div>
-                  <ResumeCardPreview resume={filteredResumes[FREE_RESUME_LIMIT]} status={getResumeCardStatus(filteredResumes[FREE_RESUME_LIMIT], t)} t={t} />
-                  <div className="px-4 py-3.5">
-                    <ResumeCardTitleBlock resume={filteredResumes[FREE_RESUME_LIMIT]} t={t} />
-                  </div>
-                </div>
-              )}
+
+
 
               <button
                 type="button"
@@ -724,7 +714,7 @@ export default function ResumesPage() {
                   event.currentTarget.style.backgroundColor = 'transparent'
                 }}
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: '#f9fafb', color: LIST_FAINT }}>
+                <span className="flex h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: '#fafafa', color: LIST_FAINT }}>
                   <PlusIcon className="h-5 w-5" />
                 </span>
                 <span className="text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>{creating ? t('creating') : t('create')}</span>

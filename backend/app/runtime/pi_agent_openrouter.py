@@ -761,7 +761,12 @@ def _normalize_tool_schema(schema: Any) -> Any:
         return [_normalize_tool_schema(item) for item in schema]
     if not isinstance(schema, dict):
         return schema
-    normalized = {key: _normalize_tool_schema(value) for key, value in schema.items()}
+    normalized = {}
+    for key, value in schema.items():
+        if key == "properties" and isinstance(value, dict):
+            normalized[key] = {k: _normalize_tool_schema(v) for k, v in value.items()}
+        else:
+            normalized[key] = _normalize_tool_schema(value)
     if "type" not in normalized and (schema_type := _infer_schema_type(normalized)):
         normalized["type"] = schema_type
     return normalized

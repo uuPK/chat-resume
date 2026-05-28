@@ -203,6 +203,126 @@ class ExportService:
 
         return filepath
 
+    async def export_learning_path_to_pdf(self, plan_data: Dict[str, Any]) -> str:
+        """导出成长规划为 PDF。"""
+        filename = f"learning_path_{uuid.uuid4().hex}.pdf"
+        filepath = os.path.join(self.export_dir, filename)
+        html = self._build_learning_path_html(plan_data)
+        await self._render_pdf_from_html(html, filepath)
+        return filepath
+
+    def export_learning_path_to_docx(self, plan_data: Dict[str, Any]) -> str:
+        """导出成长规划为 Word 文档。"""
+        from docx import Document
+        
+        filename = f"learning_path_{uuid.uuid4().hex}.docx"
+        filepath = os.path.join(self.export_dir, filename)
+        
+        doc = Document()
+        title = doc.add_heading('个性化学习路径规划', 0)
+        title.alignment = 1
+        
+        summary = plan_data.get("summary", "")
+        if summary:
+            doc.add_heading('版本概览', level=1)
+            doc.add_paragraph(summary)
+            
+        weeks = plan_data.get("weeks", [])
+        for week in weeks:
+            week_num = week.get("week_number", "?")
+            theme = week.get("theme", "")
+            doc.add_heading(f"第 {week_num} 周：{theme}", level=1)
+            
+            goal = week.get("goal", "")
+            if goal:
+                doc.add_paragraph(f"🎯 核心目标：{goal}")
+            
+            tasks = week.get("tasks", [])
+            for task in tasks:
+                t_name = task.get("name", "")
+                t_desc = task.get("description", "")
+                doc.add_heading(t_name, level=2)
+                doc.add_paragraph(t_desc)
+                
+                resources = task.get("resource_links", [])
+                if resources:
+                    doc.add_paragraph("📚 推荐资源：")
+                    for res in resources:
+                        doc.add_paragraph(f"• {res}", style='List Bullet')
+                        
+            passing = week.get("passing_criteria", "")
+            if passing:
+                doc.add_paragraph(f"✅ 达标标准：{passing}")
+                
+        doc.save(filepath)
+        return filepath
+
+    def _build_learning_path_html(self, plan_data: Dict[str, Any]) -> str:
+        summary = escape(plan_data.get("summary", ""))
+        weeks_html = []
+        for week in plan_data.get("weeks", []):
+            week_num = escape(str(week.get("week_number", "?")))
+            theme = escape(week.get("theme", ""))
+            goal = escape(week.get("goal", ""))
+            
+            tasks_html = []
+            for task in week.get("tasks", []):
+                t_name = escape(task.get("name", ""))
+                t_desc = escape(task.get("description", ""))
+                res_items = "".join([f"<li>{escape(r)}</li>" for r in task.get("resource_links", [])])
+                res_html = f"<ul>{res_items}</ul>" if res_items else ""
+                
+                tasks_html.append(f'''
+                <div class="task">
+                    <div class="task-name">{t_name}</div>
+                    <div class="task-desc">{t_desc}</div>
+                    <div class="task-res">推荐资源：{res_html}</div>
+                </div>
+                ''')
+            tasks_html_str = "".join(tasks_html)
+            passing = escape(week.get("passing_criteria", ""))
+            
+            weeks_html.append(f'''
+            <div class="week">
+                <div class="week-title">第 {week_num} 周：{theme}</div>
+                <div class="week-goal">🎯 核心目标：{goal}</div>
+                <div class="tasks">{tasks_html_str}</div>
+                <div class="passing">✅ 达标标准：{passing}</div>
+            </div>
+            ''')
+            
+        weeks_html_str = "".join(weeks_html)
+        
+        return f"""
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: sans-serif; padding: 40px; color: #333; }}
+        .header {{ text-align: center; margin-bottom: 30px; }}
+        .title {{ font-size: 28px; font-weight: bold; color: #1d4ed8; }}
+        .summary {{ background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 30px; font-size: 16px; }}
+        .week {{ margin-bottom: 40px; border-left: 4px solid #3b82f6; padding-left: 20px; }}
+        .week-title {{ font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #111827; }}
+        .week-goal {{ color: #047857; font-weight: bold; margin-bottom: 15px; }}
+        .task {{ background: #fff; border: 1px solid #e5e7eb; padding: 15px; border-radius: 6px; margin-bottom: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }}
+        .task-name {{ font-weight: bold; font-size: 16px; margin-bottom: 5px; }}
+        .task-desc {{ color: #4b5563; margin-bottom: 10px; }}
+        .task-res {{ color: #6b7280; font-size: 14px; }}
+        .passing {{ background: #ecfdf5; color: #065f46; padding: 10px; border-radius: 6px; margin-top: 15px; font-weight: bold; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">个性化学习路径规划</div>
+    </div>
+    <div class="summary">{summary}</div>
+    {weeks_html_str}
+</body>
+</html>
+"""
+
     async def _render_pdf_with_playwright(self, print_url: str, filepath: str) -> None:
         """使用 Playwright 打开前端打印页并输出 PDF。"""
 

@@ -9,10 +9,14 @@ import asyncio
 import logging
 import os
 import re
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from time import perf_counter
 from uuid import uuid4
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware

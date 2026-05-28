@@ -1,4 +1,6 @@
-'use client'
+const fs = require('fs');
+
+const content = `'use client'
 // 用于提供 app/[locale]/login/page.tsx 模块。
 
 export const dynamic = 'force-dynamic'
@@ -36,8 +38,8 @@ function stripLocaleFromPath(path: string): string {
   const segments = pathname.split('/')
   if (!isAppLocale(segments[1])) return path
 
-  const strippedPathname = `/${segments.slice(2).join('/')}` || '/'
-  return query ? `${strippedPathname}?${query}` : strippedPathname
+  const strippedPathname = \`/\${segments.slice(2).join('/')}\` || '/'
+  return query ? \`\${strippedPathname}?\${query}\` : strippedPathname
 }
 
 function navigateAfterLogin(path: string) {
@@ -108,7 +110,7 @@ export default function LoginPage() {
                 <input
                   {...register('email', {
                     required: t('validation.emailRequired'),
-                    pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
+                    pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
                   })}
                   type="email"
                   className={errors.email ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'}
@@ -132,7 +134,7 @@ export default function LoginPage() {
                     })}
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    className={`${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12`}
+                    className={\`\${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12\`}
                     placeholder={t('placeholders.password')}
                   />
                   <button
@@ -183,4 +185,6 @@ function OAuthErrorAlert() {
       {t(oauthErrorKey)}
     </div>
   )
-}
+}`;
+
+fs.writeFileSync('src/app/[locale]/login/page.tsx', content, 'utf8');

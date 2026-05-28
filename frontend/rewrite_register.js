@@ -1,4 +1,6 @@
-'use client'
+const fs = require('fs');
+
+const content = `'use client'
 // 用于提供 app/[locale]/register/page.tsx 模块。
 
 export const dynamic = 'force-dynamic'
@@ -87,7 +89,7 @@ export default function RegisterPage() {
                 <input
                   {...register('email', {
                     required: t('validation.emailRequired'),
-                    pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
+                    pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
                   })}
                   type="email"
                   className={errors.email ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'}
@@ -105,7 +107,7 @@ export default function RegisterPage() {
                       minLength: { value: 6, message: t('validation.passwordMin') }
                     })}
                     type={showPassword ? 'text' : 'password'}
-                    className={`${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12`}
+                    className={\`\${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12\`}
                     placeholder={t('placeholders.newPassword')}
                   />
                   <button
@@ -128,7 +130,7 @@ export default function RegisterPage() {
                       validate: value => value === password || t('validation.passwordMismatch')
                     })}
                     type={showConfirmPassword ? 'text' : 'password'}
-                    className={`${errors.confirmPassword ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12`}
+                    className={\`\${errors.confirmPassword ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12\`}
                     placeholder={t('placeholders.confirmPassword')}
                   />
                   <button
@@ -179,4 +181,6 @@ export default function RegisterPage() {
       </div>
     </div>
   )
-}
+}`;
+
+fs.writeFileSync('src/app/[locale]/register/page.tsx', content, 'utf8');

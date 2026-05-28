@@ -8,10 +8,20 @@
   }
 
   body {
-    color: #0a0b0d;
-    background-color: #ffffff;
+    color: #18181b;
+    background-color: #fafafa;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body {
+      color: #fafafa;
+      background-color: #000000;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    }
   }
 
   ::-webkit-scrollbar {
@@ -48,48 +58,46 @@
   }
 
   .btn-primary {
-    @apply btn text-white;
-    background-color: #0052ff;
-    border: 1px solid #0052ff;
+    @apply btn text-white shadow-sm;
+    background-color: #7c3aed;
+    border: 1px solid #7c3aed;
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: #578bfa;
-    border-color: #578bfa;
+    background-color: #6d28d9;
+    border-color: #6d28d9;
   }
   .btn-primary:focus {
-    @apply ring-blue-500;
+    @apply ring-purple-500;
   }
 
   .btn-secondary {
-    @apply btn;
-    background-color: #eef0f3;
-    border: 1px solid #eef0f3;
-    color: #0a0b0d;
+    @apply btn shadow-sm;
+    background-color: #ffffff;
+    border: 1px solid #e4e4e7;
+    color: #18181b;
   }
   .btn-secondary:hover:not(:disabled) {
-    background-color: #578bfa;
-    border-color: #578bfa;
-    color: #ffffff;
+    background-color: #f4f4f5;
   }
 
   .btn-dark {
-    @apply btn text-white;
-    background-color: #282b31;
-    border: 1px solid #282b31;
+    @apply btn text-white shadow-sm;
+    background-color: #18181b;
+    border: 1px solid #18181b;
   }
   .btn-dark:hover:not(:disabled) {
-    background-color: #578bfa;
-    border-color: #578bfa;
+    background-color: #27272a;
+    border-color: #27272a;
   }
 
   .btn-outline {
-    @apply btn;
+    @apply btn shadow-sm;
     background-color: transparent;
-    border: 1px solid #0052ff;
-    color: #0052ff;
+    border: 1px solid #7c3aed;
+    color: #7c3aed;
   }
   .btn-outline:hover:not(:disabled) {
-    background-color: #0052ff;
+    background-color: #7c3aed;
     color: #ffffff;
   }
 

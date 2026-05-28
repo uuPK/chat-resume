@@ -1,5 +1,6 @@
-'use client'
-// 用于提供 app/[locale]/page.tsx 模块?
+
+import sys
+content = "'use client'
 
 import { Link } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
@@ -42,7 +43,7 @@ export default function LandingPage() {
     { label: t('landing.metrics.parse'), value: '92%' },
     { label: t('landing.metrics.keywords'), value: '+34%' },
     { label: t('landing.metrics.quantified'), value: '8' },
-    { label: t('landing.metrics.interview'), value: '2.4×' },
+    { label: t('landing.metrics.interview'), value: '2.4��' },
   ]
 
   return (
@@ -83,7 +84,7 @@ export default function LandingPage() {
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 mb-8">
               <span className="flex h-2 w-2 rounded-full bg-violet-500 animate-pulse"></span>
-              <span className="text-xs font-medium text-violet-300">OfferMaster 2.0</span>
+              <span className="text-xs font-medium text-violet-300">OfferMaster 2.0 is here</span>
             </div>
             
             <h1 className="mb-6 text-5xl md:text-7xl font-bold tracking-tight text-white leading-tight">
@@ -91,7 +92,7 @@ export default function LandingPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-500">
                 {t('landing.heroHighlight')}
               </span>
-              <br/>{t('landing.heroSuffix')}
+              {t('landing.heroSuffix')}
             </h1>
             
             <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-400 mb-10 leading-relaxed">
@@ -213,6 +214,9 @@ export default function LandingPage() {
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
             {t('landing.subtitle')}
           </h2>
+          <p className="text-xl text-gray-400 mb-10">
+            Start optimizing your resume for free today.
+          </p>
           <Link
             href="/register"
             className="inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold text-white bg-violet-600 hover:bg-violet-500 transition-all rounded-full shadow-[0_0_30px_rgba(124,58,237,0.5)]"
@@ -238,4 +242,9 @@ export default function LandingPage() {
       </footer>
     </div>
   )
-}
+}"
+
+with open('src/app/[locale]/page.tsx', 'w', encoding='utf-8') as f:
+    f.write(content)
+print('Done!')
+

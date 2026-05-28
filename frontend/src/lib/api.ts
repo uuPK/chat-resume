@@ -66,6 +66,33 @@ interface InterviewTurnEvaluation {
   advice?: string
 }
 
+export interface LearningPathTask {
+  name: string
+  description: string
+  resource_links: string[]
+}
+
+export interface LearningPathWeek {
+  week_number: number
+  theme: string
+  goal: string
+  tasks: LearningPathTask[]
+  passing_criteria: string
+}
+
+export interface LearningPathPlanData {
+  summary: string
+  weeks: LearningPathWeek[]
+}
+
+export interface LearningPathVersion {
+  id: number
+  trigger_type: string
+  interview_session_id?: number
+  plan_data: LearningPathPlanData
+  created_at: string
+}
+
 interface InterviewTurn {
   id: number
   turn_index: number
@@ -522,6 +549,16 @@ class ResumeAPI {
     })
     if (!response.ok) return handleApiResponse<InterviewActionResponse>(response)
     return readInterviewReportStream(response, onEvent)
+  static async getLearningPaths(resumeId: number): Promise<LearningPathVersion[]> {
+    const response = await apiFetch(`/api/resumes/${resumeId}/learning-paths`)
+    return handleApiResponse<LearningPathVersion[]>(response)
+  }
+
+  static async generateLearningPath(resumeId: number): Promise<LearningPathVersion> {
+    const response = await apiFetch(`/api/resumes/${resumeId}/learning-paths`, {
+      method: 'POST',
+    })
+    return handleApiResponse<LearningPathVersion>(response)
   }
 }
 
@@ -621,6 +658,74 @@ class ChatHistoryAPI {
       method: 'DELETE',
     })
     await handleApiResponse<{ message: string }>(res)
+  }
+}
+
+export const resumesApi = {
+  async download(url: string, filename: string) {
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+    })
+
+    if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
+    const blob = await response.blob()
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+  },
+
+  async exportLearningPath(pathId: number, format: 'pdf' | 'docx') {
+    const url = `/api/learning-paths/${pathId}/export/${format}`
+    const filename = `learning_path_${pathId}.${format}`
+    
+    const response = await fetchWithTimeout(url, {
+      method: 'GET',
+    })
+    
+    if (!response.ok) throw new Error(`API Error: ${response.statusText}`)
+    const blob = await response.blob()
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+  }
+}
+
+export const chatApi = {
+  async generateLearningPath(sessionId: number): Promise<LearningPathVersion> {
+    const response = await apiFetch(`/api/interviews/${sessionId}/learning-paths`, {
+      method: 'POST',
+    })
+    return handleApiResponse<LearningPathVersion>(response)
+  },
+}
+
+export const jobsApi = {
+  async getRecommendations(resumeId: number) {
+    const response = await apiFetch(`/api/resumes/${resumeId}/job-recommendations`)
+    return handleApiResponse<{ recommendations: any[] }>(response)
+  },
+  async generateRecommendations(resumeId: number) {
+    const response = await apiFetch(`/api/resumes/${resumeId}/job-recommendations`, {
+      method: 'POST',
+    })
+    return handleApiResponse<{ recommendations: any[] }>(response)
+  },
+  async generateMatchReport(resumeId: number, targetJd: string) {
+    const response = await apiFetch(`/api/resumes/${resumeId}/match-report`, {
+      method: 'POST',
+      body: JSON.stringify({ target_jd: targetJd }),
+    })
+    return handleApiResponse<{ analysis_result: any }>(response)
   }
 }
 

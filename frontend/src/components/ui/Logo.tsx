@@ -1,6 +1,6 @@
 import { Link } from '@/i18n/navigation'
 
-// 品牌 Logo 组件，文档 + 对话气泡图标，严格使用 Coinbase Blue #0052ff
+// 品牌 Logo 组件，文档 + 对话气泡图标，严格使用 Coinbase Blue #7c3aed
 export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const iconSize = size === 'lg' ? 44 : size === 'sm' ? 36 : 40
   const fontSize = size === 'lg' ? '22px' : size === 'sm' ? '18px' : '20px'
@@ -43,7 +43,7 @@ export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
           fontSize,
           fontWeight: 600,
           letterSpacing: '-0.01em',
-          color: '#0a0b0d',
+          color: '#18181b',
           lineHeight: '1.25',
         }}
       >

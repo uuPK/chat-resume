@@ -21,15 +21,19 @@ from app.entrypoints.http import (
 )
 from app.entrypoints.http import (
     resume_agent as chat,
+    learning_path,
+    jobs,
 )
 
 api_router = APIRouter()
+api_router.include_router(learning_path.router, tags=["learning_paths"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(resumes.router, prefix="/resumes", tags=["resumes"])
 api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(export.router, prefix="/resumes", tags=["export"])
+api_router.include_router(jobs.router, prefix="/resumes", tags=["jobs"])
 api_router.include_router(chat.router, prefix="/ai", tags=["chat"])
 api_router.include_router(interviews.router, prefix="/interviews", tags=["interviews"])
 api_router.include_router(tts.router, prefix="/tts", tags=["tts"])

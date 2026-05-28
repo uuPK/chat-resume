@@ -1,4 +1,6 @@
-'use client'
+const fs = require('fs');
+
+const content = `'use client'
 // 用于提供 components/layout/MainNavigation.tsx 模块
 
 import { useRouter } from '@/i18n/navigation'
@@ -14,11 +16,11 @@ export default function MainNavigation() {
   const { user, logout } = useAuth()
   const t = useTranslations('common')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef(null)
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false)
       }
     }
@@ -50,7 +52,7 @@ export default function MainNavigation() {
                   </span>
                 </span>
                 <ChevronDownIcon
-                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  className={\`w-4 h-4 text-gray-500 transition-transform duration-200 flex-shrink-0 \${isDropdownOpen ? 'rotate-180' : ''}\`}
                 />
               </button>
 
@@ -78,4 +80,6 @@ export default function MainNavigation() {
       </div>
     </header>
   )
-}
+}`;
+
+fs.writeFileSync('src/components/layout/MainNavigation.tsx', content, 'utf8');

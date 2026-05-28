@@ -15,6 +15,8 @@ from .interview import (
 from .interview import (
     InterviewTurn as InterviewTurn,
 )
+from .job import JobRecommendation as JobRecommendation
+from .job import JobMatchReport as JobMatchReport
 from .refresh_session import RefreshSession as RefreshSession
 from .resume import (
     OptimizationRecord as OptimizationRecord,
@@ -31,3 +33,5 @@ from .resume import (
 from .user import PasswordResetToken as PasswordResetToken
 from .user import ProviderIdentity as ProviderIdentity
 from .user import User as User
+
+from .learning_path import LearningPathVersion as LearningPathVersion
