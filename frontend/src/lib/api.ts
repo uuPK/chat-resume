@@ -549,6 +549,7 @@ class ResumeAPI {
     })
     if (!response.ok) return handleApiResponse<InterviewActionResponse>(response)
     return readInterviewReportStream(response, onEvent)
+  }
   static async getLearningPaths(resumeId: number): Promise<LearningPathVersion[]> {
     const response = await apiFetch(`/api/resumes/${resumeId}/learning-paths`)
     return handleApiResponse<LearningPathVersion[]>(response)
