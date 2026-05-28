@@ -11,7 +11,6 @@ import { useRouter } from '@/i18n/navigation'
 import { useAuth } from '@/lib/auth'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid'
 import Logo from '@/components/ui/Logo'
-import GoogleContinueLink from '@/components/auth/GoogleContinueLink'
 import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import { useTranslations } from 'next-intl'
 
@@ -73,13 +72,6 @@ export default function RegisterPage() {
           </div>
 
           <div className="p-8 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm">
-            <GoogleContinueLink />
-
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">{t('oauth.divider')}</span>
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-            </div>
 
             <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
               <div>
