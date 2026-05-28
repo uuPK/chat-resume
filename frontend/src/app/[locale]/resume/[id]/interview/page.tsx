@@ -1278,6 +1278,27 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
             padding-right: 22px !important;
           }
         }
+        @media print {
+          header,
+          footer,
+          button,
+          .flex-shrink-0 {
+            display: none !important;
+          }
+          html, body, .flex-1, [class*="overflow-y-auto"], [class*="overflow-hidden"], div {
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          @page {
+            size: A4;
+            margin: 15mm;
+          }
+        }
       `}</style>
       <div style={{ width: '100%', maxWidth: 1366, margin: '0 auto', background: RD.surface, color: RD.text, boxShadow: '0 14px 45px rgba(0,0,0,0.08)' }}>
       <ScreenshotReportHero data={data} session={session} turns={turns} />
@@ -1303,7 +1324,7 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
         ))}
       </main>
       <footer style={{ display: 'flex', justifyContent: 'center', gap: 52, padding: '0 0 44px' }}>
-        <button type="button" style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700 }}>下载报告</button>
+        <button type="button" onClick={() => window.print()} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>下载报告</button>
       </footer>
     </div>
     </>

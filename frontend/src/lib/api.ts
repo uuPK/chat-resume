@@ -724,6 +724,9 @@ export const jobsApi = {
   async generateMatchReport(resumeId: number, targetJd: string) {
     const response = await apiFetch(`/api/resumes/${resumeId}/match-report`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ target_jd: targetJd }),
     })
     return handleApiResponse<{ analysis_result: any }>(response)

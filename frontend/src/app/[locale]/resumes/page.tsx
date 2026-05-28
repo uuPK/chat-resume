@@ -727,42 +727,117 @@ export default function ResumesPage() {
                           {formatResumeModifiedAt(resume.updated_at || resume.created_at, t)}
                         </span>
                       </div>
-                      <div className="mt-auto grid grid-cols-4 gap-1.5 border-t pt-2.5" style={{ borderColor: LIST_SOFT_BORDER }}>
-                        <button
-                          type="button"
-                          className="h-[30px] rounded-lg border text-xs transition-colors"
-                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-                        >
-                          {t('exportAction')}
-                        </button>
-                        <Link
-                          href={`/resume/${resume.id}/interview`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
-                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-                        >
-                          {t('editAction')}
-                        </Link>
-                        <Link
-                          href={`/resume/${resume.id}/edit`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg text-xs font-medium text-white transition-colors"
-                          style={{ backgroundColor: LIST_BLUE }}
-                        >
-                          {t('aiOptimizeAction')}
-                        </Link>
-                        <Link
-                          href={`/resume/${resume.id}/learning-path`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
-                          style={{ borderColor: LIST_BORDER, color: LIST_MUTED }}
-                        >
-                          路线
-                        </Link>
-                        <Link
-                          href={`/resume/${resume.id}/jobs`}
-                          className="inline-flex h-[30px] items-center justify-center rounded-lg border text-xs transition-colors"
-                          style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
-                        >
-                          职位匹配
-                        </Link>
+                      <div className="mt-auto flex flex-col gap-2 border-t pt-3" style={{ borderColor: LIST_SOFT_BORDER }}>
+                        {/* Row 1: Primary AI Edit + Export PDF */}
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/resume/${resume.id}/edit`}
+                            className="flex-1 inline-flex h-[34px] items-center justify-center rounded-xl text-xs font-semibold text-white transition-all shadow-sm"
+                            style={{ 
+                              background: `linear-gradient(135deg, ${LIST_BLUE} 0%, #a78bfa 100%)`,
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.filter = 'brightness(1.08)'
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.filter = 'none'
+                            }}
+                          >
+                            <svg className="mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7C4.547 9.547 4.5 10.768 4.5 12s.047 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.092-1.209.138-2.43.138-3.662z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                            </svg>
+                            {t('aiOptimizeAction')}
+                          </Link>
+                          
+                          <button
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
+                              handleExportPDF(resume.id, resume.title)
+                            }}
+                            disabled={exportingIds[resume.id]}
+                            className="inline-flex h-[34px] w-[80px] items-center justify-center rounded-xl border text-xs font-medium transition-colors"
+                            style={{ borderColor: LIST_BORDER, color: LIST_MUTED, backgroundColor: 'white' }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#fafafa'
+                              e.currentTarget.style.borderColor = LIST_BLUE
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = 'white'
+                              e.currentTarget.style.borderColor = LIST_BORDER
+                            }}
+                          >
+                            {exportingIds[resume.id] ? (
+                              <div className="h-3 w-3 animate-spin rounded-full border-2" style={{ borderColor: '#eef0f3', borderTopColor: LIST_BLUE }} />
+                            ) : (
+                              <>
+                                <svg className="mr-1 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                {t('exportAction')}
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Row 2: Ancillary Tools - 3 equal columns */}
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <Link
+                            href={`/resume/${resume.id}/jobs`}
+                            className="inline-flex h-[30px] items-center justify-center rounded-xl border text-[11px] font-medium transition-colors"
+                            style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#ede9fe'
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = '#f5f3ff'
+                            }}
+                          >
+                            <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            岗位匹配
+                          </Link>
+
+                          <Link
+                            href={`/resume/${resume.id}/interview`}
+                            className="inline-flex h-[30px] items-center justify-center rounded-xl border text-[11px] font-medium transition-colors"
+                            style={{ borderColor: LIST_BORDER, color: LIST_MUTED, backgroundColor: 'white' }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#fafafa'
+                              e.currentTarget.style.borderColor = LIST_BORDER
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = 'white'
+                              e.currentTarget.style.borderColor = LIST_BORDER
+                            }}
+                          >
+                            <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            {t('editAction')}
+                          </Link>
+
+                          <Link
+                            href={`/resume/${resume.id}/learning-path`}
+                            className="inline-flex h-[30px] items-center justify-center rounded-xl border text-[11px] font-medium transition-colors"
+                            style={{ borderColor: LIST_BORDER, color: LIST_MUTED, backgroundColor: 'white' }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#fafafa'
+                              e.currentTarget.style.borderColor = LIST_BORDER
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = 'white'
+                              e.currentTarget.style.borderColor = LIST_BORDER
+                            }}
+                          >
+                            <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                            </svg>
+                            成长路线
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
