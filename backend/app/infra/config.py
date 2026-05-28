@@ -8,6 +8,9 @@
 import os
 from typing import List, Literal, Union, cast
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 

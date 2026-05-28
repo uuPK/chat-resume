@@ -16,6 +16,7 @@ import { useTranslations } from 'next-intl'
 import {
   ArrowRightIcon,
   ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
   ChatBubbleLeftRightIcon,
   ChevronDownIcon,
   DocumentTextIcon,
@@ -255,6 +256,32 @@ export default function ResumesPage() {
     if (resumes.length === 0) {
       e.preventDefault()
       toast('请先新建或上传一份简历！', { icon: '📝' })
+    }
+  }
+
+  const [exportingIds, setExportingIds] = useState<Record<number, boolean>>({})
+
+  const handleExportPDF = async (id: number, title: string) => {
+    if (exportingIds[id]) return
+    setExportingIds(prev => ({ ...prev, [id]: true }))
+    const toastId = toast.loading('正在准备 PDF 并下载...')
+    try {
+      const data = await resumeApi.getResume(id)
+      const template = (data.layout_config as any)?.templateStyle || 'classic'
+      const result = await resumeApi.exportResume(id, 'pdf', template as string)
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const downloadUrl = `${apiBaseUrl}${result.download_url}`
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = result.filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast.success('PDF 导出并下载成功！', { id: toastId })
+    } catch (error) {
+      toast.error('导出失败，请稍后重试', { id: toastId })
+    } finally {
+      setExportingIds(prev => ({ ...prev, [id]: false }))
     }
   }
 

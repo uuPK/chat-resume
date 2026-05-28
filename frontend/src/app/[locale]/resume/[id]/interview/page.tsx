@@ -1356,7 +1356,7 @@ export default function InterviewPage() {
     enabled: !!resume && isAuthenticated,
     requestedSessionId: requestedSessionId || undefined,
   })
-  const shouldAutoStartVoice = (session?.turns?.length || 0) === 0
+  const shouldAutoStartVoice = false
   const isCompletedSession = session?.status === 'completed'
   const canEndInterview = Boolean(session && !isCompletedSession)
 
