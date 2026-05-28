@@ -515,7 +515,7 @@ export default function ResumesPage() {
                 <p className="mt-0.5 text-[13px]" style={{ color: LIST_FAINT }}>
                   {t('listSummary', {
                     total: resumes.length,
-                    limit: FREE_RESUME_LIMIT,
+                    limit: '\u221e',
                     used: resumes.length,
                   })}
                 </p>

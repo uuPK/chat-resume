@@ -708,17 +708,6 @@ export default function InterviewsPage() {
             </div>
           </div>
 
-          <div className="mt-auto rounded-xl border p-3.5" style={{ borderColor: LIST_BORDER, backgroundColor: '#f9fafb' }}>
-            <p className="text-[13px] font-medium" style={{ color: LIST_TEXT }}>{t('center.upgradeTitle')}</p>
-            <p className="mt-1 text-xs leading-5" style={{ color: LIST_MUTED }}>{t('center.upgradeDescription')}</p>
-            <Link
-              href="/pricing"
-              className="mt-2.5 inline-flex h-8 w-full items-center justify-center rounded-lg text-xs font-medium text-white"
-              style={{ backgroundColor: LIST_BLUE }}
-            >
-              {t('center.upgradeAction')}
-            </Link>
-          </div>
         </aside>
 
       <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#f9fafb' }}>
@@ -915,7 +904,7 @@ export default function InterviewsPage() {
                 <div>
                   <h1 className="text-xl font-medium" style={{ color: LIST_TEXT }}>{t('center.mockTitle')}</h1>
                   <p className="mt-0.5 text-[13px]" style={{ color: LIST_FAINT }}>
-                    {t('center.listSummary', { total: sessions.length, used: Math.min(sessions.length, 3), limit: 3 })}
+                    {t('center.listSummary', { total: sessions.length, used: sessions.length, limit: '∞' })}
                   </p>
                 </div>
                 <button
