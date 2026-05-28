@@ -23,12 +23,13 @@ logger = logging.getLogger(__name__)
 _PLAN_SYSTEM_PROMPT = """
 你是一位顶尖的大厂技术教练兼职业发展导师。你的任务是根据候选人的当前状态（简历或刚刚结束的面试表现），为其量身定制一份极度专业、可落地的“4周突破性成长规划（Learning Path）”。
 
-【极其重要的上下文记忆机制】
-如果上下文中提供了“历史成长路线版本（Previous Plan）”，你必须仔细分析它！
-你不能无视候选人之前的进度。你需要判断：
-1. 相比上次规划，他这次面试又暴露了什么新短板？
-2. 在新规划中，要顺着上次的基础进行【进阶突破】，或者对新暴露的严重短板进行【专项恶补】。
-3. 请在 summary 中一句话点出这次版本的核心进阶逻辑。
+【极其重要的上下文记忆与对比机制】
+上下文中可能会提供“历史成长路线版本（Previous Plan）”以及“过去面试表现（past_interview_reports）”和“本次面试表现（interview_report）”。
+你必须仔细分析并综合生成路线：
+1. 相比上次规划和过去面试表现，候选人这次面试的表现有什么实质变化？是取得了进步，还是暴露了新的短板？
+2. 必须明确结合【之前面试表现和这次面试表现的差别】来指导规划重点。
+3. 在新规划中，要顺着上次的基础进行【进阶突破】，或者对新暴露的严重短板进行【专项恶补】。
+4. 请在 summary 中一句话点出这次版本的核心进阶逻辑（明确指出基于本次表现与历史表现的对比依据）。
 
 【输出格式约束】
 你只能输出合法的 JSON，禁止使用 Markdown (如 ```json) 包装，也不要输出任何解释性废话。
@@ -80,7 +81,7 @@ async def generate_learning_path(
         "previous_plan": previous_plan_model.plan_data if previous_plan_model else None,
     }
 
-    # 如果有面试，附加上面试报告
+    # 如果有面试，附加上面试报告及历史面试报告
     if interview_session_id:
         interview = db.scalar(
             select(InterviewSession).where(InterviewSession.id == interview_session_id)
@@ -88,6 +89,19 @@ async def generate_learning_path(
         if interview and interview.report_data:
             context_payload["interview_report"] = interview.report_data
             context_payload["target_title"] = interview.target_title
+
+        past_interviews = db.scalars(
+            select(InterviewSession)
+            .where(InterviewSession.resume_id == resume_id)
+            .where(InterviewSession.status == "completed")
+            .where(InterviewSession.id != interview_session_id)
+            .order_by(InterviewSession.created_at.desc())
+            .limit(3)
+        ).all()
+        
+        past_reports = [pi.report_data for pi in past_interviews if pi.report_data]
+        if past_reports:
+            context_payload["past_interview_reports"] = past_reports
 
     logger.info(
         "learning_path.generate.started",
