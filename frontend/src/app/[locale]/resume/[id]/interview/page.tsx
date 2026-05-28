@@ -74,24 +74,14 @@ function VoicePanel({
 }: VoicePanelProps) {
   const t = useTranslations('interview.session')
   const [status, setStatus] = useState<VoiceStatus>('idle')
-  const [inputLevel, setInputLevel] = useState(0)
-  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
-  const [selectedDeviceId, setSelectedDeviceId] = useState('')
   const [messages, setMessages] = useState<ConversationMessage[]>([])
   const [liveMessages, setLiveMessages] = useState<LiveMessagesByRole>({})
-  const [showDeviceMenu, setShowDeviceMenu] = useState(false)
   const [turnStatus, setTurnStatus] = useState<TurnStatus>('idle')
+  const [inputText, setInputText] = useState('')
 
   const wsRef = useRef<WebSocket | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const processorRef = useRef<ScriptProcessorNode | null>(null)
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
-  const gainRef = useRef<GainNode | null>(null)
   const playbackQueueRef = useRef<Float32Array<ArrayBuffer>[]>([])
-  const captureQueueRef = useRef<number[]>([])
-  const sendQueueRef = useRef<ArrayBuffer[]>([])
-  const sendTimerRef = useRef<number | null>(null)
   const candidateFinalizeTimerRef = useRef<number | null>(null)
   const isPlayingRef = useRef(false)
   const userStoppedRef = useRef(false)
@@ -235,22 +225,6 @@ function VoicePanel({
     if (manual) {
       userStoppedRef.current = true
     }
-    if (processorRef.current) {
-      processorRef.current.disconnect()
-      processorRef.current = null
-    }
-    if (sourceRef.current) {
-      sourceRef.current.disconnect()
-      sourceRef.current = null
-    }
-    if (gainRef.current) {
-      gainRef.current.disconnect()
-      gainRef.current = null
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop())
-      streamRef.current = null
-    }
     if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
       audioCtxRef.current.close().catch(() => {})
       audioCtxRef.current = null
@@ -259,16 +233,9 @@ function VoicePanel({
       wsRef.current.close()
       wsRef.current = null
     }
-    if (sendTimerRef.current) {
-      window.clearInterval(sendTimerRef.current)
-      sendTimerRef.current = null
-    }
     clearCandidateFinalizeTimer()
     playbackQueueRef.current = []
-    captureQueueRef.current = []
-    sendQueueRef.current = []
     isPlayingRef.current = false
-    setInputLevel(0)
     updateStatus('idle')
   }, [clearCandidateFinalizeTimer, updateStatus])
 
@@ -337,43 +304,14 @@ function VoicePanel({
     }
   }, [])
 
-  const enqueueInputAudio = useCallback((inputData: Float32Array, inputSampleRate: number) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-
-    let squareSum = 0
-    let peak = 0
-    for (let i = 0; i < inputData.length; i += 1) {
-      const sample = inputData[i]
-      squareSum += sample * sample
-      peak = Math.max(peak, Math.abs(sample))
-    }
-    const rms = inputData.length ? Math.sqrt(squareSum / inputData.length) : 0
-    setInputLevel(Math.max(rms, peak * 0.35))
-
-    const ratio = inputSampleRate / SEND_SAMPLE_RATE
-    const outputLength = Math.floor(inputData.length / ratio)
-    for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
-      const inputIndex = outputIndex * ratio
-      const beforeIndex = Math.floor(inputIndex)
-      const afterIndex = Math.min(beforeIndex + 1, inputData.length - 1)
-      const weight = inputIndex - beforeIndex
-      const sample = inputData[beforeIndex] * (1 - weight) + inputData[afterIndex] * weight
-      captureQueueRef.current.push(Math.max(-1, Math.min(1, sample)))
-    }
-
-    while (captureQueueRef.current.length >= SEND_CHUNK_FRAMES) {
-      const chunk = captureQueueRef.current.splice(0, SEND_CHUNK_FRAMES)
-      const pcm = new Int16Array(SEND_CHUNK_FRAMES)
-      for (let i = 0; i < SEND_CHUNK_FRAMES; i += 1) {
-        const sample = chunk[i]
-        pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff
-      }
-      sendQueueRef.current.push(pcm.buffer)
-      if (sendQueueRef.current.length > 20) {
-        sendQueueRef.current.splice(0, sendQueueRef.current.length - 20)
-      }
-    }
-  }, [])
+  const handleSendText = useCallback(() => {
+    if (!inputText.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+    const text = inputText.trim()
+    setInputText('')
+    
+    appendMessage('candidate', text)
+    wsRef.current.send(JSON.stringify({ type: 'text', text }))
+  }, [inputText, appendMessage])
 
   const startVoice = useCallback(async () => {
     if (!sessionId || wsRef.current) return
@@ -391,21 +329,7 @@ function VoicePanel({
       await ctx.resume()
       audioCtxRef.current = ctx
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          autoGainControl: true,
-          channelCount: 1,
-          echoCancellation: false,
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-          noiseSuppression: false,
-        },
-      })
-      streamRef.current = stream
-      navigator.mediaDevices.enumerateDevices()
-        .then((devices) => {
-          setAudioDevices(devices.filter((device) => device.kind === 'audioinput'))
-        })
-        .catch(() => {})
+
 
       // 1) 先通过 HTTP 请求获取 WebSocket 临时鉴权 Token，解决跨域/跨端口 HttpOnly Cookie 丢失问题
       let tokenParam = ''
@@ -501,38 +425,15 @@ function VoicePanel({
         }
       })
 
-      sendTimerRef.current = window.setInterval(() => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
-        const nextChunk = sendQueueRef.current.shift()
-        if (nextChunk) {
-          wsRef.current.send(nextChunk)
-        }
-      }, 100)
 
-      const source = ctx.createMediaStreamSource(stream)
-      const processor = ctx.createScriptProcessor(4096, 1, 1)
-      const gain = ctx.createGain()
-      gain.gain.value = 0
-      sourceRef.current = source
-      processorRef.current = processor
-      gainRef.current = gain
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0)
-        enqueueInputAudio(inputData, ctx.sampleRate)
-      }
-      source.connect(processor)
-      processor.connect(gain)
-      gain.connect(ctx.destination)
     } catch {
       userStoppedRef.current = true
       updateStatus('error')
     }
   }, [
-    enqueueInputAudio,
     flushLiveText,
     handleCandidateText,
     handleStreamingText,
-    selectedDeviceId,
     sessionId,
     playPcmChunk,
     stopAll,
@@ -549,10 +450,7 @@ function VoicePanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, liveMessages])
 
-  const micBars = Array.from({ length: 12 }, (_, i) => {
-    const threshold = (i + 1) / 12
-    return inputLevel * 5 > threshold
-  })
+
   const visibleLiveMessages = [liveMessages.interviewer, liveMessages.candidate]
     .filter((message): message is ConversationMessage => Boolean(message))
   const hasVisibleInterviewMessages = messages.length > 0 || visibleLiveMessages.length > 0
@@ -696,67 +594,36 @@ function VoicePanel({
             </div>
           )}
 
-          {/* Mic level + device selector */}
-          <div className="absolute right-5 top-1/2 flex -translate-y-1/2 items-center justify-end gap-2 min-w-0">
-            {/* Mic level bars */}
-            <div className="flex h-10 items-center gap-[2px]">
-              {micBars.map((active, i) => (
-                <div
-                  key={i}
-                  className="w-[3px] rounded-full transition-all duration-75"
-                  style={{
-                    height: active ? `${6 + (i / 11) * 14}px` : '4px',
-                    backgroundColor: active ? '#0052ff' : 'rgba(91,97,110,0.3)',
+
+
+          <div className="relative mx-auto flex flex-col min-h-[72px] w-full max-w-4xl items-center justify-center px-5 py-4 gap-4">
+            
+            {status === 'connected' && (
+              <div className="flex w-full items-center gap-2">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSendText()
+                    }
                   }}
+                  placeholder="请输入您的回答..."
+                  className="flex-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-              ))}
-            </div>
-            {audioDevices.length > 0 && (
-              <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowDeviceMenu((v) => !v)}
-                  className="p-2 rounded-xl transition-colors"
-                  style={{ color: '#5b616e' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#eef0f3' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                  title={t('microphone')}
+                  onClick={handleSendText}
+                  disabled={!inputText.trim()}
+                  className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 hover:bg-blue-700 focus:outline-none"
                 >
-                  <Cog6ToothIcon className="w-4 h-4" />
+                  发送
                 </button>
-                {showDeviceMenu && (
-                  <div
-                    className="absolute bottom-full right-0 mb-2 w-64 rounded-2xl overflow-hidden z-50"
-                    style={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid rgba(91,97,110,0.2)',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                    }}
-                  >
-                    <p className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: '#5b616e' }}>{t('microphone')}</p>
-                    {[{ deviceId: '', label: t('defaultMicrophone') }, ...audioDevices].map((d, i) => (
-                      <button
-                        key={d.deviceId || i}
-                        type="button"
-                        onClick={() => { setSelectedDeviceId(d.deviceId); setShowDeviceMenu(false) }}
-                        className="w-full text-left px-4 py-2.5 text-sm font-medium transition-colors"
-                        style={{
-                          color: selectedDeviceId === d.deviceId ? '#0052ff' : '#0a0b0d',
-                          backgroundColor: selectedDeviceId === d.deviceId ? 'rgba(0,82,255,0.08)' : 'transparent',
-                        }}
-                        onMouseEnter={(e) => { if (selectedDeviceId !== d.deviceId) e.currentTarget.style.backgroundColor = '#eef0f3' }}
-                        onMouseLeave={(e) => { if (selectedDeviceId !== d.deviceId) e.currentTarget.style.backgroundColor = 'transparent' }}
-                      >
-                        {d.label || `${t('microphone')} ${i}`}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
-          </div>
 
-          <div className="relative mx-auto flex min-h-[72px] w-full max-w-4xl items-center justify-center px-5 py-4">
             {/* Primary controls */}
             <div className="flex items-center gap-3">
               {status === 'idle' && (
@@ -775,7 +642,6 @@ function VoicePanel({
                     onMouseEnter={(e) => { if (!e.currentTarget.disabled) { e.currentTarget.style.backgroundColor = '#578bfa'; e.currentTarget.style.borderColor = '#578bfa' } }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0052ff'; e.currentTarget.style.borderColor = '#0052ff' }}
                   >
-                    <MicrophoneIcon className="w-3.5 h-3.5" />
                     {sessionId ? (shouldContinueInterview ? t('continue') : t('start')) : t('preparing')}
                   </button>
                   {shouldContinueInterview && canEndInterview && onEndInterview && (
@@ -1338,8 +1204,9 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
           />
         ))}
       </main>
-      <footer style={{ display: 'flex', justifyContent: 'center', gap: 52, padding: '0 0 44px' }}>
-        <button type="button" onClick={() => window.print()} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>下载报告</button>
+      <footer style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '0 0 44px' }}>
+        <button type="button" onClick={() => window.print()} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: '#fff', color: RD.yellow, padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>下载报告</button>
+        <Link href={`/resume/${session?.resume_id}/learning-path?session=${session?.id}`} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}>生成学习路线</Link>
       </footer>
     </div>
     </>
