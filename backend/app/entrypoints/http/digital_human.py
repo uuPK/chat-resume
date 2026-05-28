@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, NoReturn
 from fastapi import (
@@ -101,6 +102,29 @@ async def create_digital_human_conversation(
     )
 
 
+@router.post("/voice-session/{session_id}/token")
+async def get_voice_session_token(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """为 WebSocket 连接生成一个临时的、单次使用的授权 Token。"""
+    try:
+        get_session_for_user(db, session_id, current_user["id"])
+    except ServiceError as exc:
+        _raise_service_http_error(exc)
+
+    from datetime import timedelta
+    from app.infra.security import create_access_token
+    
+    # 签发一个 5 分钟内有效的临时 Token，用于 WebSocket 鉴权
+    temp_token = create_access_token(
+        subject=str(current_user["id"]),
+        expires_delta=timedelta(minutes=5)
+    )
+    return {"token": temp_token}
+
+
 def _render_interviewer_prompt(
     *,
     target_title: str,
@@ -167,6 +191,9 @@ async def _authorize_voice_session_ws(
 ) -> InterviewSession | None:
     """用于鉴权语音会话WebSocket。"""
     token = websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
+    if not token:
+        token = websocket.query_params.get("token")
+
     if not token:
         await _close_ws_policy_violation(websocket, "Missing access token")
         return None
@@ -299,6 +326,83 @@ def _build_interview_history(turns: list[InterviewTurn]) -> str:
     return "\n".join(lines)
 
 
+async def run_sandbox_voice_session(
+    websocket: WebSocket,
+    session_id: int,
+    db: Session,
+    greeting: str,
+    on_text_message: Any,
+):
+    """运行沙盒模拟面试会话，用于在未配置火山引擎时进行本地测试和演示。"""
+    await websocket.accept()
+    await websocket.send_json({"type": "ready", "session_id": f"sandbox_{session_id}"})
+    
+    # 发送开场白
+    if not greeting:
+        greeting = "你好，我是您的 AI 面试官。由于本地开发环境未配置火山引擎语音服务，已为您开启沙盒模拟体验。请先做一个简短的自我介绍吧。"
+        
+    await websocket.send_json({
+        "type": "greeting",
+        "role": "interviewer",
+        "text": greeting,
+    })
+    on_text_message("interviewer", greeting)
+    
+    try:
+        # 模拟对话逻辑
+        # 我们可以每收到一定量的数据后，自动回复一句话
+        reply_index = 0
+        replies = [
+            "非常好的自我介绍。接下来我想了解一下，您在上一份工作中遇到的最大技术挑战是什么？您是如何克服的？",
+            "听起来非常有挑战性。在解决这个问题时，您是如何进行架构设计和性能优化的？能具体说说量化成果吗？",
+            "非常精彩的回答！那么，您对我们公司的这个岗位有什么了解吗？您觉得您最大的优势是什么？",
+            "好的，非常感谢您今天的参与。我们今天的面试就到这里，稍后会为您生成深度复盘报告，请点击右上角或底部的结束面试查看分析。",
+        ]
+        
+        chunk_count = 0
+        while True:
+            msg = await websocket.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+            if msg["type"] == "websocket.receive":
+                # 客户端发来二进制音频数据
+                if "bytes" in msg and msg["bytes"]:
+                    chunk_count += 1
+                    # 收到大约 180 个音频块（大约 5-10 秒的录音），触发 AI 模拟回复
+                    if chunk_count >= 180:
+                        chunk_count = 0
+                        # 模拟用户说话的识别结果
+                        await websocket.send_json({
+                            "type": "event",
+                            "event": 459, # User Speech recognized event
+                            "text": "（用户正在回答面试官的问题...）",
+                        })
+                        
+                        # 让面试官思考 1.5 秒
+                        await asyncio.sleep(1.5)
+                        
+                        # 获取模拟回复
+                        if reply_index < len(replies):
+                            reply_text = replies[reply_index]
+                            reply_index += 1
+                        else:
+                            reply_text = "理解了，您的回答非常全面。请继续说说您的想法。"
+                        
+                        # 模拟流式输出
+                        for i in range(1, len(reply_text) + 1, 3):
+                            await websocket.send_json({
+                                "type": "event",
+                                "event": 550, # Interviewer Speech event
+                                "text": reply_text[:i],
+                                "is_final": i >= len(reply_text),
+                            })
+                            await asyncio.sleep(0.04)
+                            
+                        on_text_message("interviewer", reply_text)
+    except WebSocketDisconnect:
+        pass
+
+
 @router.websocket("/voice-session/{session_id}")
 async def voice_session_ws(
     websocket: WebSocket,
@@ -312,24 +416,6 @@ async def voice_session_ws(
         db=db,
     )
     if interview_session is None:
-        return
-
-    await websocket.accept()
-    logger.info(
-        (
-            "voice.ws.accepted interview_session_id=%s user_id=%s "
-            "resume_id=%s status=%s"
-        ),
-        session_id,
-        interview_session.user_id,
-        interview_session.resume_id,
-        interview_session.status,
-    )
-    service = VolcengineVoiceService()
-    if not service.is_configured():
-        logger.warning("Voice WebSocket closed because Volcengine is not configured")
-        await websocket.send_json({"type": "error", "message": "火山引擎未配置"})
-        await websocket.close()
         return
 
     # 加载面试上下文构建 system_role 和开场白
@@ -372,37 +458,61 @@ async def voice_session_ws(
                 target_company=interview_session.target_company or "",
                 language=interview_session.language,
             )
+
+    def persist_message(role: str, text: str) -> None:
+        """用于持久化语音面试消息。"""
+        record_voice_interview_message(
+            db=db,
+            session_id=session_id,
+            role=role,
+            text=text,
+        )
         logger.info(
-            (
-                "voice.ws.context_ready interview_session_id=%s turns=%d "
-                "resume_chars=%d jd_chars=%d plan_chars=%d "
-                "system_role_chars=%d greeting_chars=%d"
-            ),
+            "voice.ws.message_persisted interview_session_id=%s role=%s chars=%d",
             session_id,
-            len(existing_turns),
-            len(resume_text),
-            len(interview_session.jd_text or ""),
-            len(plan_context),
-            len(system_role),
-            len(greeting),
+            role,
+            len(text),
         )
 
-    try:
-        def persist_message(role: str, text: str) -> None:
-            """用于持久化语音面试消息。"""
-            record_voice_interview_message(
-                db=db,
-                session_id=session_id,
-                role=role,
-                text=text,
-            )
-            logger.info(
-                "voice.ws.message_persisted interview_session_id=%s role=%s chars=%d",
-                session_id,
-                role,
-                len(text),
-            )
+    service = VolcengineVoiceService()
+    if not service.is_configured():
+        logger.warning("Volcengine dialogue not configured, running sandbox mock voice session instead")
+        await run_sandbox_voice_session(
+            websocket=websocket,
+            session_id=session_id,
+            db=db,
+            greeting=greeting,
+            on_text_message=persist_message,
+        )
+        return
 
+    await websocket.accept()
+    logger.info(
+        (
+            "voice.ws.accepted interview_session_id=%s user_id=%s "
+            "resume_id=%s status=%s"
+        ),
+        session_id,
+        interview_session.user_id,
+        interview_session.resume_id,
+        interview_session.status,
+    )
+    logger.info(
+        (
+            "voice.ws.context_ready interview_session_id=%s turns=%d "
+            "resume_chars=%d jd_chars=%d plan_chars=%d "
+            "system_role_chars=%d greeting_chars=%d"
+        ),
+        session_id,
+        len(existing_turns),
+        len(resume_text),
+        len(interview_session.jd_text or ""),
+        len(plan_context),
+        len(system_role),
+        len(greeting),
+    )
+
+    try:
         await service.proxy_session(
             client_ws=websocket,
             system_role=system_role,

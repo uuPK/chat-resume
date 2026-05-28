@@ -17,6 +17,7 @@ import { digitalHumanApi, resumeApi } from '@/lib/api'
 import type { DigitalHumanConversation, InterviewSession, Resume } from '@/lib/api'
 import { useInterviewSession } from '@/hooks/useInterviewSession'
 import { useTranslations } from 'next-intl'
+import { apiFetch, handleApiResponse } from '@/lib/httpClient'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const SEND_SAMPLE_RATE = 16000
@@ -406,7 +407,21 @@ function VoicePanel({
         })
         .catch(() => {})
 
-      const wsUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/api/digital-human/voice-session/${sessionId}`
+      // 1) 先通过 HTTP 请求获取 WebSocket 临时鉴权 Token，解决跨域/跨端口 HttpOnly Cookie 丢失问题
+      let tokenParam = ''
+      try {
+        const tokenRes = await apiFetch(`/api/digital-human/voice-session/${sessionId}/token`, {
+          method: 'POST'
+        })
+        const tokenData = await handleApiResponse<{ token: string }>(tokenRes)
+        if (tokenData?.token) {
+          tokenParam = `?token=${encodeURIComponent(tokenData.token)}`
+        }
+      } catch (err) {
+        console.warn('Failed to fetch websocket temp token, trying direct cookie connection', err)
+      }
+
+      const wsUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/api/digital-human/voice-session/${sessionId}${tokenParam}`
       const ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
