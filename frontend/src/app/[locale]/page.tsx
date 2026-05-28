@@ -4,7 +4,6 @@ import { Link } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
 import { useTranslations } from 'next-intl'
 import Logo from '@/components/ui/Logo'
-import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import {
   SparklesIcon,
   MicrophoneIcon,
@@ -58,7 +57,6 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
           <Logo size="sm" />
           <div className="flex items-center gap-6">
-            <LocaleSwitcher compact />
             <Link
               href="/login"
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"

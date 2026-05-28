@@ -1,6 +1,6 @@
 import { Link } from '@/i18n/navigation'
 
-// 品牌 Logo 组件，文档 + 对话气泡图标，严格使用 Coinbase Blue #7c3aed
+// 品牌 Logo 组件，火箭 + 星星图标，代表"拿到 Offer 起飞"
 export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const iconSize = size === 'lg' ? 44 : size === 'sm' ? 36 : 40
   const fontSize = size === 'lg' ? '22px' : size === 'sm' ? '18px' : '20px'
@@ -15,34 +15,44 @@ export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
         xmlns="http://www.w3.org/2000/svg"
         style={{ flexShrink: 0 }}
       >
-        {/* 背景 — 严格 Coinbase Blue，不使用 CSS 变量避免色差 */}
-        <rect width="40" height="40" rx="10" fill="#0052FF" />
+        {/* 圆角背景 — 紫罗兰渐变 */}
+        <defs>
+          <linearGradient id="logoBg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#7C3AED" />
+            <stop offset="100%" stopColor="#A855F7" />
+          </linearGradient>
+        </defs>
+        <rect width="40" height="40" rx="12" fill="url(#logoBg)" />
 
-        {/* 文档轮廓 */}
-        <rect x="9" y="7" width="15" height="19" rx="2" fill="rgba(255,255,255,0.18)" />
-        <rect x="9" y="7" width="15" height="19" rx="2" stroke="rgba(255,255,255,0.7)" strokeWidth="1.4" />
+        {/* 火箭主体 */}
+        <path
+          d="M20 8C20 8 14 14 14 22C14 26 16.5 29 20 30C23.5 29 26 26 26 22C26 14 20 8 20 8Z"
+          fill="white"
+          fillOpacity="0.95"
+        />
 
-        {/* 文档文字线条 */}
-        <rect x="12" y="12" width="9" height="1.4" rx="0.7" fill="white" fillOpacity="0.9" />
-        <rect x="12" y="15.5" width="9" height="1.4" rx="0.7" fill="white" fillOpacity="0.9" />
-        <rect x="12" y="19" width="6" height="1.4" rx="0.7" fill="white" fillOpacity="0.9" />
+        {/* 火箭窗口 */}
+        <circle cx="20" cy="19" r="2.5" fill="#7C3AED" />
 
-        {/* 对话气泡 — 右下角，白色填充 */}
-        <rect x="20" y="22" width="13" height="11" rx="3.5" fill="white" />
-        {/* 气泡小尾巴 */}
-        <path d="M23 33 L21.5 36.5 L27 33Z" fill="white" />
+        {/* 左尾翼 */}
+        <path d="M14 24L10 27L14 28Z" fill="white" fillOpacity="0.7" />
 
-        {/* 气泡内三点 — Coinbase Blue */}
-        <circle cx="24" cy="27.5" r="1.2" fill="#0052FF" />
-        <circle cx="27" cy="27.5" r="1.2" fill="#0052FF" />
-        <circle cx="30" cy="27.5" r="1.2" fill="#0052FF" />
+        {/* 右尾翼 */}
+        <path d="M26 24L30 27L26 28Z" fill="white" fillOpacity="0.7" />
+
+        {/* 尾焰 */}
+        <path d="M18 30L20 35L22 30" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.8" />
+
+        {/* 小星星 */}
+        <circle cx="10" cy="12" r="1.2" fill="white" fillOpacity="0.6" />
+        <circle cx="31" cy="15" r="0.9" fill="white" fillOpacity="0.5" />
       </svg>
 
       <span
         style={{
           fontSize,
-          fontWeight: 600,
-          letterSpacing: '-0.01em',
+          fontWeight: 700,
+          letterSpacing: '-0.02em',
           color: '#18181b',
           lineHeight: '1.25',
         }}
