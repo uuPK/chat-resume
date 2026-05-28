@@ -12,6 +12,7 @@ import { useRouter } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
+import toast from 'react-hot-toast'
 import { resumeApi, type InterviewSessionSummary, type Resume, type ResumeListItem } from '@/lib/api'
 import { formatApiErrorMessage } from '@/lib/apiErrors'
 import { useLocale, useTranslations } from 'next-intl'
@@ -28,6 +29,9 @@ import {
   MicrophoneIcon,
   TrashIcon,
   XMarkIcon,
+  SparklesIcon,
+  BriefcaseIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 
 /**
@@ -414,6 +418,18 @@ export default function InterviewsPage() {
   const hasResumes = resumes.length > 0
   const filteredSessions = getVisibleInterviewSessions(sessions, sessionSearchQuery, sessionStatusFilter, sessionSortOrder)
 
+  const getSidebarUrl = (type: 'edit' | 'jobs' | 'learning-path') => {
+    if (resumes.length === 0) return '/resumes'
+    return `/resume/${resumes[0].id}/${type}`
+  }
+
+  const handleSidebarClick = (e: React.MouseEvent, type: 'edit' | 'jobs' | 'learning-path') => {
+    if (resumes.length === 0) {
+      e.preventDefault()
+      toast('请先新建或上传一份简历！', { icon: '📝' })
+    }
+  }
+
   /**
    * 用于在客户端挂载后再读取鉴权状态和本地缓存。
    */
@@ -690,9 +706,33 @@ export default function InterviewsPage() {
             <div>
               <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('center.sidebarResume')}</p>
               <div className="space-y-1">
-                <Link href="/resumes" className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
-                  <DocumentTextIcon className="h-4 w-4" />
+                <Link
+                  href="/resumes"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <DocumentTextIcon className="h-4 w-4 text-gray-400" />
                   <span>{t('center.sidebarMyResumes')}</span>
+                </Link>
+
+                <Link
+                  href={getSidebarUrl('edit')}
+                  onClick={(e) => handleSidebarClick(e, 'edit')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <SparklesIcon className="h-4 w-4 text-gray-400" />
+                  <span>{t('center.sidebarResumeOptimize')}</span>
+                </Link>
+
+                <Link
+                  href={getSidebarUrl('jobs')}
+                  onClick={(e) => handleSidebarClick(e, 'jobs')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400" />
+                  <span>{t('center.sidebarJobRadar')}</span>
                 </Link>
               </div>
             </div>
@@ -704,10 +744,19 @@ export default function InterviewsPage() {
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   <span>{t('center.sidebarMockInterview')}</span>
                 </div>
+
+                <Link
+                  href={getSidebarUrl('learning-path')}
+                  onClick={(e) => handleSidebarClick(e, 'learning-path')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <AcademicCapIcon className="h-4 w-4 text-gray-400" />
+                  <span>{t('center.sidebarLearningPath')}</span>
+                </Link>
               </div>
             </div>
           </div>
-
         </aside>
 
       <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#f9fafb' }}>

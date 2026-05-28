@@ -25,6 +25,9 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   ClipboardDocumentListIcon,
+  SparklesIcon,
+  BriefcaseIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/solid'
 
 interface Resume {
@@ -243,6 +246,18 @@ export default function ResumesPage() {
   const visibleResumes = filteredResumes
   const hiddenResumeCount = 0
 
+  const getSidebarUrl = (type: 'edit' | 'jobs' | 'learning-path') => {
+    if (resumes.length === 0) return '/resumes'
+    return `/resume/${resumes[0].id}/${type}`
+  }
+
+  const handleSidebarClick = (e: React.MouseEvent, type: 'edit' | 'jobs' | 'learning-path') => {
+    if (resumes.length === 0) {
+      e.preventDefault()
+      toast('请先新建或上传一份简历！', { icon: '📝' })
+    }
+  }
+
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
@@ -389,21 +404,53 @@ export default function ResumesPage() {
                   <DocumentTextIcon className="h-4 w-4" />
                   <span>{t('sidebarMyResumes')}</span>
                 </div>
+
+                <Link
+                  href={getSidebarUrl('edit')}
+                  onClick={(e) => handleSidebarClick(e, 'edit')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <SparklesIcon className="h-4 w-4 text-gray-400" />
+                  <span>{t('sidebarResumeOptimize')}</span>
+                </Link>
+
+                <Link
+                  href={getSidebarUrl('jobs')}
+                  onClick={(e) => handleSidebarClick(e, 'jobs')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400" />
+                  <span>{t('sidebarJobRadar')}</span>
+                </Link>
               </div>
             </div>
 
             <div>
               <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('sidebarInterview')}</p>
               <div className="space-y-1">
-                <Link href="/interviews" className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ color: LIST_MUTED }}>
+                <Link
+                  href="/interviews"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   <span>{t('sidebarMockInterview')}</span>
+                </Link>
+
+                <Link
+                  href={getSidebarUrl('learning-path')}
+                  onClick={(e) => handleSidebarClick(e, 'learning-path')}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
+                  style={{ color: LIST_MUTED }}
+                >
+                  <AcademicCapIcon className="h-4 w-4" />
+                  <span>{t('sidebarLearningPath')}</span>
                 </Link>
               </div>
             </div>
           </div>
-
-
         </aside>
 
       <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#fafafa' }}>
