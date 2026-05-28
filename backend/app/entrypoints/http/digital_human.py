@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any, NoReturn
 from fastapi import (
@@ -330,75 +331,96 @@ async def run_sandbox_voice_session(
     websocket: WebSocket,
     session_id: int,
     db: Session,
+    system_role: str,
+    existing_turns: list[InterviewTurn],
     greeting: str,
     on_text_message: Any,
 ):
-    """运行沙盒模拟面试会话，用于在未配置火山引擎时进行本地测试和演示。"""
+    """使用普通 LLM 模型进行面试会话（作为 Volcengine 的降级替代）。"""
     await websocket.accept()
     await websocket.send_json({"type": "ready", "session_id": f"sandbox_{session_id}"})
     
     # 发送开场白
-    if not greeting:
-        greeting = "你好，我是您的 AI 面试官。由于本地开发环境未配置火山引擎语音服务，已为您开启沙盒模拟体验。请先做一个简短的自我介绍吧。"
+    if not greeting and not existing_turns:
+        greeting = "你好，我是您的 AI 面试官。请先做一个简短的自我介绍吧。"
         
-    await websocket.send_json({
-        "type": "greeting",
-        "role": "interviewer",
-        "text": greeting,
-    })
-    on_text_message("interviewer", greeting)
+    if greeting and not existing_turns:
+        await websocket.send_json({
+            "type": "greeting",
+            "role": "interviewer",
+            "text": greeting,
+        })
+        on_text_message("interviewer", greeting)
+    
+    from app.services.llm.chat_service import ChatService
+    chat_service = ChatService()
     
     try:
-        # 模拟对话逻辑
-        # 我们可以每收到一定量的数据后，自动回复一句话
-        reply_index = 0
-        replies = [
-            "非常好的自我介绍。接下来我想了解一下，您在上一份工作中遇到的最大技术挑战是什么？您是如何克服的？",
-            "听起来非常有挑战性。在解决这个问题时，您是如何进行架构设计和性能优化的？能具体说说量化成果吗？",
-            "非常精彩的回答！那么，您对我们公司的这个岗位有什么了解吗？您觉得您最大的优势是什么？",
-            "好的，非常感谢您今天的参与。我们今天的面试就到这里，稍后会为您生成深度复盘报告，请点击右上角或底部的结束面试查看分析。",
-        ]
-        
-        chunk_count = 0
         while True:
             msg = await websocket.receive()
             if msg["type"] == "websocket.disconnect":
                 break
             if msg["type"] == "websocket.receive":
-                # 客户端发来二进制音频数据
-                if "bytes" in msg and msg["bytes"]:
-                    chunk_count += 1
-                    # 收到大约 180 个音频块（大约 5-10 秒的录音），触发 AI 模拟回复
-                    if chunk_count >= 180:
-                        chunk_count = 0
-                        # 模拟用户说话的识别结果
+                user_text = ""
+                trigger_reply = False
+                
+                if "text" in msg and msg["text"]:
+                    try:
+                        data = json.loads(msg["text"])
+                        if data.get("type") == "text":
+                            trigger_reply = True
+                            user_text = data.get("text", "")
+                            on_text_message("candidate", user_text)
+                    except json.JSONDecodeError:
+                        pass
+                elif "bytes" in msg and msg["bytes"]:
+                    pass # 不再处理语音数据
+                
+                if trigger_reply and user_text:
+                    await websocket.send_json({
+                        "type": "event",
+                        "event": 459, # User Speech recognized event
+                        "text": user_text,
+                    })
+                    
+                    messages = [{"role": "system", "content": system_role}]
+                    
+                    if existing_turns:
+                        for turn in existing_turns[-12:]:
+                            if turn.question:
+                                messages.append({"role": "assistant", "content": turn.question})
+                            if turn.answer:
+                                messages.append({"role": "user", "content": turn.answer})
+                    messages.append({"role": "user", "content": user_text})
+                    
+                    full_reply = ""
+                    try:
+                        async for chunk in chat_service.chat_completion_stream_deltas(messages):
+                            if chunk.get("content"):
+                                full_reply += chunk["content"]
+                                await websocket.send_json({
+                                    "type": "event",
+                                    "event": 550, # Interviewer Speech event
+                                    "text": full_reply,
+                                    "is_final": False,
+                                })
+                                
                         await websocket.send_json({
                             "type": "event",
-                            "event": 459, # User Speech recognized event
-                            "text": "（用户正在回答面试官的问题...）",
+                            "event": 550, # Interviewer Speech event
+                            "text": full_reply,
+                            "is_final": True,
                         })
+                        on_text_message("interviewer", full_reply)
                         
-                        # 让面试官思考 1.5 秒
-                        await asyncio.sleep(1.5)
+                        existing_turns.append(InterviewTurn(question=full_reply, answer=user_text))
                         
-                        # 获取模拟回复
-                        if reply_index < len(replies):
-                            reply_text = replies[reply_index]
-                            reply_index += 1
-                        else:
-                            reply_text = "理解了，您的回答非常全面。请继续说说您的想法。"
-                        
-                        # 模拟流式输出
-                        for i in range(1, len(reply_text) + 1, 3):
-                            await websocket.send_json({
-                                "type": "event",
-                                "event": 550, # Interviewer Speech event
-                                "text": reply_text[:i],
-                                "is_final": i >= len(reply_text),
-                            })
-                            await asyncio.sleep(0.04)
-                            
-                        on_text_message("interviewer", reply_text)
+                    except Exception as e:
+                        logger.error(f"Chat service error: {e}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "抱歉，由于网络问题无法获取回复。"
+                        })
     except WebSocketDisconnect:
         pass
 
@@ -476,11 +498,13 @@ async def voice_session_ws(
 
     service = VolcengineVoiceService()
     if not service.is_configured():
-        logger.warning("Volcengine dialogue not configured, running sandbox mock voice session instead")
+        logger.warning("Volcengine dialogue not configured, fallback to text-based LLM chat service")
         await run_sandbox_voice_session(
             websocket=websocket,
             session_id=session_id,
             db=db,
+            system_role=system_role,
+            existing_turns=existing_turns,
             greeting=greeting,
             on_text_message=persist_message,
         )
