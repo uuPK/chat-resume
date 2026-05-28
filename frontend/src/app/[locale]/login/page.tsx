@@ -13,8 +13,7 @@ import { getOAuthErrorKey } from '@/lib/oauthErrors'
 import toast from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid'
 import Logo from '@/components/ui/Logo'
-import GoogleContinueLink from '@/components/auth/GoogleContinueLink'
-import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
+
 import { useTranslations } from 'next-intl'
 import { isAppLocale } from '@/i18n/routing'
 
@@ -69,7 +68,7 @@ export default function LoginPage() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-8 h-16">
         <Logo size="sm" />
-        <LocaleSwitcher compact />
+
       </div>
 
       {/* Form section */}
@@ -94,13 +93,7 @@ export default function LoginPage() {
               <OAuthErrorAlert />
             </Suspense>
 
-            <GoogleContinueLink />
 
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">{t('oauth.divider')}</span>
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
-            </div>
 
             <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
               <div>
