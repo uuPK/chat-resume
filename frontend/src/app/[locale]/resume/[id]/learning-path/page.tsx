@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { resumeApi, resumesApi, chatApi, type LearningPathVersion } from '@/lib/api'
 import { ArrowLeftIcon, ArrowDownTrayIcon, ArrowPathIcon, DocumentTextIcon } from '@heroicons/react/24/solid'
 
@@ -18,6 +18,9 @@ export default function LearningPathPage() {
   const [generating, setGenerating] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
 
+  const autoGenerate = searchParams.get('autoGenerate') === 'true'
+  const autoGenerateAttempted = useRef(false)
+
   const fetchVersions = useCallback(async () => {
     try {
       setLoading(true)
@@ -26,16 +29,39 @@ export default function LearningPathPage() {
       if (data.length > 0 && selectedVersionId === null) {
         setSelectedVersionId(data[0].id)
       }
+      return data
     } catch (err) {
       console.error(err)
+      return []
     } finally {
       setLoading(false)
     }
   }, [resumeId, selectedVersionId])
 
   useEffect(() => {
-    fetchVersions()
-  }, [fetchVersions])
+    let mounted = true
+    fetchVersions().then((data) => {
+      if (!mounted) return
+      if (autoGenerate && !autoGenerateAttempted.current) {
+        autoGenerateAttempted.current = true
+        // 如果是从面试页面过来的，且还没有对应这个 sessionId 的版本，就自动触发生成
+        const hasSessionVersion = sessionId ? data.some(v => v.interview_session_id === sessionId) : data.length > 0
+        if (!hasSessionVersion) {
+          // 不在这里直接用 handleGenerate，因为依赖闭包，我们直接在这里调 API
+          setGenerating(true)
+          const genPromise = sessionId ? chatApi.generateLearningPath(sessionId) : resumeApi.generateLearningPath(resumeId)
+          genPromise.then(() => {
+            if (mounted) fetchVersions()
+          }).catch(err => {
+            console.error('自动生成失败', err)
+          }).finally(() => {
+            if (mounted) setGenerating(false)
+          })
+        }
+      }
+    })
+    return () => { mounted = false }
+  }, [fetchVersions, autoGenerate, sessionId, resumeId])
 
   const handleGenerate = async () => {
     try {

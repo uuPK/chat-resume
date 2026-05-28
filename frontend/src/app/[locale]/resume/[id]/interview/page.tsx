@@ -1206,7 +1206,7 @@ function ScreenshotReportPreview({ report, turns, session }: { report: Interview
       </main>
       <footer style={{ display: 'flex', justifyContent: 'center', gap: 24, padding: '0 0 44px' }}>
         <button type="button" onClick={() => window.print()} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: '#fff', color: RD.yellow, padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>下载报告</button>
-        <Link href={`/resume/${session?.resume_id}/learning-path?session=${session?.id}`} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}>生成学习路线</Link>
+        <Link href={`/resume/${session?.resume_id}/learning-path?session=${session?.id}&autoGenerate=true`} style={{ border: `1px solid ${RD.yellow}`, borderRadius: 8, background: RD.yellow, color: '#ffffff', padding: '10px 22px', fontSize: 16, fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}>生成学习路线</Link>
       </footer>
     </div>
     </>
