@@ -48,10 +48,10 @@
     "activeSubscriptionRequired": "This feature requires Plus. Upgrade to continue."
   },
   "landing": {
-    "heroPrefix": "Make every resume",
-    "heroHighlight": "match",
-    "heroSuffix": "the role",
-    "subtitle": "Upload a resume, improve it with AI chat, practice mock interviews, and strengthen your job search in one workflow.",
+    "heroPrefix": "Your Ultimate Career Co-Pilot,",
+    "heroHighlight": "Let the Offers Find You",
+    "heroSuffix": "",
+    "subtitle": "OfferMaster is more than a resume editor; it's your ultimate external brain for job hunting. From precise job matching and AI-driven resume rewrites to realistic voice mock interviews and personalized learning paths, we elevate your competitiveness all in one place.",
     "primaryCta": "Get started",
     "secondaryCta": "Already have an account? Log in",
     "mockAssistantLabel": "AI Resume Assistant",
@@ -61,17 +61,21 @@
     "mockResultMiddle": "through caching and supported",
     "mockResultSuffix": "daily active users\"",
     "features": {
-      "resume": {
-        "title": "AI resume optimization",
-        "desc": "Upload your current resume, find gaps, rewrite bullets for target roles, and quantify results."
+      "radar": {
+        "title": "Precision Job Radar",
+        "desc": "We map your foundational skills to scan the web for the perfect job fit, giving you a quantified match score."
       },
-      "chat": {
-        "title": "Conversational editing",
-        "desc": "Tell AI what you want, preview changes in real time, and accept or reject edits before they land."
+      "agent": {
+        "title": "Resume Agent",
+        "desc": "Just type a single prompt. Our agent extracts your project experience and injects targeted highlights directly into your resume based on the target JD."
       },
       "interview": {
-        "title": "Mock interviews",
-        "desc": "Practice with questions based on your resume and target JD, then get focused feedback."
+        "title": "Immersive Voice Interviews",
+        "desc": "Experience tailored interviews with an AI that mimics real recruiters based on the JD, supporting real-time voice, interruptions, and follow-ups."
+      },
+      "learning": {
+        "title": "Targeted Learning Paths",
+        "desc": "Struggling with questions or lacking specific skills? We automatically generate a gap-filling plan and practical guides for you."
       }
     },
     "steps": {

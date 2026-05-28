@@ -48,10 +48,10 @@
     "activeSubscriptionRequired": "该功能需要 Plus 套餐，升级后即可使用。"
   },
   "landing": {
-    "heroPrefix": "让每一份简历",
-    "heroHighlight": "精准命中",
-    "heroSuffix": "目标岗位",
-    "subtitle": "上传简历，与 AI 对话优化内容，模拟面试练习表达，一站式提升求职竞争力。",
+    "heroPrefix": "你的全能求职副驾，",
+    "heroHighlight": "让 Offer 主动找你",
+    "heroSuffix": "",
+    "subtitle": "OfferMaster 不仅是一个简历编辑器，更是你找工作的终极外脑。从全网岗位精准匹配、简历智能重写，到逼真的语音模拟面试与专属学习路径规划，一站式拉升你的求职竞争力。",
     "primaryCta": "免费开始使用",
     "secondaryCta": "已有账户，去登录",
     "mockAssistantLabel": "AI Resume Assistant",
@@ -61,17 +61,21 @@
     "mockResultMiddle": "，支撑",
     "mockResultSuffix": "日活」",
     "features": {
-      "resume": {
-        "title": "AI 简历优化",
-        "desc": "上传现有简历，AI 识别不足，针对目标岗位重写要点，量化每项成果。"
+      "radar": {
+        "title": "精准岗位雷达",
+        "desc": "基于您的底层能力构建能力图谱，全网扫描最契合的岗位，量化匹配得分。"
       },
-      "chat": {
-        "title": "对话式编辑",
-        "desc": "像和同事沟通一样告诉 AI 你的想法，实时预览修改效果，随时撤销确认。"
+      "agent": {
+        "title": "简历特工",
+        "desc": "只需一句话指令，智能体自动提取项目经历，针对目标 JD 直接将亮点写入你的简历底表。"
       },
       "interview": {
-        "title": "模拟面试",
-        "desc": "基于你的简历和目标 JD，AI 生成专项面试题，给出详细点评和改进建议。"
+        "title": "沉浸式语音面试",
+        "desc": "根据真实岗位的JD生成千人千面的面试官，支持实时语音对话、打断与追问，并生成专业评估报告。"
+      },
+      "learning": {
+        "title": "进阶学习路线",
+        "desc": "面试答不上来？匹配度不够？系统自动为你生成知识盲区补充计划与项目实战指南。"
       }
     },
     "steps": {

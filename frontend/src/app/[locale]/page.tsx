@@ -1,5 +1,4 @@
 'use client'
-// 用于提供 app/[locale]/page.tsx 模块?
 
 import { Link } from '@/i18n/navigation'
 import { motion } from 'framer-motion'
@@ -7,65 +6,68 @@ import { useTranslations } from 'next-intl'
 import Logo from '@/components/ui/Logo'
 import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import {
-  DocumentTextIcon,
-  ChatBubbleLeftRightIcon,
+  SparklesIcon,
   MicrophoneIcon,
+  ChartBarSquareIcon,
+  AcademicCapIcon,
   ArrowRightIcon,
-  CheckIcon,
-} from '@heroicons/react/24/solid'
+} from '@heroicons/react/24/outline'
 
 export default function LandingPage() {
   const t = useTranslations('common')
-  const featureItems = [
+
+  const bentoFeatures = [
     {
-      icon: <DocumentTextIcon className="w-6 h-6 text-violet-400" />,
-      title: t('landing.features.resume.title'),
-      desc: t('landing.features.resume.desc'),
+      id: 'agent',
+      icon: <SparklesIcon className="w-8 h-8 text-violet-600" />,
+      title: t('landing.features.agent.title'),
+      desc: t('landing.features.agent.desc'),
+      colSpan: 'md:col-span-2',
+      bgClass: 'bg-white',
     },
     {
-      icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-violet-400" />,
-      title: t('landing.features.chat.title'),
-      desc: t('landing.features.chat.desc'),
+      id: 'radar',
+      icon: <ChartBarSquareIcon className="w-8 h-8 text-blue-600" />,
+      title: t('landing.features.radar.title'),
+      desc: t('landing.features.radar.desc'),
+      colSpan: 'md:col-span-1',
+      bgClass: 'bg-white',
     },
     {
-      icon: <MicrophoneIcon className="w-6 h-6 text-violet-400" />,
+      id: 'interview',
+      icon: <MicrophoneIcon className="w-8 h-8 text-rose-600" />,
       title: t('landing.features.interview.title'),
       desc: t('landing.features.interview.desc'),
+      colSpan: 'md:col-span-1',
+      bgClass: 'bg-white',
     },
-  ]
-  const stepItems = [
-    { step: '01', title: t('landing.steps.upload.title'), desc: t('landing.steps.upload.desc') },
-    { step: '02', title: t('landing.steps.optimize.title'), desc: t('landing.steps.optimize.desc') },
-    { step: '03', title: t('landing.steps.export.title'), desc: t('landing.steps.export.desc') },
-  ]
-  const statItems = [
-    { label: t('landing.metrics.parse'), value: '92%' },
-    { label: t('landing.metrics.keywords'), value: '+34%' },
-    { label: t('landing.metrics.quantified'), value: '8' },
-    { label: t('landing.metrics.interview'), value: '2.4×' },
+    {
+      id: 'learning',
+      icon: <AcademicCapIcon className="w-8 h-8 text-emerald-600" />,
+      title: t('landing.features.learning.title'),
+      desc: t('landing.features.learning.desc'),
+      colSpan: 'md:col-span-2',
+      bgClass: 'bg-white',
+    },
   ]
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-gray-300 font-sans relative overflow-hidden">
-      {/* Background Dot Grid Effect */}
-      <div className="absolute inset-0 z-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#4b5563 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/80 to-[#0a0a0a]"></div>
-
+    <div className="min-h-screen bg-[#F9FAFB] text-gray-900 font-sans relative selection:bg-violet-200">
       {/* Navbar */}
-      <header className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md">
+      <header className="fixed top-0 inset-x-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
           <Logo size="sm" />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             <LocaleSwitcher compact />
             <Link
               href="/login"
-              className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             >
               {t('nav.login')}
             </Link>
             <Link
               href="/register"
-              className="px-4 py-1.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors rounded-full shadow-[0_0_15px_rgba(124,58,237,0.3)] border border-violet-500/30"
+              className="px-5 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 transition-colors rounded-full shadow-sm"
             >
               {t('nav.register')}
             </Link>
@@ -73,166 +75,157 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative z-10 pt-32 pb-20">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 mb-8">
-              <span className="flex h-2 w-2 rounded-full bg-violet-500 animate-pulse"></span>
-              <span className="text-xs font-medium text-violet-300">OfferMaster 2.0</span>
-            </div>
-            
-            <h1 className="mb-6 text-5xl md:text-7xl font-bold tracking-tight text-white leading-tight">
-              {t('landing.heroPrefix')}<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-500">
-                {t('landing.heroHighlight')}
-              </span>
-              <br/>{t('landing.heroSuffix')}
-            </h1>
-            
-            <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-400 mb-10 leading-relaxed">
-              {t('landing.subtitle')}
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/register"
-                className="group flex items-center gap-2 px-6 py-3 text-base font-semibold text-white bg-violet-600 hover:bg-violet-500 transition-all rounded-full shadow-[0_0_25px_rgba(124,58,237,0.4)]"
-              >
-                {t('landing.primaryCta')}
-                <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-          </motion.div>
-          
-          {/* Stats Preview */}
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
-            className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto"
-          >
-            {statItems.map((stat, idx) => (
-              <div key={idx} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 backdrop-blur-sm">
-                <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
-                <div className="text-sm text-gray-500">{stat.label}</div>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="relative z-10 py-24 bg-black/40 border-y border-white/5">
+      {/* Asymmetrical Hero Section */}
+      <section className="relative z-10 pt-40 pb-24 overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-white mb-4">{t('landing.features.resume.title')}</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">{t('landing.subtitle')}</p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {featureItems.map((feature, idx) => (
-              <div key={idx} className="group p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-b from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center mb-6">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
-                <p className="text-gray-400 leading-relaxed">{feature.desc}</p>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="max-w-2xl"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 border border-violet-200 mb-8">
+                <span className="flex h-2 w-2 rounded-full bg-violet-600 animate-pulse"></span>
+                <span className="text-xs font-semibold text-violet-800">OfferMaster AI</span>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Steps Section */}
-      <section className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row gap-16 items-center">
-            <div className="flex-1 space-y-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                {t('landing.steps.optimize.title')}
-              </h2>
-              <p className="text-gray-400 text-lg">
+              
+              <h1 className="mb-6 text-6xl md:text-7xl font-extrabold tracking-tight text-gray-900 leading-[1.1]">
+                {t('landing.heroPrefix')}
+                <br />
+                <span className="text-violet-600">
+                  {t('landing.heroHighlight')}
+                </span>
+                {t('landing.heroSuffix')}
+              </h1>
+              
+              <p className="text-lg md:text-xl text-gray-600 mb-10 leading-relaxed max-w-lg">
                 {t('landing.subtitle')}
               </p>
-              <div className="space-y-6">
-                {stepItems.map((step, idx) => (
-                  <div key={idx} className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center font-bold text-sm border border-violet-500/30">
-                      {step.step}
-                    </div>
-                    <div>
-                      <h4 className="text-white font-medium mb-1">{step.title}</h4>
-                      <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
-                    </div>
-                  </div>
-                ))}
+              
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <Link
+                  href="/register"
+                  className="group flex items-center gap-2 px-8 py-4 text-base font-semibold text-white bg-violet-600 hover:bg-violet-700 transition-all rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                >
+                  {t('landing.primaryCta')}
+                  <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
               </div>
-            </div>
-            
-            {/* Visual placeholder for app UI */}
-            <div className="flex-1 w-full">
-              <div className="aspect-square rounded-full bg-violet-500/5 absolute -z-10 blur-3xl w-96 h-96 top-1/2 right-0 transform -translate-y-1/2"></div>
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-[#111] p-2 shadow-2xl">
-                <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-violet-500 to-transparent opacity-50"></div>
-                <div className="rounded-xl border border-white/5 bg-black p-6 space-y-4">
-                  {/* Mock UI */}
-                  <div className="flex items-center gap-3 pb-4 border-b border-white/5">
-                    <div className="w-10 h-10 rounded-full bg-violet-600/20 flex items-center justify-center">
-                      <ChatBubbleLeftRightIcon className="w-5 h-5 text-violet-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-white">{t('landing.mockAssistantLabel')}</div>
-                      <div className="text-xs text-gray-500">AI Assistant</div>
-                    </div>
+            </motion.div>
+
+            {/* Right Abstract Visuals */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+              className="relative hidden md:block h-[500px]"
+            >
+              {/* Decorative overlapping cards */}
+              <div className="absolute right-0 top-10 w-[400px] h-[300px] bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 transform rotate-3 hover:rotate-0 transition-transform duration-500 z-20">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                    <SparklesIcon className="w-5 h-5 text-violet-600" />
                   </div>
-                  <div className="bg-white/5 rounded-lg p-4 text-sm text-gray-300">
-                    {t('landing.mockAssistantMessage')}
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-violet-600/20 border border-violet-500/30 rounded-lg p-4 text-sm text-white max-w-[80%]">
-                      {t('landing.mockUserMessage')}
-                    </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Resume Agent</h3>
+                    <p className="text-xs text-gray-500">Injecting keywords...</p>
                   </div>
                 </div>
+                <div className="space-y-3">
+                  <div className="h-3 bg-gray-100 rounded w-full"></div>
+                  <div className="h-3 bg-gray-100 rounded w-5/6"></div>
+                  <div className="h-3 bg-violet-100 rounded w-4/6"></div>
+                </div>
               </div>
-            </div>
+
+              <div className="absolute right-20 top-40 w-[350px] h-[250px] bg-white rounded-2xl shadow-xl border border-gray-100 p-6 transform -rotate-6 hover:-rotate-0 transition-transform duration-500 z-10">
+                 <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <ChartBarSquareIcon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Job Radar</h3>
+                    <p className="text-xs text-gray-500">Match Score: 94%</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <span className="px-2 py-1 bg-gray-100 text-xs rounded text-gray-600">React</span>
+                  <span className="px-2 py-1 bg-green-100 text-xs rounded text-green-700">Go</span>
+                  <span className="px-2 py-1 bg-gray-100 text-xs rounded text-gray-600">Docker</span>
+                </div>
+              </div>
+              
+              {/* Background gradient blob */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-400/20 rounded-full blur-3xl -z-10"></div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="relative z-10 py-32 border-t border-white/5 overflow-hidden">
-        <div className="absolute inset-0 bg-violet-900/10 backdrop-blur-3xl"></div>
-        <div className="max-w-4xl mx-auto px-6 text-center relative">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            {t('landing.subtitle')}
+      {/* Bento Box Features Section */}
+      <section className="relative z-10 py-24 bg-white border-y border-gray-200">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="mb-16 max-w-2xl">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              不仅是工具，更是求职大脑
+            </h2>
+            <p className="text-gray-600 text-lg">
+              围绕“拿 Offer”为核心重构的所有功能，助你在各个环节建立绝对优势。
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {bentoFeatures.map((feature, idx) => (
+              <motion.div 
+                key={feature.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: idx * 0.1 }}
+                className={`${feature.colSpan} ${feature.bgClass} p-8 rounded-3xl border border-gray-200 hover:shadow-xl transition-shadow duration-300 relative overflow-hidden group`}
+              >
+                <div className="mb-6 relative z-10">
+                  {feature.icon}
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3 relative z-10">{feature.title}</h3>
+                <p className="text-gray-600 leading-relaxed relative z-10 max-w-sm">{feature.desc}</p>
+                
+                {/* Subtle hover gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-gray-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Modern Minimal CTA */}
+      <section className="relative z-10 py-32 bg-[#F9FAFB]">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-8 tracking-tight">
+            准备好迎接你的下一个 Offer 了吗？
           </h2>
           <Link
             href="/register"
-            className="inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold text-white bg-violet-600 hover:bg-violet-500 transition-all rounded-full shadow-[0_0_30px_rgba(124,58,237,0.5)]"
+            className="inline-flex items-center gap-2 px-10 py-4 text-lg font-semibold text-white bg-gray-900 hover:bg-violet-600 transition-colors rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transform duration-300"
           >
-            {t('landing.primaryCta')}
+            免费体验 OfferMaster
             <ArrowRightIcon className="w-5 h-5" />
           </Link>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-12 bg-black">
+      {/* Minimal Footer */}
+      <footer className="border-t border-gray-200 py-12 bg-white">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-gray-500 text-sm">
             <Logo size="sm" />
             <span>&copy; {new Date().getFullYear()} OfferMaster. All rights reserved.</span>
           </div>
-          <div className="flex gap-6 text-sm text-gray-500">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
+          <div className="flex gap-8 text-sm font-medium text-gray-500">
+            <a href="#" className="hover:text-gray-900 transition-colors">隐私政策</a>
+            <a href="#" className="hover:text-gray-900 transition-colors">服务条款</a>
           </div>
         </div>
       </footer>
