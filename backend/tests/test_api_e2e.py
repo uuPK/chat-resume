@@ -1227,7 +1227,7 @@ class TestBilling:
                 """用于获取plan。"""
                 return {
                     "id": "P-TESTPLAN",
-                    "name": "Chat Resume Plus",
+                    "name": "OfferMaster Plus",
                     "price": "10.00",
                     "currency_code": "USD",
                 }
@@ -1248,7 +1248,7 @@ class TestBilling:
         assert resp.status_code == 200
         assert resp.json() == {
             "id": "P-TESTPLAN",
-            "name": "Chat Resume Plus",
+            "name": "OfferMaster Plus",
             "price": "10.00",
             "currency_code": "USD",
         }
@@ -4220,7 +4220,7 @@ class TestAgentConfirmation:
                     "projects": [
                         {
                             "id": "proj_1",
-                            "name": "Chat Resume",
+                            "name": "OfferMaster",
                             "role": "开发者",
                             "duration": "2026",
                             "overview": "旧简介",
@@ -4257,7 +4257,7 @@ class TestHealthEndpoints:
         """用于验证rootreturns200。"""
         resp = client.get("/")
         assert resp.status_code == 200
-        assert "Chat Resume" in resp.json()["message"]
+        assert "OfferMaster" in resp.json()["message"]
 
     def test_health_check_returns_healthy(self, client):
         """用于验证healthcheckreturnshealthy。"""

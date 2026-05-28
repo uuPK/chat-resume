@@ -136,7 +136,7 @@ def build_seed_resume_content(email: str) -> dict[str, Any]:
         ],
         "projects": [
             {
-                "name": "Chat Resume",
+                "name": "OfferMaster",
                 "overview": "围绕简历优化和模拟面试的 AI 求职工作台。",
                 "role": "负责人",
                 "duration": "2024 - 至今",

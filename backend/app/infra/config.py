@@ -18,7 +18,7 @@ _LOCAL_APP_ENVS = {"development", "dev", "local", "test", "testing"}
 class Settings(BaseSettings):
     """用于集中管理运行环境里的所有配置项。"""
 
-    PROJECT_NAME: str = "Chat Resume API"
+    PROJECT_NAME: str = "OfferMaster API"
     VERSION: str = "1.0.0"
     API_STR: str = "/api"
     APP_ENV: str = os.getenv(
@@ -210,7 +210,7 @@ class Settings(BaseSettings):
         os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "60")
     )
     PASSWORD_RESET_EMAIL_FROM: str = os.getenv(
-        "PASSWORD_RESET_EMAIL_FROM", "no-reply@chat-resume.local"
+        "PASSWORD_RESET_EMAIL_FROM", "no-reply@offermaster.local"
     )
     PASSWORD_RESET_SMTP_HOST: str = os.getenv("PASSWORD_RESET_SMTP_HOST", "")
     PASSWORD_RESET_SMTP_PORT: int = int(os.getenv("PASSWORD_RESET_SMTP_PORT", "587"))

@@ -213,7 +213,7 @@ class ResumeAgentHarnessTests(unittest.IsolatedAsyncioTestCase):
             "projects": [
                 {
                     "id": "proj_1",
-                    "name": "Chat Resume",
+                    "name": "OfferMaster",
                     "overview": "旧简介",
                 }
             ]

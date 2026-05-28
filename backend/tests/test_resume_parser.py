@@ -118,8 +118,8 @@ class TestExtractBasicInfo(unittest.TestCase):
 
     def test_extracts_github_with_repo(self):
         """用于验证extractsgithubwithrepo。"""
-        info = _parser()._extract_basic_info("https://github.com/user/chat-resume")
-        self.assertEqual(info["github"], "https://github.com/user/chat-resume")
+        info = _parser()._extract_basic_info("https://github.com/user/offermaster")
+        self.assertEqual(info["github"], "https://github.com/user/offermaster")
 
     def test_extracts_linkedin(self):
         """用于验证extractslinkedin。"""

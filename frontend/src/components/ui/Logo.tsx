@@ -47,7 +47,7 @@ export default function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
           lineHeight: '1.25',
         }}
       >
-        Chat Resume
+        OfferMaster
       </span>
     </Link>
   )

@@ -539,8 +539,8 @@ def _openrouter_headers(options: SimpleStreamOptions) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://chat-resume.com",
-        "X-Title": "Chat Resume AI Assistant",
+        "HTTP-Referer": "https://offermaster.com",
+        "X-Title": "OfferMaster AI Assistant",
     }
 
 

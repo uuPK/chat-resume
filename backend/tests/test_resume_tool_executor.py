@@ -30,7 +30,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
     def test_execute_wraps_success_result(self):
         """用于验证executewrapssuccess结果。"""
         resume = {
-            "projects": [{"id": "proj_1", "name": "Chat Resume", "overview": "旧简介"}]
+            "projects": [{"id": "proj_1", "name": "OfferMaster", "overview": "旧简介"}]
         }
         executor = ResumeToolExecutor()
 
@@ -81,7 +81,7 @@ class ResumeToolExecutorTests(unittest.TestCase):
         """用于验证异步只读工具仍返回统一工具结果结构。"""
         resume = {
             "job_application": {"jd_text": "要求 Agent 和 Redis 经验。"},
-            "projects": [{"name": "Chat Resume", "overview": "Agent 简历工具"}],
+            "projects": [{"name": "OfferMaster", "overview": "Agent 简历工具"}],
         }
         executor = ResumeToolExecutor()
 

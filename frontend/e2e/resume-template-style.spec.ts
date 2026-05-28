@@ -74,7 +74,7 @@ test.describe('简历模板样式', () => {
         ],
         projects: [
           {
-            name: 'Chat Resume',
+            name: 'OfferMaster',
             role: '核心开发者',
             duration: '2025/06 - 2025/07',
             overview: 'AI 驱动的求职辅导平台',
@@ -110,10 +110,10 @@ test.describe('简历模板样式', () => {
     await expect(educationHeading).toHaveCSS('border-bottom-width', '0px')
 
     const workItem = pageSheet.locator('.resume-emerald-item').filter({ hasText: '世优科技' }).first()
-    const projectItem = pageSheet.locator('.resume-emerald-item').filter({ hasText: 'Chat Resume' }).first()
+    const projectItem = pageSheet.locator('.resume-emerald-item').filter({ hasText: 'OfferMaster' }).first()
     const companyText = workItem.getByText('世优科技', { exact: true })
     const workDateText = workItem.getByText('2025/08 - 2025/11', { exact: true })
-    const projectNameText = projectItem.getByText('Chat Resume', { exact: true })
+    const projectNameText = projectItem.getByText('OfferMaster', { exact: true })
     const projectDateText = projectItem.getByText('2025/06 - 2025/07', { exact: true })
     await expect(companyText).toBeVisible()
     await expect(workDateText).toBeVisible()

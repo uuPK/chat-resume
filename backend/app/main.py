@@ -336,7 +336,7 @@ app.include_router(api_router, prefix=settings.API_STR)
 @app.get("/")
 async def root():
     """用于返回 API 根路径响应。"""
-    return {"message": "Chat Resume API"}
+    return {"message": "OfferMaster API"}
 
 
 @app.get("/health")

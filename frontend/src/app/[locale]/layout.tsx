@@ -16,10 +16,10 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Chat Resume',
+  title: 'OfferMaster',
   description: 'AI resume optimization and mock interview platform',
   keywords: 'resume optimization, AI resume, mock interview, job search',
-  authors: [{ name: 'Chat Resume Team' }],
+  authors: [{ name: 'OfferMaster Team' }],
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',

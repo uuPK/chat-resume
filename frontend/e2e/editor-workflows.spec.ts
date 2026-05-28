@@ -905,7 +905,7 @@ test.describe('编辑页工作流', () => {
     ]
     resume.content.projects = [
       {
-        name: 'Chat Resume',
+        name: 'OfferMaster',
         role: '全栈工程师',
         duration: '2025',
         overview: 'AI 驱动的求职辅导平台，提供简历诊断、模拟面试、能力评估功能。通过 BOSS 直聘 MCP 工具实时搜索职位并生成简历优化建议。',
@@ -952,7 +952,7 @@ test.describe('编辑页工作流', () => {
     const resume = buildResumeResponse(123)
     resume.content.projects = [
       {
-        name: 'Chat Resume - AI驱动的求职辅导',
+        name: 'OfferMaster - AI驱动的求职辅导',
         role: '前端开发工程师',
         duration: '2023.03 - 2023.08',
         github_url: 'https://github.com/849261680',
@@ -980,10 +980,10 @@ test.describe('编辑页工作流', () => {
 
     await page.goto('/zh/resume/123/edit')
     await page.getByRole('button', { name: '项目' }).click()
-    await expectInputValueInViewport(page, 'Chat Resume - AI驱动的求职辅导')
+    await expectInputValueInViewport(page, 'OfferMaster - AI驱动的求职辅导')
     expect(await isInputValueInViewport(page, 'Deep Research Agent')).toBe(false)
 
-    const firstProjectBox = await inputValueBox(page, 'Chat Resume - AI驱动的求职辅导')
+    const firstProjectBox = await inputValueBox(page, 'OfferMaster - AI驱动的求职辅导')
     expect(firstProjectBox, '第一个项目输入框应可见，才能在左侧编辑区内滚动').toBeTruthy()
     if (!firstProjectBox) return
     await page.mouse.move(firstProjectBox.x + 16, firstProjectBox.y + 16)

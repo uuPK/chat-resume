@@ -211,7 +211,7 @@ def _build_runtime_inputs(agent: ResumeAgent, user_message: str) -> tuple[Any, d
     """用于生成最小 turn 输入并返回 pi_context 和 state。"""
     state = _new_test_stream_state()
     context = {
-        "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        "resume_content": {"projects": [{"id": "proj_1", "name": "OfferMaster"}]},
     }
     pi_context, _prompts, _config = _build_test_turn_inputs(
         agent,
@@ -264,7 +264,7 @@ def test_system_prompt_tool_list_matches_requested_profile():
     agent = ResumeAgent()
     state = _new_test_stream_state()
     context = {
-        "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        "resume_content": {"projects": [{"id": "proj_1", "name": "OfferMaster"}]},
         "tool_profile": "read_only",
     }
 
@@ -289,7 +289,7 @@ def test_turn_context_hides_tools_for_invisible_sections():
     state = _new_test_stream_state()
     context = {
         "resume_content": {
-            "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+            "projects": [{"id": "proj_1", "name": "OfferMaster"}],
             "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
         },
         "allowed_sections": {"projects"},
@@ -317,7 +317,7 @@ def test_visible_module_filter_keeps_visible_summary_section():
     content = {
         "personal_info": {"name": "张三"},
         "summary": {"text": "AI Agent 开发工程师"},
-        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+        "projects": [{"id": "proj_1", "name": "OfferMaster"}],
         "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
     }
 
@@ -328,7 +328,7 @@ def test_visible_module_filter_keeps_visible_summary_section():
 
     assert filtered == {
         "summary": {"text": "AI Agent 开发工程师"},
-        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+        "projects": [{"id": "proj_1", "name": "OfferMaster"}],
     }
 
 
@@ -339,7 +339,7 @@ def test_resume_turn_context_builder_prepares_profiled_tools_independently():
     builder = ResumeTurnContextBuilder(tool_stage=stage)
     state = _new_test_stream_state()
     context = {
-        "resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        "resume_content": {"projects": [{"id": "proj_1", "name": "OfferMaster"}]},
         "tool_profile": "read_only",
     }
 
@@ -502,7 +502,7 @@ async def test_resume_agent_runner_runs_sync_independently():
     result = await runner.run(
         agent=agent.definition,
         user_message="分析这份简历",
-        context={"resume_content": {"projects": [{"id": "proj_1", "name": "Chat Resume"}]}},
+        context={"resume_content": {"projects": [{"id": "proj_1", "name": "OfferMaster"}]}},
         conversation_history=[],
         event_callback=record_event,
     )
@@ -737,7 +737,7 @@ async def test_resume_tool_preview_rejects_hidden_section_before_pending():
     agent = ResumeAgent()
     stage = ResumeToolExecutionStage()
     resume = {
-        "projects": [{"id": "proj_1", "name": "Chat Resume"}],
+        "projects": [{"id": "proj_1", "name": "OfferMaster"}],
         "skills": [{"id": "skill_1", "category": "AI", "items": ["Agent"]}],
     }
     confirmation_queue: asyncio.Queue[bool] = asyncio.Queue()
@@ -876,7 +876,7 @@ def test_long_resume_context_compacts_with_jd_and_confirmed_changes():
         "projects": [
             {
                 "id": "proj_1",
-                "name": "Chat Resume",
+                "name": "OfferMaster",
                 "overview": "负责 Agent 简历优化" * 300,
                 "highlights": [{"id": "hl_1", "text": "实现流式优化"}],
             }
@@ -933,7 +933,7 @@ def test_resume_agent_session_rebuilds_transcript_model_and_summary():
 
     session = ResumeAgentSession.from_events(
         events,
-        resume_content={"projects": [{"id": "proj_1", "name": "Chat Resume"}]},
+        resume_content={"projects": [{"id": "proj_1", "name": "OfferMaster"}]},
     )
 
     assert session.to_conversation_history() == [

@@ -35,8 +35,8 @@ class ChatService:
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://chat-resume.com",
-            "X-Title": "Chat Resume AI Assistant",
+            "HTTP-Referer": "https://offermaster.com",
+            "X-Title": "OfferMaster AI Assistant",
         }
         self.client = httpx.AsyncClient(timeout=self.timeout)
 

@@ -520,7 +520,7 @@ export default function SettingsPage() {
               >
                 <aside className="p-8 lg:p-10" style={{ backgroundColor: '#0a0b0d', color: '#ffffff' }}>
                   <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.68)', lineHeight: '1.5' }}>
-                    Chat Resume Plus
+                    OfferMaster Plus
                   </p>
                   <h2 className="mt-3 text-[52px] font-semibold" style={{ lineHeight: '1.00' }}>
                     {t('settings.confirmSubscription')}

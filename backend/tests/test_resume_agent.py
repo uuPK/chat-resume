@@ -614,7 +614,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "projects": [
                 {
                     "id": "proj_1",
-                    "name": "Chat Resume",
+                    "name": "OfferMaster",
                     "overview": "简历编辑器",
                     "role": "开发",
                 }
@@ -649,7 +649,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "projects": [
                 {
                     "id": "proj_1",
-                    "name": "Chat Resume",
+                    "name": "OfferMaster",
                     "overview": "简历编辑器",
                     "role": "开发",
                     "technologies": ["MCP"],
@@ -817,7 +817,7 @@ class ResumeAgentPromptContextTests(unittest.TestCase):
             "projects": [
                 {
                     "id": "proj_1",
-                    "name": "Chat Resume",
+                    "name": "OfferMaster",
                     "highlights": [
                         {"id": "hl_1", "text": "负责前端开发"},
                     ],

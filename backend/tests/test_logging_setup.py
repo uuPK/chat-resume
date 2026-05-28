@@ -146,7 +146,7 @@ def test_text_agent_tool_trace_uses_compact_mainline(tmp_path, monkeypatch):
             "tool_name": "remove_bullet",
             "tool_display_name": "删除要点",
             "result_success": True,
-            "display_message": "项目经历 / Chat Resume - AI驱动的求职辅导平台 删除要点 改前：基于SSE实现...",
+            "display_message": "项目经历 / OfferMaster - AI驱动的求职辅导平台 删除要点 改前：基于SSE实现...",
             "result_summary": {"diff_item_count": 1, "success": True},
             "latency_ms": 1256.71,
         },

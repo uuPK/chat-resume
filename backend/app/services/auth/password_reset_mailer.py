@@ -37,11 +37,11 @@ class SettingsPasswordResetMailer:
     def _build_message(self, *, email: str, reset_link: str) -> EmailMessage:
         """用于构造密码重置邮件正文。"""
         message = EmailMessage()
-        message["Subject"] = "Reset your Chat Resume password"
+        message["Subject"] = "Reset your OfferMaster password"
         message["From"] = self.config.PASSWORD_RESET_EMAIL_FROM
         message["To"] = email
         message.set_content(
-            "Use this link to reset your Chat Resume password. "
+            "Use this link to reset your OfferMaster password. "
             f"The link expires in {self.config.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
             f"{reset_link}"
         )

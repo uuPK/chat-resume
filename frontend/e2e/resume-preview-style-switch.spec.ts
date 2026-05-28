@@ -71,7 +71,7 @@ function buildSmartFitResumeResponse() {
         ],
       }],
       projects: [{
-        name: 'Chat Resume',
+        name: 'OfferMaster',
         role: '全栈工程师',
         duration: '2025',
         overview: 'AI 驱动的求职辅导平台，提供简历诊断、模拟面试和岗位匹配能力。',

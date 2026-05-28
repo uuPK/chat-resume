@@ -373,7 +373,7 @@ def test_build_job_match_top_gaps_groups_keywords_into_capability_gaps():
         },
         "projects": [
             {
-                "name": "Chat Resume",
+                "name": "OfferMaster",
                 "overview": "基于 Agent 的简历优化工具",
                 "highlights": [{"text": "实现 FastAPI 后端和 React 前端"}],
             }

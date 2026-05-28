@@ -276,7 +276,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
             "projects": [
                 {
                     "id": "proj_1",
-                    "name": "Chat Resume",
+                    "name": "OfferMaster",
                     "role": "开发者",
                     "duration": "2025",
                     "overview": "AI 求职辅导平台",
@@ -692,7 +692,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         agent = self._build_agent(
             [
                 FakeModelResponse(
-                    content="我来精简 Chat Resume 项目中过长的 overview 和 bullet。",
+                    content="我来精简 OfferMaster 项目中过长的 overview 和 bullet。",
                     tool_calls=[
                         fake_tool_call(
                             name="update_overview",
@@ -706,7 +706,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 ),
                 FakeModelResponse(
-                    content="我来看看当前 Chat Resume 的 bullet 长度，精简过长的部分。"
+                    content="我来看看当前 OfferMaster 的 bullet 长度，精简过长的部分。"
                     "继续精简另一条：继续精简最后一条：本轮没有新的修改。"
                 ),
                 FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),
@@ -1033,7 +1033,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         agent = self._build_agent(
             [
                 FakeModelResponse(
-                    content="已完成 Chat Resume 项目优化，新增 3 条 bullet。"
+                    content="已完成 OfferMaster 项目优化，新增 3 条 bullet。"
                 ),
                 FakeModelResponse(
                     content="本轮没有修改。上一轮我已经完成新增 3 条 bullet。"
@@ -1044,7 +1044,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
         events = []
         async for event in agent.optimize_stream(
-            user_message="Chat Resume 优化",
+            user_message="OfferMaster 优化",
             resume_content=resume,
             conversation_history=[],
             confirmation_queue=None,
@@ -1053,7 +1053,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
 
 
         visible_text = "".join(event.get("content", "") for event in events)
-        self.assertNotIn("已完成 Chat Resume 项目优化", visible_text)
+        self.assertNotIn("已完成 OfferMaster 项目优化", visible_text)
         self.assertIn("还没有通过简历工具完成修改", visible_text)
         self.assertFalse(any(event.get("tool_pending") for event in events))
         self.assertEqual(agent.runtime.stream_fn.calls, 2)
@@ -1063,7 +1063,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
         agent = self._build_agent(
             [
                 FakeModelResponse(
-                    content="我来精简 Chat Resume 项目中过长的 overview 和 bullet。",
+                    content="我来精简 OfferMaster 项目中过长的 overview 和 bullet。",
                     tool_calls=[
                         fake_tool_call(
                             name="update_overview",
@@ -1077,7 +1077,7 @@ class ResumeAgentSmokeTests(unittest.IsolatedAsyncioTestCase):
                     ],
                 ),
                 FakeModelResponse(
-                    content="我来看看当前 Chat Resume 的 bullet 长度，精简过长的部分。"
+                    content="我来看看当前 OfferMaster 的 bullet 长度，精简过长的部分。"
                     "继续精简另一条：继续精简最后一条：本轮没有新的修改。"
                 ),
                 FakeModelResponse(content="已精简项目简介，保留核心能力和技术关键词。"),

@@ -76,7 +76,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
                 ],
                 "projects": [
                     {
-                        "name": "Chat Resume",
+                        "name": "OfferMaster",
                         "technologies": ["SSE", "MCP"],
                     }
                 ],
@@ -157,7 +157,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
                 "custom_sections": [{"title": "其他", "content": "隐藏字段"}],
                 "projects": [
                     {
-                        "name": "Chat Resume",
+                        "name": "OfferMaster",
                         "role": "开发者",
                         "duration": "2025",
                         "description": "AI 求职辅导平台",
@@ -177,7 +177,7 @@ class ResumeSchemaNormalizationTests(unittest.TestCase):
                 "projects": [
                     {
                         "id": content["projects"][0]["id"],
-                        "name": "Chat Resume",
+                        "name": "OfferMaster",
                         "overview": "AI 求职辅导平台",
                         "role": "开发者",
                         "duration": "2025",

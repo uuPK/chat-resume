@@ -107,7 +107,7 @@ async def test_paypal_billing_service_reads_current_plan_price_from_paypal():
                 200,
                 json={
                     "id": "P-TESTPLAN",
-                    "name": "Chat Resume Plus",
+                    "name": "OfferMaster Plus",
                     "billing_cycles": [
                         {
                             "tenure_type": "REGULAR",
@@ -140,7 +140,7 @@ async def test_paypal_billing_service_reads_current_plan_price_from_paypal():
 
     assert plan == {
         "id": "P-TESTPLAN",
-        "name": "Chat Resume Plus",
+        "name": "OfferMaster Plus",
         "price": "10.00",
         "currency_code": "USD",
     }

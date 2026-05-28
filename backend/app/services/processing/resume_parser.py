@@ -126,8 +126,8 @@ class AIResumeParser:
                         headers={
                             "Authorization": f"Bearer {self.api_key}",
                             "Content-Type": "application/json",
-                            "HTTP-Referer": "https://chat-resume.com",
-                            "X-Title": "Chat Resume Parser",
+                            "HTTP-Referer": "https://offermaster.com",
+                            "X-Title": "OfferMaster Parser",
                         },
                         json={
                             "model": self.model,
