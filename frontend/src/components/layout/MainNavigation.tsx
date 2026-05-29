@@ -6,7 +6,6 @@ import { ChevronDownIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon } from '@heroi
 import { useAuth } from '@/lib/auth'
 import { useState, useRef, useEffect } from 'react'
 import Logo from '@/components/ui/Logo'
-import LocaleSwitcher from '@/components/i18n/LocaleSwitcher'
 import { useTranslations } from 'next-intl'
 
 export default function MainNavigation() {
@@ -35,7 +34,6 @@ export default function MainNavigation() {
           </div>
 
           <div className="flex items-center justify-end gap-3">
-            <LocaleSwitcher compact />
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}

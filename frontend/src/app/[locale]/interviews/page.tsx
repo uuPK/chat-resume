@@ -175,7 +175,7 @@ function NoResumeInterviewState({
       <div className="mt-8">
         <div className="mb-3 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('center.practiceAboutTitle')}</div>
         <div className="grid gap-2.5">
-          {[t('center.practiceTipFeedback'), t('center.practiceTipReview'), t('center.practiceTipQuota')].map((tip) => (
+          {[t('center.practiceTipFeedback'), t('center.practiceTipReview')].map((tip) => (
             <div key={tip} className="flex items-start gap-2.5 text-[13px] leading-6" style={{ color: LIST_MUTED }}>
               <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: LIST_BORDER }} />
               <span>{tip}</span>
@@ -725,6 +725,12 @@ export default function InterviewsPage() {
                   <span>{t('center.sidebarResumeOptimize')}</span>
                 </Link>
 
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('center.sidebarInterview')}</p>
+              <div className="space-y-1">
                 <Link
                   href={getSidebarUrl('jobs')}
                   onClick={(e) => handleSidebarClick(e, 'jobs')}
@@ -734,12 +740,7 @@ export default function InterviewsPage() {
                   <BriefcaseIcon className="h-4 w-4 text-gray-400" />
                   <span>{t('center.sidebarJobRadar')}</span>
                 </Link>
-              </div>
-            </div>
 
-            <div>
-              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('center.sidebarInterview')}</p>
-              <div className="space-y-1">
                 <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ backgroundColor: LIST_BLUE_BG, color: '#1e40af' }}>
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   <span>{t('center.sidebarMockInterview')}</span>

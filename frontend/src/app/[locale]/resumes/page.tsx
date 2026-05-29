@@ -442,6 +442,12 @@ export default function ResumesPage() {
                   <span>{t('sidebarResumeOptimize')}</span>
                 </Link>
 
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('sidebarInterview')}</p>
+              <div className="space-y-1">
                 <Link
                   href={getSidebarUrl('jobs')}
                   onClick={(e) => handleSidebarClick(e, 'jobs')}
@@ -451,12 +457,7 @@ export default function ResumesPage() {
                   <BriefcaseIcon className="h-4 w-4 text-gray-400" />
                   <span>{t('sidebarJobRadar')}</span>
                 </Link>
-              </div>
-            </div>
 
-            <div>
-              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('sidebarInterview')}</p>
-              <div className="space-y-1">
                 <Link
                   href="/interviews"
                   className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
