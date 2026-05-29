@@ -24,7 +24,7 @@ async function hasValidSession(accessToken: string): Promise<boolean> {
 }
 
 // 用于处理proxy。
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const canonicalRedirect = getCanonicalRedirect(request)
   if (canonicalRedirect) {
     return canonicalRedirect
