@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { enterpriseApi, type JobDeliveryDetails, type Resume } from '@/lib/api'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { SparklesIcon, FireIcon, ArrowPathIcon, ExclamationTriangleIcon, LightBulbIcon } from '@heroicons/react/24/outline'
+import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
 
 export default function EnterpriseResumeReview() {
   const { id } = useParams()
@@ -74,10 +75,10 @@ export default function EnterpriseResumeReview() {
           {resume.content && (
             <div className="pointer-events-none select-none drop-shadow-xl">
               <PaginatedResumePreview
-                content={resume.content}
-                moduleOrder={resume.layout_config?.moduleOrder as any || ['personal', 'education', 'experience', 'projects', 'skills']}
+                content={resume.content as any}
+                moduleOrder={resume.layout_config?.moduleOrder || DEFAULT_MODULE_CONFIG}
                 spacingScale={(resume.layout_config?.spacingScale as number) || 1}
-                templateStyle={(resume.layout_config?.templateStyle as string) || 'modern'}
+                templateStyle={(resume.layout_config?.templateStyle as string) || 'classic'}
                 viewportPadding={0}
               />
             </div>
@@ -208,11 +209,45 @@ export default function EnterpriseResumeReview() {
 
                 {/* 底部操作区 */}
                 <div className="flex gap-3 pt-4">
-                  <button className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 font-medium py-3 rounded-xl transition-colors">
-                    淘汰
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await enterpriseApi.updateDeliveryStatus(deliveryId, 'rejected')
+                        setDelivery({ ...delivery, status: 'rejected' })
+                        alert('已标记为淘汰')
+                      } catch (e) {
+                        alert('操作失败')
+                      }
+                    }}
+                    disabled={delivery.status === 'rejected'}
+                    className={`flex-1 font-medium py-3 rounded-xl transition-colors ${
+                      delivery.status === 'rejected' 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-red-50 hover:bg-red-100 text-red-600'
+                    }`}
+                  >
+                    {delivery.status === 'rejected' ? '已淘汰' : '淘汰'}
                   </button>
-                  <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-xl shadow-lg shadow-primary-500/30 transition-all">
-                    约面
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await enterpriseApi.updateDeliveryStatus(deliveryId, 'interview_invited')
+                        setDelivery({ ...delivery, status: 'interview_invited' })
+                        alert('约面成功，已通知求职者！')
+                      } catch (e) {
+                        alert('操作失败')
+                      }
+                    }}
+                    disabled={delivery.status === 'interview_invited' || delivery.status === 'rejected'}
+                    className={`flex-1 font-medium py-3 rounded-xl transition-all ${
+                      delivery.status === 'interview_invited'
+                        ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                        : delivery.status === 'rejected'
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-500/30'
+                    }`}
+                  >
+                    {delivery.status === 'interview_invited' ? '已发起约面' : '约面'}
                   </button>
                 </div>
               </motion.div>

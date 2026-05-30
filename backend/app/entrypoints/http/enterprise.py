@@ -244,3 +244,22 @@ def analyze_delivery_match(
     }
     
     return service.update_delivery_match(delivery, match_score=mock_score, analysis_result=mock_analysis)
+class StatusUpdate(BaseModel):
+    status: str
+
+@router.put("/deliveries/{delivery_id}/status")
+def update_delivery_status(
+    delivery_id: int,
+    request: StatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict[str, Any] = Depends(require_enterprise_role)
+):
+    """企业更新投递的状态，例如：淘汰、约面"""
+    service = EnterpriseService(db)
+    delivery = service.get_delivery(delivery_id=delivery_id, enterprise_id=current_user["id"])
+    
+    delivery.status = request.status
+    db.commit()
+    db.refresh(delivery)
+    
+    return {"message": "Success", "status": delivery.status}

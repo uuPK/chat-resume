@@ -801,6 +801,14 @@ export const enterpriseApi = {
     const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}/resume`)
     return handleApiResponse<any>(response)
   },
+  async updateDeliveryStatus(deliveryId: number, status: string): Promise<any> {
+    const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    return handleApiResponse<any>(response)
+  },
   
   // 给求职者用的
   async getAllActiveJobs(): Promise<EnterpriseJob[]> {
