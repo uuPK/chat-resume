@@ -75,9 +75,9 @@ def get_deliveries(
             "analysis_result": d.analysis_result,
             "created_at": d.created_at,
             "updated_at": d.updated_at,
-            "candidate_name": candidate.full_name if candidate else "Unknown",
-            "resume_title": resume.title if resume and resume.title else "未命名简历",
-            "job_title": job.title if job else "Unknown Job"
+            "candidate_name": (candidate.full_name or "Unknown") if candidate else "Unknown",
+            "resume_title": (resume.title or "未命名简历") if resume else "未命名简历",
+            "job_title": (job.title or "Unknown Job") if job else "Unknown Job"
         }
         result.append(d_dict)
         
@@ -153,9 +153,9 @@ def get_my_deliveries(
             "analysis_result": d.analysis_result,
             "created_at": d.created_at,
             "updated_at": d.updated_at,
-            "candidate_name": candidate.full_name if candidate else "Unknown",
-            "resume_title": resume.title if resume and resume.title else "未命名简历",
-            "job_title": job.title if job else "Unknown Job"
+            "candidate_name": (candidate.full_name or "Unknown") if candidate else "Unknown",
+            "resume_title": (resume.title or "未命名简历") if resume else "未命名简历",
+            "job_title": (job.title or "Unknown Job") if job else "Unknown Job"
         }
         result.append(d_dict)
         
@@ -190,9 +190,9 @@ def get_delivery(
         "analysis_result": d.analysis_result,
         "created_at": d.created_at,
         "updated_at": d.updated_at,
-        "candidate_name": candidate.full_name if candidate else "Unknown",
-        "resume_title": resume.title if resume and resume.title else "未命名简历",
-        "job_title": job.title if job else "Unknown Job"
+        "candidate_name": (candidate.full_name or "Unknown") if candidate else "Unknown",
+        "resume_title": (resume.title or "未命名简历") if resume else "未命名简历",
+        "job_title": (job.title or "Unknown Job") if job else "Unknown Job"
     }
 
 @router.get("/deliveries/{delivery_id}/resume")
