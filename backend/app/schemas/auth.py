@@ -17,6 +17,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     full_name: Optional[str] = None
+    role: str = "candidate"
 
 
 class UserUpdate(BaseModel):
@@ -31,6 +32,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: Optional[str] = None
+    role: str
     is_active: bool
     has_password: bool = False
     created_at: datetime

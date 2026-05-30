@@ -739,6 +739,88 @@ export const chatHistoryApi = ChatHistoryAPI
 export const digitalHumanApi = DigitalHumanAPI
 export const billingApi = BillingAPI
 
+// ── 企业端 API ──────────────────────────────────────────────────────────────
+
+export interface EnterpriseJob {
+  id: number
+  enterprise_id: number
+  title: string
+  description: string
+  skills_required: string[]
+  location?: string
+  salary_range?: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface JobDeliveryDetails {
+  id: number
+  job_id: number
+  candidate_id: number
+  resume_id: number
+  status: string
+  match_score?: number
+  analysis_result?: any
+  candidate_name: string
+  resume_title: string
+  job_title: string
+  created_at: string
+}
+
+export const enterpriseApi = {
+  // Force Next.js Turbopack to recompile this file
+  async getMyJobs(): Promise<EnterpriseJob[]> {
+    const response = await apiFetch('/api/enterprise/jobs')
+    return handleApiResponse<EnterpriseJob[]>(response)
+  },
+  async createJob(data: any): Promise<EnterpriseJob> {
+    const response = await apiFetch('/api/enterprise/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    return handleApiResponse<EnterpriseJob>(response)
+  },
+  async getInbox(): Promise<JobDeliveryDetails[]> {
+    const response = await apiFetch('/api/enterprise/deliveries')
+    return handleApiResponse<JobDeliveryDetails[]>(response)
+  },
+  async getDelivery(deliveryId: number): Promise<JobDeliveryDetails> {
+    const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}`)
+    return handleApiResponse<JobDeliveryDetails>(response)
+  },
+  async analyzeMatch(deliveryId: number): Promise<any> {
+    const response = await apiFetch('/api/enterprise/analyze-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delivery_id: deliveryId }),
+    })
+    return handleApiResponse<any>(response)
+  },
+  async getDeliveryResume(deliveryId: number): Promise<any> {
+    const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}/resume`)
+    return handleApiResponse<any>(response)
+  },
+  
+  // 给求职者用的
+  async getAllActiveJobs(): Promise<EnterpriseJob[]> {
+    const response = await apiFetch('/api/enterprise/all-jobs')
+    return handleApiResponse<EnterpriseJob[]>(response)
+  },
+  async deliverResume(jobId: number, resumeId: number): Promise<any> {
+    const response = await apiFetch(`/api/enterprise/deliver?resume_id=${resumeId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId }),
+    })
+    return handleApiResponse<any>(response)
+  },
+  async getMyDeliveries(): Promise<JobDeliveryDetails[]> {
+    const response = await apiFetch('/api/enterprise/my-deliveries')
+    return handleApiResponse<JobDeliveryDetails[]>(response)
+  }
+}
+
 // 导出类型
 export type {
   BillingStatus,

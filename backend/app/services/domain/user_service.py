@@ -36,6 +36,7 @@ class UserService:
             email=user_create.email,
             hashed_password=hashed_password,
             full_name=user_create.full_name,
+            role=user_create.role,
         )
         self.db.add(user)
         self.db.commit()

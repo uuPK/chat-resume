@@ -1,10 +1,7 @@
 'use client'
-// 用于提供 app/[locale]/login/page.tsx 模块。
 
 export const dynamic = 'force-dynamic'
 
-import { motion } from 'framer-motion'
-import { Link } from '@/i18n/navigation'
 import { Suspense, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'next/navigation'
@@ -12,19 +9,21 @@ import { useAuth } from '@/lib/auth'
 import { getOAuthErrorKey } from '@/lib/oauthErrors'
 import toast from 'react-hot-toast'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid'
-import Logo from '@/components/ui/Logo'
-
 import { useTranslations } from 'next-intl'
 import { isAppLocale } from '@/i18n/routing'
+import AuthLayout, { AuthRole } from '@/components/auth/AuthLayout'
+import { Link } from '@/i18n/navigation'
 
 interface LoginForm {
   email: string
   password: string
 }
 
-function getSafeNextPath(): string {
+function getSafeNextPath(role: AuthRole): string {
   const nextPath = new URLSearchParams(window.location.search).get('next')
   if (!nextPath || !nextPath.startsWith('/') || nextPath.startsWith('//')) {
+    if (role === 'enterprise') return '/enterprise/dashboard'
+    if (role === 'school') return '/school/dashboard'
     return '/dashboard'
   }
   return stripLocaleFromPath(nextPath)
@@ -44,6 +43,7 @@ function navigateAfterLogin(path: string) {
 }
 
 export default function LoginPage() {
+  const [role, setRole] = useState<AuthRole>('candidate')
   const [showPassword, setShowPassword] = useState(false)
   const { login, isLoading } = useAuth()
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
@@ -55,7 +55,8 @@ export default function LoginPage() {
       const success = await login(data.email, data.password)
       if (success) {
         toast.success(t('login.successToast'), { id: 'login' })
-        navigateAfterLogin(getSafeNextPath())
+        // Use the selected role as a hint for where to route if no explicit nextPath
+        navigateAfterLogin(getSafeNextPath(role))
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('login.fallbackError')
@@ -64,100 +65,72 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-transparent">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-8 h-16">
-        <Logo size="sm" />
+    <AuthLayout
+      type="login"
+      role={role}
+      onRoleChange={setRole}
+      title={t('login.title')}
+      subtitle={t('login.subtitle')}
+    >
+      <div className="bg-white dark:bg-[#0a0a0a]">
+        <Suspense fallback={null}>
+          <OAuthErrorAlert />
+        </Suspense>
 
-      </div>
-
-      {/* Form section */}
-      <div className="flex-1 flex items-center justify-center px-4 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="w-full max-w-md"
-        >
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-3">
-              {t('login.title')}
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400">
-              {t('login.subtitle')}
-            </p>
+        <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('fields.email')}</label>
+            <input
+              {...register('email', {
+                required: t('validation.emailRequired'),
+                pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
+              })}
+              type="email"
+              className={errors.email ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'}
+              placeholder={t('placeholders.email')}
+            />
+            {errors.email && <p className="mt-1.5 text-sm text-red-500">{errors.email.message}</p>}
           </div>
 
-          <div className="p-8 bg-white dark:bg-[#0a0a0a] border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm">
-            <Suspense fallback={null}>
-              <OAuthErrorAlert />
-            </Suspense>
-
-
-
-            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t('fields.email')}</label>
-                <input
-                  {...register('email', {
-                    required: t('validation.emailRequired'),
-                    pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: t('validation.emailInvalid') }
-                  })}
-                  type="email"
-                  className={errors.email ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'}
-                  placeholder={t('placeholders.email')}
-                />
-                {errors.email && <p className="mt-1.5 text-sm text-red-500">{errors.email.message}</p>}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between gap-4 mb-1.5">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('fields.password')}</label>
-                  <Link href="/reset-password" className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors">
-                    {t('login.forgotPassword')}
-                  </Link>
-                </div>
-                <div className="relative">
-                  <input
-                    {...register('password', {
-                      required: t('validation.passwordRequired'),
-                      minLength: { value: 6, message: t('validation.passwordMin') }
-                    })}
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    className={`${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12`}
-                    placeholder={t('placeholders.password')}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 px-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  >
-                    {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-                  </button>
-                </div>
-                {errors.password && <p className="mt-1.5 text-sm text-red-500">{errors.password.message}</p>}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary w-full py-3 rounded-xl text-base font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {isLoading ? t('login.submitting') : t('login.submit')}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center text-sm text-gray-500">
-              {t('login.noAccount')}{' '}
-              <Link href="/register" className="font-semibold text-primary-600 hover:text-primary-500 transition-colors">
-                {t('login.registerNow')}
+          <div>
+            <div className="flex items-center justify-between gap-4 mb-1.5">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('fields.password')}</label>
+              <Link href="/reset-password" className="text-sm font-medium text-primary-600 hover:text-primary-500 transition-colors">
+                {t('login.forgotPassword')}
               </Link>
             </div>
+            <div className="relative">
+              <input
+                {...register('password', {
+                  required: t('validation.passwordRequired'),
+                  minLength: { value: 6, message: t('validation.passwordMin') }
+                })}
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                className={`${errors.password ? 'input-error' : 'input bg-transparent border-gray-300 dark:border-gray-700 focus:border-primary-500 dark:focus:border-primary-500 text-gray-900 dark:text-white rounded-xl'} pr-12`}
+                placeholder={t('placeholders.password')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 px-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+              </button>
+            </div>
+            {errors.password && <p className="mt-1.5 text-sm text-red-500">{errors.password.message}</p>}
           </div>
-        </motion.div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="btn-primary w-full py-3 rounded-xl text-base font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {isLoading ? t('login.submitting') : t('login.submit')}
+          </button>
+        </form>
       </div>
-    </div>
+    </AuthLayout>
   )
 }
 

@@ -35,3 +35,6 @@ from .user import ProviderIdentity as ProviderIdentity
 from .user import User as User
 
 from .learning_path import LearningPathVersion as LearningPathVersion
+
+from .enterprise import EnterpriseJob as EnterpriseJob
+from .enterprise import JobDelivery as JobDelivery

@@ -23,6 +23,7 @@ from app.entrypoints.http import (
     resume_agent as chat,
     learning_path,
     jobs,
+    enterprise,
 )
 
 api_router = APIRouter()
@@ -41,3 +42,4 @@ api_router.include_router(asr.router, prefix="/asr", tags=["asr"])
 api_router.include_router(
     digital_human.router, prefix="/digital-human", tags=["digital-human"]
 )
+api_router.include_router(enterprise.router)

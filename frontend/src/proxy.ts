@@ -4,22 +4,23 @@ import { NextResponse } from 'next/server'
 import createIntlProxy from 'next-intl/middleware'
 import { isAppLocale, routing } from './i18n/routing'
 import { apiUrl } from '@/lib/httpClient'
-const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes']
+const PROTECTED_PREFIXES = ['/dashboard', '/settings', '/interviews', '/resume', '/resumes', '/enterprise', '/school']
 const PUBLIC_PATHS = new Set(['/login', '/register', '/', '/resume/print'])
 const CANONICAL_ORIGIN = 'https://www.chatresume.tech'
 const CANONICAL_REDIRECT_HOSTS = new Set(['chatresu.vercel.app', 'chatresume.tech'])
 const intlProxy = createIntlProxy(routing)
 
-// 这里通过后端 /auth/me 校验 token 真伪，避免只凭 cookie 存在就放行受保护页面。
-async function hasValidSession(accessToken: string): Promise<boolean> {
+// 这里通过后端 /auth/me 获取当前用户信息，包括角色。
+async function getValidUser(accessToken: string): Promise<any | null> {
   try {
     const response = await fetch(apiUrl('/api/auth/me'), {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
     })
-    return response.ok
+    if (!response.ok) return null;
+    return await response.json()
   } catch {
-    return false
+    return null
   }
 }
 
@@ -70,20 +71,51 @@ export async function proxy(request: NextRequest) {
     return intlResponse
   }
 
-  if (accessToken && await hasValidSession(accessToken)) {
+  let user = null;
+  if (accessToken) {
+    user = await getValidUser(accessToken)
+  }
+
+  if (!user && !refreshToken) {
+    const loginUrl = new URL(`/${locale || routing.defaultLocale}/login`, request.url)
+    const nextPath = `${pathnameWithoutLocale}${search}`
+    loginUrl.searchParams.set('next', nextPath)
+    const response = NextResponse.redirect(loginUrl)
+    response.cookies.delete('access_token')
+    return response
+  }
+
+  if (!user && refreshToken) {
+    // 允许带有 refreshToken 的请求进入，以便客户端尝试刷新
     return intlResponse
   }
 
-  if (refreshToken) {
+  if (user) {
+    const role = user.role || 'candidate'
+
+    // 企业端路由保护
+    if (pathnameWithoutLocale.startsWith('/enterprise') && role !== 'enterprise') {
+      return NextResponse.redirect(new URL(`/${locale || routing.defaultLocale}/dashboard`, request.url))
+    }
+
+    // 高校端路由保护
+    if (pathnameWithoutLocale.startsWith('/school') && role !== 'school') {
+      return NextResponse.redirect(new URL(`/${locale || routing.defaultLocale}/dashboard`, request.url))
+    }
+
+    // 求职者路由保护
+    const candidatePrefixes = ['/resumes', '/interviews', '/resume']
+    const isCandidatePath = candidatePrefixes.some(p => pathnameWithoutLocale === p || pathnameWithoutLocale.startsWith(`${p}/`)) || pathnameWithoutLocale === '/dashboard'
+    
+    if (isCandidatePath && role !== 'candidate') {
+      if (role === 'enterprise') return NextResponse.redirect(new URL(`/${locale || routing.defaultLocale}/enterprise/dashboard`, request.url))
+      if (role === 'school') return NextResponse.redirect(new URL(`/${locale || routing.defaultLocale}/school/dashboard`, request.url))
+    }
+
     return intlResponse
   }
 
-  const loginUrl = new URL(`/${locale || routing.defaultLocale}/login`, request.url)
-  const nextPath = `${pathnameWithoutLocale}${search}`
-  loginUrl.searchParams.set('next', nextPath)
-  const response = NextResponse.redirect(loginUrl)
-  response.cookies.delete('access_token')
-  return response
+  return NextResponse.redirect(new URL(`/${locale || routing.defaultLocale}/login`, request.url))
 }
 
 // 用于将线上旧域名规范化到正式域名。

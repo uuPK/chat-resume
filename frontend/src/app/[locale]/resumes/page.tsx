@@ -11,6 +11,7 @@ import { buildModuleConfig, deserializeLayoutConfig } from '@/lib/resumeLayoutCo
 import toast from 'react-hot-toast'
 import { Link } from '@/i18n/navigation'
 import MainNavigation from '@/components/layout/MainNavigation'
+import CandidateSidebar from '@/components/layout/CandidateSidebar'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { useTranslations } from 'next-intl'
 import {
@@ -419,67 +420,7 @@ export default function ResumesPage() {
       />
       <MainNavigation />
       <div className="flex min-h-[calc(100vh-56px)]">
-        <aside
-          className="hidden w-[220px] shrink-0 border-r bg-white px-3 py-5 md:flex md:flex-col"
-          style={{ borderColor: LIST_SOFT_BORDER }}
-        >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('sidebarResume')}</p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium" style={{ backgroundColor: LIST_BLUE_BG, color: '#1e40af' }}>
-                  <DocumentTextIcon className="h-4 w-4" />
-                  <span>{t('sidebarMyResumes')}</span>
-                </div>
-
-                <Link
-                  href={getSidebarUrl('edit')}
-                  onClick={(e) => handleSidebarClick(e, 'edit')}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
-                  style={{ color: LIST_MUTED }}
-                >
-                  <SparklesIcon className="h-4 w-4 text-gray-400" />
-                  <span>{t('sidebarResumeOptimize')}</span>
-                </Link>
-
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: LIST_FAINT }}>{t('sidebarInterview')}</p>
-              <div className="space-y-1">
-                <Link
-                  href={getSidebarUrl('jobs')}
-                  onClick={(e) => handleSidebarClick(e, 'jobs')}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
-                  style={{ color: LIST_MUTED }}
-                >
-                  <BriefcaseIcon className="h-4 w-4 text-gray-400" />
-                  <span>{t('sidebarJobRadar')}</span>
-                </Link>
-
-                <Link
-                  href="/interviews"
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
-                  style={{ color: LIST_MUTED }}
-                >
-                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
-                  <span>{t('sidebarMockInterview')}</span>
-                </Link>
-
-                <Link
-                  href={getSidebarUrl('learning-path')}
-                  onClick={(e) => handleSidebarClick(e, 'learning-path')}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] font-medium hover:bg-gray-50 transition-colors"
-                  style={{ color: LIST_MUTED }}
-                >
-                  <AcademicCapIcon className="h-4 w-4" />
-                  <span>{t('sidebarLearningPath')}</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </aside>
+          <CandidateSidebar hasResumes={resumes.length > 0} firstResumeId={resumes[0]?.id} />
 
       <main className="flex-1 overflow-y-auto px-8 py-7" style={{ backgroundColor: '#fafafa' }}>
         {resumesLoading ? (
