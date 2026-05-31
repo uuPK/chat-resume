@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { enterpriseApi, type JobDeliveryDetails, type Resume } from '@/lib/api'
 import PaginatedResumePreview from '@/components/preview/PaginatedResumePreview'
 import { SparklesIcon, FireIcon, ArrowPathIcon, ExclamationTriangleIcon, LightBulbIcon } from '@heroicons/react/24/outline'
-import { DEFAULT_MODULE_CONFIG } from '@/lib/resumeLayoutConfig'
+import { DEFAULT_MODULE_CONFIG, deserializeLayoutConfig, buildModuleConfig } from '@/lib/resumeLayoutConfig'
 
 export default function EnterpriseResumeReview() {
   const { id } = useParams()
@@ -101,9 +101,12 @@ export default function EnterpriseResumeReview() {
             <div className="pointer-events-none select-none drop-shadow-xl">
               <PaginatedResumePreview
                 content={resume.content as any}
-                moduleOrder={resume.layout_config?.moduleOrder || DEFAULT_MODULE_CONFIG}
-                spacingScale={(resume.layout_config?.spacingScale as number) || 1}
-                templateStyle={(resume.layout_config?.templateStyle as string) || 'classic'}
+                moduleOrder={buildModuleConfig(
+                  deserializeLayoutConfig(resume.layout_config).moduleOrder,
+                  deserializeLayoutConfig(resume.layout_config).visibleModules
+                )}
+                spacingScale={deserializeLayoutConfig(resume.layout_config).spacingScale}
+                templateStyle={deserializeLayoutConfig(resume.layout_config).templateStyle}
                 viewportPadding={0}
               />
             </div>
