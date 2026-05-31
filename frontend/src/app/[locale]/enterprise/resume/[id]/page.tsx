@@ -218,57 +218,18 @@ export default function EnterpriseResumeReview() {
                   </h3>
                   <p className="text-xs text-gray-500 mb-4">
                     基于候选人简历中的薄弱环节或关键经历，AI 生成以下面试提问策略：
-            <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/20 p-6 flex flex-col h-full sticky top-8"
-              >
-                <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-[#2a2a2a]">
-                  <div className="p-3 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-xl">
-                    <SparklesIcon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">AI 匹配分析</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      针对 <span className="font-medium text-primary-600">{delivery.job_title}</span> 的深度匹配报告
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
-                  {isAnalyzing ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                      <ArrowPathIcon className="w-8 h-8 animate-spin mb-4 text-primary-500" />
-                      <p>AI 正在深度分析匹配度...</p>
-                    </div>
-                  ) : delivery.analysis_result ? (
-                    <div className="space-y-6">
-                      <div className="text-center py-8">
-                        <div className="text-5xl font-bold bg-gradient-to-br from-primary-600 to-primary-400 bg-clip-text text-transparent">
-                          {delivery.match_score}
+                  </p>
+                  
+                  <div className="space-y-3">
+                    {analysis?.interview_questions?.map((q: string, i: number) => (
+                      <div key={i} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <div className="flex gap-3">
+                          <div className="text-primary-600 font-bold">Q{i+1}</div>
+                          <div className="text-sm text-gray-700 dark:text-gray-300">{q}</div>
                         </div>
-                        <div className="text-sm text-gray-500 mt-2 font-medium">综合匹配指数</div>
                       </div>
-                      
-                      <div className="space-y-4">
-                        <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          候选人优势
-                        </h3>
-                        <ul className="space-y-2">
-                          {(delivery.analysis_result.strengths || []).map((s: string, i: number) => (
-                            <li key={i} className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#2a2a2a] p-3 rounded-lg">
-                              {s}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-gray-400">
-                      <p>未生成匹配分析报告</p>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
 
                 {/* 底部操作区 */}
@@ -307,6 +268,7 @@ export default function EnterpriseResumeReview() {
                   </button>
                 </div>
               </motion.div>
+            </AnimatePresence>
           )}
         </div>
       </div>
