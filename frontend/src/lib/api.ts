@@ -761,6 +761,8 @@ export interface JobDeliveryDetails {
   status: string
   match_score?: number
   analysis_result?: any
+  interview_time?: string
+  interview_location?: string
   candidate_name: string
   resume_title: string
   job_title: string

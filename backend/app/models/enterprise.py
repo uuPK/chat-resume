@@ -57,6 +57,8 @@ class JobDelivery(Base):
     status: Mapped[str] = mapped_column(String, default="pending")  # pending, viewed, accepted, rejected
     match_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     analysis_result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    interview_time: Mapped[str | None] = mapped_column(String, nullable=True)
+    interview_location: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -68,6 +68,10 @@ export default function CandidateSidebar({ hasResumes = false, firstResumeId }: 
               <BriefcaseIcon className={iconClass('/jobs')} />
               <span>发现机会 (Jobs)</span>
             </Link>
+            <Link href="/deliveries" className={linkClass('/deliveries')}>
+              <AcademicCapIcon className={iconClass('/deliveries')} />
+              <span>我的投递 (Deliveries)</span>
+            </Link>
           </div>
         </div>
 

@@ -152,6 +152,8 @@ def get_my_deliveries(
             "status": d.status,
             "match_score": d.match_score,
             "analysis_result": d.analysis_result,
+            "interview_time": d.interview_time,
+            "interview_location": d.interview_location,
             "created_at": d.created_at,
             "updated_at": d.updated_at,
             "candidate_name": (candidate.full_name or "Unknown") if candidate else "Unknown",
@@ -189,6 +191,8 @@ def get_delivery(
         "status": d.status,
         "match_score": d.match_score,
         "analysis_result": d.analysis_result,
+        "interview_time": d.interview_time,
+        "interview_location": d.interview_location,
         "created_at": d.created_at,
         "updated_at": d.updated_at,
         "candidate_name": (candidate.full_name or "Unknown") if candidate else "Unknown",
@@ -247,6 +251,8 @@ def analyze_delivery_match(
     return service.update_delivery_match(delivery, match_score=mock_score, analysis_result=mock_analysis)
 class StatusUpdate(BaseModel):
     status: str
+    interview_time: str | None = None
+    interview_location: str | None = None
 
 @router.put("/deliveries/{delivery_id}/status")
 def update_delivery_status(
@@ -260,6 +266,11 @@ def update_delivery_status(
     delivery = service.get_delivery(delivery_id=delivery_id, enterprise_id=current_user["id"])
     
     delivery.status = request.status
+    if request.interview_time is not None:
+        delivery.interview_time = request.interview_time
+    if request.interview_location is not None:
+        delivery.interview_location = request.interview_location
+        
     db.commit()
     db.refresh(delivery)
     

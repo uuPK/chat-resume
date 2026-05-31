@@ -45,6 +45,8 @@ class JobDeliveryResponse(BaseModel):
     status: str
     match_score: Optional[int] = None
     analysis_result: Optional[dict] = None
+    interview_time: Optional[str] = None
+    interview_location: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

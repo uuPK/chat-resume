@@ -13,6 +13,12 @@ export default function EnterpriseResumeReview() {
   const deliveryId = Number(id)
   
   const [delivery, setDelivery] = useState<JobDeliveryDetails | null>(null)
+  
+  // 约面弹窗状态
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+  const [interviewTime, setInterviewTime] = useState('')
+  const [interviewLocation, setInterviewLocation] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [resume, setResume] = useState<Resume | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -46,6 +52,25 @@ export default function EnterpriseResumeReview() {
       console.error(err)
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  const handleScheduleSubmit = async () => {
+    if (!interviewTime || !interviewLocation) {
+      alert('请填写完整的面试时间和地点')
+      return
+    }
+    
+    setIsSubmitting(true)
+    try {
+      await enterpriseApi.updateDeliveryStatus(deliveryId, 'interview_invited', interviewTime, interviewLocation)
+      setDelivery({ ...delivery!, status: 'interview_invited', interview_time: interviewTime, interview_location: interviewLocation })
+      setIsScheduleModalOpen(false)
+      alert('约面成功，已通知求职者！')
+    } catch (e) {
+      alert('操作失败，请重试')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -193,28 +218,67 @@ export default function EnterpriseResumeReview() {
                   </h3>
                   <p className="text-xs text-gray-500 mb-4">
                     基于候选人简历中的薄弱环节或关键经历，AI 生成以下面试提问策略：
-                  </p>
-                  
-                  <div className="space-y-3">
-                    {analysis?.interview_questions?.map((q: string, i: number) => (
-                      <div key={i} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
-                        <div className="flex gap-3">
-                          <div className="text-primary-600 font-bold">Q{i+1}</div>
-                          <div className="text-sm text-gray-700 dark:text-gray-300">{q}</div>
-                        </div>
-                      </div>
-                    ))}
+            <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/20 p-6 flex flex-col h-full sticky top-8"
+              >
+                <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-[#2a2a2a]">
+                  <div className="p-3 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-xl">
+                    <SparklesIcon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">AI 匹配分析</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      针对 <span className="font-medium text-primary-600">{delivery.job_title}</span> 的深度匹配报告
+                    </p>
                   </div>
                 </div>
 
+                <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
+                  {isAnalyzing ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                      <ArrowPathIcon className="w-8 h-8 animate-spin mb-4 text-primary-500" />
+                      <p>AI 正在深度分析匹配度...</p>
+                    </div>
+                  ) : delivery.analysis_result ? (
+                    <div className="space-y-6">
+                      <div className="text-center py-8">
+                        <div className="text-5xl font-bold bg-gradient-to-br from-primary-600 to-primary-400 bg-clip-text text-transparent">
+                          {delivery.match_score}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-2 font-medium">综合匹配指数</div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          候选人优势
+                        </h3>
+                        <ul className="space-y-2">
+                          {(delivery.analysis_result.strengths || []).map((s: string, i: number) => (
+                            <li key={i} className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-[#2a2a2a] p-3 rounded-lg">
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>未生成匹配分析报告</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* 底部操作区 */}
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-[#2a2a2a] mt-4">
                   <button 
                     onClick={async () => {
+                      if (!confirm('确定淘汰该候选人吗？')) return;
                       try {
-                        await enterpriseApi.updateDeliveryStatus(deliveryId, 'rejected')
+                        await enterpriseApi.updateDeliveryStatus(deliveryId, 'rejected', '', '')
                         setDelivery({ ...delivery, status: 'rejected' })
-                        alert('已标记为淘汰')
                       } catch (e) {
                         alert('操作失败')
                       }
@@ -229,15 +293,7 @@ export default function EnterpriseResumeReview() {
                     {delivery.status === 'rejected' ? '已淘汰' : '淘汰'}
                   </button>
                   <button 
-                    onClick={async () => {
-                      try {
-                        await enterpriseApi.updateDeliveryStatus(deliveryId, 'interview_invited')
-                        setDelivery({ ...delivery, status: 'interview_invited' })
-                        alert('约面成功，已通知求职者！')
-                      } catch (e) {
-                        alert('操作失败')
-                      }
-                    }}
+                    onClick={() => setIsScheduleModalOpen(true)}
                     disabled={delivery.status === 'interview_invited' || delivery.status === 'rejected'}
                     className={`flex-1 font-medium py-3 rounded-xl transition-all ${
                       delivery.status === 'interview_invited'
@@ -251,10 +307,68 @@ export default function EnterpriseResumeReview() {
                   </button>
                 </div>
               </motion.div>
-            </AnimatePresence>
           )}
         </div>
       </div>
+
+      {/* 约面弹窗 */}
+      <AnimatePresence>
+        {isScheduleModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-xl p-6 w-full max-w-md"
+            >
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">安排面试</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    面试时间
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如: 2026-06-05 14:00"
+                    value={interviewTime}
+                    onChange={e => setInterviewTime(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    面试地点 / 链接
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如: 腾讯会议 123-456-789"
+                    value={interviewLocation}
+                    onChange={e => setInterviewLocation(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  className="flex-1 px-4 py-2 text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-[#2a2a2a] hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-medium transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleScheduleSubmit}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 text-white bg-primary-600 hover:bg-primary-700 rounded-xl font-medium transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? '提交中...' : '发送邀约'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
