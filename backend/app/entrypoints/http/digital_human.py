@@ -1,10 +1,6 @@
-"""数字人 API 入口。
-
-负责为豆包端到端语音面试准备会话上下文。
-"""
 
 from __future__ import annotations
-
+from app.services.rag.retrieval import retrieve_interview_questions
 import asyncio
 import json
 import logging
@@ -136,6 +132,7 @@ def _render_interviewer_prompt(
     resume_text: str = "",
     interview_history: str = "",
     interview_plan: str = "",
+    rag_questions: str = "",  # <--- 新增：接收题目
 ) -> str:
     """用于从文件模板渲染模拟面试官系统提示词。"""
     return _INTERVIEWER_PROMPT.render(
@@ -148,6 +145,7 @@ def _render_interviewer_prompt(
         resume_text=resume_text,
         interview_history=interview_history,
         interview_plan=interview_plan,
+        rag_questions=rag_questions, # <--- 新增：传给最底层的 prompt 模板
     )
 
 
@@ -270,6 +268,7 @@ def _build_volcengine_system_role(
     resume_text: str = "",
     interview_history: str = "",
     interview_plan: str = "",
+    rag_questions: str = "", 
 ) -> str:
     """用于构建火山引擎 O 版本的 system_role。"""
     return _render_interviewer_prompt(
@@ -281,6 +280,7 @@ def _build_volcengine_system_role(
         interview_plan=interview_plan[:_VOLCENGINE_PLAN_CONTEXT_CHARS],
         resume_text=resume_text[:_VOLCENGINE_RESUME_CONTEXT_CHARS],
         interview_history=interview_history[:_VOLCENGINE_HISTORY_CONTEXT_CHARS],
+        rag_questions=rag_questions, 
     ).strip()[:_VOLCENGINE_SYSTEM_ROLE_MAX_CHARS]
 
 
@@ -464,6 +464,14 @@ async def voice_session_ws(
                 )
 
         plan_context = _build_interview_plan_context(interview_session.plan_json)
+        
+        # --- 下面是新增的两行核心 RAG 代码 ---
+        # 1. 构造搜索词：把目标岗位和简历最开头的一部分内容拼起来作为去数据库搜题的线索
+        rag_query = f"{interview_session.target_title or ''} {resume_text[:200]}"
+        # 2. 异步调用我们写好的函数，去 pgvector 数据库把最匹配的题拿出来
+        rag_questions = await retrieve_interview_questions(rag_query)
+        # ----------------------------------
+
         system_role = _build_volcengine_system_role(
             target_title=interview_session.target_title or "目标岗位",
             target_company=interview_session.target_company or "目标公司",
@@ -473,6 +481,7 @@ async def voice_session_ws(
             resume_text=resume_text,
             interview_history=_build_interview_history(existing_turns),
             interview_plan=plan_context,
+            rag_questions=rag_questions, # <--- 新增：把搜到的题目传进去
         )
         if not existing_turns:
             greeting = _build_greeting(

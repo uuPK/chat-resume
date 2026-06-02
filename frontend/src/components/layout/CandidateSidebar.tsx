@@ -57,7 +57,7 @@ export default function CandidateSidebar({ hasResumes = false, firstResumeId }: 
       <div className="space-y-5">
         <div>
           <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            总览
+            求职中心
           </p>
           <div className="space-y-1">
             <Link href="/dashboard" className={linkClass('/dashboard')}>
@@ -77,7 +77,7 @@ export default function CandidateSidebar({ hasResumes = false, firstResumeId }: 
 
         <div>
           <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            {t('sidebarResume')}
+            简历与面试
           </p>
           <div className="space-y-1">
             <Link href="/resumes" className={linkClass('/resumes')}>
@@ -88,19 +88,12 @@ export default function CandidateSidebar({ hasResumes = false, firstResumeId }: 
             <Link
               href={getSidebarUrl('edit')}
               onClick={(e) => handleSidebarClick(e, 'edit')}
-              className={linkClass('/resume')}
+              className={linkClass('/resume/edit')}
             >
               <SparklesIcon className={iconClass('/resume')} />
               <span>{t('sidebarResumeOptimize')}</span>
             </Link>
-          </div>
-        </div>
 
-        <div>
-          <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-            {t('sidebarInterview')}
-          </p>
-          <div className="space-y-1">
             <Link
               href={getSidebarUrl('jobs')}
               onClick={(e) => handleSidebarClick(e, 'jobs')}
@@ -117,14 +110,31 @@ export default function CandidateSidebar({ hasResumes = false, firstResumeId }: 
               <ChatBubbleLeftRightIcon className={iconClass('/interviews')} />
               <span>{t('sidebarMockInterview')}</span>
             </Link>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+            学习成长
+          </p>
+          <div className="space-y-1">
+            <Link href="/learning/courses" className={linkClass('/learning/courses')}>
+              <AcademicCapIcon className={iconClass('/learning/courses')} />
+              <span>选课大厅 (Courses)</span>
+            </Link>
+            
+            <Link href="/learning/plan" className={linkClass('/learning/plan')}>
+              <DocumentTextIcon className={iconClass('/learning/plan')} />
+              <span>我的计划 (My Plan)</span>
+            </Link>
 
             <Link
               href={getSidebarUrl('learning-path')}
               onClick={(e) => handleSidebarClick(e, 'learning-path')}
               className={linkClass('/resume/learning-path')}
             >
-              <AcademicCapIcon className={iconClass('/resume/learning-path')} />
-              <span>{t('sidebarLearningPath')}</span>
+              <SparklesIcon className={iconClass('/resume/learning-path')} />
+              <span>AI路径推荐 (AI Path)</span>
             </Link>
           </div>
         </div>

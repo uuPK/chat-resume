@@ -24,6 +24,7 @@ from app.entrypoints.http import (
     learning_path,
     jobs,
     enterprise,
+    school,
 )
 
 api_router = APIRouter()
@@ -43,3 +44,6 @@ api_router.include_router(
     digital_human.router, prefix="/digital-human", tags=["digital-human"]
 )
 api_router.include_router(enterprise.router)
+api_router.include_router(school.router)
+from app.entrypoints.http import learning
+api_router.include_router(learning.router, prefix="/learning", tags=["learning"])

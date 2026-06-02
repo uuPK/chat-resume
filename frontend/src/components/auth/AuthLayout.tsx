@@ -50,7 +50,7 @@ export default function AuthLayout({ children, title, subtitle, role, onRoleChan
       <div className={`hidden lg:flex lg:w-1/2 lg:flex-col relative overflow-hidden transition-colors duration-700 ${currentRole.bgClass}`}>
         <div className="absolute inset-0 bg-gradient-to-br from-black/40 to-transparent z-10" />
         <div className="relative z-20 flex flex-col h-full p-12 lg:p-16 text-white justify-between">
-          <Logo size="md" theme="dark" />
+          <Logo size="md" />
           
           <AnimatePresence mode="wait">
             <motion.div

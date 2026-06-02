@@ -38,3 +38,6 @@ from .learning_path import LearningPathVersion as LearningPathVersion
 
 from .enterprise import EnterpriseJob as EnterpriseJob
 from .enterprise import JobDelivery as JobDelivery
+
+from .school import AICourse as AICourse
+from .learning import CandidateCourseEnrollment as CandidateCourseEnrollment

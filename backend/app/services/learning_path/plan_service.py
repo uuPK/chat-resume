@@ -17,6 +17,7 @@ from app.models.interview import InterviewSession
 from app.models.learning_path import LearningPathVersion
 from app.models.resume import Resume
 from app.services.llm.chat_service import ChatService
+from app.services.domain.learning_service import LearningService
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +26,13 @@ _PLAN_SYSTEM_PROMPT = """
 
 【极其重要的上下文记忆与对比机制】
 上下文中可能会提供“历史成长路线版本（Previous Plan）”以及“过去面试表现（past_interview_reports）”和“本次面试表现（interview_report）”。
+更重要的是，上下文中还可能提供候选人“已加入的高校优选课程（enrolled_courses）”。
 你必须仔细分析并综合生成路线：
-1. 相比上次规划和过去面试表现，候选人这次面试的表现有什么实质变化？是取得了进步，还是暴露了新的短板？
-2. 必须明确结合【之前面试表现和这次面试表现的差别】来指导规划重点。
-3. 在新规划中，要顺着上次的基础进行【进阶突破】，或者对新暴露的严重短板进行【专项恶补】。
-4. 请在 summary 中一句话点出这次版本的核心进阶逻辑（明确指出基于本次表现与历史表现的对比依据）。
+1. 如果候选人加入了某些优选课程，你的路线必须将这些课程的内容（大纲、知识点）完美融入到接下来的4周计划中，让这4周既能补足短板，又能覆盖课程的学习目标。
+2. 相比上次规划和过去面试表现，候选人这次面试的表现有什么实质变化？是取得了进步，还是暴露了新的短板？
+3. 必须明确结合【之前面试表现和这次面试表现的差别】（如果有）来指导规划重点。
+4. 在新规划中，要顺着上次的基础进行【进阶突破】，或者对新暴露的严重短板进行【专项恶补】。
+5. 请在 summary 中一句话点出这次版本的核心进阶逻辑（若有课程加入，必须提及已将课程内容融入路线规划中）。
 
 【输出格式约束】
 你只能输出合法的 JSON，禁止使用 Markdown (如 ```json) 包装，也不要输出任何解释性废话。
@@ -80,6 +83,19 @@ async def generate_learning_path(
         "resume": resume.content,
         "previous_plan": previous_plan_model.plan_data if previous_plan_model else None,
     }
+
+    # 获取用户已加入的课程
+    learning_svc = LearningService(db)
+    enrolled_courses = learning_svc.get_user_plan(resume.owner_id)
+    if enrolled_courses:
+        context_payload["enrolled_courses"] = [
+            {
+                "title": c.title,
+                "description": c.description,
+                "target_skills": c.target_skills,
+                "outline": json.loads(c.outline) if c.outline else {}
+            } for c in enrolled_courses
+        ]
 
     # 如果有面试，附加上面试报告及历史面试报告
     if interview_session_id:

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useTranslations } from 'next-intl'
 import { useAuth } from '@/lib/auth'
-import { resumeApi, type Resume } from '@/lib/api'
+import { resumeApi, type ResumeListItem } from '@/lib/api'
 import MainNavigation from '@/components/layout/MainNavigation'
 import CandidateSidebar from '@/components/layout/CandidateSidebar'
-import { Link } from '@/i18n/navigation'
+import { Link, useRouter } from '@/i18n/navigation'
 import {
   DocumentTextIcon,
   ChatBubbleLeftRightIcon,
@@ -20,7 +20,8 @@ import {
 export default function DashboardPage() {
   const t = useTranslations('common')
   const { user, isAuthenticated, isLoading } = useAuth()
-  const [resumes, setResumes] = useState<Resume[]>([])
+  const router = useRouter()
+  const [resumes, setResumes] = useState<ResumeListItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

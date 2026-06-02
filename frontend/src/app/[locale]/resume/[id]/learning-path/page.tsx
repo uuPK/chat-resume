@@ -3,8 +3,9 @@
 import { useParams, useSearchParams } from 'next/navigation'
 import { useRouter } from '@/i18n/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { resumeApi, resumesApi, chatApi, type LearningPathVersion } from '@/lib/api'
-import { ArrowLeftIcon, ArrowDownTrayIcon, ArrowPathIcon, DocumentTextIcon } from '@heroicons/react/24/solid'
+import { resumeApi, resumesApi, chatApi, schoolApi, learningApi, type LearningPathVersion } from '@/lib/api'
+import { ArrowLeftIcon, ArrowDownTrayIcon, ArrowPathIcon, DocumentTextIcon, SparklesIcon } from '@heroicons/react/24/solid'
+import toast from 'react-hot-toast'
 
 export default function LearningPathPage() {
   const params = useParams()
@@ -14,9 +15,11 @@ export default function LearningPathPage() {
   const sessionId = searchParams.get('session') ? Number(searchParams.get('session')) : null
   
   const [versions, setVersions] = useState<LearningPathVersion[]>([])
+  const [schoolCourses, setSchoolCourses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+  const [enrollingId, setEnrollingId] = useState<number | null>(null)
 
   const autoGenerate = searchParams.get('autoGenerate') === 'true'
   const autoGenerateAttempted = useRef(false)
@@ -24,8 +27,14 @@ export default function LearningPathPage() {
   const fetchVersions = useCallback(async () => {
     try {
       setLoading(true)
-      const data = await resumeApi.getLearningPaths(resumeId)
+      const [data, courses, myPlan] = await Promise.all([
+        resumeApi.getLearningPaths(resumeId),
+        schoolApi.getCourses().catch(() => []),
+        learningApi.getLearningPlan().catch(() => [])
+      ])
       setVersions(data)
+      const enrolledIds = new Set(myPlan.map(c => c.id))
+      setSchoolCourses(courses.filter(c => !enrolledIds.has(c.id)))
       if (data.length > 0 && selectedVersionId === null) {
         setSelectedVersionId(data[0].id)
       }
@@ -63,13 +72,13 @@ export default function LearningPathPage() {
     return () => { mounted = false }
   }, [fetchVersions, autoGenerate, sessionId, resumeId])
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (triggerType?: string) => {
     try {
       setGenerating(true)
       if (sessionId) {
-        await chatApi.generateLearningPath(sessionId)
+        await chatApi.generateLearningPath(sessionId, triggerType)
       } else {
-        await resumeApi.generateLearningPath(resumeId)
+        await resumeApi.generateLearningPath(resumeId, triggerType)
       }
       await fetchVersions()
     } catch (err) {
@@ -77,6 +86,19 @@ export default function LearningPathPage() {
       alert('生成失败')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleEnrollAndRegenerate = async (courseId: number) => {
+    try {
+      setEnrollingId(courseId)
+      await learningApi.enrollCourse(courseId)
+      toast.success('已加入学习计划，正在重新生成路线...')
+      await handleGenerate('course_enroll')
+    } catch {
+      toast.error('加入失败，您可能已经加入过该课程')
+    } finally {
+      setEnrollingId(null)
     }
   }
 
@@ -115,7 +137,7 @@ export default function LearningPathPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={handleGenerate}
+                onClick={() => handleGenerate()}
                 disabled={generating}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-[13px] font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
@@ -168,7 +190,7 @@ export default function LearningPathPage() {
                         })}
                       </div>
                       <div className="text-xs mt-1 opacity-70">
-                        {v.trigger_type === 'resume_update' ? '由简历更新触发' : '由面试结果触发'}
+                        {v.trigger_type === 'resume_update' ? '由简历更新触发' : v.trigger_type === 'course_enroll' ? '由高校优选课程触发' : '由面试结果触发'}
                       </div>
                     </button>
                   ))}
@@ -185,6 +207,70 @@ export default function LearningPathPage() {
                       {selectedVersion.plan_data.summary}
                     </p>
                   </div>
+
+                  {schoolCourses.length > 0 && (
+                    <div className="mb-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-6 border border-indigo-100 dark:border-indigo-800">
+                      <div className="flex items-center gap-2 mb-4">
+                        <SparklesIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-300">高校优选课程</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {schoolCourses.map(course => {
+                          let parsedOutline: any = null;
+                          try {
+                            parsedOutline = course.outline ? JSON.parse(course.outline) : null;
+                          } catch (e) {}
+
+                          return (
+                            <div key={course.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-indigo-100 dark:border-gray-700">
+                              <h4 className="font-medium text-gray-900 dark:text-white mb-1">{course.title}</h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{course.description}</p>
+                              <div className="flex flex-wrap gap-2 mb-4">
+                                {course.target_skills?.split(',').map((skill: string) => (
+                                  <span key={skill} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded">
+                                    {skill.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                              
+                              {/* 课程大纲展示 */}
+                              {parsedOutline && parsedOutline.weeks && (
+                                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                                  <h5 className="text-xs font-semibold text-gray-900 dark:text-white mb-3">课程大纲</h5>
+                                  <div className="space-y-3">
+                                    {parsedOutline.weeks.map((week: any, idx: number) => (
+                                      <div key={idx} className="bg-gray-50 dark:bg-gray-700/30 rounded p-3">
+                                        <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">
+                                          Week {week.week_number}
+                                        </div>
+                                        <h6 className="text-sm font-medium text-gray-900 dark:text-white mt-0.5">{week.theme}</h6>
+                                        <div className="mt-2 space-y-1.5">
+                                          {week.tasks.map((task: any, tIdx: number) => (
+                                            <div key={tIdx} className="text-xs bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                              <span className="font-medium text-gray-800 dark:text-gray-200">{task.name}: </span>
+                                              <span className="text-gray-500 dark:text-gray-400">{task.description}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <button
+                                onClick={() => handleEnrollAndRegenerate(course.id)}
+                                disabled={enrollingId === course.id || generating}
+                                className="mt-4 w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
+                              >
+                                {enrollingId === course.id ? '加入中...' : '加入计划并更新路线'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-12">
                     {selectedVersion.plan_data.weeks.map((week, idx) => (

@@ -38,8 +38,10 @@ ${resume_text}
 {% endif %}{% if jd_text %}岗位 JD 摘要：
 ${jd_text}
 
+{% endif %}{% if rag_questions %}推荐参考问题库（可根据对话情况选取使用）：
+${rag_questions}
+
 {% endif %}{% if interview_history %}已发生对话：
-${interview_history}
 
 请基于以上历史继续，避免重复已经问过的问题。
 {% endif -%}
@@ -70,6 +72,9 @@ ${resume_text}
 
 {% endif %}{% if jd_text %}Job description summary:
 ${jd_text}
+
+{% endif %}{% if rag_questions %}Reference Question Bank (use these when appropriate):
+${rag_questions}
 
 {% endif %}{% if interview_history %}Transcript so far:
 ${interview_history}

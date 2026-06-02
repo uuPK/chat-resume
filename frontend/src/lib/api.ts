@@ -555,10 +555,11 @@ class ResumeAPI {
     return handleApiResponse<LearningPathVersion[]>(response)
   }
 
-  static async generateLearningPath(resumeId: number): Promise<LearningPathVersion> {
-    const response = await apiFetch(`/api/resumes/${resumeId}/learning-paths`, {
-      method: 'POST',
-    })
+  static async generateLearningPath(resumeId: number, triggerType?: string): Promise<LearningPathVersion> {
+    const url = triggerType 
+      ? `/api/resumes/${resumeId}/learning-paths?trigger_type=${triggerType}` 
+      : `/api/resumes/${resumeId}/learning-paths`
+    const response = await apiFetch(url, { method: 'POST' })
     return handleApiResponse<LearningPathVersion>(response)
   }
 }
@@ -702,10 +703,11 @@ export const resumesApi = {
 }
 
 export const chatApi = {
-  async generateLearningPath(sessionId: number): Promise<LearningPathVersion> {
-    const response = await apiFetch(`/api/interviews/${sessionId}/learning-paths`, {
-      method: 'POST',
-    })
+  async generateLearningPath(sessionId: number, triggerType?: string): Promise<LearningPathVersion> {
+    const url = triggerType
+      ? `/api/interviews/${sessionId}/learning-paths?trigger_type=${triggerType}`
+      : `/api/interviews/${sessionId}/learning-paths`
+    const response = await apiFetch(url, { method: 'POST' })
     return handleApiResponse<LearningPathVersion>(response)
   },
 }
@@ -803,11 +805,14 @@ export const enterpriseApi = {
     const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}/resume`)
     return handleApiResponse<any>(response)
   },
-  async updateDeliveryStatus(deliveryId: number, status: string): Promise<any> {
+  async updateDeliveryStatus(deliveryId: number, status: string, interviewTime?: string, interviewLocation?: string): Promise<any> {
+    const body: any = { status }
+    if (interviewTime) body.interview_time = interviewTime
+    if (interviewLocation) body.interview_location = interviewLocation
     const response = await apiFetch(`/api/enterprise/deliveries/${deliveryId}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     })
     return handleApiResponse<any>(response)
   },
@@ -828,6 +833,61 @@ export const enterpriseApi = {
   async getMyDeliveries(): Promise<JobDeliveryDetails[]> {
     const response = await apiFetch('/api/enterprise/my-deliveries')
     return handleApiResponse<JobDeliveryDetails[]>(response)
+  }
+}
+
+export interface AICourse {
+  id: number
+  title: string
+  description?: string
+  target_skills?: string
+  outline?: string
+  published: boolean
+  created_at: string
+  updated_at: string
+}
+
+export const schoolApi = {
+  async getMarketGaps(): Promise<{ top_missing_skills: string[], analysis: string }> {
+    const response = await apiFetch('/api/school/market-gaps')
+    return handleApiResponse(response)
+  },
+  async generateCourse(targetSkills: string[]): Promise<AICourse> {
+    const response = await apiFetch('/api/school/generate-course', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_skills: targetSkills }),
+    })
+    return handleApiResponse<AICourse>(response)
+  },
+  async publishCourse(courseId: number): Promise<AICourse> {
+    const response = await apiFetch('/api/school/publish-course', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course_id: courseId }),
+    })
+    return handleApiResponse<AICourse>(response)
+  },
+  async getCourses(): Promise<AICourse[]> {
+    const response = await apiFetch('/api/school/courses')
+    return handleApiResponse<AICourse[]>(response)
+  }
+}
+
+export const learningApi = {
+  async getCourses(): Promise<AICourse[]> {
+    const response = await apiFetch('/api/learning/courses')
+    return handleApiResponse<AICourse[]>(response)
+  },
+  async enrollCourse(courseId: number): Promise<{ status: string; enrollment_id: number }> {
+    const response = await apiFetch(`/api/learning/courses/${courseId}/enroll`, {
+      method: 'POST'
+    })
+    return handleApiResponse(response)
+  },
+  async getLearningPlan(): Promise<AICourse[]> {
+    const response = await apiFetch('/api/learning/plan')
+    return handleApiResponse<AICourse[]>(response)
   }
 }
 

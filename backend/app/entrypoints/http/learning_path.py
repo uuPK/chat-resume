@@ -43,7 +43,7 @@ async def list_learning_paths(
             "trigger_type": v.trigger_type,
             "interview_session_id": v.interview_session_id,
             "plan_data": v.plan_data,
-            "created_at": v.created_at.isoformat(),
+            "created_at": v.created_at.isoformat() + ("Z" if v.created_at.tzinfo is None else ""),
         }
         for v in versions
     ]
@@ -51,6 +51,7 @@ async def list_learning_paths(
 @router.post("/resumes/{resume_id}/learning-paths")
 async def create_learning_path_from_resume(
     resume_id: int = Path(...),
+    trigger_type: str = "resume_update",
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -60,19 +61,20 @@ async def create_learning_path_from_resume(
         raise HTTPException(status_code=404, detail="Resume not found")
         
     try:
-        new_version = await generate_learning_path(db, resume_id, "resume_update")
+        new_version = await generate_learning_path(db, resume_id, trigger_type)
     except ServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
         
     return {
         "id": new_version.id,
         "plan_data": new_version.plan_data,
-        "created_at": new_version.created_at.isoformat(),
+        "created_at": new_version.created_at.isoformat() + ("Z" if new_version.created_at.tzinfo is None else ""),
     }
 
 @router.post("/interviews/{session_id}/learning-paths")
 async def create_learning_path_from_interview(
     session_id: int = Path(...),
+    trigger_type: str = "interview_completed",
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -82,14 +84,14 @@ async def create_learning_path_from_interview(
         raise HTTPException(status_code=404, detail="Interview session not found")
         
     try:
-        new_version = await generate_learning_path(db, session.resume_id, "interview_completed", session_id)
+        new_version = await generate_learning_path(db, session.resume_id, trigger_type, session_id)
     except ServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
         
     return {
         "id": new_version.id,
         "plan_data": new_version.plan_data,
-        "created_at": new_version.created_at.isoformat(),
+        "created_at": new_version.created_at.isoformat() + ("Z" if new_version.created_at.tzinfo is None else ""),
     }
 
 @router.get("/learning-paths/{path_id}/export/{format}")
