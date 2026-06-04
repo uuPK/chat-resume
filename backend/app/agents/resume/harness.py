@@ -84,6 +84,14 @@ class ResumeAgentHarness:
             agent_kwargs: dict[str, Any] = {"user_id": user_id}
             if resume_id is not None:
                 agent_kwargs["resume_id"] = resume_id
+            
+            # Fetch user preferences
+            if user_id:
+                from app.models.user import User
+                user = self.db.query(User).get(user_id)
+                if user and user.preferences:
+                    agent_kwargs["user_preferences"] = user.preferences
+
             async for event in agent.optimize_stream(
                 user_message=user_message,
                 resume_content=resume_content,
@@ -114,6 +122,46 @@ class ResumeAgentHarness:
             latest_resume_content=latest_resume_content,
         )
         logger.debug("ResumeAgentHarness run_resume_stream completed")
+
+        # 异步更新用户的偏好设置
+        if user_id:
+            asyncio.create_task(
+                self._async_extract_and_save_memory(
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_message=user_message,
+                    final_content="".join(final_content_parts)
+                )
+            )
+
+    async def _async_extract_and_save_memory(self, user_id: int, session_id: str, user_message: str, final_content: str):
+        """在后台从对话中提取用户偏好并更新到数据库"""
+        try:
+            from app.agents.resume.graph import extract_memory_async
+            from langchain_core.messages import HumanMessage, AIMessage
+            from app.models.user import User
+            
+            # 这里简单构造最近的对话
+            messages = [
+                HumanMessage(content=user_message),
+                AIMessage(content=final_content)
+            ]
+            
+            # 新开一个数据库会话（因为原有的可能已关闭）
+            from app.infra.database import SessionLocal
+            with SessionLocal() as db:
+                user = db.query(User).get(user_id)
+                if not user:
+                    return
+                current_prefs = user.preferences or {}
+                
+                new_prefs = await extract_memory_async(messages, current_prefs)
+                if new_prefs:
+                    user.preferences = new_prefs
+                    db.commit()
+                    logger.info(f"Updated user preferences for user_id={user_id}")
+        except Exception as e:
+            logger.error(f"Error in async memory extraction: {e}")
 
     def record_failure(self, session_id: str, exc: Exception) -> None:
         """用于在流式执行失败时更新会话状态并记录失败事件。"""

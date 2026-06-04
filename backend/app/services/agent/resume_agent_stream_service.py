@@ -138,6 +138,11 @@ class ResumeAgentStreamService:
                     content = event.get("content")
                     if content:
                         final_content_parts.append(content)
+                    
+                    import logging
+                    log = logging.getLogger(__name__)
+                    log.info(f"SSE Event to yield: {event.get('event_type')} tool_pending={event.get('tool_pending')} call_id={event.get('call_id')}")
+                    
                     yield self._record_stream_event(
                         store,
                         session_id=session_id,

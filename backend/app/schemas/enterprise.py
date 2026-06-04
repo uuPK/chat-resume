@@ -5,9 +5,9 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
 class EnterpriseJobCreate(BaseModel):
-    title: str = Field(..., example="Frontend Engineer")
-    description: str = Field(..., example="We are looking for a Next.js expert...")
-    skills_required: List[str] = Field(default_factory=list, example=["React", "TypeScript"])
+    title: str = Field(..., json_schema_extra={"example": "Frontend Engineer"})
+    description: str = Field(..., json_schema_extra={"example": "We are looking for a Next.js expert..."})
+    skills_required: List[str] = Field(default_factory=list, json_schema_extra={"example": ["React", "TypeScript"]})
     location: Optional[str] = None
     salary_range: Optional[str] = None
 
