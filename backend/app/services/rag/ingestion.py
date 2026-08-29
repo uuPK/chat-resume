@@ -13,6 +13,9 @@ from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.infra.config import settings
 
@@ -182,8 +185,10 @@ def build_vector_store(
 ) -> PGVectorStore:
     """Create the LlamaIndex PGVectorStore used by the question bank."""
     validate_table_name(table_name)
-    return PGVectorStore.from_params(
+    async_db_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+    return PGVectorStore(
         connection_string=database_url,
+        async_connection_string=async_db_url,
         table_name=table_name,
         embed_dim=embed_dim,
         hybrid_search=hybrid_search,
@@ -198,14 +203,40 @@ def build_vector_store(
     )
 
 
-def build_embed_model(*, model: str, embed_dim: int) -> OpenAIEmbedding:
-    """Create the OpenAI-compatible embedding model for question vectors."""
+from llama_index.core.embeddings import BaseEmbedding
+from typing import Any, List
+from openai import OpenAI
+
+class ZhipuEmbedding(BaseEmbedding):
+    model: str = "embedding-3"
+    api_key: str = ""
+    api_base: str = "https://open.bigmodel.cn/api/paas/v4/"
+
+    def __init__(self, model: str, api_key: str, api_base: str, **kwargs: Any) -> None:
+        super().__init__(model=model, api_key=api_key, api_base=api_base, **kwargs)
+        # Use sync client (or async if preferred, but LlamaIndex BaseEmbedding defaults are fine)
+        self._client = OpenAI(api_key=api_key, base_url=api_base)
+
+    def _get_query_embedding(self, query: str) -> List[float]:
+        return self._get_text_embedding(query)
+
+    async def _aget_query_embedding(self, query: str) -> List[float]:
+        return self._get_query_embedding(query)
+
+    def _get_text_embedding(self, text: str) -> List[float]:
+        response = self._client.embeddings.create(input=[text], model=self.model)
+        return response.data[0].embedding
+
+    def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
+        response = self._client.embeddings.create(input=texts, model=self.model)
+        return [data.embedding for data in response.data]
+
+def build_embed_model(*, model: str, embed_dim: int) -> BaseEmbedding:
     api_key = os.getenv("RAG_EMBED_API_KEY") or os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "Set OPENAI_API_KEY or RAG_EMBED_API_KEY before running ingestion."
-        )
     api_base = os.getenv("RAG_EMBED_API_BASE") or os.getenv("OPENAI_API_BASE") or None
+
+    if "bigmodel" in str(api_base) or "zhipu" in model.lower() or "embedding-" in model.lower():
+        return ZhipuEmbedding(model=model, api_key=api_key, api_base=api_base)
     return OpenAIEmbedding(
         model=model,
         dimensions=embed_dim,

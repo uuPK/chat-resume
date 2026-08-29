@@ -1,13 +1,13 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: chat-resume-postgres
+    container_name: offermaster-postgres
     environment:
       POSTGRES_USER: chat_resume
       POSTGRES_PASSWORD: chat_resume_password
       POSTGRES_DB: chat_resume
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - chat_resume_pg_data:/var/lib/postgresql/data
 

@@ -327,7 +327,7 @@ def _build_interview_history(turns: list[InterviewTurn]) -> str:
     return "\n".join(lines)
 
 
-async def run_sandbox_voice_session(
+async def run_agentic_voice_session(
     websocket: WebSocket,
     session_id: int,
     db: Session,
@@ -336,14 +336,13 @@ async def run_sandbox_voice_session(
     greeting: str,
     on_text_message: Any,
 ):
-    """使用普通 LLM 模型进行面试会话（作为 Volcengine 的降级替代）。"""
+    """使用 LangGraph 架构（Supervisor -> Experts）进行面试会话。"""
     await websocket.accept()
     await websocket.send_json({"type": "ready", "session_id": f"sandbox_{session_id}"})
-    
-    # 发送开场白
+
     if not greeting and not existing_turns:
         greeting = "你好，我是您的 AI 面试官。请先做一个简短的自我介绍吧。"
-        
+
     if greeting and not existing_turns:
         await websocket.send_json({
             "type": "greeting",
@@ -351,10 +350,19 @@ async def run_sandbox_voice_session(
             "text": greeting,
         })
         on_text_message("interviewer", greeting)
+
+    from app.agents.interview.graph import interview_agent
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
     
-    from app.services.llm.chat_service import ChatService
-    chat_service = ChatService()
-    
+    initial_messages = [SystemMessage(content=system_role)]
+    for turn in existing_turns:
+        if turn.question:
+            initial_messages.append(AIMessage(content=turn.question))
+        if turn.answer:
+            initial_messages.append(HumanMessage(content=turn.answer))
+
+    config = {"configurable": {"thread_id": str(session_id)}}
+
     try:
         while True:
             msg = await websocket.receive()
@@ -374,7 +382,7 @@ async def run_sandbox_voice_session(
                     except json.JSONDecodeError:
                         pass
                 elif "bytes" in msg and msg["bytes"]:
-                    pass # 不再处理语音数据
+                    pass
                 
                 if trigger_reply and user_text:
                     await websocket.send_json({
@@ -383,21 +391,19 @@ async def run_sandbox_voice_session(
                         "text": user_text,
                     })
                     
-                    messages = [{"role": "system", "content": system_role}]
-                    
-                    if existing_turns:
-                        for turn in existing_turns[-12:]:
-                            if turn.question:
-                                messages.append({"role": "assistant", "content": turn.question})
-                            if turn.answer:
-                                messages.append({"role": "user", "content": turn.answer})
-                    messages.append({"role": "user", "content": user_text})
-                    
                     full_reply = ""
+                    input_state = {"messages": [HumanMessage(content=user_text)]}
+                    
+                    # 第一次请求如果检查点里没有状态，手动把预置信息（系统词+历史）带上
+                    current_state = interview_agent.get_state(config)
+                    if not current_state.values.get("messages"):
+                        input_state = {"messages": initial_messages + [HumanMessage(content=user_text)]}
+                    
                     try:
-                        async for chunk in chat_service.chat_completion_stream_deltas(messages):
-                            if chunk.get("content"):
-                                full_reply += chunk["content"]
+                        async for msg_obj, metadata in interview_agent.astream(input_state, config=config, stream_mode="messages"):
+                            node = metadata.get("langgraph_node")
+                            if node in ("Tech_Expert", "HR_Expert") and msg_obj.content and not msg_obj.tool_calls:
+                                full_reply += msg_obj.content
                                 await websocket.send_json({
                                     "type": "event",
                                     "event": 550, # Interviewer Speech event
@@ -407,13 +413,11 @@ async def run_sandbox_voice_session(
                                 
                         await websocket.send_json({
                             "type": "event",
-                            "event": 550, # Interviewer Speech event
+                            "event": 550,
                             "text": full_reply,
                             "is_final": True,
                         })
                         on_text_message("interviewer", full_reply)
-                        
-                        existing_turns.append(InterviewTurn(question=full_reply, answer=user_text))
                         
                     except Exception as e:
                         logger.error(f"Chat service error: {e}")
@@ -508,7 +512,7 @@ async def voice_session_ws(
     service = VolcengineVoiceService()
     if not service.is_configured():
         logger.warning("Volcengine dialogue not configured, fallback to text-based LLM chat service")
-        await run_sandbox_voice_session(
+        await run_agentic_voice_session(
             websocket=websocket,
             session_id=session_id,
             db=db,
