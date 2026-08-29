@@ -113,6 +113,11 @@ def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeyp
     print_url = export_service._build_frontend_print_url(
         _sample_resume_content(),
         template="compact",
+        layout_config={
+            "moduleOrder": ["personal", "skills"],
+            "visibleModules": ["personal", "skills"],
+            "spacingScale": 0.5,
+        },
     )
     parsed = urlparse(print_url)
     payload = _decode_print_payload(print_url)
@@ -121,6 +126,11 @@ def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeyp
     assert parsed.netloc == "frontend.example.com"
     assert parsed.path == "/resume/print"
     assert payload["template"] == "compact"
+    assert payload["layoutConfig"] == {
+        "moduleOrder": ["personal", "skills"],
+        "visibleModules": ["personal", "skills"],
+        "spacingScale": 0.5,
+    }
     assert payload["content"]["personal_info"]["name"] == "张三"
     assert (
         payload["content"]["work_experience"][0]["summary"]

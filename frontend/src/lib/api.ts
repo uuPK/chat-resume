@@ -434,7 +434,8 @@ class ResumeAPI {
   static async exportResume(
     id: number,
     format: 'pdf' | 'docx' | 'html',
-    template: string = 'default'
+    template: string = 'default',
+    layoutConfig?: Record<string, unknown> | null,
   ): Promise<ExportResponse> {
     const response = await apiFetch(`/api/resumes/${id}/export`, {
       method: 'POST',
@@ -444,6 +445,7 @@ class ResumeAPI {
       body: JSON.stringify({
         format,
         template,
+        layout_config: layoutConfig,
       }),
     })
 

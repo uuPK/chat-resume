@@ -44,12 +44,19 @@ class ExportService:
         os.makedirs(self.export_dir, exist_ok=True)
 
     async def export_to_pdf(
-        self, resume_content: Dict[str, Any], template: str = "default"
+        self,
+        resume_content: Dict[str, Any],
+        template: str = "default",
+        layout_config: Dict[str, Any] | None = None,
     ) -> str:
         """使用前端打印页导出与预览一致的简历 PDF。"""
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
-        print_url = self._build_frontend_print_url(resume_content, template)
+        print_url = self._build_frontend_print_url(
+            resume_content,
+            template,
+            layout_config,
+        )
         if len(print_url) > MAX_FRONTEND_PRINT_URL_CHARS:
             logger.warning(
                 "pdf_export.frontend_print_url_too_large_reportlab_fallback",
@@ -520,13 +527,17 @@ class ExportService:
                 await browser.close()
 
     def _build_frontend_print_url(
-        self, resume_content: Dict[str, Any], template: str
+        self,
+        resume_content: Dict[str, Any],
+        template: str,
+        layout_config: Dict[str, Any] | None = None,
     ) -> str:
         """构建前端打印页地址。"""
 
         payload = {
             "content": resume_content,
             "template": template,
+            "layoutConfig": layout_config,
         }
         encoded = base64.urlsafe_b64encode(
             json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(

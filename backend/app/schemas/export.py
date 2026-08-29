@@ -5,7 +5,7 @@
 支持多种格式导出的数据验证和序列化。
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -13,6 +13,7 @@ from pydantic import BaseModel
 class ExportRequest(BaseModel):
     format: str  # pdf, docx, html
     template: Optional[str] = "default"
+    layout_config: dict[str, Any] | None = None
 
 
 class ExportResponse(BaseModel):

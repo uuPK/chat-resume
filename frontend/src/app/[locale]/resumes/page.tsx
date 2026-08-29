@@ -269,7 +269,12 @@ export default function ResumesPage() {
     try {
       const data = await resumeApi.getResume(id)
       const template = (data.layout_config as any)?.templateStyle || 'classic'
-      const result = await resumeApi.exportResume(id, 'pdf', template as string)
+      const result = await resumeApi.exportResume(
+        id,
+        'pdf',
+        template as string,
+        data.layout_config,
+      )
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       const downloadUrl = `${apiBaseUrl}${result.download_url}`
       const link = document.createElement('a')

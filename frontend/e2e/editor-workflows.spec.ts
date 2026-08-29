@@ -1045,8 +1045,10 @@ test.describe('编辑页工作流', () => {
 
   test('点击导出 PDF 后会真正触发下载并拿到 PDF 文件', async ({ page }, testInfo) => {
     await createResumeFromDashboard(page, uniqueEmail('pdfdownload'))
+    let exportRequestBody: Record<string, unknown> | undefined
 
     await page.route('**/api/resumes/*/export', async (route) => {
+      exportRequestBody = route.request().postDataJSON() as Record<string, unknown>
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -1077,6 +1079,13 @@ test.describe('编辑页工作流', () => {
     expect(download.suggestedFilename()).toBe('resume_test.pdf')
     const bytes = await fs.readFile(savedPath, 'utf8')
     expect(bytes.startsWith('%PDF-1.4')).toBeTruthy()
+    expect(exportRequestBody?.layout_config).toEqual({
+      density: 'normal',
+      moduleOrder: ['personal', 'summary', 'education', 'work', 'projects', 'skills'],
+      visibleModules: ['personal', 'summary', 'education', 'work', 'projects', 'skills'],
+      spacingScale: 1,
+      templateStyle: 'classic',
+    })
   })
 
   test('面试工作台只保留实时语音面试入口', async ({ page }) => {
