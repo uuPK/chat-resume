@@ -5,20 +5,27 @@
 支持PDF、Word、HTML等格式的导出功能。
 """
 
+import asyncio
 import base64
 import json
 import logging
 import os
+import sys
 import uuid
 from html import escape
 from typing import Any, Dict
 from urllib.parse import quote
 
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from reportlab.lib.enums import TA_CENTER
 from playwright.async_api import async_playwright
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.infra.config import settings
@@ -45,24 +52,34 @@ class ExportService:
         print_url = self._build_frontend_print_url(resume_content, template)
         if len(print_url) > MAX_FRONTEND_PRINT_URL_CHARS:
             logger.warning(
-                "pdf_export.frontend_print_url_too_large_fallback",
+                "pdf_export.frontend_print_url_too_large_reportlab_fallback",
                 extra={
                     "template": template,
                     "print_url_length": len(print_url),
                     "max_print_url_length": MAX_FRONTEND_PRINT_URL_CHARS,
                 },
             )
-            await self._render_pdf_from_html(
-                self._build_html_content(resume_content),
-                filepath,
+            self._render_resume_pdf_with_reportlab(resume_content, filepath)
+            return filepath
+
+        if self._requires_reportlab_pdf_fallback():
+            logger.warning(
+                "pdf_export.selector_event_loop_reportlab_fallback",
+                extra={"template": template},
             )
+            self._render_resume_pdf_with_reportlab(resume_content, filepath)
             return filepath
 
         try:
             await self._render_pdf_with_playwright(print_url, filepath)
-        except PlaywrightTimeoutError:
+        except (
+            PlaywrightTimeoutError,
+            PlaywrightError,
+            NotImplementedError,
+            OSError,
+        ):
             logger.warning(
-                "pdf_export.frontend_print_timeout_fallback",
+                "pdf_export.playwright_reportlab_fallback",
                 extra={
                     "template": template,
                     "print_url_length": len(print_url),
@@ -70,12 +87,155 @@ class ExportService:
                         json.dumps(resume_content, ensure_ascii=False).encode("utf-8")
                     ),
                 },
+                exc_info=True,
             )
-            await self._render_pdf_from_html(
-                self._build_html_content(resume_content),
-                filepath,
-            )
+            self._render_resume_pdf_with_reportlab(resume_content, filepath)
         return filepath
+
+    def _requires_reportlab_pdf_fallback(self) -> bool:
+        """用于判断当前事件循环是否无法启动 Playwright 子进程。"""
+
+        return sys.platform == "win32" and isinstance(
+            asyncio.get_running_loop(),
+            asyncio.SelectorEventLoop,
+        )
+
+    def _render_resume_pdf_with_reportlab(
+        self, resume_content: Dict[str, Any], filepath: str
+    ) -> None:
+        """用于在浏览器渲染不可用时生成可下载的简历 PDF。"""
+
+        font_name = "STSong-Light"
+        if font_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+
+        document = SimpleDocTemplate(
+            filepath,
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "ResumeFallbackTitle",
+            parent=styles["Heading1"],
+            fontName=font_name,
+            fontSize=20,
+            leading=26,
+            alignment=TA_CENTER,
+            spaceAfter=8,
+        )
+        heading_style = ParagraphStyle(
+            "ResumeFallbackHeading",
+            parent=styles["Heading2"],
+            fontName=font_name,
+            fontSize=13,
+            leading=18,
+            textColor=colors.HexColor("#1d4ed8"),
+            spaceBefore=10,
+            spaceAfter=5,
+        )
+        normal_style = ParagraphStyle(
+            "ResumeFallbackNormal",
+            parent=styles["Normal"],
+            fontName=font_name,
+            fontSize=10,
+            leading=16,
+        )
+        story = []
+        personal_info = resume_content.get("personal_info", {})
+        name = str(personal_info.get("name", "")).strip()
+        if name:
+            story.append(Paragraph(escape(name), title_style))
+
+        contact_info = self._build_contact_texts(personal_info)
+        if contact_info:
+            story.append(Paragraph(escape(" | ".join(contact_info)), normal_style))
+            story.append(Spacer(1, 6))
+
+        summary = str(
+            resume_content.get("summary", "")
+            or personal_info.get("summary", "")
+        ).strip()
+        if summary:
+            story.append(Paragraph("个人总结", heading_style))
+            story.append(Paragraph(escape(summary), normal_style))
+
+        education = resume_content.get("education", [])
+        if education:
+            story.append(Paragraph("教育背景", heading_style))
+            for item in education:
+                text = self._join_parts(
+                    [
+                        item.get("school", ""),
+                        item.get("degree", ""),
+                        item.get("major", ""),
+                        item.get("duration", ""),
+                    ]
+                )
+                if text:
+                    story.append(Paragraph(escape(text), normal_style))
+                for highlight in self._build_highlight_texts(
+                    item.get("highlights", [])
+                ):
+                    story.append(Paragraph(escape(highlight), normal_style))
+
+        work_experience = resume_content.get("work_experience", [])
+        if work_experience:
+            story.append(Paragraph("工作经验", heading_style))
+            for item in work_experience:
+                text = self._join_parts(
+                    [
+                        item.get("company", ""),
+                        item.get("position", ""),
+                        item.get("duration", ""),
+                    ]
+                )
+                if text:
+                    story.append(Paragraph(escape(text), normal_style))
+                description = str(
+                    item.get("summary", "") or item.get("description", "")
+                ).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(
+                    item.get("highlights", [])
+                ):
+                    story.append(Paragraph(escape(highlight), normal_style))
+                story.append(Spacer(1, 4))
+
+        skills = self._build_skill_texts(resume_content.get("skills", []))
+        if skills:
+            story.append(Paragraph("技能专长", heading_style))
+            story.append(Paragraph(escape(" | ".join(skills)), normal_style))
+
+        projects = resume_content.get("projects", [])
+        if projects:
+            story.append(Paragraph("项目经验", heading_style))
+            for item in projects:
+                text = self._join_parts(
+                    [
+                        item.get("name", ""),
+                        item.get("role", ""),
+                        item.get("duration", ""),
+                    ]
+                )
+                if text:
+                    story.append(Paragraph(escape(text), normal_style))
+                description = str(
+                    item.get("summary", "") or item.get("description", "")
+                ).strip()
+                if description:
+                    story.append(Paragraph(escape(description), normal_style))
+                for highlight in self._build_highlight_texts(
+                    item.get("highlights", []) or item.get("achievements", [])
+                ):
+                    story.append(Paragraph(escape(highlight), normal_style))
+                story.append(Spacer(1, 4))
+
+        document.build(story)
 
     def export_to_docx(
         self, resume_content: Dict[str, Any], template: str = "default"

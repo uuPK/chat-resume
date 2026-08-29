@@ -220,31 +220,44 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
     assert output_path.read_bytes().startswith(b"%PDF")
 
 
-def test_export_to_pdf_surfaces_playwright_failure(tmp_path, monkeypatch):
-    """用于验证浏览器渲染失败时导出接口会继续抛出原始异常。"""
+def test_export_to_pdf_falls_back_to_reportlab_when_playwright_is_unavailable(
+    tmp_path,
+    monkeypatch,
+):
+    """用于验证浏览器无法启动时仍可导出 PDF。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
     export_service = ExportService()
+    captured: dict[str, str] = {}
 
     async def _raise_render_error(self, print_url: str, filepath: str) -> None:
         """用于模拟 Playwright 启动失败的异常分支。"""
         del self, print_url, filepath
-        raise RuntimeError("Executable doesn't exist")
+        raise export_service_module.PlaywrightError("Executable doesn't exist")
+
+    def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
+        """用于捕获 ReportLab 兜底调用。"""
+        del self, resume_content
+        captured["filepath"] = filepath
+        Path(filepath).write_bytes(b"%PDF-reportlab-fallback")
 
     monkeypatch.setattr(
         ExportService,
         "_render_pdf_with_playwright",
         _raise_render_error,
     )
+    monkeypatch.setattr(
+        ExportService,
+        "_render_resume_pdf_with_reportlab",
+        _capture_reportlab_render,
+    )
 
-    try:
-        asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
-    except RuntimeError as exc:
-        assert "Executable doesn't exist" in str(exc)
-    else:
-        raise AssertionError("导出失败时应抛出 Playwright 原始异常")
+    filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
+
+    assert Path(filepath).read_bytes() == b"%PDF-reportlab-fallback"
+    assert captured["filepath"] == filepath
 
 
-def test_export_to_pdf_falls_back_to_server_html_when_print_page_times_out(
+def test_export_to_pdf_falls_back_to_reportlab_when_print_page_times_out(
     tmp_path,
     monkeypatch,
 ):
@@ -258,10 +271,10 @@ def test_export_to_pdf_falls_back_to_server_html_when_print_page_times_out(
         del self, print_url, filepath
         raise PlaywrightTimeoutError("Timeout 30000ms exceeded")
 
-    async def _capture_html_render(self, html: str, filepath: str) -> None:
-        """用于捕获 HTML 兜底渲染输入，避免真实启动浏览器。"""
+    def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
+        """用于捕获 ReportLab 兜底调用。"""
         del self
-        captured["html"] = html
+        captured["name"] = resume_content["personal_info"]["name"]
         captured["filepath"] = filepath
         Path(filepath).write_bytes(b"%PDF-fallback")
 
@@ -272,23 +285,22 @@ def test_export_to_pdf_falls_back_to_server_html_when_print_page_times_out(
     )
     monkeypatch.setattr(
         ExportService,
-        "_render_pdf_from_html",
-        _capture_html_render,
-        raising=False,
+        "_render_resume_pdf_with_reportlab",
+        _capture_reportlab_render,
     )
 
     filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
 
     assert Path(filepath).read_bytes() == b"%PDF-fallback"
     assert captured["filepath"] == filepath
-    assert "张三" in captured["html"]
+    assert captured["name"] == "张三"
 
 
-def test_export_to_pdf_uses_server_html_when_print_url_is_too_large(
+def test_export_to_pdf_uses_reportlab_when_print_url_is_too_large(
     tmp_path,
     monkeypatch,
 ):
-    """用于验证超长打印页地址会直接走服务端 HTML 兜底。"""
+    """用于验证超长打印页地址会直接走 ReportLab 兜底。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
     export_service = ExportService()
     large_content = _sample_resume_content()
@@ -305,10 +317,10 @@ def test_export_to_pdf_uses_server_html_when_print_url_is_too_large(
         del self, print_url, filepath
         raise AssertionError("超长 URL 不应进入前端打印页渲染")
 
-    async def _capture_html_render(self, html: str, filepath: str) -> None:
-        """用于捕获超长简历的 HTML 兜底渲染。"""
+    def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
+        """用于捕获超长简历的 ReportLab 兜底渲染。"""
         del self
-        captured["html"] = html
+        captured["project_name"] = resume_content["projects"][0]["name"]
         captured["filepath"] = filepath
         Path(filepath).write_bytes(b"%PDF-large-fallback")
 
@@ -319,16 +331,54 @@ def test_export_to_pdf_uses_server_html_when_print_url_is_too_large(
     )
     monkeypatch.setattr(
         ExportService,
-        "_render_pdf_from_html",
-        _capture_html_render,
-        raising=False,
+        "_render_resume_pdf_with_reportlab",
+        _capture_reportlab_render,
     )
 
     filepath = asyncio.run(export_service.export_to_pdf(large_content))
 
     assert Path(filepath).read_bytes() == b"%PDF-large-fallback"
     assert captured["filepath"] == filepath
-    assert "超长项目" in captured["html"]
+    assert captured["project_name"] == "超长项目"
+
+
+def test_export_to_pdf_uses_reportlab_for_selector_event_loop(tmp_path, monkeypatch):
+    """用于验证热重载的 Windows 事件循环会避开 Playwright。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    export_service = ExportService()
+    captured: dict[str, str] = {}
+
+    async def _fail_frontend_render(self, print_url: str, filepath: str) -> None:
+        """用于确保 Selector 事件循环不会尝试启动浏览器。"""
+        del self, print_url, filepath
+        raise AssertionError("Selector 事件循环不应启动 Playwright")
+
+    def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
+        """用于捕获 Selector 事件循环下的 ReportLab 导出。"""
+        del self, resume_content
+        captured["filepath"] = filepath
+        Path(filepath).write_bytes(b"%PDF-selector-fallback")
+
+    monkeypatch.setattr(
+        ExportService,
+        "_requires_reportlab_pdf_fallback",
+        lambda self: True,
+    )
+    monkeypatch.setattr(
+        ExportService,
+        "_render_pdf_with_playwright",
+        _fail_frontend_render,
+    )
+    monkeypatch.setattr(
+        ExportService,
+        "_render_resume_pdf_with_reportlab",
+        _capture_reportlab_render,
+    )
+
+    filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
+
+    assert Path(filepath).read_bytes() == b"%PDF-selector-fallback"
+    assert captured["filepath"] == filepath
 
 
 def test_get_file_url_returns_signed_download_path(tmp_path, monkeypatch):
