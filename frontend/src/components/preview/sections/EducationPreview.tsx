@@ -82,7 +82,7 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
 
       {highlights.length > 0 && (
         <ul
-          className="list-disc list-inside text-sm text-gray-600"
+          className="list-disc list-inside text-sm text-gray-800"
           style={{
             marginTop: 'calc(var(--spacing-scale, 1) * 4px)',
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'

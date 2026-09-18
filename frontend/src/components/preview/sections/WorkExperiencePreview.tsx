@@ -86,7 +86,7 @@ function WorkExperienceItem({ work, lineIndex, templateStyle = 'classic' }: { wo
 
       {highlights.length > 0 && (
         <div
-          className="text-sm text-gray-600"
+          className="text-sm text-gray-800"
           style={{
             marginTop: 'calc(var(--spacing-scale, 1) * 8px)',
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'

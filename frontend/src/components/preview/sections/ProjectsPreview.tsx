@@ -41,6 +41,27 @@ const DemoIcon = () => (
   </span>
 )
 
+// 将项目链接放在标题内，使用短标签避免长网址挤占标题空间。
+function ProjectLinks({ project }: { project: Project }) {
+  const t = useTranslations('resume.preview')
+  if (!project.github_url && !project.demo_url) return null
+
+  return (
+    <span className="inline-flex items-center gap-3 text-sm text-blue-600 font-normal shrink-0">
+      {project.github_url && (
+        <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center whitespace-nowrap hover:underline">
+          <GithubIcon />{t('github')}
+        </a>
+      )}
+      {project.demo_url && (
+        <a href={project.demo_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center whitespace-nowrap hover:underline">
+          <DemoIcon />{t('demo')}
+        </a>
+      )}
+    </span>
+  )
+}
+
 // 单个项目项组件
 function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { project: Project; lineIndex: number; templateStyle?: ResumeTemplateStyle }) {
   const t = useTranslations('resume.preview')
@@ -54,27 +75,13 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-emerald-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 18px)' }}>
         <div className="flex items-baseline justify-between gap-4 text-sm font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <div className="min-w-0 flex flex-wrap items-baseline gap-x-1">
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span>{project.name}</span>
             {project.role && <span> - {project.role}</span>}
+            <ProjectLinks project={project} />
           </div>
           {project.duration && <span className="resume-emerald-subtle shrink-0 font-normal">{project.duration}</span>}
         </div>
-
-        {(project.github_url || project.demo_url) && (
-          <div className="resume-emerald-links text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
-            {project.demo_url && (
-              <span>
-                Demo: <a href={project.demo_url} target="_blank" rel="noopener noreferrer">{project.demo_url}</a>
-              </span>
-            )}
-            {project.github_url && (
-              <span>
-                GitHub: <a href={project.github_url} target="_blank" rel="noopener noreferrer">{project.github_url}</a>
-              </span>
-            )}
-          </div>
-        )}
 
         {project.overview && (
           <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
@@ -97,16 +104,12 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
     return (
       <div data-line-index={lineIndex} className="relative print:break-inside-avoid resume-formal-item" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
         <div className="flex items-baseline justify-between gap-4 text-sm text-gray-900 font-semibold" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <span className="min-w-0">{[project.name, project.role].filter(Boolean).join(' | ')}</span>
+          <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span>{[project.name, project.role].filter(Boolean).join(' | ')}</span>
+            <ProjectLinks project={project} />
+          </div>
           {project.duration && <span className="shrink-0 font-normal">{project.duration}</span>}
         </div>
-
-        {(project.demo_url || project.github_url) && (
-          <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18, marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>
-            {project.demo_url && <li>Demo: {project.demo_url}</li>}
-            {project.github_url && <li>GitHub: {project.github_url}</li>}
-          </ul>
-        )}
 
         {project.overview && (
           <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: '1.72' }}>
@@ -128,7 +131,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
   return (
     <div data-line-index={lineIndex} className="relative print:break-inside-avoid" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 16px)' }}>
       <div className="flex justify-between items-start" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-        <div className="flex-1 flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-gray-900 text-base">
             {project.name}
           </h3>
@@ -138,42 +141,16 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
               <span className="text-sm text-gray-600">{project.role}</span>
             </>
           )}
+          <ProjectLinks project={project} />
         </div>
         <div className="text-sm text-gray-600 ml-4 whitespace-nowrap">
           {project.duration}
         </div>
       </div>
 
-      {(project.github_url || project.demo_url) && (
-        <div className="flex gap-4 text-sm text-blue-600" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          {project.github_url && (
-            <a
-              href={project.github_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 leading-none hover:underline"
-            >
-              <GithubIcon />
-              <span className="inline-block leading-none">{t('github')}</span>
-            </a>
-          )}
-          {project.demo_url && (
-            <a
-              href={project.demo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 leading-none hover:underline"
-            >
-              <DemoIcon />
-              <span className="inline-block leading-none">{t('demo')}</span>
-            </a>
-          )}
-        </div>
-      )}
-
       {project.overview && (
         <p
-          className="text-sm text-gray-600"
+          className="text-sm text-gray-800"
           style={{
             marginBottom: 'calc(var(--spacing-scale, 1) * 8px)',
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
@@ -185,11 +162,9 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
       {highlights.length > 0 && (
         <div style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)' }}>
-          <span className="text-sm font-medium text-gray-700">{t('keyPoints')}</span>
           <ul
-            className="list-disc list-inside text-sm text-gray-600"
+            className="list-disc list-inside text-sm text-gray-800"
             style={{
-              marginTop: 'calc(var(--spacing-scale, 1) * 4px)',
               lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
             }}
           >
