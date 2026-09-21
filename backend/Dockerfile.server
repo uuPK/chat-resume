@@ -24,7 +24,7 @@ RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
-    --index-url https://mirrors.aliyun.com/pypi/simple/ uv
+    --index-url https://mirrors.aliyun.com/pypi/simple/ uv==0.11.27
 
 # 按仓库锁文件安装运行依赖，不安装开发工具。
 COPY pyproject.toml uv.lock ./
