@@ -29,18 +29,18 @@ RUN pip install --no-cache-dir \
 # 按仓库锁文件安装运行依赖，不安装开发工具。
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project \
-    --python /usr/local/bin/python
+    env -u UV_DEFAULT_INDEX uv export --locked --no-dev --no-hashes \
+    --no-emit-project --output-file /tmp/requirements.txt \
+    && uv venv --python /usr/local/bin/python .venv \
+    && uv pip install --python .venv/bin/python \
+       --default-index https://mirrors.aliyun.com/pypi/simple/ \
+       --requirements /tmp/requirements.txt
 
 # 安装 PDF 导出需要的浏览器及系统依赖。
 RUN python -m playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable \
-    --python /usr/local/bin/python \
-    && uv cache clean
 
 # 使用普通用户运行后端。
 RUN useradd --create-home --uid 10001 appuser \
