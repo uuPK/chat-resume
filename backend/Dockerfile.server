@@ -10,7 +10,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_CONCURRENT_INSTALLS=2 \
     UV_HTTP_TIMEOUT=120 \
     UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/ \
-    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
     PATH="/app/.venv/bin:$PATH"
 
@@ -24,7 +23,8 @@ RUN sed -i 's|http://deb.debian.org|https://mirrors.aliyun.com|g' \
        build-essential libpq-dev ca-certificates fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir \
+    --index-url https://mirrors.aliyun.com/pypi/simple/ uv
 
 # 按仓库锁文件安装运行依赖，不安装开发工具。
 COPY pyproject.toml uv.lock ./
