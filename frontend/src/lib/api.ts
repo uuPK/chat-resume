@@ -232,12 +232,6 @@ interface InterviewReportProgressEvent {
   session?: InterviewSession
 }
 
-interface DigitalHumanConversation {
-  provider: 'volcengine'
-  session_id: string
-  status: string
-}
-
 interface PayPalSubscriptionCheckout {
   provider: 'paypal'
   subscription_id: string
@@ -566,23 +560,6 @@ class ResumeAPI {
   }
 }
 
-class DigitalHumanAPI {
-  /**
-   * 为实时语音面试创建数字人会话。
-   */
-  // 用于创建conversation。
-  static async createConversation(interviewSessionId: number): Promise<DigitalHumanConversation> {
-    const response = await fetchWithTimeout('/api/digital-human/conversations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ interview_session_id: interviewSessionId }),
-    })
-    return handleApiResponse<DigitalHumanConversation>(response)
-  }
-}
-
 class BillingAPI {
   // 用于获取状态。
   static async getStatus(): Promise<BillingStatus> {
@@ -740,7 +717,6 @@ export const jobsApi = {
 // 导出API实例
 export const resumeApi = ResumeAPI
 export const chatHistoryApi = ChatHistoryAPI
-export const digitalHumanApi = DigitalHumanAPI
 export const billingApi = BillingAPI
 
 // ── 企业端 API ──────────────────────────────────────────────────────────────
@@ -896,7 +872,6 @@ export const learningApi = {
 // 导出类型
 export type {
   BillingStatus,
-  DigitalHumanConversation,
   PayPalPlan,
   PayPalSubscriptionCheckout,
   ResumeUploadJobStatus,

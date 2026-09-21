@@ -15,6 +15,7 @@ from typing import Any, Dict
 
 import httpx
 from dotenv import load_dotenv
+from app.services.llm.compatible_llm import completion_options
 
 from ..domain.file_service import FileService
 
@@ -144,6 +145,7 @@ class AIResumeParser:
                             "temperature": 0.1,
                             "max_tokens": 8000,
                             "stream": False,
+                            **completion_options(self.api_base),
                         },
                     )
 

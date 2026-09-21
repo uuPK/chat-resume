@@ -134,6 +134,11 @@ if ((Get-EnvValue $BackendEnv "SECRET_KEY") -eq "your-secret-key-here") {
 Set-EnvValue $BackendEnv "FRONTEND_URL" $FrontendUrl
 Set-EnvValue $BackendEnv "BACKEND_CORS_ORIGINS" "$FrontendUrl,http://localhost:3000"
 Set-EnvValue $BackendEnv "GOOGLE_OAUTH_REDIRECT_URI" "$BackendUrl/api/auth/google/callback"
+Set-EnvValue $BackendEnv "RAG_ENABLED" "false"
+Set-EnvValue $BackendEnv "RAG_EMBED_MODEL" "embedding-3"
+Set-EnvValue $BackendEnv "RAG_EMBED_DIM" "1024"
+Set-EnvValue $BackendEnv "MILVUS_URI" "data/milvus/question_bank.db"
+Set-EnvValue $BackendEnv "MILVUS_COLLECTION" "question_bank_vectors"
 
 $FrontendEnv = Join-Path $FrontendDir ".env.local"
 $FrontendEnvExample = Join-Path $FrontendDir ".env.example"

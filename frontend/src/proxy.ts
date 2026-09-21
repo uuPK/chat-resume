@@ -13,7 +13,7 @@ const intlProxy = createIntlProxy(routing)
 // 这里通过后端 /auth/me 获取当前用户信息，包括角色。
 async function getValidUser(accessToken: string): Promise<any | null> {
   try {
-    const response = await fetch(apiUrl('/api/auth/me'), {
+    const response = await fetch(apiUrl('/api/auth/me', process.env.INTERNAL_API_URL), {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
     })
@@ -32,8 +32,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const { pathname, search } = request.nextUrl
-  const accessToken = request.cookies.get('access_token')?.value
-  const refreshToken = request.cookies.get('refresh_token')?.value
+  const accessToken = request.cookies.get(process.env.ACCESS_TOKEN_COOKIE_NAME || 'access_token')?.value
+  const refreshToken = request.cookies.get(process.env.REFRESH_TOKEN_COOKIE_NAME || 'refresh_token')?.value
   const locale = getPathLocale(pathname)
   const pathnameWithoutLocale = stripLocalePrefix(pathname)
 
@@ -81,7 +81,7 @@ export async function proxy(request: NextRequest) {
     const nextPath = `${pathnameWithoutLocale}${search}`
     loginUrl.searchParams.set('next', nextPath)
     const response = NextResponse.redirect(loginUrl)
-    response.cookies.delete('access_token')
+    response.cookies.delete(process.env.ACCESS_TOKEN_COOKIE_NAME || 'access_token')
     return response
   }
 

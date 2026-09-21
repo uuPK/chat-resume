@@ -182,25 +182,6 @@ class Settings(BaseSettings):
     # volcano_mega = 大模型语音合成；volcano_tts = 标准语音合成
     VOLCENGINE_TTS_CLUSTER: str = os.getenv("VOLCENGINE_TTS_CLUSTER", "")
 
-    # 火山引擎端到端实时语音大模型
-    VOLCENGINE_DIALOGUE_APP_ID: str = os.getenv("VOLCENGINE_DIALOGUE_APP_ID", "")
-    VOLCENGINE_DIALOGUE_APP_KEY: str = os.getenv("VOLCENGINE_DIALOGUE_APP_KEY", "")
-    VOLCENGINE_DIALOGUE_ACCESS_KEY: str = os.getenv(
-        "VOLCENGINE_DIALOGUE_ACCESS_KEY", ""
-    )
-    VOLCENGINE_DIALOGUE_RESOURCE_ID: str = os.getenv(
-        "VOLCENGINE_DIALOGUE_RESOURCE_ID", "volc.speech.dialog"
-    )
-    VOLCENGINE_DIALOGUE_SPEAKER_ID: str = os.getenv(
-        "VOLCENGINE_DIALOGUE_SPEAKER_ID", ""
-    )
-    VOLCENGINE_DIALOGUE_WS_URL: str = os.getenv(
-        "VOLCENGINE_DIALOGUE_WS_URL",
-        "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
-    )
-
-
-
     # File upload
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     USER_MEMORY_DIR: str = os.getenv("USER_MEMORY_DIR", "data/memory/users")

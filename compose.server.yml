@@ -1,0 +1,105 @@
+name: chat-resume-server
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chat_resume
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请填写数据库密码}
+      POSTGRES_DB: chat_resume
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat_resume -d chat_resume"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    logging: *default-logging
+
+  backend:
+    image: chat-resume-backend:local
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    shm_size: "256mb"
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql://chat_resume:${POSTGRES_PASSWORD:?请填写数据库密码}@postgres:5432/chat_resume
+      SECRET_KEY: ${SECRET_KEY:?请填写登录签名密钥}
+      # One DeepSeek credential is shared by all resume/interview text clients.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?请填写DeepSeek密钥}
+      DEEPSEEK_MODEL: deepseek-flash
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_BASE: https://api.deepseek.com
+      OPENAI_MODEL: deepseek-flash
+      OPENAI_MODEL_REVIEWER: deepseek-flash
+      OPENAI_MODEL_MEMORY: deepseek-flash
+      # Legacy names are used by the parser and interview-planning clients.
+      # They call DeepSeek directly, not OpenRouter.
+      OPENROUTER_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENROUTER_API_BASE: https://api.deepseek.com
+      OPENROUTER_MODEL: deepseek-flash
+      OPENROUTER_RESUME_PARSER_MODEL: deepseek-flash
+      OPENROUTER_JOB_MATCH_MODEL: deepseek-flash
+      OPENROUTER_VISION_MODEL: deepseek-flash
+      OPENROUTER_VISION_FALLBACK_MODELS: deepseek-flash
+      RAG_ENABLED: ${RAG_ENABLED:-false}
+      RAG_EMBED_API_KEY: ${RAG_EMBED_API_KEY:-}
+      RAG_EMBED_MODEL: embedding-3
+      RAG_EMBED_DIM: "1024"
+      MILVUS_URI: /app/data/milvus/question_bank.db
+      MILVUS_COLLECTION: question_bank_vectors
+
+      # SSH 隧道测试时的浏览器来源。
+      BACKEND_CORS_ORIGINS: '["http://localhost:13000"]'
+      AUTH_COOKIE_SECURE: "false"
+      AUTH_COOKIE_SAMESITE: lax
+      AUTH_COOKIE_DOMAIN: ""
+      ACCESS_TOKEN_COOKIE_NAME: server_access_token
+      REFRESH_TOKEN_COOKIE_NAME: server_refresh_token
+
+      # 容器内访问前端打印页，供 PDF 导出使用。
+      FRONTEND_URL: http://frontend:3000
+      UPLOAD_DIR: /app/uploads
+      BACKEND_LOG_FILE: /app/logs/backend.log
+      LOG_LEVEL: INFO
+      AGENT_TRACE_LOG_ENABLED: "false"
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+    ports:
+      - "127.0.0.1:18001:8000"
+    volumes:
+      - uploads_data:/app/uploads
+      - backend_logs:/app/logs
+      - milvus_data:/app/data/milvus
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+
+  frontend:
+    image: chat-resume-frontend:local
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    environment:
+      INTERNAL_API_URL: http://backend:8000
+      ACCESS_TOKEN_COOKIE_NAME: server_access_token
+      REFRESH_TOKEN_COOKIE_NAME: server_refresh_token
+    ports:
+      - "127.0.0.1:13000:3000"
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  uploads_data:
+  backend_logs:
+  milvus_data:

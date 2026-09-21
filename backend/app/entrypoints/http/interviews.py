@@ -31,7 +31,7 @@ from app.services.interview.session_service import (
     end_interview_session,
     get_session_for_user,
     list_interview_sessions,
-    record_voice_interview_message,
+    record_realtime_interview_message,
     retry_interview_session,
 )
 
@@ -192,7 +192,7 @@ async def record_interview_message(
         session = get_session_for_user(db, session_id, current_user["id"])
     except ServiceError as exc:
         _raise_service_http_error(exc)
-    record_voice_interview_message(
+    record_realtime_interview_message(
         db=db,
         session_id=session_id,
         role=request.role,

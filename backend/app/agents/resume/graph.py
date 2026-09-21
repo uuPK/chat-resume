@@ -9,7 +9,7 @@ from typing import Annotated, TypedDict, Any, Sequence, Optional
 
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import AnyMessage, BaseMessage, SystemMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
+from app.services.llm.compatible_llm import resume_chat_model
 
 from app.agents.resume.mcp_server import list_tools, call_tool
 
@@ -38,7 +38,7 @@ async def editor_node(state: ResumeState) -> dict[str, Any]:
     
     # 切换为默认的 gpt-4o，因为某些第三方 DeepSeek 代理无法正确解析 OpenAI 格式的 tool_calls
     model_name = os.environ.get("OPENAI_MODEL", "deepseek-v4-pro")
-    llm = ChatOpenAI(model=model_name, temperature=0.3, streaming=True)
+    llm = resume_chat_model(model=model_name, temperature=0.3, streaming=True)
     
     mcp_tools = await list_tools()
     llm_with_tools = llm.bind_tools([
@@ -174,7 +174,7 @@ async def reviewer_node(state: ResumeState) -> dict[str, Any]:
     
     # 切换为标准的审查小模型
     model_name = os.environ.get("OPENAI_MODEL_REVIEWER", "deepseek-v4-flash")
-    llm = ChatOpenAI(model=model_name, temperature=0.0)
+    llm = resume_chat_model(model=model_name, temperature=0.0)
     
     # 调整后的打分清单，支持正常对话
     prompt = """
@@ -218,7 +218,7 @@ async def extract_memory_async(messages: list[AnyMessage], current_preferences: 
         return None
 
     model_name = os.environ.get("OPENAI_MODEL_MEMORY", "deepseek-v4-flash")
-    llm = ChatOpenAI(model=model_name, temperature=0.1)
+    llm = resume_chat_model(model=model_name, temperature=0.1)
     
     system_prompt = f"""
 你是用户偏好记忆分析引擎。请精读以下对话，挖掘出用户在职业规划和简历编写上的【底层逻辑与偏好约束】。

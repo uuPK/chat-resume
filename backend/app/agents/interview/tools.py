@@ -34,7 +34,7 @@ def search_question_bank(query: str) -> str:
     【核心专业知识库检索工具】
     当你作为技术面试官，需要针对候选人的技术栈（如 "React 性能优化", "Redis 分布式锁"）
     寻找高难度、专业的标准面试题和考核点时，请调用此工具。
-    它会连接后端的 pgvector 向量数据库，为您提供业界标准的八股文和标准答案参考。
+    它会连接后端的 Milvus 向量数据库，为您提供业界标准的八股文和标准答案参考。
     """
     try:
         # 因为原有的检索器是异步函数，在同步工具中我们需要用 run_coroutine_threadsafe 或 asyncio.run 包装

@@ -222,18 +222,6 @@ async function mockInterviewApis(page: Page) {
   await page.route('**/api/resumes/123', async route => {
     await route.fulfill({ json: resume })
   })
-  await page.route('**/api/digital-human/conversations', async route => {
-    await route.fulfill({
-      json: {
-        provider: 'volcengine',
-        session_id: 'conv-456',
-        status: 'created',
-      },
-    })
-  })
-  await page.route('**/api/digital-human/conversations/end', async route => {
-    await route.fulfill({ json: { status: 'ended' } })
-  })
 }
 
 test('结束面试会把 session 标记为 completed 并返回面试列表', async ({ page }) => {
@@ -388,7 +376,7 @@ test('语音面试候选人回答时不隐藏面试官实时消息', async ({ pa
       constructor(url: string | URL, protocols?: string | string[]) {
         super()
         const targetUrl = String(url)
-        if (!targetUrl.includes('/api/digital-human/voice-session/')) {
+        if (!targetUrl.includes('/api/interviews/456/realtime')) {
           return new NativeWebSocket(url, protocols)
         }
         window.setTimeout(() => {

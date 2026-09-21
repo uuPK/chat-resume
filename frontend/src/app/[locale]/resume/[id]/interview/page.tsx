@@ -13,8 +13,8 @@ import {
   Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth'
-import { digitalHumanApi, resumeApi } from '@/lib/api'
-import type { DigitalHumanConversation, InterviewSession, Resume } from '@/lib/api'
+import { resumeApi } from '@/lib/api'
+import type { InterviewSession, Resume } from '@/lib/api'
 import { useInterviewSession } from '@/hooks/useInterviewSession'
 import { useTranslations } from 'next-intl'
 import { apiFetch, handleApiResponse } from '@/lib/httpClient'
@@ -50,9 +50,8 @@ function withoutLiveMessage(
 
 
 interface VoicePanelProps {
-  sessionId: string | undefined
+  sessionId: number | undefined
   interviewSession?: InterviewSession | null
-  onPersistMessage?: (role: ConversationMessage['role'], content: string) => void
   autoStart?: boolean
   onStatusChange?: (status: VoiceStatus) => void
   canEndInterview?: boolean
@@ -65,7 +64,6 @@ interface VoicePanelProps {
 function VoicePanel({
   sessionId,
   interviewSession,
-  onPersistMessage,
   autoStart = false,
   onStatusChange,
   canEndInterview = false,
@@ -131,8 +129,7 @@ function VoicePanel({
       ]
     })
     setTurnStatus(role === 'interviewer' ? 'user' : 'interviewer')
-    onPersistMessage?.(role, text)
-  }, [isNoiseTranscript, normalizeTranscriptText, onPersistMessage])
+  }, [isNoiseTranscript, normalizeTranscriptText])
 
   const clearCandidateFinalizeTimer = useCallback(() => {
     if (candidateFinalizeTimerRef.current) {
@@ -334,7 +331,7 @@ function VoicePanel({
       // 1) 先通过 HTTP 请求获取 WebSocket 临时鉴权 Token，解决跨域/跨端口 HttpOnly Cookie 丢失问题
       let tokenParam = ''
       try {
-        const tokenRes = await apiFetch(`/api/digital-human/voice-session/${sessionId}/token`, {
+        const tokenRes = await apiFetch(`/api/interviews/${sessionId}/realtime-token`, {
           method: 'POST'
         })
         const tokenData = await handleApiResponse<{ token: string }>(tokenRes)
@@ -345,7 +342,7 @@ function VoicePanel({
         console.warn('Failed to fetch websocket temp token, trying direct cookie connection', err)
       }
 
-      const wsUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/api/digital-human/voice-session/${sessionId}${tokenParam}`
+      const wsUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/api/interviews/${sessionId}/realtime${tokenParam}`
       const ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws
@@ -1246,7 +1243,6 @@ export default function InterviewPage() {
   const [mounted, setMounted] = useState(false)
   const [resume, setResume] = useState<Resume | null>(null)
   const [resumeLoading, setResumeLoading] = useState(true)
-  const [digitalHuman, setDigitalHuman] = useState<DigitalHumanConversation | null>(null)
   const [isRedirectingAfterEnd, setIsRedirectingAfterEnd] = useState(false)
 
   const {
@@ -1272,16 +1268,6 @@ export default function InterviewPage() {
   }, [endInterview, router])
 
 
-  const handlePersistMessage = useCallback((
-    role: ConversationMessage['role'],
-    content: string,
-  ) => {
-    if (!session?.id) return
-    resumeApi
-      .recordInterviewMessage(session.id, { role, text: content })
-      .catch(() => {})
-  }, [session?.id])
-
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
@@ -1293,16 +1279,6 @@ export default function InterviewPage() {
       .catch(() => setResume(null))
       .finally(() => setResumeLoading(false))
   }, [resumeId])
-
-  useEffect(() => {
-    if (!session?.id || session.status === 'completed') return
-    if (digitalHuman?.session_id) return
-    digitalHumanApi
-      .createConversation(session.id)
-      .then(setDigitalHuman)
-      .catch(() => {})
-  }, [digitalHuman?.session_id, session?.id, session?.status])
-
 
   if (!mounted || authLoading || resumeLoading) {
     return (
@@ -1392,9 +1368,8 @@ export default function InterviewPage() {
           <CompletedInterviewReview session={session} />
         ) : (
           <VoicePanel
-            sessionId={digitalHuman?.session_id}
+            sessionId={session?.id}
             interviewSession={session}
-            onPersistMessage={handlePersistMessage}
             autoStart={shouldAutoStartVoice}
             canEndInterview={canEndInterview}
             isEndingInterview={isSending}

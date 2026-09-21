@@ -47,7 +47,7 @@ function getJobApplicationPayload(resume: InterviewResumeSource) {
 
 
 /**
- * 统一加载已有 session 或创建新 session。实时语音面试由 digital-human
+ * 统一加载已有 session 或创建新 session。实时面试由 interview
  * WebSocket 驱动，不再提前生成结构化题目。
  */
 // 用于加载语音面试会话。

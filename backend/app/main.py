@@ -64,7 +64,6 @@ _PROTECTED_API_PREFIXES = (
     f"{settings.API_STR}/users",
     f"{settings.API_STR}/tts",
     f"{settings.API_STR}/asr",
-    f"{settings.API_STR}/digital-human",
     f"{settings.API_STR}/billing",
     f"{settings.API_STR}/enterprise",
     f"{settings.API_STR}/school",

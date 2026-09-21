@@ -1,3 +1,6 @@
+# Server-only credentials must never be committed.
+/.env.server
+
 # Dependencies
 node_modules/
 venv/

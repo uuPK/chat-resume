@@ -275,14 +275,14 @@ def end_interview_session(
     return session
 
 
-def record_voice_interview_message(
+def record_realtime_interview_message(
     *,
     db: Session,
     session_id: int,
     role: str,
     text: str,
 ) -> InterviewTurn | None:
-    """把实时语音面试文本落到 interview_turns。
+    """Persist a finalized realtime interview message to interview_turns.
 
     面试官消息作为 question，候选人消息作为最近一轮 question 的 answer。
     """
@@ -322,7 +322,7 @@ def record_voice_interview_message(
             turn_index=next_turn_index,
             round_index=session.current_round_index,
             question=content,
-            question_type="voice",
+            question_type="realtime",
             status="waiting_user_answer",
             asked_at=now(),
         )
@@ -342,7 +342,7 @@ def record_voice_interview_message(
                 turn_index=0,
                 round_index=session.current_round_index,
                 question="语音面试回答",
-                question_type="voice",
+                question_type="realtime",
                 status="answered",
                 asked_at=now(),
             )

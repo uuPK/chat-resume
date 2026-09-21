@@ -47,6 +47,26 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1 -SkipInstall
 
 数据库表结构由启动脚本自动执行 Alembic 迁移创建。换电脑运行时会自动创建同样的表结构；业务数据不会自动带过去，如需迁移数据，先在旧电脑导出，再在新电脑导入。
 
+PostgreSQL 只保存业务数据。Linux/Docker 部署使用 Milvus Lite，默认持久化到
+`backend/data/milvus/question_bank.db`。在 `backend/.env` 中填写智谱密钥、把
+`RAG_ENABLED` 改为 `true` 后首次导入：
+
+```powershell
+cd backend
+$env:UV_CACHE_DIR = "..\.uv-cache"
+uv run python -m app.services.rag.ingestion --reset
+```
+
+所需配置为 `RAG_EMBED_API_KEY`、`RAG_EMBED_MODEL=embedding-3`、
+`RAG_EMBED_DIM=1024`、`MILVUS_URI` 和 `MILVUS_COLLECTION`。导入与查询必须使用
+相同的模型和维度。
+
+Milvus Lite 不支持原生 Windows。Windows 开发环境可保持 `RAG_ENABLED=false`，
+或把 `MILVUS_URI` 指向 WSL、Docker 或远程 Milvus 服务。
+
+服务器配置、导入和备份步骤见
+[Milvus 与智谱 Embedding-3 部署说明](docs/MILVUS_ZHIPU_DEPLOYMENT.md)。
+
 导出：
 
 ```powershell

@@ -7,6 +7,10 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 const nextConfig = {
   // 开发态单独使用目录，避免 next build 覆盖正在运行的 next dev 产物。
   distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
+  // Keep build worker concurrency low on small deployment hosts.
+  experimental: {
+    cpus: 1,
+  },
   turbopack: {
     root: __dirname,
   },

@@ -42,6 +42,8 @@ ${jd_text}
 ${rag_questions}
 
 {% endif %}{% if interview_history %}已发生对话：
+${interview_history}
+
 
 请基于以上历史继续，避免重复已经问过的问题。
 {% endif -%}

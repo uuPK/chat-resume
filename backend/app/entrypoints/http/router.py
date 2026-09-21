@@ -11,8 +11,8 @@ from app.entrypoints.http import (
     asr,
     auth,
     billing,
-    digital_human,
     export,
+    interview_realtime,
     interviews,
     resumes,
     tts,
@@ -38,11 +38,13 @@ api_router.include_router(export.router, prefix="/resumes", tags=["export"])
 api_router.include_router(jobs.router, prefix="/resumes", tags=["jobs"])
 api_router.include_router(chat.router, prefix="/ai", tags=["chat"])
 api_router.include_router(interviews.router, prefix="/interviews", tags=["interviews"])
+api_router.include_router(
+    interview_realtime.router,
+    prefix="/interviews",
+    tags=["interviews"],
+)
 api_router.include_router(tts.router, prefix="/tts", tags=["tts"])
 api_router.include_router(asr.router, prefix="/asr", tags=["asr"])
-api_router.include_router(
-    digital_human.router, prefix="/digital-human", tags=["digital-human"]
-)
 api_router.include_router(enterprise.router)
 api_router.include_router(school.router)
 from app.entrypoints.http import learning

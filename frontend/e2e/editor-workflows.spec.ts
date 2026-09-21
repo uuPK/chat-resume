@@ -1137,18 +1137,6 @@ test.describe('编辑页工作流', () => {
         }),
       })
     })
-    await page.route('**/api/digital-human/conversations', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          provider: 'volcengine',
-          session_id: '1',
-          status: 'ready',
-        }),
-      })
-    })
-
     await page.goto(`/resume/${resumeId}/interview`)
     await expect(page.getByText('模拟面试 · 测试公司 · 前端工程师')).toBeVisible()
     await expect(page.getByRole('button', { name: /开始面试|继续面试|重试连接|挂断/ })).toBeVisible()

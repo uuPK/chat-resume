@@ -1,30 +1,28 @@
-"""Import interview question JSONL files into a pgvector-backed LlamaIndex index."""
+"""Import interview question JSONL files into a Milvus-backed index."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.vector_stores.postgres import PGVectorStore
-from sqlalchemy import create_engine, text
+from llama_index.core.embeddings import BaseEmbedding
+from llama_index.vector_stores.milvus import MilvusVectorStore
+from pydantic import Field, PrivateAttr
 from dotenv import load_dotenv
+from zai import ZhipuAiClient
 
 load_dotenv()
 
-from app.infra.config import settings
-
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 DEFAULT_QUESTION_BANK_DIR = BACKEND_DIR / "data" / "question_bank"
-DEFAULT_TABLE_NAME = "question_bank_vectors"
-DEFAULT_EMBED_MODEL = "text-embedding-3-small"
-DEFAULT_EMBED_DIM = 1536
-SAFE_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+DEFAULT_COLLECTION_NAME = "question_bank_vectors"
+DEFAULT_EMBED_MODEL = "embedding-3"
+DEFAULT_EMBED_DIM = 1024
+DEFAULT_MILVUS_URI = str(BACKEND_DIR / "data" / "milvus" / "question_bank.db")
 
 
 def main() -> None:
@@ -37,21 +35,18 @@ def main() -> None:
         print("Dry run only. No embeddings were created and nothing was written.")
         return
 
-    ensure_postgres_url(settings.DATABASE_URL)
-    ensure_vector_extension(settings.DATABASE_URL)
-    if args.reset:
-        drop_vector_table(settings.DATABASE_URL, args.table_name)
-
     vector_store = build_vector_store(
-        database_url=settings.DATABASE_URL,
-        table_name=args.table_name,
+        uri=args.milvus_uri,
+        token=args.milvus_token,
+        collection_name=args.collection_name,
         embed_dim=args.embed_dim,
-        hybrid_search=args.hybrid,
+        overwrite=args.reset,
     )
     embed_model = build_embed_model(
         model=args.embed_model,
         embed_dim=args.embed_dim,
     )
+    validate_embedding_dimension(embed_model, args.embed_dim)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     VectorStoreIndex.from_documents(
         documents,
@@ -61,7 +56,7 @@ def main() -> None:
     )
     print(
         "Ingestion completed. "
-        f"Vector table: public.data_{args.table_name}"
+        f"Milvus collection: {args.collection_name}; documents: {len(documents)}"
     )
 
 
@@ -75,14 +70,24 @@ def parse_args() -> argparse.Namespace:
         help="Directory containing question bank .jsonl files.",
     )
     parser.add_argument(
-        "--table-name",
-        default=os.getenv("RAG_VECTOR_TABLE", DEFAULT_TABLE_NAME),
-        help="LlamaIndex pgvector table name without the data_ prefix.",
+        "--collection-name",
+        default=os.getenv("MILVUS_COLLECTION", DEFAULT_COLLECTION_NAME),
+        help="Milvus collection used for interview question vectors.",
+    )
+    parser.add_argument(
+        "--milvus-uri",
+        default=os.getenv("MILVUS_URI", DEFAULT_MILVUS_URI),
+        help="Milvus server URI or a local Milvus Lite database file.",
+    )
+    parser.add_argument(
+        "--milvus-token",
+        default=os.getenv("MILVUS_TOKEN", ""),
+        help="Optional Milvus or Zilliz authentication token.",
     )
     parser.add_argument(
         "--embed-model",
         default=os.getenv("RAG_EMBED_MODEL", DEFAULT_EMBED_MODEL),
-        help="OpenAI-compatible embedding model name.",
+        help="Zhipu embedding model name.",
     )
     parser.add_argument(
         "--embed-dim",
@@ -91,14 +96,9 @@ def parse_args() -> argparse.Namespace:
         help="Embedding dimension. Must match the embedding model output.",
     )
     parser.add_argument(
-        "--hybrid",
-        action="store_true",
-        help="Enable LlamaIndex PostgreSQL hybrid vector/text search table setup.",
-    )
-    parser.add_argument(
         "--reset",
         action="store_true",
-        help="Drop the existing vector table before importing documents.",
+        help="Replace the existing Milvus collection before importing documents.",
     )
     parser.add_argument(
         "--dry-run",
@@ -176,109 +176,101 @@ def render_question_text(item: dict[str, Any]) -> str:
     return "\n".join(f"{title}: {value}" for title, value in sections if value)
 
 
-def build_vector_store(
-    *,
-    database_url: str,
-    table_name: str,
-    embed_dim: int,
-    hybrid_search: bool,
-) -> PGVectorStore:
-    """Create the LlamaIndex PGVectorStore used by the question bank."""
-    validate_table_name(table_name)
-    async_db_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
-    return PGVectorStore(
-        connection_string=database_url,
-        async_connection_string=async_db_url,
-        table_name=table_name,
-        embed_dim=embed_dim,
-        hybrid_search=hybrid_search,
-        text_search_config="simple",
-        use_jsonb=True,
-        indexed_metadata_keys={
-            ("question_id", "text"),
-            ("type", "text"),
-            ("skill", "text"),
-            ("difficulty", "text"),
-        },
-    )
-
-
-from llama_index.core.embeddings import BaseEmbedding
-from typing import Any, List
-from openai import OpenAI
-
 class ZhipuEmbedding(BaseEmbedding):
-    model: str = "embedding-3"
-    api_key: str = ""
-    api_base: str = "https://open.bigmodel.cn/api/paas/v4/"
+    """Expose Zhipu Embedding-3 through the LlamaIndex embedding interface."""
 
-    def __init__(self, model: str, api_key: str, api_base: str, **kwargs: Any) -> None:
-        super().__init__(model=model, api_key=api_key, api_base=api_base, **kwargs)
-        # Use sync client (or async if preferred, but LlamaIndex BaseEmbedding defaults are fine)
-        self._client = OpenAI(api_key=api_key, base_url=api_base)
+    dimensions: int = Field(default=DEFAULT_EMBED_DIM, ge=256, le=2048)
+    api_key: str = Field(exclude=True)
+    _client: Any = PrivateAttr()
 
-    def _get_query_embedding(self, query: str) -> List[float]:
+    def model_post_init(self, __context: Any) -> None:
+        """Create the official Zhipu client after Pydantic validates the config."""
+        self._client = ZhipuAiClient(api_key=self.api_key)
+
+    def _get_query_embedding(self, query: str) -> list[float]:
+        """Create one query vector."""
         return self._get_text_embedding(query)
 
-    async def _aget_query_embedding(self, query: str) -> List[float]:
-        return self._get_query_embedding(query)
+    async def _aget_query_embedding(self, query: str) -> list[float]:
+        """Create one query vector without blocking the event loop."""
+        import asyncio
 
-    def _get_text_embedding(self, text: str) -> List[float]:
-        response = self._client.embeddings.create(input=[text], model=self.model)
-        return response.data[0].embedding
+        return await asyncio.to_thread(self._get_query_embedding, query)
 
-    def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
-        response = self._client.embeddings.create(input=texts, model=self.model)
-        return [data.embedding for data in response.data]
+    def _get_text_embedding(self, text: str) -> list[float]:
+        """Create one document vector."""
+        return self._request_embeddings([text])[0]
 
-def build_embed_model(*, model: str, embed_dim: int) -> BaseEmbedding:
-    api_key = os.getenv("RAG_EMBED_API_KEY") or os.getenv("OPENAI_API_KEY")
-    api_base = os.getenv("RAG_EMBED_API_BASE") or os.getenv("OPENAI_API_BASE") or None
+    def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
+        """Create document vectors in batches supported by Embedding-3."""
+        return self._request_embeddings(texts)
 
-    if "bigmodel" in str(api_base) or "zhipu" in model.lower() or "embedding-" in model.lower():
-        return ZhipuEmbedding(model=model, api_key=api_key, api_base=api_base)
-    return OpenAIEmbedding(
-        model=model,
+    def _request_embeddings(self, texts: list[str]) -> list[list[float]]:
+        """Call the official Zhipu embeddings API and preserve response order."""
+        response = self._client.embeddings.create(
+            model=self.model_name,
+            input=texts,
+            dimensions=self.dimensions,
+        )
+        ordered = sorted(response.data, key=lambda item: item.index)
+        return [list(item.embedding) for item in ordered]
+
+
+def build_vector_store(
+    *,
+    uri: str,
+    token: str,
+    collection_name: str,
+    embed_dim: int,
+    overwrite: bool = False,
+) -> MilvusVectorStore:
+    """Create the Milvus vector store used by the interview question bank."""
+    prepare_local_milvus_path(uri)
+    options: dict[str, Any] = {
+        "uri": uri,
+        "collection_name": collection_name,
+        "dim": embed_dim,
+        "overwrite": overwrite,
+        "similarity_metric": "COSINE",
+    }
+    if token:
+        options["token"] = token
+    return MilvusVectorStore(**options)
+
+
+def build_embed_model(*, model: str, embed_dim: int) -> ZhipuEmbedding:
+    """Create the configured Zhipu Embedding-3 client."""
+    api_key = os.getenv("RAG_EMBED_API_KEY") or os.getenv("ZHIPUAI_API_KEY")
+    if not api_key:
+        raise ValueError("Set RAG_EMBED_API_KEY or ZHIPUAI_API_KEY for Embedding-3.")
+    return ZhipuEmbedding(
+        model_name=model,
         dimensions=embed_dim,
         api_key=api_key,
-        api_base=api_base,
-        embed_batch_size=32,
+        embed_batch_size=64,
     )
 
 
-def ensure_postgres_url(database_url: str) -> None:
-    """Reject non-PostgreSQL database URLs for pgvector ingestion."""
-    if database_url.startswith(("postgresql://", "postgresql+psycopg2://")):
+class EmbeddingProbe(Protocol):
+    """Small interface needed by the dimension preflight check."""
+
+    def get_text_embedding(self, text: str) -> list[float]: ...
+
+
+def validate_embedding_dimension(embed_model: EmbeddingProbe, expected: int) -> None:
+    """Fail before ingestion when the API response dimension is misconfigured."""
+    actual = len(embed_model.get_text_embedding("面试题向量维度检查"))
+    if actual != expected:
+        raise ValueError(
+            f"Embedding dimension mismatch: configured {expected}, API returned {actual}."
+        )
+
+
+def prepare_local_milvus_path(uri: str) -> None:
+    """Create the parent directory when Milvus Lite uses a local database file."""
+    if "://" in uri:
         return
-    raise ValueError(
-        "RAG ingestion requires PostgreSQL. "
-        f"Current DATABASE_URL is {database_url!r}."
-    )
-
-
-def ensure_vector_extension(database_url: str) -> None:
-    """Ensure the pgvector extension exists in the target database."""
-    engine = create_engine(database_url)
-    with engine.begin() as connection:
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    engine.dispose()
-
-
-def drop_vector_table(database_url: str, table_name: str) -> None:
-    """Drop the LlamaIndex vector table for repeatable local imports."""
-    validate_table_name(table_name)
-    engine = create_engine(database_url)
-    with engine.begin() as connection:
-        connection.execute(text(f'DROP TABLE IF EXISTS public."data_{table_name}"'))
-    engine.dispose()
-    print(f"Dropped vector table if it existed: public.data_{table_name}")
-
-
-def validate_table_name(table_name: str) -> None:
-    """Validate table names before using them in SQL identifiers."""
-    if SAFE_TABLE_NAME_RE.fullmatch(table_name):
-        return
-    raise ValueError(f"Unsafe table name: {table_name!r}")
+    Path(uri).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
 
 
 def print_summary(documents: list[Document]) -> None:

@@ -1,10 +1,12 @@
 
 from __future__ import annotations
-from app.services.rag.retrieval import retrieve_interview_questions
+
 import asyncio
 import json
 import logging
-from typing import Any, NoReturn
+from datetime import timedelta
+from typing import Any, NoReturn, cast
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -13,7 +15,6 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.entrypoints.http.deps import (
@@ -25,7 +26,6 @@ from app.prompts import load_prompt
 from app.infra.database import get_db
 from app.models.interview import InterviewSession, InterviewTurn
 from app.models.resume import Resume
-from app.services.digital_human import VolcengineVoiceService
 from app.services.errors import (
     ServiceError,
     ServiceNotFoundError,
@@ -33,33 +33,20 @@ from app.services.errors import (
 )
 from app.services.interview.session_service import (
     get_session_for_user,
-    record_voice_interview_message,
+    record_realtime_interview_message,
 )
+from app.services.rag.retrieval import retrieve_interview_questions
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 _WS_POLICY_VIOLATION = status.WS_1008_POLICY_VIOLATION
 _INTERVIEWER_PROMPT = load_prompt("interviewer_agent")
-_VOLCENGINE_SYSTEM_ROLE_MAX_CHARS = 4000
-_VOLCENGINE_RESUME_CONTEXT_CHARS = 700
-_VOLCENGINE_JD_CONTEXT_CHARS = 700
-_VOLCENGINE_HISTORY_CONTEXT_CHARS = 900
-_VOLCENGINE_PLAN_CONTEXT_CHARS = 600
-
-
-class DigitalHumanCreateRequest(BaseModel):
-    """用于承载创建数字人会话的请求参数。"""
-
-    interview_session_id: int
-
-
-class DigitalHumanConversationResponse(BaseModel):
-    """用于返回前端可安全使用的豆包语音会话信息。"""
-
-    provider: str
-    session_id: str = ""
-    status: str
+_SYSTEM_ROLE_MAX_CHARS = 4000
+_RESUME_CONTEXT_CHARS = 700
+_JD_CONTEXT_CHARS = 700
+_HISTORY_CONTEXT_CHARS = 900
+_PLAN_CONTEXT_CHARS = 600
 
 
 def _raise_service_http_error(exc: ServiceError) -> NoReturn:
@@ -80,27 +67,8 @@ def _raise_service_http_error(exc: ServiceError) -> NoReturn:
     ) from exc
 
 
-@router.post("/conversations", response_model=DigitalHumanConversationResponse)
-async def create_digital_human_conversation(
-    request: DigitalHumanCreateRequest,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """用于为一场豆包端到端语音面试准备会话。"""
-    try:
-        get_session_for_user(db, request.interview_session_id, current_user["id"])
-    except ServiceError as exc:
-        _raise_service_http_error(exc)
-
-    return DigitalHumanConversationResponse(
-        provider="volcengine",
-        session_id=str(request.interview_session_id),
-        status="ready",
-    )
-
-
-@router.post("/voice-session/{session_id}/token")
-async def get_voice_session_token(
+@router.post("/{session_id}/realtime-token")
+async def get_realtime_session_token(
     session_id: int,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -111,13 +79,12 @@ async def get_voice_session_token(
     except ServiceError as exc:
         _raise_service_http_error(exc)
 
-    from datetime import timedelta
     from app.infra.security import create_access_token
-    
+
     # 签发一个 5 分钟内有效的临时 Token，用于 WebSocket 鉴权
     temp_token = create_access_token(
         subject=str(current_user["id"]),
-        expires_delta=timedelta(minutes=5)
+        expires_delta=timedelta(minutes=5),
     )
     return {"token": temp_token}
 
@@ -132,7 +99,7 @@ def _render_interviewer_prompt(
     resume_text: str = "",
     interview_history: str = "",
     interview_plan: str = "",
-    rag_questions: str = "",  # <--- 新增：接收题目
+    rag_questions: str = "",
 ) -> str:
     """用于从文件模板渲染模拟面试官系统提示词。"""
     return _INTERVIEWER_PROMPT.render(
@@ -145,14 +112,14 @@ def _render_interviewer_prompt(
         resume_text=resume_text,
         interview_history=interview_history,
         interview_plan=interview_plan,
-        rag_questions=rag_questions, # <--- 新增：传给最底层的 prompt 模板
+        rag_questions=rag_questions,
     )
 
 
 def _build_greeting(
     *, target_title: str, target_company: str, language: str
 ) -> str:
-    """用于生成数字人进入房间后的第一句欢迎语。"""
+    """Build the interviewer's first greeting for a new session."""
     has_context = bool(target_title.strip() and target_company.strip())
     if _prefers_chinese(language):
         if has_context:
@@ -172,7 +139,7 @@ def _build_greeting(
 
 
 def _prefers_chinese(language: str) -> bool:
-    """用于根据 session 语言判断豆包面试官是否应使用中文。"""
+    """Return whether the interviewer should speak Chinese."""
     normalized = language.strip().lower()
     return normalized.startswith("zh") or "chinese" in normalized or "中文" in language
 
@@ -182,13 +149,13 @@ async def _close_ws_policy_violation(websocket: WebSocket, reason: str) -> None:
     await websocket.close(code=_WS_POLICY_VIOLATION, reason=reason)
 
 
-async def _authorize_voice_session_ws(
+async def _authorize_realtime_session_ws(
     websocket: WebSocket,
     *,
     session_id: int,
     db: Session,
 ) -> InterviewSession | None:
-    """用于鉴权语音会话WebSocket。"""
+    """Authenticate a realtime interview WebSocket connection."""
     token = websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
     if not token:
         token = websocket.query_params.get("token")
@@ -258,7 +225,7 @@ def _extract_resume_text(resume_content: dict) -> str:
     return "\n\n".join(lines)
 
 
-def _build_volcengine_system_role(
+def _build_interviewer_system_role(
     *,
     target_title: str,
     target_company: str,
@@ -268,20 +235,20 @@ def _build_volcengine_system_role(
     resume_text: str = "",
     interview_history: str = "",
     interview_plan: str = "",
-    rag_questions: str = "", 
+    rag_questions: str = "",
 ) -> str:
-    """用于构建火山引擎 O 版本的 system_role。"""
+    """Build the system prompt used by the realtime interview agent."""
     return _render_interviewer_prompt(
         target_title=target_title,
         target_company=target_company,
         language=language,
         difficulty=difficulty,
-        jd_text=jd_text[:_VOLCENGINE_JD_CONTEXT_CHARS],
-        interview_plan=interview_plan[:_VOLCENGINE_PLAN_CONTEXT_CHARS],
-        resume_text=resume_text[:_VOLCENGINE_RESUME_CONTEXT_CHARS],
-        interview_history=interview_history[:_VOLCENGINE_HISTORY_CONTEXT_CHARS],
-        rag_questions=rag_questions, 
-    ).strip()[:_VOLCENGINE_SYSTEM_ROLE_MAX_CHARS]
+        jd_text=jd_text[:_JD_CONTEXT_CHARS],
+        interview_plan=interview_plan[:_PLAN_CONTEXT_CHARS],
+        resume_text=resume_text[:_RESUME_CONTEXT_CHARS],
+        interview_history=interview_history[:_HISTORY_CONTEXT_CHARS],
+        rag_questions=rag_questions,
+    ).strip()[:_SYSTEM_ROLE_MAX_CHARS]
 
 
 def _build_interview_plan_context(plan: Any) -> str:
@@ -327,10 +294,9 @@ def _build_interview_history(turns: list[InterviewTurn]) -> str:
     return "\n".join(lines)
 
 
-async def run_agentic_voice_session(
+async def run_realtime_interview_session(
     websocket: WebSocket,
     session_id: int,
-    db: Session,
     system_role: str,
     existing_turns: list[InterviewTurn],
     greeting: str,
@@ -352,16 +318,18 @@ async def run_agentic_voice_session(
         on_text_message("interviewer", greeting)
 
     from app.agents.interview.graph import interview_agent
-    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-    
-    initial_messages = [SystemMessage(content=system_role)]
+    from app.agents.interview.state import InterviewState
+    from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+    from langchain_core.runnables import RunnableConfig
+
+    initial_messages: list[BaseMessage] = [SystemMessage(content=system_role)]
     for turn in existing_turns:
         if turn.question:
             initial_messages.append(AIMessage(content=turn.question))
         if turn.answer:
             initial_messages.append(HumanMessage(content=turn.answer))
 
-    config = {"configurable": {"thread_id": str(session_id)}}
+    config: RunnableConfig = {"configurable": {"thread_id": str(session_id)}}
 
     try:
         while True:
@@ -392,15 +360,29 @@ async def run_agentic_voice_session(
                     })
                     
                     full_reply = ""
-                    input_state = {"messages": [HumanMessage(content=user_text)]}
+                    input_state = cast(
+                        InterviewState,
+                        {"messages": [HumanMessage(content=user_text)]},
+                    )
                     
                     # 第一次请求如果检查点里没有状态，手动把预置信息（系统词+历史）带上
                     current_state = interview_agent.get_state(config)
                     if not current_state.values.get("messages"):
-                        input_state = {"messages": initial_messages + [HumanMessage(content=user_text)]}
+                        input_state = cast(
+                            InterviewState,
+                            {
+                                "messages": initial_messages
+                                + [HumanMessage(content=user_text)]
+                            },
+                        )
                     
                     try:
-                        async for msg_obj, metadata in interview_agent.astream(input_state, config=config, stream_mode="messages"):
+                        async for raw_item in interview_agent.astream(
+                            input_state,
+                            config=config,
+                            stream_mode="messages",
+                        ):
+                            msg_obj, metadata = cast(tuple[Any, dict[str, Any]], raw_item)
                             node = metadata.get("langgraph_node")
                             if node in ("Tech_Expert", "HR_Expert") and msg_obj.content and not msg_obj.tool_calls:
                                 full_reply += msg_obj.content
@@ -429,14 +411,14 @@ async def run_agentic_voice_session(
         pass
 
 
-@router.websocket("/voice-session/{session_id}")
-async def voice_session_ws(
+@router.websocket("/{session_id}/realtime")
+async def realtime_interview_ws(
     websocket: WebSocket,
     session_id: int,
     db: Session = Depends(get_db),
 ):
-    """用于在前端和火山引擎之间代理实时语音 WebSocket 连接。"""
-    interview_session = await _authorize_voice_session_ws(
+    """Run the authenticated realtime interview WebSocket."""
+    interview_session = await _authorize_realtime_session_ws(
         websocket,
         session_id=session_id,
         db=db,
@@ -469,14 +451,17 @@ async def voice_session_ws(
 
         plan_context = _build_interview_plan_context(interview_session.plan_json)
         
-        # --- 下面是新增的两行核心 RAG 代码 ---
-        # 1. 构造搜索词：把目标岗位和简历最开头的一部分内容拼起来作为去数据库搜题的线索
         rag_query = f"{interview_session.target_title or ''} {resume_text[:200]}"
-        # 2. 异步调用我们写好的函数，去 pgvector 数据库把最匹配的题拿出来
-        rag_questions = await retrieve_interview_questions(rag_query)
-        # ----------------------------------
+        try:
+            rag_questions = await retrieve_interview_questions(rag_query)
+        except Exception:
+            logger.exception(
+                "interview.rag_retrieval_failed interview_session_id=%s",
+                session_id,
+            )
+            rag_questions = ""
 
-        system_role = _build_volcengine_system_role(
+        system_role = _build_interviewer_system_role(
             target_title=interview_session.target_title or "目标岗位",
             target_company=interview_session.target_company or "目标公司",
             language=interview_session.language,
@@ -485,7 +470,7 @@ async def voice_session_ws(
             resume_text=resume_text,
             interview_history=_build_interview_history(existing_turns),
             interview_plan=plan_context,
-            rag_questions=rag_questions, # <--- 新增：把搜到的题目传进去
+            rag_questions=rag_questions,
         )
         if not existing_turns:
             greeting = _build_greeting(
@@ -495,79 +480,26 @@ async def voice_session_ws(
             )
 
     def persist_message(role: str, text: str) -> None:
-        """用于持久化语音面试消息。"""
-        record_voice_interview_message(
+        """Persist one finalized realtime interview message."""
+        record_realtime_interview_message(
             db=db,
             session_id=session_id,
             role=role,
             text=text,
         )
         logger.info(
-            "voice.ws.message_persisted interview_session_id=%s role=%s chars=%d",
+            "interview.ws.message_persisted interview_session_id=%s role=%s chars=%d",
             session_id,
             role,
             len(text),
         )
 
-    service = VolcengineVoiceService()
-    if not service.is_configured():
-        logger.warning("Volcengine dialogue not configured, fallback to text-based LLM chat service")
-        await run_agentic_voice_session(
-            websocket=websocket,
-            session_id=session_id,
-            db=db,
-            system_role=system_role,
-            existing_turns=existing_turns,
-            greeting=greeting,
-            on_text_message=persist_message,
-        )
-        return
-
-    await websocket.accept()
-    logger.info(
-        (
-            "voice.ws.accepted interview_session_id=%s user_id=%s "
-            "resume_id=%s status=%s"
-        ),
-        session_id,
-        interview_session.user_id,
-        interview_session.resume_id,
-        interview_session.status,
+    await run_realtime_interview_session(
+        websocket=websocket,
+        session_id=session_id,
+        system_role=system_role,
+        existing_turns=existing_turns,
+        greeting=greeting,
+        on_text_message=persist_message,
     )
-    logger.info(
-        (
-            "voice.ws.context_ready interview_session_id=%s turns=%d "
-            "resume_chars=%d jd_chars=%d plan_chars=%d "
-            "system_role_chars=%d greeting_chars=%d"
-        ),
-        session_id,
-        len(existing_turns),
-        len(resume_text),
-        len(interview_session.jd_text or ""),
-        len(plan_context),
-        len(system_role),
-        len(greeting),
-    )
-
-    try:
-        await service.proxy_session(
-            client_ws=websocket,
-            system_role=system_role,
-            greeting=greeting,
-            on_text_message=persist_message,
-            interview_session_id=session_id,
-        )
-    except WebSocketDisconnect:
-        pass
-    except Exception as exc:
-        logger.exception("Volcengine voice proxy error")
-        try:
-            await websocket.send_json({"type": "error", "message": str(exc)})
-        except Exception:
-            pass
-    finally:
-        try:
-            await websocket.close()
-        except Exception:
-            pass
 

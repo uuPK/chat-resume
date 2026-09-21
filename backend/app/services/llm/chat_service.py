@@ -12,6 +12,7 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, overload
 import httpx
 
 from app.infra.config import settings
+from app.services.llm.compatible_llm import completion_options
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +303,7 @@ class ChatService:
             "stream": stream,
         }
 
+        payload.update(completion_options(self.api_base))
         if max_tokens:
             payload["max_tokens"] = max_tokens
 

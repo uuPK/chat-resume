@@ -3650,22 +3650,12 @@ class TestPlusFeatureAccess:
         assert resp.json()["detail"] == "active_subscription_required"
 
 
-class TestDigitalHumanBillingAccess:
-    class _FakeVolcengineVoiceService:
-        def is_configured(self) -> bool:
-            """用于处理isconfigured。"""
-            return True
-
-        async def proxy_session(self, client_ws, **kwargs):
-            """用于处理proxy会话。"""
-            await client_ws.send_json({"type": "ready"})
-            await client_ws.close()
-
+class TestRealtimeInterviewAccess:
     def _create_interview_session(self, client, headers: dict, email: str) -> int:
-        """用于创建面试会话。"""
+        """Create an interview session owned by the requested user."""
         resume_resp = client.post(
             "/api/resumes/",
-            json={"title": "数字人权限简历", "content": _empty_resume_content()},
+            json={"title": "实时面试权限简历", "content": _empty_resume_content()},
             headers=headers,
         )
         assert resume_resp.status_code == 200, resume_resp.text
@@ -3685,73 +3675,8 @@ class TestDigitalHumanBillingAccess:
         finally:
             db.close()
 
-    def test_free_user_can_create_digital_human_conversation(self, client):
-        """用于验证free用户cancreatedigitalhumanconversation。"""
-        _register(client, "digital_human_free@example.com")
-        token = _login(client, "digital_human_free@example.com")
-        headers = _auth_headers(token)
-        session_id = self._create_interview_session(
-            client, headers, "digital_human_free@example.com"
-        )
-
-        resp = client.post(
-            "/api/digital-human/conversations",
-            json={"interview_session_id": session_id},
-            headers=headers,
-        )
-
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["provider"] == "volcengine"
-        assert resp.json()["session_id"] == str(session_id)
-
-    def test_active_subscriber_can_create_digital_human_conversation(self, client):
-        """用于验证activesubscribercancreatedigitalhumanconversation。"""
-        email = "digital_human_plus@example.com"
-        _register(client, email)
-        token = _login(client, email)
-        headers = _auth_headers(token)
-        session_id = self._create_interview_session(client, headers, email)
-
-        db = _TestingSession()
-        try:
-            user = db.query(User).filter(User.email == email).one()
-            db.add(
-                BillingSubscription(
-                    user_id=user.id,
-                    provider="paypal",
-                    provider_subscription_id="I-DIGITALHUMANPLUS",
-                    status="ACTIVE",
-                    raw_payload={"id": "I-DIGITALHUMANPLUS", "status": "ACTIVE"},
-                )
-            )
-            db.commit()
-        finally:
-            db.close()
-
-        resp = client.post(
-            "/api/digital-human/conversations",
-            json={"interview_session_id": session_id},
-            headers=headers,
-        )
-
-        assert resp.status_code == 200, resp.text
-        assert resp.json() == {
-            "provider": "volcengine",
-            "session_id": str(session_id),
-            "status": "ready",
-        }
-
-    def test_voice_session_websocket_rejects_anonymous_client(
-        self, client, monkeypatch
-    ):
-        """用于验证语音会话websocketrejectsanonymous客户端。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes,
-            "VolcengineVoiceService",
-            self._FakeVolcengineVoiceService,
-        )
+    def test_realtime_websocket_rejects_anonymous_client(self, client):
+        """Reject realtime interview connections without authentication."""
         _register(client, "voice_ws_owner@example.com")
         token = _login(client, "voice_ws_owner@example.com")
         session_id = self._create_interview_session(
@@ -3760,42 +3685,29 @@ class TestDigitalHumanBillingAccess:
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with _anonymous_client().websocket_connect(
-                f"/api/digital-human/voice-session/{session_id}"
+                f"/api/interviews/{session_id}/realtime"
             ) as websocket:
                 websocket.receive_json()
 
         assert exc_info.value.code == 1008
 
-    def test_voice_session_websocket_allows_free_user(self, client, monkeypatch):
-        """用于验证语音会话websocketallowsfree用户。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes,
-            "VolcengineVoiceService",
-            self._FakeVolcengineVoiceService,
-        )
+    def test_realtime_token_allows_session_owner(self, client):
+        """Issue a temporary realtime token to the session owner."""
         email = "voice_ws_free@example.com"
         _register(client, email)
         token = _login(client, email)
         session_id = self._create_interview_session(client, _auth_headers(token), email)
 
-        with client.websocket_connect(
-            f"/api/digital-human/voice-session/{session_id}"
-        ) as websocket:
-            assert websocket.receive_json() == {"type": "ready"}
-
-    def test_voice_session_websocket_rejects_other_users_session(
-        self, client, monkeypatch
-    ):
-        """用于验证语音会话websocketrejectsotherusers会话。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes,
-            "VolcengineVoiceService",
-            self._FakeVolcengineVoiceService,
+        response = client.post(
+            f"/api/interviews/{session_id}/realtime-token",
+            headers=_auth_headers(token),
         )
+
+        assert response.status_code == 200
+        assert response.json()["token"]
+
+    def test_realtime_token_rejects_other_users_session(self, client):
+        """Reject a token request for another user's interview session."""
         owner_email = "voice_ws_owner_plus@example.com"
         _register(client, owner_email)
         owner_token = _login(client, owner_email)
@@ -3808,34 +3720,11 @@ class TestDigitalHumanBillingAccess:
         _register(attacker_client, attacker_email)
         _login(attacker_client, attacker_email)
 
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with attacker_client.websocket_connect(
-                f"/api/digital-human/voice-session/{session_id}"
-            ) as websocket:
-                websocket.receive_json()
-
-        assert exc_info.value.code == 1008
-
-    def test_logged_in_user_can_open_owned_voice_session_websocket(
-        self, client, monkeypatch
-    ):
-        """用于验证loggedinusercanopenowned语音会话websocket。"""
-        from app.entrypoints.http import digital_human as digital_human_routes
-
-        monkeypatch.setattr(
-            digital_human_routes,
-            "VolcengineVoiceService",
-            self._FakeVolcengineVoiceService,
+        response = attacker_client.post(
+            f"/api/interviews/{session_id}/realtime-token",
         )
-        email = "voice_ws_plus@example.com"
-        _register(client, email)
-        token = _login(client, email)
-        session_id = self._create_interview_session(client, _auth_headers(token), email)
 
-        with client.websocket_connect(
-            f"/api/digital-human/voice-session/{session_id}"
-        ) as websocket:
-            assert websocket.receive_json() == {"type": "ready"}
+        assert response.status_code == 404
 
 
 # ═══════════════════════════════════════════════════════════════════════════
