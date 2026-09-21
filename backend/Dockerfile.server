@@ -10,6 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_CONCURRENT_INSTALLS=2 \
     UV_HTTP_TIMEOUT=120 \
     UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/ \
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
     PATH="/app/.venv/bin:$PATH"
 
