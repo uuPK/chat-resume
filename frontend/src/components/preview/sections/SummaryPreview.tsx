@@ -4,6 +4,8 @@
 import { useTranslations } from 'next-intl'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 
+import InlineBoldText from '../InlineBoldText'
+
 type SummaryData = { text?: string }
 
 interface SummaryPreviewProps {
@@ -39,7 +41,7 @@ export default function SummaryPreview({ data, renderLines, templateStyle = 'cla
           className={isFormal || isEmerald ? 'text-sm text-gray-900' : 'text-sm text-gray-800'}
           style={{ lineHeight: isEmerald ? '1.64' : '1.72', margin: 0 }}
         >
-          {text}
+          <InlineBoldText text={text} />
         </p>
       )}
     </div>

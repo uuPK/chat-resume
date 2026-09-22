@@ -5,6 +5,8 @@ import type { Project } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
 
+import InlineBoldText from '../InlineBoldText'
+
 interface ProjectsPreviewProps {
   data: Project[]
   renderLines?: number[]
@@ -85,14 +87,14 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
         {project.overview && (
           <p className="text-sm" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)', lineHeight: '1.64' }}>
-            <span className="font-semibold">{t('projectDescription')}</span>{project.overview}
+            <span className="font-semibold">{t('projectDescription')}</span><InlineBoldText text={project.overview} />
           </p>
         )}
 
         {highlights.length > 0 && (
           <ul className="resume-emerald-list text-sm">
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><InlineBoldText text={achievement} /></li>
             ))}
           </ul>
         )}
@@ -113,14 +115,14 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
 
         {project.overview && (
           <p className="text-sm text-gray-900" style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', lineHeight: '1.72' }}>
-            {project.overview}
+            <InlineBoldText text={project.overview} />
           </p>
         )}
 
         {highlights.length > 0 && (
           <ul className="list-disc text-sm text-gray-900" style={{ lineHeight: '1.72', paddingLeft: 18 }}>
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}><InlineBoldText text={achievement} /></li>
             ))}
           </ul>
         )}
@@ -156,7 +158,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
             lineHeight: 'calc(1.35 + var(--spacing-scale, 1) * 0.25)'
           }}
         >
-          {project.overview}
+          <InlineBoldText text={project.overview} />
         </p>
       )}
 
@@ -169,7 +171,7 @@ function ProjectItem({ project, lineIndex, templateStyle = 'classic' }: { projec
             }}
           >
             {highlights.map((achievement, achIndex) => (
-              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{achievement}</li>
+              <li key={achIndex} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}><InlineBoldText text={achievement} /></li>
             ))}
           </ul>
         </div>

@@ -12,6 +12,8 @@ import {
 import type { Project, ResumeBullet as Bullet } from '@/types/resume'
 import { useTranslations } from 'next-intl'
 
+import BoldTextarea from './BoldTextarea'
+
 interface ProjectsEditorProps {
   data: Project[]
   onChange: (data: Project[]) => void
@@ -235,14 +237,11 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('overview')}
                   </label>
-                  <textarea
+                  <BoldTextarea
                     data-autogrow="project-text"
-                    ref={fitTextareaToContent}
                     value={project.overview || ''}
-                    onChange={(e) => {
-                      updateProject(project.id!, 'overview', e.target.value)
-                      fitTextareaToContent(e.currentTarget)
-                    }}
+                    onValueChange={(value) => updateProject(project.id!, 'overview', value)}
+                    onHeightChange={fitTextareaToContent}
                     placeholder={t('overviewPlaceholder')}
                     rows={1}
                     className="min-h-[42px] w-full overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
@@ -264,18 +263,16 @@ export default function ProjectsEditor({ data, onChange }: ProjectsEditorProps) 
                   </div>
                   <div className="space-y-2">
                     {(project.highlights || []).map((highlight, highlightIndex) => (
-                      <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
-                        <textarea
+                      <div key={highlight.id || highlightIndex} className="flex items-end space-x-2">
+                        <BoldTextarea
                           data-autogrow="project-text"
-                          ref={fitTextareaToContent}
                           value={highlight.text}
-                          onChange={(e) => {
-                            updateBullet(project.id!, highlightIndex, e.target.value)
-                            fitTextareaToContent(e.currentTarget)
-                          }}
+                          onValueChange={(value) => updateBullet(project.id!, highlightIndex, value)}
+                          onHeightChange={fitTextareaToContent}
+                          containerClassName="flex-1"
                           placeholder={t('highlightPlaceholder')}
                           rows={1}
-                          className="min-h-[42px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                          className="min-h-[42px] w-full overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(project.highlights || []).length > 1 && (
                           <button

@@ -4,6 +4,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
+import BoldTextarea from './BoldTextarea'
+
 type SummaryData = { text?: string }
 
 interface SummaryEditorProps {
@@ -33,9 +35,9 @@ export default function SummaryEditor({ data, onChange }: SummaryEditorProps) {
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {t('text')}
         </label>
-        <textarea
+        <BoldTextarea
           value={formData.text || ''}
-          onChange={(event) => handleTextChange(event.target.value)}
+          onValueChange={handleTextChange}
           placeholder={t('placeholder')}
           rows={8}
           className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 focus:border-transparent focus:ring-2 focus:ring-primary-500"

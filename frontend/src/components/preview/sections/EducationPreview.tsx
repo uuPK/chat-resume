@@ -5,6 +5,8 @@ import type { Education } from '@/types/resume'
 import type { ResumeTemplateStyle } from '@/types/resumeLayout'
 import { useTranslations } from 'next-intl'
 
+import InlineBoldText from '../InlineBoldText'
+
 interface EducationPreviewProps {
   data: Education[]
   renderLines?: number[] // 指定渲染哪些行
@@ -32,7 +34,7 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
         {highlights.length > 0 && (
           <ul className="resume-emerald-list text-sm" style={{ marginTop: 'calc(var(--spacing-scale, 1) * 6px)' }}>
             {highlights.map((item, index) => (
-              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}>{item}</li>
+              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}><InlineBoldText text={item} /></li>
             ))}
           </ul>
         )}
@@ -53,7 +55,7 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
         {highlights.length > 0 && (
           <ul className="list-disc text-sm text-gray-900" style={{ marginTop: 'calc(var(--spacing-scale, 1) * 6px)', paddingLeft: 18 }}>
             {highlights.map((item, index) => (
-              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}>{item}</li>
+              <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 4px)' }}><InlineBoldText text={item} /></li>
             ))}
           </ul>
         )}
@@ -89,7 +91,7 @@ function EducationItem({ edu, lineIndex, templateStyle = 'classic' }: { edu: Edu
           }}
         >
           {highlights.map((item, index) => (
-            <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}>{item}</li>
+            <li key={index} style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 2px)' }}><InlineBoldText text={item} /></li>
           ))}
         </ul>
       )}

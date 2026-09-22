@@ -140,6 +140,10 @@
     "summary": "简介"
   },
   "forms": {
+    "formatting": {
+      "bold": "加粗选中文字",
+      "hint": "选中文字后点击 B"
+    },
     "personal": {
       "name": "姓名",
       "email": "邮箱",

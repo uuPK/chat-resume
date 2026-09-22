@@ -11,6 +11,8 @@ import {
 import type { ResumeBullet as Bullet, WorkExperience } from '@/types/resume'
 import { useTranslations } from 'next-intl'
 
+import BoldTextarea from './BoldTextarea'
+
 interface WorkExperienceEditorProps {
   data: WorkExperience[]
   onChange: (data: WorkExperience[]) => void
@@ -231,18 +233,16 @@ export default function WorkExperienceEditor({ data, onChange }: WorkExperienceE
                   </div>
                   <div className="space-y-2">
                     {(work.highlights || []).map((highlight, highlightIndex) => (
-                      <div key={highlight.id || highlightIndex} className="flex items-center space-x-2">
-                        <textarea
+                      <div key={highlight.id || highlightIndex} className="flex items-end space-x-2">
+                        <BoldTextarea
                           data-autogrow="work-highlight"
-                          ref={fitTextareaToContent}
                           value={highlight.text}
-                          onChange={(e) => {
-                            updateBullet(work.id!, highlightIndex, e.target.value)
-                            fitTextareaToContent(e.currentTarget)
-                          }}
+                          onValueChange={(value) => updateBullet(work.id!, highlightIndex, value)}
+                          onHeightChange={fitTextareaToContent}
+                          containerClassName="flex-1"
                           placeholder={t('highlightPlaceholder')}
                           rows={1}
-                          className="min-h-[42px] flex-1 overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
+                          className="min-h-[42px] w-full overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                         />
                         {(work.highlights || []).length > 1 && (
                           <button
