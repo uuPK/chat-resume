@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -115,6 +116,18 @@ def test_build_vector_store_configures_milvus_lite(monkeypatch, tmp_path) -> Non
         "overwrite": True,
         "similarity_metric": "COSINE",
     }
+
+
+def test_parse_args_uses_project_specific_milvus_uri(monkeypatch, tmp_path) -> None:
+    """Avoid PyMilvus' reserved MILVUS_URI variable for Milvus Lite paths."""
+    expected_uri = str(tmp_path / "question-bank.db")
+    monkeypatch.setenv("MILVUS_URI", "http://reserved-by-pymilvus:19530")
+    monkeypatch.setenv("RAG_MILVUS_URI", expected_uri)
+    monkeypatch.setattr(sys, "argv", ["ingestion", "--dry-run"])
+
+    args = ingestion.parse_args()
+
+    assert args.milvus_uri == expected_uri
 
 
 def test_retrieval_returns_empty_when_rag_is_disabled(monkeypatch) -> None:

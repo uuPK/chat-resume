@@ -9,7 +9,7 @@
 3. 用户打开实时面试 WebSocket 时，后端按目标岗位和简历摘要检索最相关的 5 道题。
 4. 检索结果写入 LangGraph 面试官的系统提示词，供技术面试官和 HR 面试官选题与追问。
 
-线上服务器只有约 1.7 GiB 内存，因此使用 Milvus Lite。它与 Milvus Standalone 使用同一套 PyMilvus API；业务增长后可以把 `MILVUS_URI` 改为独立 Milvus 服务地址。
+线上服务器只有约 1.7 GiB 内存，因此使用 Milvus Lite。它与 Milvus Standalone 使用同一套 PyMilvus API；业务增长后可以把 `RAG_MILVUS_URI` 改为独立 Milvus 服务地址。
 
 ## 环境变量
 
@@ -25,7 +25,7 @@ Compose 已固定以下非敏感设置：
 ```dotenv
 RAG_EMBED_MODEL=embedding-3
 RAG_EMBED_DIM=1024
-MILVUS_URI=/app/data/milvus/question_bank.db
+RAG_MILVUS_URI=/app/data/milvus/question_bank.db
 MILVUS_COLLECTION=question_bank_vectors
 ```
 

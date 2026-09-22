@@ -137,7 +137,7 @@ Set-EnvValue $BackendEnv "GOOGLE_OAUTH_REDIRECT_URI" "$BackendUrl/api/auth/googl
 Set-EnvValue $BackendEnv "RAG_ENABLED" "false"
 Set-EnvValue $BackendEnv "RAG_EMBED_MODEL" "embedding-3"
 Set-EnvValue $BackendEnv "RAG_EMBED_DIM" "1024"
-Set-EnvValue $BackendEnv "MILVUS_URI" "data/milvus/question_bank.db"
+Set-EnvValue $BackendEnv "RAG_MILVUS_URI" "data/milvus/question_bank.db"
 Set-EnvValue $BackendEnv "MILVUS_COLLECTION" "question_bank_vectors"
 
 $FrontendEnv = Join-Path $FrontendDir ".env.local"

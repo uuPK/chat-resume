@@ -23,7 +23,7 @@ async def retrieve_interview_questions(query: str, limit: int = 5) -> str:
         embed_dim=embed_dim,
     )
     vector_store = build_vector_store(
-        uri=os.getenv("MILVUS_URI", DEFAULT_MILVUS_URI),
+        uri=os.getenv("RAG_MILVUS_URI", DEFAULT_MILVUS_URI),
         token=os.getenv("MILVUS_TOKEN", ""),
         collection_name=os.getenv("MILVUS_COLLECTION", DEFAULT_COLLECTION_NAME),
         embed_dim=embed_dim,

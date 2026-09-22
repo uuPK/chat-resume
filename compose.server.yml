@@ -55,7 +55,7 @@ services:
       RAG_EMBED_API_KEY: ${RAG_EMBED_API_KEY:-}
       RAG_EMBED_MODEL: embedding-3
       RAG_EMBED_DIM: "1024"
-      MILVUS_URI: /app/data/milvus/question_bank.db
+      RAG_MILVUS_URI: /app/data/milvus/question_bank.db
       MILVUS_COLLECTION: question_bank_vectors
 
       # SSH 隧道测试时的浏览器来源。

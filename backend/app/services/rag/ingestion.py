@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--milvus-uri",
-        default=os.getenv("MILVUS_URI", DEFAULT_MILVUS_URI),
+        default=os.getenv("RAG_MILVUS_URI", DEFAULT_MILVUS_URI),
         help="Milvus server URI or a local Milvus Lite database file.",
     )
     parser.add_argument(

@@ -58,11 +58,11 @@ uv run python -m app.services.rag.ingestion --reset
 ```
 
 所需配置为 `RAG_EMBED_API_KEY`、`RAG_EMBED_MODEL=embedding-3`、
-`RAG_EMBED_DIM=1024`、`MILVUS_URI` 和 `MILVUS_COLLECTION`。导入与查询必须使用
+`RAG_EMBED_DIM=1024`、`RAG_MILVUS_URI` 和 `MILVUS_COLLECTION`。导入与查询必须使用
 相同的模型和维度。
 
 Milvus Lite 不支持原生 Windows。Windows 开发环境可保持 `RAG_ENABLED=false`，
-或把 `MILVUS_URI` 指向 WSL、Docker 或远程 Milvus 服务。
+或把 `RAG_MILVUS_URI` 指向 WSL、Docker 或远程 Milvus 服务。
 
 服务器配置、导入和备份步骤见
 [Milvus 与智谱 Embedding-3 部署说明](docs/MILVUS_ZHIPU_DEPLOYMENT.md)。
