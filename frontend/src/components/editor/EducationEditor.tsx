@@ -100,7 +100,6 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
     const education = educationList.find(item => item.id === educationId)
     if (!education) return
     const current = education.highlights || []
-    if (current.length <= 1) return
     updateEducationList(
       educationList.map(item =>
         item.id === educationId
@@ -237,7 +236,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                   </button>
                 </div>
                 <div className="space-y-2">
-                  {(education.highlights || [{ id: `edu_hl_${education.id || '0'}`, text: '' }]).map((highlight, highlightIndex) => (
+                  {(education.highlights || []).map((highlight, highlightIndex) => (
                     <div key={highlight.id || highlightIndex} className="flex items-end space-x-2">
                       <BoldTextarea
                         data-autogrow="education-highlight"
@@ -249,7 +248,7 @@ export default function EducationEditor({ data, onChange }: EducationEditorProps
                         rows={1}
                         className="min-h-[42px] w-full overflow-hidden px-3 py-2 text-sm leading-relaxed border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none [field-sizing:content]"
                       />
-                      {(education.highlights || []).length > 1 && (
+                      {(education.highlights || []).length > 0 && (
                         <button
                           onClick={() => removeBullet(education.id!, highlightIndex)}
                           className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
