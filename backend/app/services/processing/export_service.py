@@ -216,7 +216,9 @@ class ExportService:
         skills = self._build_skill_texts(resume_content.get("skills", []))
         if skills:
             story.append(Paragraph("技能专长", heading_style))
-            story.append(Paragraph(escape(" | ".join(skills)), normal_style))
+            story.append(
+                Paragraph(escape(" | ".join(skills)).replace("\n", "<br/>"), normal_style)
+            )
 
         projects = resume_content.get("projects", [])
         if projects:
@@ -331,7 +333,10 @@ class ExportService:
         if skills:
             story.append(Paragraph("技能专长", heading_style))
             story.append(
-                Paragraph(" | ".join(escape(item) for item in skills), normal_style)
+                Paragraph(
+                    " | ".join(escape(item).replace("\n", "<br/>") for item in skills),
+                    normal_style,
+                )
             )
             story.append(Spacer(1, 12))
 
@@ -710,6 +715,9 @@ class ExportService:
         .skill {{
             padding: 4px 10px;
             font-size: 12px;
+            max-width: 100%;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
             background: #f3f4f6;
             border-radius: 999px;
         }}

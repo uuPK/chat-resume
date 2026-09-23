@@ -15,6 +15,16 @@ from app.schemas.resume import (  # noqa: E402
 
 
 class ResumeSchemaNormalizationTests(unittest.TestCase):
+    def test_skills_keep_empty_heading_and_line_breaks(self):
+        """用于验证无标题的长技能描述在保存后保留换行。"""
+        description = "设计并实现检索服务。\n支持向量召回和结果重排。"
+        content = ResumeContent.model_validate(
+            {"skills": [{"category": "", "items": [description]}]}
+        ).model_dump(mode="json")
+
+        self.assertEqual(content["skills"][0]["category"], "")
+        self.assertEqual(content["skills"][0]["items"], [description])
+
     def test_work_experience_description_is_normalized_to_summary_and_highlights(self):
         """用于验证workexperiencedescriptionisnormalizedtosummaryandhighlights。"""
         content = ResumeContent.model_validate(

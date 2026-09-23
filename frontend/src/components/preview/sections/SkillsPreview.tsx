@@ -11,6 +11,11 @@ interface SkillsPreviewProps {
   templateStyle?: ResumeTemplateStyle
 }
 
+// 用于让长段技能描述占满一行，短技能仍以紧凑标签显示。
+function isLongSkill(item: string): boolean {
+  return item.length > 40 || item.includes('\n')
+}
+
 // 用于渲染 SkillsPreview 组件。
 export default function SkillsPreview({ data, renderLines, templateStyle = 'classic' }: SkillsPreviewProps) {
   const t = useTranslations('resume.layout.modules')
@@ -43,6 +48,8 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
         const lineIndex = categoryIndex + 1
         const isFormal = templateStyle === 'formal'
         const isEmerald = templateStyle === 'emerald'
+        const items = (group.items || []).filter(item => item.trim())
+        const category = group.category.trim()
         return shouldRenderLine(lineIndex) ? (
           isFormal || isEmerald ? (
             <ul
@@ -51,26 +58,30 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
               className={isEmerald ? 'resume-emerald-list text-sm' : 'list-disc text-sm text-gray-900'}
               style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 8px)', paddingLeft: 18, lineHeight: isEmerald ? '1.64' : '1.72' }}
             >
-              <li>
-                <span className="font-semibold">{group.category}：</span>
-                {(group.items || []).join(isEmerald ? '、 ' : '、')}
+              <li className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                {category && <span className="font-semibold">{category}： </span>}
+                {items.join(isEmerald ? '、 ' : '、')}
               </li>
             </ul>
           ) : (
             <div
               key={group.id || `${group.category}-${categoryIndex}`}
               data-line-index={lineIndex}
-              className="flex flex-wrap items-center gap-2 text-sm text-gray-700"
+              className="flex flex-wrap items-start gap-2 text-sm text-gray-700"
               style={{ marginBottom: 'calc(var(--spacing-scale, 1) * 6px)' }}
             >
-              <span className="font-semibold text-gray-800 flex-shrink-0">
-                {group.category}
-              </span>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(group.items || []).map((skill, index) => (
+              {category && (
+                <span className="flex-shrink-0 font-semibold text-gray-800">
+                  {category}
+                </span>
+              )}
+              <div className="flex min-w-0 flex-1 flex-wrap items-start gap-1.5">
+                {items.map((skill, index) => (
                   <span
                     key={`${group.id || group.category}-${index}-${skill}`}
-                    className="text-xs text-gray-800 bg-gray-50 rounded-full px-2.5 py-0.5"
+                    className={isLongSkill(skill)
+                      ? 'w-full whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 [overflow-wrap:anywhere]'
+                      : 'max-w-full whitespace-pre-wrap break-words rounded-full bg-gray-50 px-2.5 py-0.5 text-xs text-gray-800 [overflow-wrap:anywhere]'}
                   >
                     {skill}
                   </span>

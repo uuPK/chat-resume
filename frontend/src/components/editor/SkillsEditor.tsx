@@ -1,7 +1,7 @@
 'use client'
 // 用于提供 components/editor/SkillsEditor.tsx 模块。
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   CodeBracketIcon,
   PlusIcon,
@@ -15,11 +15,11 @@ interface SkillsEditorProps {
   onChange: (data: SkillGroup[]) => void
 }
 
-// 用于创建空白分组。
-function createEmptyGroup(category: string): SkillGroup {
+// 用于创建标题可留空的技能分组。
+function createEmptyGroup(): SkillGroup {
   return {
     id: `skill_group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    category,
+    category: '',
     items: []
   }
 }
@@ -27,28 +27,35 @@ function createEmptyGroup(category: string): SkillGroup {
 // 用于渲染 SkillsEditor 组件。
 export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
   const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([])
-  const focusChipRef = useRef<{ groupId: string; index: number } | null>(null)
-  const chipRefs = useRef<Map<string, HTMLInputElement | null>>(new Map())
+  const focusItemRef = useRef<{ groupId: string; index: number } | null>(null)
+  const itemRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
   const t = useTranslations('resume.forms.skills')
-  const defaultCategories = t.raw('categories') as string[]
 
   useEffect(() => {
     const safeData = Array.isArray(data) ? data : []
     const normalized = safeData.map((group, index) => ({
       id: group.id || `skill_group_${Date.now()}_${index}`,
-      category: group.category || t('fallbackCategory'),
+      category: group.category ?? '',
       items: Array.isArray(group.items) ? group.items : []
     }))
     setSkillGroups(normalized)
   }, [data])
 
   useEffect(() => {
-    if (focusChipRef.current) {
-      const key = `${focusChipRef.current.groupId}-${focusChipRef.current.index}`
-      chipRefs.current.get(key)?.focus()
-      focusChipRef.current = null
+    if (focusItemRef.current) {
+      const key = `${focusItemRef.current.groupId}-${focusItemRef.current.index}`
+      itemRefs.current.get(key)?.focus()
+      focusItemRef.current = null
     }
   })
+
+  // 用于根据技能文字实际行数调整输入框高度。
+  useLayoutEffect(() => {
+    itemRefs.current.forEach((element) => {
+      element.style.height = 'auto'
+      element.style.height = `${element.scrollHeight + 2}px`
+    })
+  }, [skillGroups])
 
   // 用于处理commit。
   const commit = (next: SkillGroup[]) => {
@@ -64,9 +71,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
 
   // 用于新增分组。
   const addGroup = () => {
-    const existing = new Set(skillGroups.map(g => g.category))
-    const nextCategory = defaultCategories.find(c => !existing.has(c)) || t('newCategory')
-    commit([...skillGroups, createEmptyGroup(nextCategory)])
+    commit([...skillGroups, createEmptyGroup()])
   }
 
   // 用于删除分组。
@@ -85,7 +90,7 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
       g.id === groupId ? { ...g, items: [...g.items, ''] } : g
     ))
     const target = next.find(g => g.id === groupId)
-    if (target) focusChipRef.current = { groupId, index: target.items.length - 1 }
+    if (target) focusItemRef.current = { groupId, index: target.items.length - 1 }
     commit(next)
   }
 
@@ -133,67 +138,60 @@ export default function SkillsEditor({ data, onChange }: SkillsEditorProps) {
           key={group.id}
           className="group/cat rounded-lg border border-gray-200 bg-white p-3 hover:border-gray-300 transition-colors"
         >
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <input
               type="text"
               value={group.category}
               onChange={(e) => updateCategory(group.id!, e.target.value)}
               placeholder={t('categoryPlaceholder')}
-              className="text-sm font-semibold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none px-1 py-0.5 rounded hover:bg-gray-50 focus:bg-gray-50 w-auto min-w-[80px]"
-              style={{ width: `${Math.max(group.category.length, 4) + 2}ch` }}
+              className="min-w-0 flex-1 rounded border-0 bg-transparent px-1 py-0.5 text-sm font-semibold text-gray-900 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus:ring-0"
             />
+            <button
+              type="button"
+              onClick={() => removeGroup(group.id!)}
+              className="p-1 text-gray-400 transition-colors hover:text-red-600"
+              title={t('deleteCategory')}
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
+          </div>
 
+          <div className="mt-2 space-y-2">
             {group.items.map((item, idx) => {
               const key = `${group.id}-${idx}`
               return (
-                <span
-                  key={key}
-                  className="group/chip relative inline-flex items-center justify-center rounded-full border border-gray-200 hover:border-gray-300 transition-colors px-2.5 py-1"
-                >
-                  <input
-                    ref={(el) => { chipRefs.current.set(key, el) }}
-                    type="text"
+                <div key={key} className="flex items-start gap-2">
+                  <textarea
+                    ref={(element) => {
+                      if (element) itemRefs.current.set(key, element)
+                      else itemRefs.current.delete(key)
+                    }}
                     value={item}
                     onChange={(e) => updateItem(group.id!, idx, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addItem(group.id!)
-                      } else if (e.key === 'Backspace' && item === '') {
-                        e.preventDefault()
-                        removeItem(group.id!, idx)
-                      }
-                    }}
                     placeholder={t('skillPlaceholder')}
-                    className="bg-transparent border-0 focus:ring-0 focus:outline-none text-xs text-gray-800 p-0 text-center"
-                    style={{ width: `${Math.max(item.length, 2) + 1}ch` }}
+                    rows={2}
+                    className="min-h-[56px] min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-gray-300 px-3 py-2 text-sm leading-relaxed text-gray-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                   <button
+                    type="button"
                     onClick={() => removeItem(group.id!, idx)}
-                    className="absolute -top-1.5 -right-1.5 bg-white border border-gray-200 rounded-full p-0.5 text-gray-400 hover:text-red-600 opacity-0 group-hover/chip:opacity-100 transition-opacity shadow-sm"
+                    className="mt-2 p-1 text-gray-400 transition-colors hover:text-red-600"
                     title={t('delete')}
                   >
-                    <TrashIcon className="w-3 h-3" />
+                    <TrashIcon className="h-4 w-4" />
                   </button>
-                </span>
+                </div>
               )
             })}
-
             <button
+              type="button"
               onClick={() => addItem(group.id!)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 hover:border-primary-400 hover:text-primary-600 px-3 py-1 text-xs text-gray-500 transition-colors"
+              className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-300 px-3 py-1 text-xs text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600"
             >
               <PlusIcon className="w-3 h-3" />
               <span>{t('addItem')}</span>
             </button>
 
-            <button
-              onClick={() => removeGroup(group.id!)}
-              className="ml-auto text-gray-300 hover:text-red-600 opacity-0 group-hover/cat:opacity-100 transition-opacity p-1"
-              title={t('deleteCategory')}
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
           </div>
         </div>
       ))}
