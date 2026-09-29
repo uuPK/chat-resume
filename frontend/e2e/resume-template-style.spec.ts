@@ -13,7 +13,7 @@ test.describe('简历模板样式', () => {
       content: {
         personal_info: { name: '长简历测试' },
         summary: { text: '负责系统开发与性能优化。'.repeat(300) },
-        skills: [{ category: '', items: ['Python、TypeScript、检索系统'] }],
+        skills: [{ items: ['Python、TypeScript、检索系统'] }],
         education: [],
         work_experience: [],
         projects: [],

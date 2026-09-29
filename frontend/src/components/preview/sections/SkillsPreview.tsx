@@ -49,7 +49,7 @@ export default function SkillsPreview({ data, renderLines, templateStyle = 'clas
         const isFormal = templateStyle === 'formal'
         const isEmerald = templateStyle === 'emerald'
         const items = (group.items || []).filter(item => item.trim())
-        const category = group.category.trim()
+        const category = (group.category || '').trim()
         return shouldRenderLine(lineIndex) ? (
           isFormal || isEmerald ? (
             <ul
