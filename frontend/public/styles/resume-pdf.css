@@ -1,0 +1,55 @@
+/* PDF 使用屏幕预览的字体和配色，只调整纸张尺寸与分页容器。 */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: white !important;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+main,
+main > div,
+#resume-preview-content,
+#resume-pages-viewport {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+#resume-preview-content,
+#resume-pages-viewport {
+  display: block !important;
+  width: 816px !important;
+}
+
+#resume-export-content {
+  display: block !important;
+  width: 816px !important;
+  margin: 0 !important;
+  transform: none !important;
+  /* 210mm 的 A4 宽度约为 793.7 CSS px，按比例缩放 816px 预览页。 */
+  zoom: 97.2672%;
+}
+
+#resume-export-content .resume-page {
+  display: block !important;
+  width: 816px !important;
+  height: 1154px !important;
+  min-height: 1154px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  break-after: page;
+  page-break-after: always;
+  transition: none !important;
+}
+
+#resume-export-content .resume-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}

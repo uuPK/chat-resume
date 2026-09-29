@@ -318,7 +318,7 @@ export default function PaginatedResumePreview({
 
       {/* 分页显示 */}
       {!isCalculating && pages.length > 0 && (
-        <div className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar relative">
+        <div id="resume-pages-viewport" className="flex-1 w-full overflow-x-hidden overflow-y-auto hide-scrollbar relative">
           <div className="w-full flex justify-center">
             <div
               id="resume-export-content"

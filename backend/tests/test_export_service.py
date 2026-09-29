@@ -7,11 +7,10 @@ PDF 导出服务测试模块
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import sys
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import urlparse
 
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
@@ -60,27 +59,19 @@ def _sample_resume_content() -> dict:
     }
 
 
-def _decode_print_payload(print_url: str) -> dict:
-    """用于把打印页 URL 里的 base64 载荷还原成可断言的字典。"""
-    parsed = urlparse(print_url)
-    query = parse_qs(parsed.query)
-    encoded = unquote(query["data"][0])
-    raw = base64.urlsafe_b64decode(encoded.encode("utf-8")).decode("utf-8")
-    return json.loads(raw)
-
-
 def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
-    """用于验证 PDF 导出会把前端打印页 URL 交给 Playwright。"""
+    """用于验证 PDF 导出把内容注入无查询参数的前端打印页。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
     monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
 
-    async def _capture_print_url(self, print_url: str, filepath: str) -> None:
-        """用于捕获传给 Playwright 的打印页 URL，避免真实启动浏览器。"""
+    async def _capture_print_url(self, print_url: str, filepath: str, payload: dict) -> None:
+        """用于捕获打印页地址和浏览器注入载荷。"""
         del self
         captured["print_url"] = print_url
         captured["filepath"] = filepath
+        captured["payload"] = payload
         Path(filepath).write_bytes(b"%PDF-test")
 
     monkeypatch.setattr(
@@ -91,8 +82,7 @@ def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
 
     filepath = asyncio.run(export_service.export_to_pdf(_sample_resume_content()))
     exported = Path(filepath)
-    parsed = urlparse(captured["print_url"])
-    query = parse_qs(parsed.query)
+    parsed = urlparse(str(captured["print_url"]))
 
     assert exported.exists()
     assert exported.suffix == ".pdf"
@@ -101,16 +91,29 @@ def test_export_to_pdf_uses_frontend_print_page(tmp_path, monkeypatch):
     assert parsed.scheme == "https"
     assert parsed.netloc == "frontend.example.com"
     assert parsed.path == "/resume/print"
-    assert "data" in query
-    assert query["data"][0]
+    assert parsed.query == ""
+    assert captured["payload"] == {
+        "content": _sample_resume_content(),
+        "template": "default",
+        "layoutConfig": None,
+    }
 
 
-def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeypatch):
-    """用于验证打印页 URL 会完整携带模板名和中文简历内容。"""
+def test_export_to_pdf_preserves_template_and_chinese_payload(tmp_path, monkeypatch):
+    """用于验证浏览器注入载荷保留模板、布局和中文内容。"""
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
     monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
+    captured: dict[str, object] = {}
 
-    print_url = export_service._build_frontend_print_url(
+    async def _capture_render(self, print_url: str, filepath: str, payload: dict) -> None:
+        """用于捕获浏览器渲染参数。"""
+        del self
+        captured.update({"url": print_url, "payload": payload})
+        Path(filepath).write_bytes(b"%PDF-test")
+
+    monkeypatch.setattr(ExportService, "_render_pdf_with_playwright", _capture_render)
+    asyncio.run(export_service.export_to_pdf(
         _sample_resume_content(),
         template="compact",
         layout_config={
@@ -118,13 +121,11 @@ def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeyp
             "visibleModules": ["personal", "skills"],
             "spacingScale": 0.5,
         },
-    )
-    parsed = urlparse(print_url)
-    payload = _decode_print_payload(print_url)
+    ))
+    payload = captured["payload"]
 
-    assert parsed.scheme == "https"
-    assert parsed.netloc == "frontend.example.com"
-    assert parsed.path == "/resume/print"
+    assert captured["url"] == "https://frontend.example.com/resume/print"
+    assert isinstance(payload, dict)
     assert payload["template"] == "compact"
     assert payload["layoutConfig"] == {
         "moduleOrder": ["personal", "skills"],
@@ -140,12 +141,29 @@ def test_build_frontend_print_url_preserves_template_and_chinese_payload(monkeyp
 
 def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkeypatch):
     """用于验证 Playwright 渲染时会使用正确的页面参数和 PDF 选项。"""
+    monkeypatch.setattr(settings, "FRONTEND_URL", "https://frontend.example.com")
     export_service = ExportService()
     captured: dict[str, object] = {}
     output_path = tmp_path / "resume.pdf"
 
     class FakePage:
         """用于记录页面导航和导出参数。"""
+
+        async def add_init_script(self, script: str) -> None:
+            """用于记录注入的简历数据。"""
+            captured["script"] = script
+
+        async def wait_for_selector(self, selector: str) -> None:
+            """用于记录打印页面已出现。"""
+            captured["selector"] = selector
+
+        async def add_style_tag(self, url: str) -> None:
+            """用于记录 PDF 专用分页样式。"""
+            captured["style_url"] = url
+
+        async def evaluate(self, expression: str) -> None:
+            """用于记录字体加载等待。"""
+            captured["evaluate"] = expression
 
         async def goto(self, url: str, wait_until: str) -> None:
             """用于处理goto。"""
@@ -208,18 +226,23 @@ def test_render_pdf_with_playwright_uses_expected_page_settings(tmp_path, monkey
 
     asyncio.run(
         export_service._render_pdf_with_playwright(
-            "https://frontend.example.com/resume/print?data=abc",
+            "https://frontend.example.com/resume/print",
             str(output_path),
+            {"content": _sample_resume_content(), "template": "classic"},
         )
     )
 
     assert captured["launch"] == {"headless": True}
     assert captured["viewport"] == {"width": 1280, "height": 1810}
     assert captured["goto"] == {
-        "url": "https://frontend.example.com/resume/print?data=abc",
+        "url": "https://frontend.example.com/resume/print",
         "wait_until": "networkidle",
     }
-    assert captured["media"] == "print"
+    assert captured["media"] == "screen"
+    injected_payload = json.loads(str(captured["script"]).split(" = ", 1)[1].rstrip(";"))
+    assert injected_payload["content"]["personal_info"]["name"] == "张三"
+    assert captured["style_url"] == "https://frontend.example.com/styles/resume-pdf.css"
+    assert captured["selector"] == "#resume-export-content .resume-page"
     assert captured["pdf"] == {
         "path": str(output_path),
         "format": "A4",
@@ -239,9 +262,9 @@ def test_export_to_pdf_falls_back_to_reportlab_when_playwright_is_unavailable(
     export_service = ExportService()
     captured: dict[str, str] = {}
 
-    async def _raise_render_error(self, print_url: str, filepath: str) -> None:
+    async def _raise_render_error(self, print_url: str, filepath: str, payload: dict) -> None:
         """用于模拟 Playwright 启动失败的异常分支。"""
-        del self, print_url, filepath
+        del self, print_url, filepath, payload
         raise export_service_module.PlaywrightError("Executable doesn't exist")
 
     def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
@@ -276,9 +299,9 @@ def test_export_to_pdf_falls_back_to_reportlab_when_print_page_times_out(
     export_service = ExportService()
     captured: dict[str, str] = {}
 
-    async def _raise_timeout(self, print_url: str, filepath: str) -> None:
+    async def _raise_timeout(self, print_url: str, filepath: str, payload: dict) -> None:
         """用于模拟前端打印页加载超时。"""
-        del self, print_url, filepath
+        del self, print_url, filepath, payload
         raise PlaywrightTimeoutError("Timeout 30000ms exceeded")
 
     def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
@@ -306,11 +329,11 @@ def test_export_to_pdf_falls_back_to_reportlab_when_print_page_times_out(
     assert captured["name"] == "张三"
 
 
-def test_export_to_pdf_uses_reportlab_when_print_url_is_too_large(
+def test_export_to_pdf_keeps_large_resume_in_browser_preview(
     tmp_path,
     monkeypatch,
 ):
-    """用于验证超长打印页地址会直接走 ReportLab 兜底。"""
+    """用于验证长简历仍由前端预览组件渲染 PDF。"""
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
     export_service = ExportService()
     large_content = _sample_resume_content()
@@ -320,36 +343,28 @@ def test_export_to_pdf_uses_reportlab_when_print_url_is_too_large(
             "summary": "负责复杂系统。" * 5000,
         }
     ]
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
 
-    async def _fail_frontend_render(self, print_url: str, filepath: str) -> None:
-        """用于确保超长 URL 不再进入前端打印页渲染。"""
-        del self, print_url, filepath
-        raise AssertionError("超长 URL 不应进入前端打印页渲染")
-
-    def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:
-        """用于捕获超长简历的 ReportLab 兜底渲染。"""
+    async def _capture_frontend_render(self, print_url: str, filepath: str, payload: dict) -> None:
+        """用于捕获超长简历的浏览器注入数据。"""
         del self
-        captured["project_name"] = resume_content["projects"][0]["name"]
-        captured["filepath"] = filepath
-        Path(filepath).write_bytes(b"%PDF-large-fallback")
+        captured.update({"url": print_url, "payload": payload})
+        Path(filepath).write_bytes(b"%PDF-large-browser")
 
     monkeypatch.setattr(
         ExportService,
         "_render_pdf_with_playwright",
-        _fail_frontend_render,
-    )
-    monkeypatch.setattr(
-        ExportService,
-        "_render_resume_pdf_with_reportlab",
-        _capture_reportlab_render,
+        _capture_frontend_render,
     )
 
     filepath = asyncio.run(export_service.export_to_pdf(large_content))
 
-    assert Path(filepath).read_bytes() == b"%PDF-large-fallback"
-    assert captured["filepath"] == filepath
-    assert captured["project_name"] == "超长项目"
+    assert Path(filepath).read_bytes() == b"%PDF-large-browser"
+    assert isinstance(captured["url"], str)
+    assert captured["url"].endswith("/resume/print")
+    assert len(captured["url"]) < 100
+    assert isinstance(captured["payload"], dict)
+    assert captured["payload"]["content"]["projects"][0]["summary"] == "负责复杂系统。" * 5000
 
 
 def test_export_to_pdf_uses_reportlab_for_selector_event_loop(tmp_path, monkeypatch):
@@ -358,9 +373,9 @@ def test_export_to_pdf_uses_reportlab_for_selector_event_loop(tmp_path, monkeypa
     export_service = ExportService()
     captured: dict[str, str] = {}
 
-    async def _fail_frontend_render(self, print_url: str, filepath: str) -> None:
+    async def _fail_frontend_render(self, print_url: str, filepath: str, payload: dict) -> None:
         """用于确保 Selector 事件循环不会尝试启动浏览器。"""
-        del self, print_url, filepath
+        del self, print_url, filepath, payload
         raise AssertionError("Selector 事件循环不应启动 Playwright")
 
     def _capture_reportlab_render(self, resume_content: dict, filepath: str) -> None:

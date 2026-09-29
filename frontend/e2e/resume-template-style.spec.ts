@@ -7,6 +7,35 @@ function encodePrintPayload(payload: Record<string, unknown>) {
 }
 
 test.describe('简历模板样式', () => {
+  test('PDF 导出注入长简历后保留预览样式', async ({ page }) => {
+    const payload = {
+      template: 'classic',
+      content: {
+        personal_info: { name: '长简历测试' },
+        summary: { text: '负责系统开发与性能优化。'.repeat(300) },
+        skills: [{ category: '', items: ['Python、TypeScript、检索系统'] }],
+        education: [],
+        work_experience: [],
+        projects: [],
+      },
+    }
+    await page.addInitScript((value) => {
+      (window as Window & { __RESUME_PRINT_PAYLOAD__?: typeof value }).__RESUME_PRINT_PAYLOAD__ = value
+    }, payload)
+    await page.goto('/resume/print')
+
+    const pages = page.locator('#resume-export-content .resume-page')
+    await expect.poll(async () => pages.count()).toBeGreaterThan(1)
+    await expect(pages.first()).toContainText('长简历测试')
+    expect(page.url()).not.toContain('?data=')
+
+    const skill = page.locator('#resume-export-content [data-section-id="skills-section"] [data-line-index="1"] span').first()
+    const backgroundBefore = await skill.evaluate((element) => getComputedStyle(element).backgroundColor)
+    await page.addStyleTag({ url: '/styles/resume-pdf.css' })
+    await expect(skill).toHaveCSS('background-color', backgroundBefore)
+    await expect.poll(async () => pages.count()).toBeGreaterThan(1)
+  })
+
   test('打印页不触发登录态刷新', async ({ page }) => {
     const authRequests: string[] = []
     const payload = encodePrintPayload({

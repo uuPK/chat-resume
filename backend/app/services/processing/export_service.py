@@ -6,7 +6,6 @@
 """
 
 import asyncio
-import base64
 import json
 import logging
 import os
@@ -14,7 +13,6 @@ import sys
 import uuid
 from html import escape
 from typing import Any, Dict
-from urllib.parse import quote
 
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -32,7 +30,6 @@ from app.infra.config import settings
 from app.infra.security import create_download_token
 
 logger = logging.getLogger(__name__)
-MAX_FRONTEND_PRINT_URL_CHARS = 8000
 
 
 class ExportService:
@@ -52,22 +49,12 @@ class ExportService:
         """使用前端打印页导出与预览一致的简历 PDF。"""
         filename = f"resume_{uuid.uuid4().hex}.pdf"
         filepath = os.path.join(self.export_dir, filename)
-        print_url = self._build_frontend_print_url(
-            resume_content,
-            template,
-            layout_config,
-        )
-        if len(print_url) > MAX_FRONTEND_PRINT_URL_CHARS:
-            logger.warning(
-                "pdf_export.frontend_print_url_too_large_reportlab_fallback",
-                extra={
-                    "template": template,
-                    "print_url_length": len(print_url),
-                    "max_print_url_length": MAX_FRONTEND_PRINT_URL_CHARS,
-                },
-            )
-            self._render_resume_pdf_with_reportlab(resume_content, filepath)
-            return filepath
+        print_url = f"{settings.FRONTEND_URL.rstrip('/')}/resume/print"
+        print_payload = {
+            "content": resume_content,
+            "template": template,
+            "layoutConfig": layout_config,
+        }
 
         if self._requires_reportlab_pdf_fallback():
             logger.warning(
@@ -78,7 +65,7 @@ class ExportService:
             return filepath
 
         try:
-            await self._render_pdf_with_playwright(print_url, filepath)
+            await self._render_pdf_with_playwright(print_url, filepath, print_payload)
         except (
             PlaywrightTimeoutError,
             PlaywrightError,
@@ -89,7 +76,6 @@ class ExportService:
                 "pdf_export.playwright_reportlab_fallback",
                 extra={
                     "template": template,
-                    "print_url_length": len(print_url),
                     "content_bytes": len(
                         json.dumps(resume_content, ensure_ascii=False).encode("utf-8")
                     ),
@@ -495,15 +481,33 @@ class ExportService:
 </html>
 """
 
-    async def _render_pdf_with_playwright(self, print_url: str, filepath: str) -> None:
+    async def _render_pdf_with_playwright(
+        self, print_url: str, filepath: str, payload: Dict[str, Any]
+    ) -> None:
         """使用 Playwright 打开前端打印页并输出 PDF。"""
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
             try:
                 page = await browser.new_page(viewport={"width": 1280, "height": 1810})
+                await page.add_init_script(
+                    script=f"window.__RESUME_PRINT_PAYLOAD__ = {json.dumps(payload, ensure_ascii=True)};"
+                )
+                await page.emulate_media(media="screen")
                 await page.goto(print_url, wait_until="networkidle")
-                await page.emulate_media(media="print")
+                await page.wait_for_selector("#resume-export-content .resume-page")
+                await page.add_style_tag(
+                    url=f"{settings.FRONTEND_URL.rstrip('/')}/styles/resume-pdf.css"
+                )
+                await page.evaluate(
+                    """async () => {
+                        await document.fonts.ready;
+                        await new Promise(resolve => requestAnimationFrame(
+                            () => requestAnimationFrame(resolve)
+                        ));
+                    }"""
+                )
+                await page.wait_for_selector("#resume-export-content .resume-page")
                 await page.pdf(
                     path=filepath,
                     format="A4",
@@ -530,26 +534,6 @@ class ExportService:
                 )
             finally:
                 await browser.close()
-
-    def _build_frontend_print_url(
-        self,
-        resume_content: Dict[str, Any],
-        template: str,
-        layout_config: Dict[str, Any] | None = None,
-    ) -> str:
-        """构建前端打印页地址。"""
-
-        payload = {
-            "content": resume_content,
-            "template": template,
-            "layoutConfig": layout_config,
-        }
-        encoded = base64.urlsafe_b64encode(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
-                "utf-8"
-            )
-        ).decode("utf-8")
-        return f"{settings.FRONTEND_URL.rstrip('/')}/resume/print?data={quote(encoded)}"
 
     def _build_html_content(self, resume_content: Dict[str, Any]) -> str:
         """构建基础HTML导出内容。"""
